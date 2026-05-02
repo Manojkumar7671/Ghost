@@ -1,58 +1,31 @@
-const Database = require("better-sqlite3");
+const fs = require("fs");
 const path = require("path");
 
-const DB_PATH = process.env.RENDER ? "/tmp/ghost_memory.db" : path.join(process.env.HOME, "ghost_memory.db");
+const DB_PATH = "/tmp/ghost_memory.json";
 
 class MemoryAgent {
   constructor() {
-    this.db = new Database(DB_PATH);
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS memory (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        key TEXT UNIQUE,
-        value TEXT,
-        created_at INTEGER DEFAULT (strftime('%s','now'))
-      );
-      CREATE TABLE IF NOT EXISTS history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        role TEXT,
-        content TEXT,
-        created_at INTEGER DEFAULT (strftime('%s','now'))
-      );
-    `);
+    this.data = { memory: {}, history: [] };
+    if (fs.existsSync(DB_PATH)) {
+      try { this.data = JSON.parse(fs.readFileSync(DB_PATH, "utf-8")); } catch {}
+    }
   }
 
-  set(key, value) {
-    this.db.prepare("INSERT OR REPLACE INTO memory (key, value) VALUES (?, ?)").run(key, JSON.stringify(value));
-    return { success: true };
-  }
+  save() { fs.writeFileSync(DB_PATH, JSON.stringify(this.data)); }
 
-  get(key) {
-    const row = this.db.prepare("SELECT value FROM memory WHERE key = ?").get(key);
-    return row ? JSON.parse(row.value) : null;
-  }
-
-  delete(key) {
-    this.db.prepare("DELETE FROM memory WHERE key = ?").run(key);
-    return { success: true };
-  }
-
-  list() {
-    return this.db.prepare("SELECT key, value FROM memory").all().map(r => ({ key: r.key, value: JSON.parse(r.value) }));
-  }
+  set(key, value) { this.data.memory[key] = value; this.save(); return { success: true }; }
+  get(key) { return this.data.memory[key] || null; }
+  delete(key) { delete this.data.memory[key]; this.save(); return { success: true }; }
+  list() { return Object.entries(this.data.memory).map(([key, value]) => ({ key, value })); }
 
   addHistory(role, content) {
-    this.db.prepare("INSERT INTO history (role, content) VALUES (?, ?)").run(role, content);
+    this.data.history.push({ role, content });
+    if (this.data.history.length > 100) this.data.history = this.data.history.slice(-100);
+    this.save();
   }
 
-  getHistory(limit = 20) {
-    return this.db.prepare("SELECT role, content FROM history ORDER BY id DESC LIMIT ?").all(limit).reverse();
-  }
-
-  clearHistory() {
-    this.db.prepare("DELETE FROM history").run();
-    return { success: true };
-  }
+  getHistory(limit = 20) { return this.data.history.slice(-limit); }
+  clearHistory() { this.data.history = []; this.save(); return { success: true }; }
 
   async run(task) {
     const lower = task.toLowerCase();
@@ -64,11 +37,11 @@ class MemoryAgent {
       const all = this.list();
       return { result: all.length ? JSON.stringify(all) : "No memories stored." };
     }
-    if (lower.includes("forget") || lower.includes("clear memory")) {
-      this.db.prepare("DELETE FROM memory").run();
+    if (lower.includes("forget") || lower.includes("clear")) {
+      this.data.memory = {}; this.save();
       return { result: "Memory cleared." };
     }
-    return { result: "Memory agent ready. Use: remember/save/list memory/forget." };
+    return { result: "Memory agent ready." };
   }
 }
 
