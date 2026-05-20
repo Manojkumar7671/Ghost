@@ -3,6 +3,18 @@
     "agent": "worker:heartbeat",
     "action": "ping",
     "result": "alive",
+    "ts": "2026-05-20T03:19:28.421Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "20 min",
+    "result": "",
+    "ts": "2026-05-20T03:19:28.418Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
     "ts": "2026-05-20T03:14:28.418Z"
   },
   {
@@ -1786,17 +1798,5 @@
     "action": "can you control agents",
     "result": "Sir, I can be used to control or orchestrate other agents or skills. For example, if you'd like me t",
     "ts": "2026-05-19T08:43:23.873Z"
-  },
-  {
-    "agent": "router",
-    "action": "can you control agents",
-    "result": "llama-3.3-70b-versatile(default)",
-    "ts": "2026-05-19T08:43:22.651Z"
-  },
-  {
-    "agent": "ghost",
-    "action": "asic\n\nhi — simple response test\n\nSkills\n\nmy ip — hacking skill\ndns lookup google",
-    "result": "Sir, I'm ready to assist you. You've listed various skills and tasks. To confirm, you'd like me to d",
-    "ts": "2026-05-19T08:43:06.842Z"
   }
 ]

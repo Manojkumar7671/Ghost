@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost — Login</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#080809;color:#e8e8f0;font-family:'IBM Plex Mono',monospace;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+.card{width:100%;max-width:400px;background:#0f0f12;border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:40px 32px;}
+.logo{font-size:32px;font-weight:600;color:#00d4ff;letter-spacing:3px;text-align:center;margin-bottom:8px;text-shadow:0 0 40px rgba(0,212,255,0.3);}
+.sub{font-size:10px;color:#4a4a5e;text-align:center;letter-spacing:2px;margin-bottom:36px;}
+.field{margin-bottom:16px;}
+label{display:block;font-size:9px;color:#4a4a5e;letter-spacing:2px;margin-bottom:6px;}
+input{width:100%;background:#17171d;border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:12px 14px;color:#e8e8f0;font-family:'IBM Plex Mono',monospace;font-size:13px;outline:none;}
+input:focus{border-color:rgba(0,212,255,0.3);}
+.btn{width:100%;background:#00d4ff;border:none;border-radius:6px;padding:13px;color:#080809;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:2px;margin-top:8px;}
+.btn:hover{background:#00eeff;}
+.btn:disabled{background:#1e1e26;color:#4a4a5e;cursor:not-allowed;}
+.error{color:#ff4466;font-size:11px;text-align:center;margin-top:12px;min-height:16px;}
+.dot{width:6px;height:6px;border-radius:50%;background:#00d4ff;box-shadow:0 0 8px #00d4ff;display:inline-block;margin-right:8px;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo"><span class="dot"></span>GHOST</div>
+  <div class="sub">AUTONOMOUS · SELF-LEARNING · v9</div>
+  <div class="field"><label>USERNAME</label><input id="username" type="text" placeholder="enter username" autocomplete="username"></div>
+  <div class="field"><label>PASSWORD</label><input id="password" type="password" placeholder="enter password" autocomplete="current-password"></div>
+  <button class="btn" id="loginBtn" onclick="doLogin()">ACCESS GHOST</button>
+  <div class="error" id="errMsg"></div>
+</div>
+<script>
+document.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+if (localStorage.getItem('ghost_token')) window.location.href = '/ghost.html';
+
+async function doLogin() {
+  const btn = document.getElementById('loginBtn');
+  const err = document.getElementById('errMsg');
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  if (!username || !password) { err.textContent = 'Enter username and password.'; return; }
+  btn.disabled = true; btn.textContent = 'AUTHENTICATING...'; err.textContent = '';
+  try {
+    const res = await fetch('/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
+    const data = await res.json();
+    if (data.token) { localStorage.setItem('ghost_token', data.token); localStorage.setItem('ghost_user', username); window.location.href = '/ghost.html'; }
+    else { err.textContent = data.error || 'Invalid credentials.'; btn.disabled = false; btn.textContent = 'ACCESS GHOST'; }
+  } catch { err.textContent = 'Connection error.'; btn.disabled = false; btn.textContent = 'ACCESS GHOST'; }
+}
+</script>
+</body>
+</html>

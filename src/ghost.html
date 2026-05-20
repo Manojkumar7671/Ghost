@@ -91,14 +91,29 @@ textarea::placeholder{color:var(--dim);}
 .input-actions{display:flex;gap:8px;}
 .input-action-btn{font-family:var(--mono);font-size:9px;color:var(--dim);cursor:pointer;padding:2px 6px;border-radius:3px;border:none;background:none;}
 .input-action-btn:hover{color:var(--text);background:var(--bg3);}
+
+@media(max-width:640px){
+  :root{--sidebar:0px;}
+  .sidebar{display:none;}
+  .sidebar.open{display:flex;position:fixed;left:0;top:var(--topbar);bottom:0;width:240px;z-index:100;background:var(--bg2);}
+  .topbar{padding:0 12px;gap:8px;}
+  .chat-inner{padding:0 12px;}
+  .input-area{padding:8px 10px 12px;}
+  .welcome-ghost{font-size:32px;}
+  .welcome-hints{grid-template-columns:1fr;}
+  .msg-bubble{font-size:12px;padding:10px 12px;}
+  .welcome{padding:30px 0;}
+}
 </style>
 </head>
 <body>
 <div class="topbar">
-  <div class="logo"><div class="logo-dot"></div>GHOST</div>
+  <button onclick="document.querySelector('.sidebar').classList.toggle('open')" style="background:none;border:none;color:var(--dim2);cursor:pointer;font-size:18px;display:none;" id="menuBtn">☰</button><div class="logo"><div class="logo-dot"></div>GHOST</div>
   <div class="model-pill" id="modelPill">multi-llm</div>
   <div class="topbar-spacer"></div>
   <div class="status-badge"><div class="status-dot"></div><span id="statusText">ONLINE</span></div>
+<span id="userLabel" style="font-family:var(--mono);font-size:10px;color:var(--dim2);"></span>
+<button onclick="logout()" style="font-family:var(--mono);font-size:9px;color:var(--dim);background:none;border:1px solid var(--border);border-radius:4px;padding:3px 8px;cursor:pointer;">LOGOUT</button>
 </div>
 <div class="layout">
   <div class="sidebar">
@@ -179,6 +194,11 @@ textarea::placeholder{color:var(--dim);}
   </div>
 </div>
 <script>
+const ghost_token = localStorage.getItem('ghost_token');
+const ghost_user = localStorage.getItem('ghost_user');
+if (!ghost_token) window.location.href = '/login.html';
+document.getElementById('userLabel').textContent = ghost_user || '';
+function logout() { localStorage.removeItem('ghost_token'); localStorage.removeItem('ghost_user'); window.location.href = '/login.html'; }
 let isThinking = false;
 let voiceMode = false;
 let recognition = null;
@@ -238,7 +258,7 @@ async function sendMessage() {
   const thinkEl = addThinking();
   document.getElementById('statusText').textContent = 'THINKING';
   try {
-    const res = await fetch('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }) });
+    const res = await fetch('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, headers: { 'Content-Type': 'application/json', 'x-auth-token': ghost_token }, body: JSON.stringify({ message: text }) });
     const data = await res.json();
     thinkEl.remove();
     const reply = data.reply || data.response || data.message || JSON.stringify(data);
@@ -348,6 +368,7 @@ function toggleVoice() {
   setTimeout(() => { if (recognition) recognition.stop(); }, 8000);
 }
 
+if(window.innerWidth<=640) document.getElementById('menuBtn').style.display='block';
 input.focus();
 loadSkills();
 loadSonaStats();
