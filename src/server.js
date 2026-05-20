@@ -1,73 +1,86 @@
-const express = require("express");
-const cors = require("cors");
-const Groq = require("groq-sdk");
+const SYSTEM_PROMPT = `You are Ghost, personal AI for Manoj. He is a 21yo CS student in Mangalagiri, graduating 2026. He is job hunting for remote roles (APM, Founders Associate, Operations). His project is Ghost itself. Financial target 20L/month. He is NOT a CEO. No food delivery, no ecommerce. Address him as sir. No emojis. No invented context.`;
+const express = require('express');
+const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
+const Groq = require('groq-sdk');
+const { route, MODELS } = require('./router');
+const vec = require('./vector_memory');
+const sona = require('./memory_learn');
 const OrchestratorAgent = require("./agents/orchestrator");
-const MemoryAgent = require("./agents/memoryAgent");
-
+const { startWorkers } = require('./workers');
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: "20mb" }));
-
+app.use(express.json({ limit: '10mb' }));
+app.use(express.static(path.join(__dirname)));
+app.get('/ghost.html',(req,res)=>res.sendFile(path.join(__dirname,'ghost.html')));
+app.get('/',(req,res)=>res.sendFile(path.join(__dirname,'ghost.html')));
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-const orchestrator = new OrchestratorAgent();
-const memory = new MemoryAgent();
-
-app.get("/", (req, res) => {
-  res.json({ status: "Ghost is alive", version: "4.0", mode: "autonomous" });
-});
-
-app.post("/chat", async (req, res) => {
-  const { message, use_history = true } = req.body;
-  if (!message) return res.status(400).json({ error: "No message" });
-  try {
-    const history = use_history ? memory.getHistory(20) : [];
-    const messages = [
-      { role: "system", content: "You are Ghost, a powerful autonomous AI. Be direct and effective." },
-      ...history,
-      { role: "user", content: message },
-    ];
-    const r = await groq.chat.completions.create({ model: "llama-3.3-70b-versatile", messages });
-    const reply = r.choices[0].message.content;
-    memory.addHistory("user", message);
-    memory.addHistory("assistant", reply);
-    res.json({ reply });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post("/agent", async (req, res) => {
-  const { task } = req.body;
-  if (!task) return res.status(400).json({ error: "No task" });
-  try {
-    const result = await orchestrator.run(task);
-    res.json(result);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post("/agent/create", async (req, res) => {
-  const { name, instructions } = req.body;
-  if (!name || !instructions) return res.status(400).json({ error: "name and instructions required" });
-  try {
-    const result = await orchestrator.createAgent(name, instructions);
-    res.json(result);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get("/agents", (req, res) => {
-  res.json({ agents: Object.keys(orchestrator.agents), custom: orchestrator.agentRegistry });
-});
-
-app.get("/memory", (req, res) => {
-  res.json({ memories: memory.list(), history: memory.getHistory(20) });
-});
-app.post("/memory", (req, res) => {
-  const { key, value } = req.body;
-  if (!key || value === undefined) return res.status(400).json({ error: "key and value required" });
-  res.json(memory.set(key, value));
-});
-app.delete("/memory", (req, res) => {
-  memory.clearHistory();
-  res.json({ success: true });
-});
-
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Ghost v4 autonomous running on port ${PORT}`));
+const FALLBACK = 'llama-3.3-70b-versatile';
+const DIR = { memory: path.join(__dirname,'memory'), logs: path.join(__dirname,'logs'), skills: path.join(__dirname,'skills'), canvas: path.join(__dirname,'canvas') };
+Object.values(DIR).forEach(d => fs.mkdirSync(d, { recursive: true }));
+const FILES = { memory: path.join(DIR.memory,'memory.json'), logs: path.join(DIR.logs,'agent_logs.json'), canvas: path.join(DIR.canvas,'canvas.json') };
+function loadMemory() { try { return JSON.parse(fs.readFileSync(FILES.memory,'utf8')); } catch { return { profile:{name:'Manoj'}, facts:[], tasks:[], heartbeat_logs:[] }; } }
+function saveMemory(d) { fs.writeFileSync(FILES.memory, JSON.stringify(d,null,2)); }
+function log(agent, action, result='') { try { let logs=[]; try { logs=JSON.parse(fs.readFileSync(FILES.logs,'utf8')); } catch {} logs.unshift({agent, action:String(action).slice(0,100), result:String(result).slice(0,200), ts:new Date().toISOString()}); fs.writeFileSync(FILES.logs, JSON.stringify(logs.slice(0,300),null,2)); } catch {} }
+let skills = {};
+function loadSkills() { skills={}; if (!fs.existsSync(DIR.skills)) return; const entries=fs.readdirSync(DIR.skills,{withFileTypes:true}); for (const entry of entries) { if (entry.isDirectory()) { const jsPath=path.join(DIR.skills,entry.name,'index.js'); if (fs.existsSync(jsPath)) { try { delete require.cache[require.resolve(jsPath)]; const s=require(jsPath); skills[s.name||entry.name]=s; } catch(e){} } } if (entry.isFile()&&entry.name.endsWith('.js')) { try { const jsPath=path.join(DIR.skills,entry.name); delete require.cache[require.resolve(jsPath)]; const s=require(jsPath); skills[s.name]=s; } catch(e){} } } }
+const sessions = {};
+async function chat(message, sessionId='default', channel='web') {
+  if (!sessions[sessionId]) sessions[sessionId]=[];
+  sessions[sessionId]._lastActive = Date.now();
+  const recalled = sona.recall(message, 3);
+  const recalledBlock = recalled.length ? '\n\nRelevant context:\n'+recalled.map(r=>'- '+r.text).join('\n') : '';
+  const skillList = Object.entries(skills).map(([name,s])=>`- ${name}: ${s.description||''}`).join('\n'); const skillBlock = skillList ? `\n\nAvailable skills (call as JSON only, no extra text):\n${skillList}\n\nFor ANY question about news, jobs, current events, searches, prices, scores, or real-time info — you MUST respond ONLY with: {"skill":"web_search","args":{"query":"..."}}
+For weather — respond ONLY with: {"skill":"weather","args":{"location":"..."}}
+NEVER answer news/jobs/current info from memory — always use web_search skill. ABSOLUTE RULE: If using a skill, output ONLY the raw JSON. Zero words before or after. Not even "Sir". Just: {"skill":"...","args":{...}}\nOtherwise respond normally as Ghost.` : ''; const system = SYSTEM_PROMPT + recalledBlock + skillBlock;
+  // Orchestrator for complex multi-step tasks
+  const isComplex = /(plan|research|find and|analyze|build|execute|investigate|compare|gather|step by step|autonomously)/i.test(message);
+  if (isComplex) {
+    try {
+      const orch = new OrchestratorAgent();
+      const or = await orch.run(message);
+      sessions[sessionId].push({role:'user',content:message});
+      sessions[sessionId].push({role:'assistant',content:or.result});
+      sona.learn(message, or.result, groq).catch(()=>{});
+      log('orchestrator',message.slice(0,60),'loops:'+or.loops);
+      return {reply:or.result, model:'orchestrator', loops:or.loops};
+    } catch(e) { log('orchestrator','failed',e.message); }
+  }
+  const { model: routedModel, reason } = route(message);
+  log('router', message.slice(0,60), routedModel+'('+reason+')');
+  const messages = [...sessions[sessionId].filter(m=>m.role).slice(-8), {role:'user',content:message}];
+  let reply='';
+  try { const res=await groq.chat.completions.create({model:routedModel, messages:[{role:'system',content:system},...messages], max_tokens:1024, temperature:0.3}); reply=res.choices[0].message.content.trim(); }
+  catch { const res=await groq.chat.completions.create({model:FALLBACK, messages:[{role:'system',content:system},...messages], max_tokens:1024, temperature:0.3}); reply=res.choices[0].message.content.trim(); }
+  try { const jMatch = reply.match(/{(?:[^{}]|{[^{}]*})*"skill"(?:[^{}]|{[^{}]*})*}/); const json = jMatch ? JSON.parse(jMatch[0]) : JSON.parse(reply); if (json.skill&&skills[json.skill]) { log(json.skill,message,'dispatched'); const result=await skills[json.skill].run(json.args||{},{groq,memory:loadMemory()}); sessions[sessionId].push({role:'user',content:message}); sessions[sessionId].push({role:'assistant',content:result.text||''}); sona.learn(message,result.text||'',groq).catch(()=>{}); return {reply:result.text||'Done.',skill:json.skill,model:routedModel,...result}; } } catch {}
+  sessions[sessionId].push({role:'user',content:message});
+  sessions[sessionId].push({role:'assistant',content:reply});
+  log('ghost',message.slice(0,80),reply.slice(0,100));
+  sona.learn(message, reply, groq).catch(()=>{});
+  return { reply, model:routedModel, reason };
+}
+async function textToSpeech(text) { const key=process.env.ELEVENLABS_API_KEY; if (!key) return null; const voiceId=process.env.ELEVENLABS_VOICE_ID||'21m00Tcm4TlvDq8ikWAM'; const https=require('https'); return new Promise((resolve)=>{ const body=JSON.stringify({text,model_id:'eleven_monolingual_v1',voice_settings:{stability:0.5,similarity_boost:0.75}}); const req=https.request({hostname:'api.elevenlabs.io',path:`/v1/text-to-speech/${voiceId}`,method:'POST',headers:{'xi-api-key':key,'Content-Type':'application/json','Accept':'audio/mpeg'}},(res)=>{ const chunks=[]; res.on('data',c=>chunks.push(c)); res.on('end',()=>resolve(Buffer.concat(chunks).toString('base64'))); }); req.on('error',()=>resolve(null)); req.write(body); req.end(); }); }
+function loadCanvas() { try { return JSON.parse(fs.readFileSync(FILES.canvas,'utf8')); } catch { return {items:[]}; } }
+function saveCanvas(d) { d.updated=new Date().toISOString(); fs.writeFileSync(FILES.canvas,JSON.stringify(d,null,2)); }
+let telegramBot=null;
+if (process.env.TELEGRAM_TOKEN) { try { const TelegramBot=require('node-telegram-bot-api'); telegramBot=new TelegramBot(process.env.TELEGRAM_TOKEN,{polling:true}); telegramBot.on('message',async(msg)=>{ const chatId=msg.chat.id; const text=msg.text||msg.caption||''; if (!text) return; try { telegramBot.sendChatAction(chatId,'typing'); const r=await chat(text,`tg_${chatId}`,'telegram'); if (r.image_url) { await telegramBot.sendPhoto(chatId,r.image_url,{caption:r.prompt||''}); } else { await telegramBot.sendMessage(chatId,r.reply,{parse_mode:'Markdown'}); } if (r.audio_b64) { const buf=Buffer.from(r.audio_b64,'base64'); await telegramBot.sendVoice(chatId,buf,{},{filename:'ghost.mp3',contentType:'audio/mpeg'}); } } catch(e){ telegramBot.sendMessage(chatId,`Error: ${e.message}`).catch(()=>{}); } }); console.log('[TELEGRAM] Connected'); } catch(e){ console.log('[TELEGRAM] Not loaded:',e.message); } }
+if (process.env.DISCORD_TOKEN) { try { const {Client,GatewayIntentBits}=require('discord.js'); const dc=new Client({intents:[GatewayIntentBits.Guilds,GatewayIntentBits.GuildMessages,GatewayIntentBits.MessageContent]}); dc.on('messageCreate',async(msg)=>{ if (msg.author.bot) return; if (!msg.mentions.has(dc.user)&&msg.channel.type!==1) return; const text=msg.content.replace(/<@!?\d+>/g,'').trim(); if (!text) return; try { await msg.channel.sendTyping(); const r=await chat(text,`dc_${msg.author.id}`,'discord'); if (r.image_url) await msg.reply({content:r.prompt||'Here:',files:[r.image_url]}); else await msg.reply(r.reply.slice(0,2000)); } catch(e){ msg.reply(`Error: ${e.message}`).catch(()=>{}); } }); dc.login(process.env.DISCORD_TOKEN).then(()=>console.log('[DISCORD] Connected')); } catch(e){ console.log('[DISCORD] Not loaded:',e.message); } }
+app.post('/chat', async(req,res)=>{ const {message,session_id='default',voice=false}=req.body; if (!message) return res.status(400).json({error:'message required'}); try { const r=await chat(message,session_id); if (voice&&r.reply) r.audio_b64=await textToSpeech(r.reply); res.json(r); } catch(e){ res.status(500).json({error:e.message}); } });
+app.get('/agents',(req,res)=>res.json({models:MODELS, skills:Object.keys(skills).map(k=>({name:k,description:skills[k].description,status:'active'})), channels:{telegram:!!telegramBot,discord:!!(process.env.DISCORD_TOKEN),web:true}}));
+app.post('/agents/reload',(req,res)=>{ loadSkills(); res.json({skills:Object.keys(skills)}); });
+app.get('/memory',(req,res)=>res.json(loadMemory()));
+app.post('/memory',(req,res)=>{ const m={...loadMemory(),...req.body}; saveMemory(m); res.json(m); });
+app.get('/canvas',(req,res)=>res.json(loadCanvas()));
+app.post('/canvas',(req,res)=>{ const c=loadCanvas(); if (req.body.add) c.items.push({...req.body.add,id:Date.now()}); if (req.body.remove) c.items=c.items.filter(i=>i.id!==req.body.remove); if (req.body.clear) c.items=[]; saveCanvas(c); res.json(c); });
+app.get('/logs',(req,res)=>{ try { res.json(JSON.parse(fs.readFileSync(FILES.logs,'utf8')).slice(0,50)); } catch { res.json([]); } });
+app.post('/skill/:name',async(req,res)=>{ const s=skills[req.params.name]; if (!s) return res.status(404).json({error:'not found'}); try { res.json(await s.run(req.body,{groq,memory:loadMemory()})); } catch(e){ res.status(500).json({error:e.message}); } });
+app.post('/voice/tts',async(req,res)=>{ const a=await textToSpeech(req.body.text||''); if (!a) return res.status(503).json({error:'Set ELEVENLABS_API_KEY'}); res.json({audio_b64:a}); });
+app.get('/memory/search',(req,res)=>{ const {q,k=5}=req.query; if (!q) return res.status(400).json({error:'q required'}); res.json(vec.search(q,parseInt(k))); });
+app.get('/sona/stats',(req,res)=>res.json(sona.stats()));
+app.get('/router/route',(req,res)=>{ const {message=''}=req.query; res.json(route(message)); });
+loadSkills();
+startWorkers({loadMemory,saveMemory,sessions,skills,loadSkills,log,sona,vec});
+app.listen(PORT,()=>{ console.log(`\n👻 GHOST v9 — port ${PORT}`); console.log(`Router: multi-LLM (${Object.keys(MODELS).join(', ')})`); console.log(`Skills: ${Object.keys(skills).join(', ')||'none'}`); console.log(`SONA: ${sona.stats().vectorCount} vectors loaded`); });
+// Orchestrator patch - loaded after server init
