@@ -27,8 +27,7 @@ input:focus{border-color:rgba(0,212,255,0.3);}
 <div class="card">
   <div class="logo"><span class="dot"></span>GHOST</div>
   <div class="sub">AUTONOMOUS · SELF-LEARNING · v9</div>
-  <div class="field"><label>USERNAME</label><input id="username" type="text" placeholder="enter username" autocomplete="username"></div>
-  <div class="field"><label>PASSWORD</label><input id="password" type="password" placeholder="enter password" autocomplete="current-password"></div>
+  <div class="field"><label>YOUR NAME</label><input id="username" type="text" placeholder="enter your name" autocomplete="username"></div>
   <button class="btn" id="loginBtn" onclick="doLogin()">ACCESS GHOST</button>
   <div class="error" id="errMsg"></div>
 </div>
@@ -40,14 +39,13 @@ async function doLogin() {
   const btn = document.getElementById('loginBtn');
   const err = document.getElementById('errMsg');
   const username = document.getElementById('username').value.trim();
-  const password = document.getElementById('password').value;
-  if (!username || !password) { err.textContent = 'Enter username and password.'; return; }
-  btn.disabled = true; btn.textContent = 'AUTHENTICATING...'; err.textContent = '';
+  if (!username) { err.textContent = 'Enter your name.'; return; }
+  btn.disabled = true; btn.textContent = 'ENTERING...'; err.textContent = '';
   try {
-    const res = await fetch('/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
+    const res = await fetch('/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username }) });
     const data = await res.json();
     if (data.token) { localStorage.setItem('ghost_token', data.token); localStorage.setItem('ghost_user', username); window.location.href = '/ghost.html'; }
-    else { err.textContent = data.error || 'Invalid credentials.'; btn.disabled = false; btn.textContent = 'ACCESS GHOST'; }
+    else { err.textContent = data.error || 'Name not recognized.'; btn.disabled = false; btn.textContent = 'ACCESS GHOST'; }
   } catch { err.textContent = 'Connection error.'; btn.disabled = false; btn.textContent = 'ACCESS GHOST'; }
 }
 </script>

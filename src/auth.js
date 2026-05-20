@@ -10,25 +10,22 @@ function loadUsers() {
   catch { return {}; }
 }
 function saveUsers(u) { fs.writeFileSync(USERS_FILE, JSON.stringify(u, null, 2)); }
-function hash(password, salt) { return crypto.createHmac('sha256', salt).update(password).digest('hex'); }
 
-function createUser(username, password, role = 'user') {
+function login(username) {
+  if (!username) return null;
   const users = loadUsers();
-  if (users[username]) return { error: 'User already exists' };
-  const salt = crypto.randomBytes(16).toString('hex');
-  users[username] = { salt, hash: hash(password, salt), role, created: new Date().toISOString() };
-  saveUsers(users);
-  return { success: true, username, role };
+  if (!users[username]) return null;
+  const token = crypto.randomBytes(32).toString('hex');
+  sessions.set(token, { username, role: users[username].role, ts: Date.now() });
+  return token;
 }
 
-function login(username, password) {
+function createUser(username, role = 'user') {
   const users = loadUsers();
-  const user = users[username];
-  if (!user) return null;
-  if (hash(password, user.salt) !== user.hash) return null;
-  const token = crypto.randomBytes(32).toString('hex');
-  sessions.set(token, { username, role: user.role, ts: Date.now() });
-  return token;
+  if (users[username]) return { error: 'User already exists' };
+  users[username] = { role, created: new Date().toISOString() };
+  saveUsers(users);
+  return { success: true, username, role };
 }
 
 function getSession(token) {
