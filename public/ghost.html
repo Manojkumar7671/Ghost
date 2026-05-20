@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#1a1a1a;--sidebar:#111;--surface:#242424;--border:#2e2e2e;--accent:#a78bfa;--accent2:#7c3aed;--text:#e5e5e5;--muted:#888;--success:#22c55e}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;height:100vh;display:flex;overflow:hidden}
+.sidebar{width:240px;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+.sidebar-header{padding:18px 14px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.ghost-logo{font-size:22px}.ghost-name{font-size:15px;font-weight:600;color:var(--accent)}.ghost-version{font-size:10px;color:var(--muted)}
+.status-dot{width:7px;height:7px;background:var(--success);border-radius:50%;margin-left:auto;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.new-chat-btn{margin:10px;padding:8px 14px;background:var(--accent2);color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px;transition:background 0.2s}
+.new-chat-btn:hover{background:#6d28d9}
+.sidebar-section{padding:8px 12px 4px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.sidebar-item{padding:7px 12px;margin:2px 8px;border-radius:6px;font-size:12px;color:#bbb;display:flex;align-items:center;gap:8px}
+.sidebar-bottom{margin-top:auto;border-top:1px solid var(--border);padding:12px}
+.costs-display{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+.costs-display span{color:var(--accent);font-weight:600}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{padding:12px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.topbar-title{font-size:13px;color:var(--muted)}.topbar-actions{display:flex;gap:8px}
+.icon-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;transition:all .15s}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent)}
+.messages{flex:1;overflow-y:auto;padding:32px 0;scroll-behavior:smooth}
+.messages::-webkit-scrollbar{width:5px}.messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.message-row{max-width:700px;margin:0 auto 24px;padding:0 24px}
+.message-role{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.message-row.user .message-role{color:#818cf8}
+.message-row.ghost .message-role{color:var(--accent)}
+.message-content{font-size:15px;line-height:1.7;color:var(--text);white-space:pre-wrap;word-break:break-word}
+.message-row.user .message-content{background:#2a2a3e;padding:12px 16px;border-radius:12px;border:1px solid #3a3a5c}
+.action-summary{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.action-pill{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border);color:var(--muted)}
+.action-pill.done{border-color:#166534;color:#4ade80;background:#052e16}
+.action-pill.failed{border-color:#7f1d1d;color:#f87171;background:#1c0505}
+.thinking{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);padding:8px 0}
+.thinking-dots span{display:inline-block;width:5px;height:5px;background:var(--accent);border-radius:50%;animation:bounce 1.2s infinite}
+.thinking-dots span:nth-child(2){animation-delay:.2s}.thinking-dots span:nth-child(3){animation-delay:.4s}
+@keyframes bounce{0%,80%,100%{transform:scale(0.6)}40%{transform:scale(1)}}
+.input-area{border-top:1px solid var(--border);padding:14px 24px 18px;background:var(--bg)}
+.input-wrapper{max-width:700px;margin:0 auto;position:relative}
+.input-box{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 50px 13px 16px;color:var(--text);font-size:15px;font-family:inherit;resize:none;outline:none;max-height:200px;min-height:50px;line-height:1.5;transition:border-color .2s}
+.input-box:focus{border-color:var(--accent)}.input-box::placeholder{color:var(--muted)}
+.send-btn{position:absolute;right:10px;bottom:9px;width:32px;height:32px;background:var(--accent2);border:none;border-radius:8px;cursor:pointer;color:white;font-size:16px;transition:background .2s;display:flex;align-items:center;justify-content:center}
+.send-btn:hover{background:#6d28d9}.send-btn:disabled{background:var(--border);cursor:not-allowed}
+.input-hint{text-align:center;font-size:11px;color:var(--muted);margin-top:7px}
+.welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:40px}
+.welcome-logo{font-size:56px}.welcome-title{font-size:26px;font-weight:700}
+.welcome-sub{font-size:14px;color:var(--muted);text-align:center;max-width:460px;line-height:1.6}
+.suggestions{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;max-width:540px;width:100%}
+.suggestion{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px 15px;cursor:pointer;font-size:13px;color:#ccc;transition:all .15s;text-align:left;line-height:1.4}
+.suggestion:hover{border-color:var(--accent);color:var(--text);background:#2a2a3e}
+.suggestion strong{display:block;color:var(--text);margin-bottom:3px}
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sidebar-header">
+    <span class="ghost-logo">👻</span>
+    <div><div class="ghost-name">Ghost</div><div class="ghost-version">v5 · Autonomous</div></div>
+    <div class="status-dot"></div>
+  </div>
+  <button class="new-chat-btn" onclick="newChat()">✏️ New Chat</button>
+  <div class="sidebar-section">Capabilities</div>
+  <div class="sidebar-item">🌐 Web Search & Scrape</div>
+  <div class="sidebar-item">📧 Email via Gmail</div>
+  <div class="sidebar-item">🐙 GitHub Agent</div>
+  <div class="sidebar-item">🎨 Image Generation</div>
+  <div class="sidebar-item">📝 Notion</div>
+  <div class="sidebar-item">🎯 Goal Decomposer</div>
+  <div class="sidebar-item">🧬 Self-Analysis</div>
+  <div class="sidebar-item">☀️ Daily Briefing</div>
+  <div class="sidebar-item">🔊 Voice (say "speak")</div>
+  <div class="sidebar-bottom">
+    <div class="costs-display">
+      <div>Tokens: <span id="c-tokens">—</span></div>
+      <div>Cost: <span id="c-cost">—</span></div>
+      <div>Calls: <span id="c-calls">—</span></div>
+    </div>
+  </div>
+</div>
+<div class="main">
+  <div class="topbar">
+    <span class="topbar-title" id="chat-title">New conversation</span>
+    <div class="topbar-actions">
+      <button class="icon-btn" onclick="clearHistory()">🗑 Clear</button>
+      <button class="icon-btn" onclick="showMemory()">🧠 Memory</button>
+    </div>
+  </div>
+  <div id="welcome" class="welcome">
+    <div class="welcome-logo">👻</div>
+    <div class="welcome-title">Hey Manoj, I'm Ghost.</div>
+    <div class="welcome-sub">Give me any goal — I'll figure out which tools to use and get it done autonomously.</div>
+    <div class="suggestions">
+      <div class="suggestion" onclick="suggest('Search latest AI news and Indian startup funding today')"><strong>🌐 Web Search</strong>Latest AI news and startup funding in India</div>
+      <div class="suggestion" onclick="suggest('List my GitHub repos and tell me which needs the most work')"><strong>🐙 GitHub</strong>List my repos and analyze them</div>
+      <div class="suggestion" onclick="suggest('Research remote freelancing opportunities for a final year CS student in India')"><strong>🎯 Goal</strong>Find best remote opportunities for me</div>
+      <div class="suggestion" onclick="suggest('Give me my morning briefing')"><strong>☀️ Briefing</strong>Generate my morning briefing</div>
+    </div>
+  </div>
+  <div id="messages" class="messages" style="display:none"></div>
+  <div class="input-area">
+    <div class="input-wrapper">
+      <textarea id="input" class="input-box" placeholder="Ask Ghost anything..." rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button class="send-btn" id="send-btn" onclick="send()">↑</button>
+    </div>
+    <div class="input-hint">Ghost autonomously decides which tools to use · Say "speak" for voice</div>
+  </div>
+</div>
+<script>
+const BASE='http://localhost:3000';
+let msgCount=0;
+function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,200)+'px'}
+function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}
+function suggest(text){document.getElementById('input').value=text;send()}
+function newChat(){fetch(BASE+'/history',{method:'DELETE'});document.getElementById('messages').innerHTML='';document.getElementById('messages').style.display='none';document.getElementById('welcome').style.display='flex';document.getElementById('chat-title').textContent='New conversation';msgCount=0}
+async function clearHistory(){await fetch(BASE+'/history',{method:'DELETE'});newChat()}
+function showWelcomeToMessages(){const w=document.getElementById('welcome');const m=document.getElementById('messages');if(w.style.display!=='none'){w.style.display='none';m.style.display='block'}}
+function addMessage(role,content,actions=[]){
+  showWelcomeToMessages();
+  const msgs=document.getElementById('messages');
+  const row=document.createElement('div');row.className='message-row '+role;
+  const rl=document.createElement('div');rl.className='message-role';rl.textContent=role==='user'?'You':'Ghost';
+  const ct=document.createElement('div');ct.className='message-content';ct.textContent=content;
+  row.appendChild(rl);row.appendChild(ct);
+  if(actions.length>0&&!(actions.length===1&&actions[0].tool==='chat')){
+    const pills=document.createElement('div');pills.className='action-summary';
+    const icons={web_search:'🌐',web_scrape:'🕷️',email_draft:'📧',email_send:'📨',github_repos:'🐙',github_analyze:'🔍',github_push:'⬆️',image_generate:'🎨',notion_search:'📝',goal_run:'🎯',self_analyze:'🧬',voice_speak:'🔊',briefing:'☀️',memory_save:'🧠',memory_get:'🧠',chat:'💬'};
+    actions.forEach(a=>{const p=document.createElement('div');p.className='action-pill '+(a.status||'done');p.textContent=(icons[a.tool]||'⚙️')+' '+a.tool.replace(/_/g,' ');pills.appendChild(p)});
+    row.appendChild(pills);
+  }
+  msgs.appendChild(row);row.scrollIntoView({behavior:'smooth',block:'end'});
+  msgCount++;if(msgCount===1)document.getElementById('chat-title').textContent=content.slice(0,45)+(content.length>45?'...':'');
+}
+function addThinking(){
+  showWelcomeToMessages();
+  const msgs=document.getElementById('messages');
+  const row=document.createElement('div');row.className='message-row ghost';row.id='thinking';
+  row.innerHTML='<div class="message-role">Ghost</div><div class="thinking"><div class="thinking-dots"><span></span><span></span><span></span></div><span>Thinking...</span></div>';
+  msgs.appendChild(row);row.scrollIntoView({behavior:'smooth'});
+}
+async function send(){
+  const input=document.getElementById('input');const msg=input.value.trim();if(!msg)return;
+  input.value='';input.style.height='auto';document.getElementById('send-btn').disabled=true;
+  addMessage('user',msg);addThinking();
+  try{
+    const res=await fetch(BASE+'/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
+    const data=await res.json();
+    document.getElementById('thinking')?.remove();
+    addMessage('ghost',data.reply||'❌ '+data.error,data.actions||[]);
+    loadCosts();
+  }catch(e){document.getElementById('thinking')?.remove();addMessage('ghost','❌ Connection error: '+e.message)}
+  document.getElementById('send-btn').disabled=false;input.focus();
+}
+async function showMemory(){
+  try{const res=await fetch(BASE+'/memory');const data=await res.json();const entries=Object.entries(data);addMessage('ghost',entries.length?'🧠 Memory:\n'+entries.map(([k,v])=>`${k}: ${JSON.stringify(v.value)}`).join('\n'):'No memories yet.')}
+  catch(e){addMessage('ghost','❌ Could not load memory')}
+}
+async function loadCosts(){
+  try{const res=await fetch(BASE+'/costs');const d=await res.json();document.getElementById('c-tokens').textContent=d.total_tokens.toLocaleString();document.getElementById('c-cost').textContent='$'+d.total_cost_usd;document.getElementById('c-calls').textContent=d.total_calls}catch(_){}
+}
+loadCosts();document.getElementById('input').focus();
+</script>
+</body>
+</html>

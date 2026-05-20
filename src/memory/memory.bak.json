@@ -1,0 +1,157 @@
+{
+  "profile": {
+    "name": "Manoj"
+  },
+  "facts": [
+    "[CEO] Hot markets: scanning",
+    "[CEO] Top opportunity: E-commerce Store — Score: 7.5/10",
+    "[CEO] Current strategy: Food delivery service selected as winner with estimated monthly revenue of 1 million INR. Week 1 plan in progress."
+  ],
+  "tasks": [],
+  "ceo_brain": {
+    "last_updated": "2026-05-16T02:58:26.021Z",
+    "market_pulse": [
+      {
+        "sector": "AI automation"
+      },
+      {
+        "sector": "freelancing"
+      },
+      {
+        "sector": "SaaS micro-tools"
+      },
+      {
+        "sector": "content monetization"
+      }
+    ],
+    "top_opportunity": {
+      "title": "E-commerce Store",
+      "description": "Sell products online through a dedicated website or platform",
+      "niche": "Retail",
+      "scores": {
+        "effort": 8,
+        "speed": 7,
+        "revenue": 9,
+        "competition": 6,
+        "final": 7.5
+      },
+      "action": "Develop a website and market products",
+      "platform": "Shopify, WooCommerce",
+      "estimated_monthly_revenue_inr": 500000
+    },
+    "current_strategy": "Highest estimated monthly revenue and final score",
+    "week1_plan": [
+      "day1: Research local restaurants and potential partners",
+      "day2: Develop a prototype of the mobile app",
+      "day3: Establish key performance indicators",
+      "day4: Create a marketing strategy",
+      "day5: Begin outreach to potential partners",
+      "day6: Finalize the app's user interface",
+      "day7: Plan for launch and post-launch evaluation"
+    ],
+    "telegram_brief": "Food delivery service selected as winner with estimated monthly revenue of 1 million INR. Week 1 plan in progress.",
+    "pivot_trigger": "Less than 20% of projected revenue after 3 months"
+  },
+  "heartbeat_logs": [
+    {
+      "name": "ping",
+      "result": "ALIVE 07:23",
+      "ts": "2026-05-15T13:30:00.625Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 06:41",
+      "ts": "2026-05-15T09:30:00.322Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 14:18",
+      "ts": "2026-05-15T08:30:00.394Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 14:32",
+      "ts": "2026-05-09T07:30:00.547Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 14:31",
+      "ts": "2026-05-09T06:30:00.463Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 07:29",
+      "ts": "2026-05-09T05:30:00.415Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 07:28",
+      "ts": "2026-05-08T18:30:00.553Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 07:27",
+      "ts": "2026-05-08T16:30:02.531Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 07:26",
+      "ts": "2026-05-08T15:30:00.413Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 07:25",
+      "ts": "2026-05-08T13:30:00.423Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 07:24",
+      "ts": "2026-05-08T12:30:00.409Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 07:23",
+      "ts": "2026-05-08T11:30:00.725Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 06:41",
+      "ts": "2026-05-08T09:30:00.367Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 14:18",
+      "ts": "2026-05-08T08:30:00.358Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 14:18",
+      "ts": "2026-05-08T05:30:00.428Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 14:18",
+      "ts": "2026-05-07T13:30:00.441Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 06:07",
+      "ts": "2026-05-06T17:30:00.411Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 06:06",
+      "ts": "2026-05-06T16:30:00.443Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 06:05",
+      "ts": "2026-05-06T13:30:00.434Z"
+    },
+    {
+      "name": "ping",
+      "result": "ALIVE 14:18",
+      "ts": "2026-05-06T12:30:00.441Z"
+    }
+  ]
+}
