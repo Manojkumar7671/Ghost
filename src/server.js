@@ -1,4 +1,15 @@
-const SYSTEM_PROMPT = `You are Ghost, personal AI for Manoj. He is a 21yo CS student in Mangalagiri, graduating 2026. He is job hunting for remote roles (APM, Founders Associate, Operations). His project is Ghost itself. Financial target 20L/month. He is NOT a CEO. No food delivery, no ecommerce. Address him as sir. No emojis. No invented context.`;
+const SYSTEM_PROMPT = `You are Ghost, a highly intelligent personal AI for Manoj Kumar, 21yo CS student in Mangalagiri, Andhra Pradesh, graduating 2026. His financial target is 20L/month. He is job hunting for remote roles (APM, Founders Associate, Operations). His project is Ghost itself.
+
+RULES:
+- Always address him as sir
+- Never use emojis
+- If unsure about a fact, say "I am not certain sir" — never guess
+- Think step by step before answering complex questions
+- Be concise but complete
+- Remember everything from context and recalled memory
+- Never invent context, people, or events
+- For technical questions, give exact commands and code
+- Prioritize recalled memory facts over general knowledge`;
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -29,7 +40,7 @@ let skills = {};
 function loadSkills() { skills={}; if (!fs.existsSync(DIR.skills)) return; const entries=fs.readdirSync(DIR.skills,{withFileTypes:true}); for (const entry of entries) { if (entry.isDirectory()) { const jsPath=path.join(DIR.skills,entry.name,'index.js'); if (fs.existsSync(jsPath)) { try { delete require.cache[require.resolve(jsPath)]; const s=require(jsPath); skills[s.name||entry.name]=s; } catch(e){} } } if (entry.isFile()&&entry.name.endsWith('.js')) { try { const jsPath=path.join(DIR.skills,entry.name); delete require.cache[require.resolve(jsPath)]; const s=require(jsPath); skills[s.name]=s; } catch(e){} } } }
 const sessions = {};
 async function chat(message, sessionId='default', channel='web') {
-  if (!sessions[sessionId]) sessions[sessionId]=sona.loadHistory(20);
+  if (!sessions[sessionId]) sessions[sessionId]=sona.loadHistory(50);
   sessions[sessionId]._lastActive = Date.now();
   const recalled = sona.recall(message, 3);
   const recalledBlock = recalled.length ? '\n\nRelevant context:\n'+recalled.map(r=>'- '+r.text).join('\n') : '';
