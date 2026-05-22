@@ -225,9 +225,9 @@ textarea::placeholder{color:var(--dim);}
   </div>
 </div>
 <script>
-const ghost_token = localStorage.getItem('ghost_token');
-const ghost_user = localStorage.getItem('ghost_user');
-if (!ghost_token) window.location.href = '/login.html';
+const ghost_token = "manoj-admin";
+const ghost_user = "Manoj";
+// login disabled
 document.getElementById('userLabel').textContent = ghost_user || '';
 document.getElementById('welcomeUser').textContent = ghost_user ? 'WELCOME, ' + ghost_user.toUpperCase() : '';
 
