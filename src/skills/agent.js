@@ -1,16 +1,16 @@
 const Groq = require("groq-sdk");
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
 const MAX_STEPS = 6;
 
-async function reactLoop(userGoal, availableSkills) {
+async function reactLoop(userGoal, skillsObj) {
   let scratchpad = [];
   let step = 0;
+  const availableSkills = Object.keys(skillsObj).filter(k => k !== "agent");
 
   while (step < MAX_STEPS) {
     step++;
 
-    const prompt = `You are a reasoning agent. Use ReAct format.\n\nGoal: ${userGoal}\n\nAvailable skills: ${availableSkills.join(", ")}\n\nScratchpad so far:\n${scratchpad.join("\n") || "None"}\n\nNow respond with EXACTLY this format:\nThought: <your reasoning>\nAction: <skill_name> | <input>\n\nOr if done:\nThought: <final reasoning>\nAnswer: <final answer to user>`;
+    const prompt = `You are a reasoning agent. Use ReAct format.\n\nGoal: ${userGoal}\n\nAvailable skills: ${availableSkills.join(", ")}\n\nScratchpad:\n${scratchpad.join("\n") || "None"}\n\nRespond EXACTLY:\nThought: <reasoning>\nAction: <skill_name> | <input>\n\nOr if done:\nThought: <reasoning>\nAnswer: <final answer>`;
 
     const res = await groq.chat.completions.create({
       model: "llama3-70b-8192",
@@ -22,37 +22,37 @@ async function reactLoop(userGoal, availableSkills) {
     scratchpad.push(`[Step ${step}]\n${text}`);
 
     if (text.includes("Answer:")) {
-      const answer = text.split("Answer:")[1].trim();
-      return { success: true, answer, steps: scratchpad };
+      return text.split("Answer:")[1].trim();
     }
 
     const actionMatch = text.match(/Action:\s*(\w+)\s*\|\s*(.+)/);
     if (actionMatch === null) break;
 
     const skillName = actionMatch[1];
-    const input = actionMatch[2];
+    const input = actionMatch[2].trim();
 
     let observation = "Skill not found.";
-    try {
-      const skill = require(`./${skillName}`);
-      const result = await skill.run({ query: input });
-      observation = typeof result === "string" ? result : JSON.stringify(result);
-    } catch (e) {
-      observation = `Error: ${e.message}`;
+    if (skillsObj[skillName]) {
+      try {
+        const result = await skillsObj[skillName].run({ query: input, location: input }, { groq });
+        observation = result.text || JSON.stringify(result);
+      } catch (e) {
+        observation = `Error: ${e.message}`;
+      }
     }
 
     scratchpad.push(`Observation: ${observation}`);
   }
 
-  return { success: false, answer: "Max steps reached.", steps: scratchpad };
+  return "Could not complete the task in max steps.";
 }
 
-module.exports = { name: "agent", description: "Multi-step ReAct reasoning agent for complex multi-action goals", run: async ({ query }) => {
-  const skills = ["weather", "web_search", "hacking"];
-  const result = await reactLoop(query, skills);
-  return result.answer;
-}};
-
-// Ghost skill metadata
-module.exports.name = "agent";
-module.exports.description = "Multi-step ReAct reasoning agent — use for complex goals requiring multiple actions";
+module.exports = {
+  name: "agent",
+  description: "Multi-step ReAct reasoning agent for complex multi-action goals",
+  run: async (args, ctx) => {
+    const skillsObj = ctx && ctx.skills ? ctx.skills : {};
+    const answer = await reactLoop(args.query, skillsObj);
+    return { text: answer };
+  }
+};

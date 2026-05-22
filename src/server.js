@@ -55,7 +55,7 @@ NEVER answer news/jobs/current info from memory — always use web_search skill.
   let reply='';
   try { const res=await groq.chat.completions.create({model:routedModel, messages:[{role:'system',content:system},...messages], max_tokens:1024, temperature:0.3}); reply=res.choices[0].message.content.trim(); }
   catch { const res=await groq.chat.completions.create({model:FALLBACK, messages:[{role:'system',content:system},...messages], max_tokens:1024, temperature:0.3}); reply=res.choices[0].message.content.trim(); }
-  try { const jMatch = reply.match(/{(?:[^{}]|{[^{}]*})*"skill"(?:[^{}]|{[^{}]*})*}/); const json = jMatch ? JSON.parse(jMatch[0]) : JSON.parse(reply); if (json.skill&&skills[json.skill]) { log(json.skill,message,'dispatched'); const result=await skills[json.skill].run(json.args||{},{groq,memory:loadMemory()}); sessions[sessionId].push({role:'user',content:message}); sessions[sessionId].push({role:'assistant',content:result.text||''}); sona.learn(message,result.text||'',groq).catch(()=>{}); return {reply:result.text||'Done.',skill:json.skill,model:routedModel,...result}; } } catch {}
+  try { const jMatch = reply.match(/{(?:[^{}]|{[^{}]*})*"skill"(?:[^{}]|{[^{}]*})*}/); const json = jMatch ? JSON.parse(jMatch[0]) : JSON.parse(reply); if (json.skill&&skills[json.skill]) { log(json.skill,message,'dispatched'); const result=await skills[json.skill].run(json.args||{},{groq,memory:loadMemory(),skills}); sessions[sessionId].push({role:'user',content:message}); sessions[sessionId].push({role:'assistant',content:result.text||''}); sona.learn(message,result.text||'',groq).catch(()=>{}); return {reply:result.text||'Done.',skill:json.skill,model:routedModel,...result}; } } catch {}
   sessions[sessionId].push({role:'user',content:message});
   sessions[sessionId].push({role:'assistant',content:reply});
   log('ghost',message.slice(0,80),reply.slice(0,100));
@@ -80,7 +80,7 @@ app.post('/memory',(req,res)=>{ const m={...loadMemory(),...req.body}; saveMemor
 app.get('/canvas',(req,res)=>res.json(loadCanvas()));
 app.post('/canvas',(req,res)=>{ const c=loadCanvas(); if (req.body.add) c.items.push({...req.body.add,id:Date.now()}); if (req.body.remove) c.items=c.items.filter(i=>i.id!==req.body.remove); if (req.body.clear) c.items=[]; saveCanvas(c); res.json(c); });
 app.get('/logs',(req,res)=>{ try { res.json(JSON.parse(fs.readFileSync(FILES.logs,'utf8')).slice(0,50)); } catch { res.json([]); } });
-app.post('/skill/:name',async(req,res)=>{ const s=skills[req.params.name]; if (!s) return res.status(404).json({error:'not found'}); try { res.json(await s.run(req.body,{groq,memory:loadMemory()})); } catch(e){ res.status(500).json({error:e.message}); } });
+app.post('/skill/:name',async(req,res)=>{ const s=skills[req.params.name]; if (!s) return res.status(404).json({error:'not found'}); try { res.json(await s.run(req.body,{groq,memory:loadMemory(),skills})); } catch(e){ res.status(500).json({error:e.message}); } });
 app.post('/voice/tts',async(req,res)=>{ const a=await textToSpeech(req.body.text||''); if (!a) return res.status(503).json({error:'Set ELEVENLABS_API_KEY'}); res.json({audio_b64:a}); });
 app.get('/memory/search',(req,res)=>{ const {q,k=5}=req.query; if (!q) return res.status(400).json({error:'q required'}); res.json(vec.search(q,parseInt(k))); });
 app.get('/sona/stats',(req,res)=>res.json(sona.stats()));
