@@ -35,6 +35,7 @@ async function chat(message, sessionId='default', channel='web') {
   const recalledBlock = recalled.length ? '\n\nRelevant context:\n'+recalled.map(r=>'- '+r.text).join('\n') : '';
   const skillList = Object.entries(skills).map(([name,s])=>`- ${name}: ${s.description||''}`).join('\n'); const skillBlock = skillList ? `\n\nAvailable skills (call as JSON only, no extra text):\n${skillList}\n\nFor ANY question about news, jobs, current events, searches, prices, scores, or real-time info — you MUST respond ONLY with: {"skill":"web_search","args":{"query":"..."}}
 For weather — respond ONLY with: {"skill":"weather","args":{"location":"..."}}
+If user says learn/study/research/get knowledge on a topic — respond ONLY with: {"skill":"learn_topic","args":{"topic":"...topic name..."}}
 If user says remember/learn/store/never forget something — respond ONLY with: {"skill":"remember","args":{"fact":"...what to remember..."}}
 NEVER answer news/jobs/current info from memory — always use web_search skill. ABSOLUTE RULE: If using a skill, output ONLY the raw JSON. Zero words before or after. Not even "Sir". Just: {"skill":"...","args":{...}}\nOtherwise respond normally as Ghost.` : ''; const system = SYSTEM_PROMPT + recalledBlock + skillBlock;
   // Orchestrator for complex multi-step tasks
