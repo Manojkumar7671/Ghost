@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Ghost</title>
 <style>
@@ -22,6 +23,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .user-chip{font-family:var(--mono);font-size:10px;color:var(--dim2);background:var(--bg3);border:1px solid var(--border2);border-radius:20px;padding:4px 12px;letter-spacing:1px;}
 .logout-btn{font-family:var(--mono);font-size:9px;color:var(--dim);background:none;border:1px solid var(--border);border-radius:4px;padding:4px 10px;cursor:pointer;letter-spacing:1px;}
 .logout-btn:hover{color:var(--red);border-color:var(--red);}
+.speaker-btn{background:none;border:1px solid var(--border2);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--dim2);transition:all 0.15s;font-size:14px;}
+.speaker-btn.active{border-color:var(--accent);color:var(--accent);}
+.news-cards{display:flex;flex-direction:column;gap:8px;margin-top:6px;}
+.news-card{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;cursor:pointer;transition:border-color 0.15s;}
+.news-card:hover{border-color:var(--accent);}
+.news-card-title{font-size:12px;font-weight:500;color:var(--text);margin-bottom:4px;line-height:1.4;}
+.news-card-snippet{font-size:10px;color:var(--dim2);line-height:1.5;}
+.news-card-source{font-family:var(--mono);font-size:9px;color:var(--accent);margin-top:4px;}
+.map-container{width:100%;height:220px;border-radius:8px;border:1px solid var(--border2);margin-top:8px;overflow:hidden;}
+
 .model-pill{font-family:var(--mono);font-size:9px;padding:4px 10px;border:1px solid var(--border);border-radius:20px;color:var(--dim2);letter-spacing:1px;}
 
 /* LAYOUT */
@@ -137,6 +148,7 @@ textarea::placeholder{color:var(--dim);}
   .user-chip{display:none;}
 }
 </style>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 <div class="topbar">
@@ -146,6 +158,7 @@ textarea::placeholder{color:var(--dim);}
   <div class="topbar-spacer"></div>
   <div class="status-badge"><div class="status-dot"></div><span id="statusText">ONLINE</span></div>
   <div class="user-chip" id="userLabel"></div>
+  <button class="speaker-btn" id="speakerBtn" onclick="toggleSpeaker()" title="Toggle voice">🔇</button>
   <button class="logout-btn" onclick="logout()">LOGOUT</button>
 </div>
 <div class="sidebar-overlay" id="overlay" onclick="toggleSidebar()"></div>
@@ -234,7 +247,7 @@ document.getElementById('welcomeUser').textContent = ghost_user ? 'WELCOME, ' + 
 function logout() { localStorage.removeItem('ghost_token'); localStorage.removeItem('ghost_user'); window.location.href = '/login.html'; }
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('overlay').classList.toggle('open'); }
 
-let isThinking = false, voiceMode = false, recognition = null;
+let isThinking = false, voiceMode = false, recognition = null, voiceEnabled = false;
 const input = document.getElementById('msgInput');
 const sendBtn = document.getElementById('sendBtn');
 const historyItems = [];
@@ -244,6 +257,15 @@ function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(e
 function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!sendBtn.disabled && !isThinking) sendMessage(); } }
 function toggleSection(name) { const sec = document.getElementById('sec-'+name); const chev = document.getElementById('chev-'+name); const open = sec.classList.toggle('open'); chev.classList.toggle('open', open); }
 function sendQuick(text) { input.value = text; autoResize(input); sendBtn.disabled = false; sendMessage(); }
+
+function toggleSpeaker() {
+  voiceEnabled = !voiceEnabled;
+  const btn = document.getElementById('speakerBtn');
+  btn.textContent = voiceEnabled ? '🔊' : '🔇';
+  btn.classList.toggle('active', voiceEnabled);
+  if (voiceEnabled) speak('Ghost voice activated sir.');
+  else window.speechSynthesis.cancel();
+}
 
 function speak(text) {
   if (!window.speechSynthesis) return;
@@ -268,7 +290,9 @@ async function sendMessage() {
     if (res.status === 401) { logout(); return; }
     const data = await res.json();
     thinkEl.remove();
-    const reply = data.reply || data.response || data.message || JSON.stringify(data);
+    let reply = data.reply || data.response || data.message || JSON.stringify(data);
+    if (data.news) reply = '[NEWS]' + JSON.stringify(data.news);
+    if (data.map) reply = (reply||'') + ` [MAP:${data.map.lat},${data.map.lng},${data.map.zoom||13},${data.map.label}]`;
     addGhostMsg(reply);
     if (data.reason) document.getElementById('routerTag').textContent = 'router: '+data.reason;
   } catch(err) { thinkEl.remove(); addGhostMsg('Connection error. Ghost may be waking up — try again in 30 seconds.'); }
@@ -288,7 +312,7 @@ function addGhostMsg(text) {
   const div = document.createElement('div'); div.className = 'msg ghost';
   div.innerHTML = `<div class="msg-avatar ghost-av">G</div><div class="msg-body"><div class="msg-meta">GHOST · ${now}</div><div class="msg-bubble">${formatMsg(text)}</div></div>`;
   document.getElementById('chatInner').appendChild(div); scrollBottom();
-  if (voiceMode) { speak(text); voiceMode = false; }
+  if (voiceEnabled || voiceMode) { speak(text); voiceMode = false; }
 }
 function addThinking() {
   const div = document.createElement('div'); div.className = 'thinking';
@@ -296,6 +320,39 @@ function addThinking() {
   document.getElementById('chatInner').appendChild(div); scrollBottom(); return div;
 }
 function formatMsg(text) {
+  // News cards
+  if (text.startsWith('[NEWS]')) {
+    try {
+      const json = JSON.parse(text.replace('[NEWS]','').trim());
+      return '<div class="news-cards">' + json.map(n=>
+        `<div class="news-card" onclick="window.open('${n.link||'#'}','_blank')">
+          <div class="news-card-title">${escHtml(n.title||'')}</div>
+          <div class="news-card-snippet">${escHtml(n.snippet||'')}</div>
+          <div class="news-card-source">${escHtml(n.source||'')}</div>
+        </div>`
+      ).join('') + '</div>';
+    } catch {}
+  }
+  // Map rendering
+  if (text.includes('[MAP:')) {
+    const mapMatch = text.match(/\[MAP:([-\d.]+),([-\d.]+),(\d+),([^\]]+)\]/);
+    if (mapMatch) {
+      const [, lat, lng, zoom, label] = mapMatch;
+      const mapId = 'map_' + Date.now();
+      const textPart = text.replace(/\[MAP:[^\]]+\]/, '').trim();
+      setTimeout(() => {
+        const el = document.getElementById(mapId);
+        if (el && !el._mapInit) {
+          el._mapInit = true;
+          const m = L.map(mapId).setView([parseFloat(lat), parseFloat(lng)], parseInt(zoom));
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(m);
+          L.marker([parseFloat(lat), parseFloat(lng)]).addTo(m).bindPopup(label).openPopup();
+        }
+      }, 100);
+      return (textPart ? formatMsg(textPart) + '<br>' : '') +
+        `<div class="map-container" id="${mapId}"></div>`;
+    }
+  }
   text = text.replace(/```(\w*)\n?([\s\S]*?)```/g,(_,lang,code)=>`<pre><code>${escHtml(code.trim())}</code></pre>`);
   text = text.replace(/`([^`]+)`/g,'<code>$1</code>');
   text = text.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
