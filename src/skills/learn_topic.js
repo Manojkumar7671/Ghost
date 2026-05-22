@@ -149,8 +149,24 @@ module.exports = {
     vec.add(masterFact, { source: 'admin', topic, type: 'master', ts: Date.now() });
     await saveTopic(topic, masterFact);
 
-    return {
-      text: `Research complete sir. I studied "${topic}" across multiple sources and stored ${stored} deep knowledge vectors. Ask me anything about it.`
-    };
+    // Step 3 — actually answer using what was learned
+    const recalled = vec.search(topic, 6).map(r => r.text).join('
+');
+    let answer = `Learned ${stored} facts about "${topic}" sir.`;
+    if (groq && recalled) {
+      try {
+        const res = await groq.chat.completions.create({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: `Based on this research, give a clear, complete answer about "${topic}". Be direct and informative.
+
+Research:
+${recalled}` }],
+          max_tokens: 600,
+          temperature: 0.3
+        });
+        answer = res.choices[0].message.content.trim();
+      } catch {}
+    }
+    return { text: answer };
   }
 };
