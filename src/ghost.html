@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Ghost</title>
 <style>
@@ -23,6 +24,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .user-chip{font-family:var(--mono);font-size:10px;color:var(--dim2);background:var(--bg3);border:1px solid var(--border2);border-radius:20px;padding:4px 12px;letter-spacing:1px;}
 .logout-btn{font-family:var(--mono);font-size:9px;color:var(--dim);background:none;border:1px solid var(--border);border-radius:4px;padding:4px 10px;cursor:pointer;letter-spacing:1px;}
 .logout-btn:hover{color:var(--red);border-color:var(--red);}
+.speaker-btn{background:none;border:1px solid var(--border2);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--dim2);transition:all 0.15s;font-size:14px;}
+.speaker-btn.active{border-color:var(--accent);color:var(--accent);}
+.news-cards{display:flex;flex-direction:column;gap:8px;margin-top:6px;}
+.news-card{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;cursor:pointer;transition:border-color 0.15s;}
+.news-card:hover{border-color:var(--accent);}
+.news-card-title{font-size:12px;font-weight:500;color:var(--text);margin-bottom:4px;line-height:1.4;}
+.news-card-snippet{font-size:10px;color:var(--dim2);line-height:1.5;}
+.news-card-source{font-family:var(--mono);font-size:9px;color:var(--accent);margin-top:4px;}
+.map-container{width:100%;height:220px;border-radius:8px;border:1px solid var(--border2);margin-top:8px;overflow:hidden;}
+
 .speaker-btn{background:none;border:1px solid var(--border2);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--dim2);transition:all 0.15s;font-size:14px;}
 .speaker-btn.active{border-color:var(--accent);color:var(--accent);}
 .news-cards{display:flex;flex-direction:column;gap:8px;margin-top:6px;}
@@ -149,6 +160,7 @@ textarea::placeholder{color:var(--dim);}
 }
 </style>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 <div class="topbar">
@@ -158,6 +170,7 @@ textarea::placeholder{color:var(--dim);}
   <div class="topbar-spacer"></div>
   <div class="status-badge"><div class="status-dot"></div><span id="statusText">ONLINE</span></div>
   <div class="user-chip" id="userLabel"></div>
+  <button class="speaker-btn" id="speakerBtn" onclick="toggleSpeaker()" title="Toggle voice">🔇</button>
   <button class="speaker-btn" id="speakerBtn" onclick="toggleSpeaker()" title="Toggle voice">🔇</button>
   <button class="logout-btn" onclick="logout()">LOGOUT</button>
 </div>
@@ -267,6 +280,15 @@ function toggleSpeaker() {
   else window.speechSynthesis.cancel();
 }
 
+function toggleSpeaker() {
+  voiceEnabled = !voiceEnabled;
+  const btn = document.getElementById('speakerBtn');
+  btn.textContent = voiceEnabled ? '🔊' : '🔇';
+  btn.classList.toggle('active', voiceEnabled);
+  if (voiceEnabled) speak('Ghost voice activated sir.');
+  else window.speechSynthesis.cancel();
+}
+
 function speak(text) {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
@@ -291,7 +313,8 @@ async function sendMessage() {
     const data = await res.json();
     thinkEl.remove();
     let reply = data.reply || data.response || data.message || JSON.stringify(data);
-    if (data.news) reply = '[NEWS]' + JSON.stringify(data.news);
+    if (data.newsmap) reply = '[NEWSMAP]' + JSON.stringify({news: data.news||[], markers: data.newsmap||[]});
+    else if (data.news) reply = '[NEWS]' + JSON.stringify(data.news);
     if (data.map) reply = (reply||'') + ` [MAP:${data.map.lat},${data.map.lng},${data.map.zoom||13},${data.map.label}]`;
     addGhostMsg(reply);
     if (data.reason) document.getElementById('routerTag').textContent = 'router: '+data.reason;
@@ -320,6 +343,45 @@ function addThinking() {
   document.getElementById('chatInner').appendChild(div); scrollBottom(); return div;
 }
 function formatMsg(text) {
+  // News + Map combined
+  if (text.startsWith('[NEWSMAP]')) {
+    try {
+      const payload = JSON.parse(text.replace('[NEWSMAP]','').trim());
+      const mapId = 'nmap_' + Date.now();
+      setTimeout(() => {
+        const el = document.getElementById(mapId);
+        if (!el || el._mapInit) return;
+        el._mapInit = true;
+        const markers = payload.markers || [];
+        const center = markers.length ? [markers[0].lat, markers[0].lng] : [20, 0];
+        const m = L.map(mapId).setView(center, markers.length > 1 ? 2 : 5);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(m);
+        markers.forEach((mk, i) => {
+          const color = ['#00c8f0','#00e096','#ff3d5a','#f0a500','#c87dff'][i % 5];
+          const circle = L.circleMarker([mk.lat, mk.lng], {
+            radius: 10, fillColor: color, color: '#fff',
+            weight: 2, opacity: 1, fillOpacity: 0.85
+          }).addTo(m);
+          circle.bindPopup(`<b>${mk.location}</b><br>${mk.title}<br><small>${mk.snippet.slice(0,100)}</small>`);
+        });
+        if (markers.length > 1) {
+          const bounds = L.latLngBounds(markers.map(mk => [mk.lat, mk.lng]));
+          m.fitBounds(bounds, { padding: [30, 30] });
+        }
+      }, 150);
+      const cards = (payload.news || []).map((n,i) => {
+        const colors = ['#00c8f0','#00e096','#ff3d5a','#f0a500','#c87dff'];
+        const dot = n.location ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colors[i%5]};margin-right:6px;"></span>` : '';
+        return `<div class="news-card" onclick="window.open('${n.link||'#'}','_blank')">
+          <div class="news-card-title">${dot}${escHtml(n.title||'')}</div>
+          <div class="news-card-snippet">${escHtml(n.snippet||'')}</div>
+          <div class="news-card-source">${escHtml(n.source||'')} ${n.location ? '· '+escHtml(n.location) : ''}</div>
+        </div>`;
+      }).join('');
+      return `<div class="news-cards">${cards}</div>
+        <div class="map-container" id="${mapId}" style="height:280px;margin-top:10px;"></div>`;
+    } catch(e) { return escHtml(text); }
+  }
   // News cards
   if (text.startsWith('[NEWS]')) {
     try {

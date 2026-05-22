@@ -56,6 +56,7 @@ async function chat(message, sessionId='default', channel='web') {
 For weather — respond ONLY with: {"skill":"weather","args":{"location":"..."}}
 If user says learn/study/research/get knowledge on a topic — respond ONLY with: {"skill":"learn_topic","args":{"topic":"...topic name..."}}
 If user says remember/learn/store/never forget something — respond ONLY with: {"skill":"remember","args":{"fact":"...what to remember..."}}
+For news with map / tell me news and show map / what happened in world — respond ONLY with: {"skill":"news_map","args":{"query":"top world news today"}}
 For news/headlines/what's happening — respond ONLY with: {"skill":"news","args":{"query":"..."}}
 For show map/where is/locate — respond ONLY with: {"skill":"map","args":{"location":"..."}}
 For multi-step tasks requiring multiple actions — respond ONLY with: {"skill":"agent","args":{"query":"...full task..."}}
