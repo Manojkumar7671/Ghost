@@ -56,6 +56,7 @@ async function chat(message, sessionId='default', channel='web') {
 For weather — respond ONLY with: {"skill":"weather","args":{"location":"..."}}
 If user says learn/study/research/get knowledge on a topic — respond ONLY with: {"skill":"learn_topic","args":{"topic":"...topic name..."}}
 If user says remember/learn/store/never forget something — respond ONLY with: {"skill":"remember","args":{"fact":"...what to remember..."}}
+For multi-step tasks requiring multiple actions — respond ONLY with: {"skill":"agent","args":{"query":"...full task..."}}
 NEVER answer news/jobs/current info from memory — always use web_search skill. ABSOLUTE RULE: If using a skill, output ONLY the raw JSON. Zero words before or after. Not even "Sir". Just: {"skill":"...","args":{...}}\nOtherwise respond normally as Ghost.` : ''; const system = SYSTEM_PROMPT + recalledBlock + skillBlock;
   // Orchestrator for complex multi-step tasks
   const isComplex = /(plan|research|find and|analyze|build|execute|investigate|compare|gather|step by step|autonomously)/i.test(message);
