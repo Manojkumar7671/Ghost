@@ -29,7 +29,7 @@ let skills = {};
 function loadSkills() { skills={}; if (!fs.existsSync(DIR.skills)) return; const entries=fs.readdirSync(DIR.skills,{withFileTypes:true}); for (const entry of entries) { if (entry.isDirectory()) { const jsPath=path.join(DIR.skills,entry.name,'index.js'); if (fs.existsSync(jsPath)) { try { delete require.cache[require.resolve(jsPath)]; const s=require(jsPath); skills[s.name||entry.name]=s; } catch(e){} } } if (entry.isFile()&&entry.name.endsWith('.js')) { try { const jsPath=path.join(DIR.skills,entry.name); delete require.cache[require.resolve(jsPath)]; const s=require(jsPath); skills[s.name]=s; } catch(e){} } } }
 const sessions = {};
 async function chat(message, sessionId='default', channel='web') {
-  if (!sessions[sessionId]) sessions[sessionId]=[];
+  if (!sessions[sessionId]) sessions[sessionId]=sona.loadHistory(20);
   sessions[sessionId]._lastActive = Date.now();
   const recalled = sona.recall(message, 3);
   const recalledBlock = recalled.length ? '\n\nRelevant context:\n'+recalled.map(r=>'- '+r.text).join('\n') : '';
