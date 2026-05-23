@@ -787,7 +787,7 @@ async function sendMessage() {
   document.getElementById('file-name-display').textContent = '';
 
   const typing = showTyping();
-  sysLog(new Date().toTimeString().slice(0,5), 'QUERY SENT', 'ok');
+  
 
   try {
     let body, headers;
@@ -808,7 +808,7 @@ async function sendMessage() {
 
     const reply = data.reply || data.response || data.message || JSON.stringify(data);
     addGhostMsg(reply);
-    sysLog(new Date().toTimeString().slice(0,5), 'RESPONSE OK', 'ok');
+    
     uploadedFile = null;
 
   } catch(e) {
