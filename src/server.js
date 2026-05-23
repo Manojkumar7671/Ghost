@@ -42,7 +42,15 @@ app.get('/ghost.html',(req,res)=>res.sendFile(path.join(__dirname,'ghost.html'))
 app.get('/',(req,res)=>res.sendFile(path.join(__dirname,'ghost.html')));
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const PORT = process.env.PORT || 3000;
+
 const FALLBACK = 'llama-3.3-70b-versatile';
+function shouldLearn(msg, reply) {
+  if (!reply || reply.length < 60) return false;
+  if (/^[s{"]/i.test(reply) && reply.includes('"skill"')) return false; // skill JSON
+  const trivial = /^(ok|yes|no|sure|got it|done|hello|hi|hey|what?)/i;
+  if (trivial.test(reply.trim())) return false;
+  return true;
+}
 const DIR = { memory: path.join(__dirname,'memory'), logs: path.join(__dirname,'logs'), skills: path.join(__dirname,'skills'), canvas: path.join(__dirname,'canvas') };
 Object.values(DIR).forEach(d => fs.mkdirSync(d, { recursive: true }));
 const FILES = { memory: path.join(DIR.memory,'memory.json'), logs: path.join(DIR.logs,'agent_logs.json'), canvas: path.join(DIR.canvas,'canvas.json') };
@@ -74,7 +82,7 @@ NEVER answer news/jobs/current info from memory — always use web_search skill.
       const or = await orch.run(message);
       sessions[sessionId].push({role:'user',content:message});
       sessions[sessionId].push({role:'assistant',content:or.result});
-      sona.learn(message, or.result, groq).catch(()=>{});
+      if(shouldLearn(message,or.result)) sona.learn(message,or.result,groq).catch(()=>{});
       log('orchestrator',message.slice(0,60),'loops:'+or.loops);
       return {reply:or.result, model:'orchestrator', loops:or.loops};
     } catch(e) { log('orchestrator','failed',e.message); }
@@ -85,11 +93,11 @@ NEVER answer news/jobs/current info from memory — always use web_search skill.
   let reply='';
   try { const res=await groq.chat.completions.create({model:routedModel, messages:[{role:'system',content:system},...messages], max_tokens:1024, temperature:0.3}); reply=res.choices[0].message.content.trim(); }
   catch { const res=await groq.chat.completions.create({model:FALLBACK, messages:[{role:'system',content:system},...messages], max_tokens:1024, temperature:0.3}); reply=res.choices[0].message.content.trim(); }
-  try { const jMatch = reply.match(/{(?:[^{}]|{[^{}]*})*"skill"(?:[^{}]|{[^{}]*})*}/); const json = jMatch ? JSON.parse(jMatch[0]) : JSON.parse(reply); if (json.skill&&skills[json.skill]) { log(json.skill,message,'dispatched'); const result=await skills[json.skill].run(json.args||{},{groq,memory:loadMemory(),skills}); sessions[sessionId].push({role:'user',content:message}); sessions[sessionId].push({role:'assistant',content:result.text||''}); sona.learn(message,result.text||'',groq).catch(()=>{}); return {reply:result.text||'Done.',skill:json.skill,model:routedModel,...result}; } } catch {}
+  try { const jMatch = reply.match(/{(?:[^{}]|{[^{}]*})*"skill"(?:[^{}]|{[^{}]*})*}/); const json = jMatch ? JSON.parse(jMatch[0]) : JSON.parse(reply); if (json.skill&&skills[json.skill]) { log(json.skill,message,'dispatched'); const result=await skills[json.skill].run(json.args||{},{groq,memory:loadMemory(),skills}); sessions[sessionId].push({role:'user',content:message}); sessions[sessionId].push({role:'assistant',content:result.text||''}); if(shouldLearn(message,result.text||"")) sona.learn(message,result.text||"",groq).catch(()=>{}); return {reply:result.text||'Done.',skill:json.skill,model:routedModel,...result}; } } catch {}
   sessions[sessionId].push({role:'user',content:message});
   sessions[sessionId].push({role:'assistant',content:reply});
   log('ghost',message.slice(0,80),reply.slice(0,100));
-  sona.learn(message, reply, groq).catch(()=>{});
+  if(shouldLearn(message,reply)) sona.learn(message,reply,groq).catch(()=>{});
   return { reply, model:routedModel, reason };
 }
 async function textToSpeech(text) { const key=process.env.ELEVENLABS_API_KEY; if (!key) return null; const voiceId=process.env.ELEVENLABS_VOICE_ID||'21m00Tcm4TlvDq8ikWAM'; const https=require('https'); return new Promise((resolve)=>{ const body=JSON.stringify({text,model_id:'eleven_monolingual_v1',voice_settings:{stability:0.5,similarity_boost:0.75}}); const req=https.request({hostname:'api.elevenlabs.io',path:`/v1/text-to-speech/${voiceId}`,method:'POST',headers:{'xi-api-key':key,'Content-Type':'application/json','Accept':'audio/mpeg'}},(res)=>{ const chunks=[]; res.on('data',c=>chunks.push(c)); res.on('end',()=>resolve(Buffer.concat(chunks).toString('base64'))); }); req.on('error',()=>resolve(null)); req.write(body); req.end(); }); }
