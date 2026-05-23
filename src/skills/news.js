@@ -5,7 +5,7 @@ module.exports = {
   async run(args) {
     const query = args.query || args.topic || 'top news today';
     const apiKey = process.env.SERPER_API_KEY;
-    if (!apiKey) return { text: 'SERPER_API_KEY not set.' };
+    if (!apiKey) return { text: 'SERPER_API_KEY not set in Render environment.' };
     return new Promise((resolve) => {
       const body = JSON.stringify({ q: query, num: 5, type: 'news' });
       const req = https.request({
@@ -17,14 +17,16 @@ module.exports = {
         res.on('end', () => {
           try {
             const json = JSON.parse(data);
-            const articles = (json.news || json.organic || []).slice(0, 5).map(n => ({
-              title: n.title, snippet: n.snippet, source: n.source, link: n.link
-            }));
-            resolve({ text: `Here are the latest news sir.`, news: articles });
-          } catch { resolve({ text: 'Could not fetch news sir.' }); }
+            const articles = (json.news || json.organic || []).slice(0, 5);
+            if (!articles.length) return resolve({ text: 'No news found sir.' });
+            const text = articles.map((n, i) =>
+              `${i+1}. ${n.title}\n   ${n.snippet || ''}\n   Source: ${n.source || 'unknown'}`
+            ).join('\n\n');
+            resolve({ text: `Latest news sir:\n\n${text}`, news: articles });
+          } catch { resolve({ text: 'Could not parse news response sir.' }); }
         });
       });
-      req.on('error', () => resolve({ text: 'News fetch error.' }));
+      req.on('error', (e) => resolve({ text: `News fetch error: ${e.message}` }));
       req.end(body);
     });
   }
