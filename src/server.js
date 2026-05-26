@@ -155,5 +155,3 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
-const multer = require('multer');
-const upload = multer({ storage: multer.memoryStorage() });
