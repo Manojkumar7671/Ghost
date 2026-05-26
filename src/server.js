@@ -127,3 +127,47 @@ loadSkills();
 startWorkers({loadMemory,saveMemory,sessions,skills,loadSkills,log,sona,vec});
 app.listen(PORT,()=>{ console.log(`\n👻 GHOST v9 — port ${PORT}`); console.log(`Router: multi-LLM (${Object.keys(MODELS).join(', ')})`); console.log(`Skills: ${Object.keys(skills).join(', ')||'none'}`); console.log(`SONA: ${sona.stats().vectorCount} vectors loaded`); });
 // Orchestrator patch - loaded after server init
+
+// ── WHISPER TRANSCRIPTION ──────────────────────────────────────────────────
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
+
+app.post('/transcribe', upload.single('audio'), async (req, res) => {
+  try {
+    const FormData = require('form-data');
+    const axios    = require('axios');
+    const form     = new FormData();
+    form.append('file', req.file.buffer, {
+      filename:    'audio.webm',
+      contentType: req.file.mimetype || 'audio/webm',
+    });
+    form.append('model', 'whisper-large-v3-turbo');
+    form.append('response_format', 'json');
+
+    const resp = await axios.post(
+      'https://api.groq.com/openai/v1/audio/transcriptions',
+      form,
+      { headers: { ...form.getHeaders(), Authorization: `Bearer ${process.env.GROQ_API_KEY}` } }
+    );
+    res.json({ text: resp.data.text });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
+app.post('/transcribe', upload.single('audio'), async (req, res) => {
+  try {
+    const FormData = require('form-data');
+    const axios = require('axios');
+    const form = new FormData();
+    form.append('file', req.file.buffer, { filename: 'audio.webm', contentType: 'audio/webm' });
+    form.append('model', 'whisper-large-v3-turbo');
+    form.append('response_format', 'json');
+    const r = await axios.post('https://api.groq.com/openai/v1/audio/transcriptions', form, {
+      headers: { ...form.getHeaders(), Authorization: `Bearer ${process.env.GROQ_API_KEY}` }
+    });
+    res.json({ text: r.data.text });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});

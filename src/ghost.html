@@ -6,60 +6,89 @@
 <title>GHOST</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-
   body {
     background: #000;
-    width: 100vw;
-    height: 100vh;
+    width: 100vw; height: 100vh;
     overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: flex; align-items: center; justify-content: center;
     font-family: 'Courier New', monospace;
     cursor: none;
   }
+  canvas { position: fixed; top: 0; left: 0; pointer-events: none; }
 
-  canvas {
-    position: fixed;
-    top: 0; left: 0;
-    pointer-events: none;
-  }
-
-  /* Ghost response - floats up and dissolves */
-  #msg {
-    position: fixed;
-    bottom: 12vh;
-    left: 50%;
-    transform: translateX(-50%);
-    color: rgba(255,255,255,0.75);
-    font-size: 13px;
-    letter-spacing: 0.2em;
-    text-align: center;
-    max-width: 55vw;
-    line-height: 1.8;
-    opacity: 0;
-    transition: opacity 0.8s ease;
-    pointer-events: none;
-  }
-
-  /* Tiny state indicator - just a dot, no text */
+  /* state dot */
   #dot {
-    position: fixed;
-    top: 50%;
-    left: 50%;
+    position: fixed; top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
+    width: 7px; height: 7px; border-radius: 50%;
     background: #00e5ff;
-    box-shadow: 0 0 12px #00e5ff, 0 0 30px rgba(0,229,255,0.4);
-    animation: pulse 2s ease-in-out infinite;
+    box-shadow: 0 0 14px #00e5ff, 0 0 32px rgba(0,229,255,0.4);
     z-index: 10;
+    animation: breathe 2.5s ease-in-out infinite;
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+  @keyframes breathe {
+    0%,100%{ transform:translate(-50%,-50%) scale(1);   opacity:1; }
+    50%    { transform:translate(-50%,-50%) scale(1.6); opacity:0.5; }
   }
 
-  @keyframes pulse {
-    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-    50% { transform: translate(-50%, -50%) scale(1.4); opacity: 0.6; }
+  /* response text */
+  #msg {
+    position: fixed; bottom: 10vh; left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.72);
+    font-size: 13px; letter-spacing: 0.18em;
+    text-align: center; max-width: 58vw; line-height: 1.9;
+    opacity: 0; transition: opacity 0.8s ease;
+    pointer-events: none; z-index: 10;
+  }
+
+  /* one-time tap screen */
+  #tap {
+    position: fixed; inset: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  #tap-hint {
+    font-size: 11px; letter-spacing: 0.35em;
+    color: rgba(0,229,255,0.3);
+    animation: fadepulse 2s ease-in-out infinite;
+  }
+  @keyframes fadepulse { 0%,100%{opacity:0.3} 50%{opacity:0.7} }
+
+  /* type overlay */
+  #typeWrap {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.9); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  #typeWrap.show { display: flex; }
+  #typeInput {
+    background: transparent; border: none;
+    border-bottom: 1px solid rgba(0,229,255,0.4);
+    color: #fff; font: 13px 'Courier New', monospace;
+    letter-spacing: 0.2em; text-align: center;
+    width: 52vw; outline: none; padding: 10px 0;
+    caret-color: #00e5ff;
+  }
+  #typeInput::placeholder { color: rgba(255,255,255,0.15); }
+
+  /* recording ring */
+  #recRing {
+    display: none;
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 180px; height: 180px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255,80,80,0.5);
+    box-shadow: 0 0 20px rgba(255,60,60,0.2);
+    animation: recPulse 0.8s ease-in-out infinite;
+    z-index: 5;
+    pointer-events: none;
+  }
+  @keyframes recPulse {
+    0%,100%{ transform:translate(-50%,-50%) scale(1);   opacity:0.6; }
+    50%    { transform:translate(-50%,-50%) scale(1.06); opacity:1; }
   }
 </style>
 </head>
@@ -67,283 +96,256 @@
 
 <canvas id="c"></canvas>
 <div id="dot"></div>
+<div id="recRing"></div>
 <div id="msg"></div>
+<div id="tap"><span id="tap-hint">TAP TO ACTIVATE</span></div>
+<div id="typeWrap"><input id="typeInput" placeholder="..." autocomplete="off" spellcheck="false"></div>
 
 <script>
-// ─── Canvas setup ───────────────────────────────────────────────────────────
+// ── Canvas ────────────────────────────────────────────────────────
 const canvas = document.getElementById('c');
 const ctx    = canvas.getContext('2d');
-const dot    = document.getElementById('dot');
-const msg    = document.getElementById('msg');
+const dotEl  = document.getElementById('dot');
+const msgEl  = document.getElementById('msg');
+const tapEl  = document.getElementById('tap');
+const recRing = document.getElementById('recRing');
 
-function resize() {
-  canvas.width  = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-resize();
-window.addEventListener('resize', resize);
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+resize(); window.addEventListener('resize', resize);
 
-// ─── State ──────────────────────────────────────────────────────────────────
-let MODE = 'idle'; // idle | listening | thinking | speaking
-let analyser, freqData, micStream;
-let t = 0;
+// ── State ─────────────────────────────────────────────────────────
+let MODE = 'idle', t = 0, busy = false, hideT;
 
-// ─── Audio analyser from mic ─────────────────────────────────────────────────
-async function initMic() {
-  try {
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    const ac  = new AudioContext();
-    const src = ac.createMediaStreamSource(micStream);
-    analyser  = ac.createAnalyser();
-    analyser.fftSize = 512;
-    analyser.smoothingTimeConstant = 0.8;
-    src.connect(analyser);
-    freqData = new Uint8Array(analyser.frequencyBinCount);
-  } catch(e) {
-    console.warn('Mic denied', e);
-  }
-}
+// ── Particles ─────────────────────────────────────────────────────
+const SEGS = 180, BASE = 108;
 
-// ─── Drawing ─────────────────────────────────────────────────────────────────
-const SEGMENTS = 180;
-const BASE_R   = 110;
-
-function getFreq(i) {
-  if (!freqData || !analyser) return 0;
-  analyser.getByteFrequencyData(freqData);
-  const idx = Math.floor((i / SEGMENTS) * (freqData.length * 0.6));
-  return freqData[idx] / 255;
+function fakeAmp(i, now) {
+  if (MODE === 'recording') return Math.sin(now*2+i*0.18)*20 + Math.sin(now*5+i*0.4)*8 + 8;
+  if (MODE === 'thinking')  return Math.sin(now*5+i*0.28)*28 + Math.sin(now*9+i*0.6)*10;
+  if (MODE === 'speaking')  return Math.sin(now*3.5+i*0.22)*22 + Math.sin(now*6+i*0.5)*8 + 4;
+  return Math.sin(now*0.7+i*0.1)*8 + 3; // idle
 }
 
 function draw() {
   requestAnimationFrame(draw);
-  t += 0.012;
-
-  // trail effect
-  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  t += 0.013;
+  ctx.fillStyle = 'rgba(0,0,0,0.17)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const cx = canvas.width/2, cy = canvas.height/2;
 
-  const cx = canvas.width  / 2;
-  const cy = canvas.height / 2;
-
-  // ── outer particle ring ──
-  for (let i = 0; i < SEGMENTS; i++) {
-    const angle = (i / SEGMENTS) * Math.PI * 2 - Math.PI / 2;
-    const freq  = getFreq(i);
-
-    let amp;
-    if (MODE === 'listening') {
-      amp = freq * 80 + Math.sin(t * 1.5 + i * 0.15) * 6 + 4;
-    } else if (MODE === 'thinking') {
-      amp = Math.sin(t * 4 + i * 0.25) * 22 + 8;
-    } else if (MODE === 'speaking') {
-      amp = Math.sin(t * 3 + i * 0.2) * 18 + freq * 40 + 6;
-    } else {
-      // idle — slow breathing
-      amp = Math.sin(t * 0.8 + i * 0.1) * 10 + 4;
-    }
-
-    const r = BASE_R + amp;
-    const x = cx + Math.cos(angle) * r;
-    const y = cy + Math.sin(angle) * r;
-
-    // hue shifts by mode
-    const hue = MODE === 'thinking' ? 200 + amp * 1.5
-              : MODE === 'speaking'  ? 170 + amp
-              : 185 + Math.sin(t + i * 0.05) * 15;
-
-    const alpha = 0.35 + freq * 0.65 + Math.sin(t + i * 0.1) * 0.1;
-
+  for (let i = 0; i < SEGS; i++) {
+    const angle = (i/SEGS)*Math.PI*2 - Math.PI/2;
+    const amp   = fakeAmp(i, t);
+    const r     = BASE + amp;
+    const x     = cx + Math.cos(angle)*r;
+    const y     = cy + Math.sin(angle)*r;
+    const hue   = MODE === 'recording' ? 0 + amp*0.5
+                : 185 + amp*0.9 + Math.sin(t+i*0.05)*12;
+    const alpha = 0.3 + Math.abs(Math.sin(t*1.1+i*0.12))*0.55;
     ctx.beginPath();
-    ctx.arc(x, y, 1.4, 0, Math.PI * 2);
-    ctx.fillStyle = `hsla(${hue}, 90%, 68%, ${Math.min(1, alpha)})`;
+    ctx.arc(x, y, 1.5, 0, Math.PI*2);
+    ctx.fillStyle = `hsla(${hue},88%,68%,${alpha})`;
     ctx.fill();
   }
-
-  // ── inner secondary ring (smaller, counter-rotate) ──
+  // inner ring
   for (let i = 0; i < 90; i++) {
-    const angle = -(i / 90) * Math.PI * 2 - t * 0.3;
-    const r     = BASE_R * 0.52 + Math.sin(t * 2 + i * 0.35) * 8;
-    const x     = cx + Math.cos(angle) * r;
-    const y     = cy + Math.sin(angle) * r;
-    const alpha = 0.12 + Math.sin(t * 1.5 + i * 0.2) * 0.08;
-
+    const angle = -(i/90)*Math.PI*2 - t*0.28;
+    const r     = BASE*0.5 + Math.sin(t*1.8+i*0.32)*7;
+    const x     = cx + Math.cos(angle)*r;
+    const y     = cy + Math.sin(angle)*r;
     ctx.beginPath();
-    ctx.arc(x, y, 0.8, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(0,200,255,${alpha})`;
+    ctx.arc(x, y, 0.8, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(0,200,255,${0.07+Math.abs(Math.sin(t*1.2+i*0.22))*0.1})`;
     ctx.fill();
   }
-
-  // ── subtle radial glow ──
-  const glowR = BASE_R * (0.9 + Math.sin(t * 0.6) * 0.05);
-  const grad  = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
-  const glowA = MODE === 'thinking' ? 0.07 : MODE === 'speaking' ? 0.09 : 0.04;
-  grad.addColorStop(0,   `rgba(0,180,255,${glowA})`);
-  grad.addColorStop(0.5, `rgba(0,120,200,${glowA * 0.4})`);
-  grad.addColorStop(1,   'rgba(0,0,0,0)');
-  ctx.beginPath();
-  ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
-  ctx.fillStyle = grad;
-  ctx.fill();
+  // glow
+  const grad = ctx.createRadialGradient(cx,cy,0,cx,cy,BASE*0.9);
+  const ga   = MODE==='thinking'?0.08:MODE==='speaking'?0.1:MODE==='recording'?0.07:0.04;
+  grad.addColorStop(0, `rgba(0,170,255,${ga})`);
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.beginPath(); ctx.arc(cx,cy,BASE*0.9,0,Math.PI*2);
+  ctx.fillStyle = grad; ctx.fill();
 }
-
 draw();
 
-// ─── Dot color by mode ────────────────────────────────────────────────────────
+// ── Mode ──────────────────────────────────────────────────────────
 function setMode(m) {
   MODE = m;
-  if (m === 'listening') {
-    dot.style.background = '#00e5ff';
-    dot.style.boxShadow  = '0 0 12px #00e5ff, 0 0 30px rgba(0,229,255,0.4)';
-    dot.style.animation  = 'pulse 1.2s ease-in-out infinite';
-  } else if (m === 'thinking') {
-    dot.style.background = '#fff';
-    dot.style.boxShadow  = '0 0 10px #fff';
-    dot.style.animation  = 'pulse 0.4s ease-in-out infinite';
-  } else if (m === 'speaking') {
-    dot.style.background = '#a0ffcc';
-    dot.style.boxShadow  = '0 0 14px #a0ffcc, 0 0 32px rgba(160,255,200,0.4)';
-    dot.style.animation  = 'pulse 0.8s ease-in-out infinite';
-  } else {
-    dot.style.background = '#00e5ff';
-    dot.style.boxShadow  = '0 0 8px rgba(0,229,255,0.4)';
-    dot.style.animation  = 'pulse 2.5s ease-in-out infinite';
-  }
+  const map = {
+    idle:      ['#00e5ff','0 0 10px #00e5ff, 0 0 28px rgba(0,229,255,0.3)','2.5s'],
+    listening: ['#00e5ff','0 0 14px #00e5ff, 0 0 36px rgba(0,229,255,0.45)','1.1s'],
+    recording: ['#ff4444','0 0 14px #ff4444, 0 0 36px rgba(255,60,60,0.45)','0.6s'],
+    thinking:  ['#ffffff','0 0 10px #fff, 0 0 24px rgba(255,255,255,0.3)','0.35s'],
+    speaking:  ['#88ffcc','0 0 14px #88ffcc, 0 0 34px rgba(136,255,200,0.4)','0.75s'],
+  };
+  const [bg, shadow, dur] = map[m] || map.idle;
+  dotEl.style.background        = bg;
+  dotEl.style.boxShadow         = shadow;
+  dotEl.style.animationDuration = dur;
+  recRing.style.display = m === 'recording' ? 'block' : 'none';
 }
 
-// ─── Show / hide response ─────────────────────────────────────────────────────
-let hideTimer;
+// ── Message ───────────────────────────────────────────────────────
 function showMsg(text) {
-  clearTimeout(hideTimer);
-  msg.textContent = text;
-  msg.style.opacity = '1';
+  clearTimeout(hideT);
+  msgEl.textContent  = text;
+  msgEl.style.opacity = '1';
 }
-function hideMsg(delay = 3000) {
-  hideTimer = setTimeout(() => { msg.style.opacity = '0'; }, delay);
+function hideMsg(delay=4500) {
+  hideT = setTimeout(() => { msgEl.style.opacity = '0'; }, delay);
 }
 
-// ─── Chat request ─────────────────────────────────────────────────────────────
-async function sendToGhost(text) {
+// ── Ghost API ─────────────────────────────────────────────────────
+async function askGhost(text) {
   setMode('thinking');
   try {
     const res  = await fetch('/chat', {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ message: text })
+      body: JSON.stringify({ message: text })
     });
     const data = await res.json();
-    return data.reply || data.response || data.text || '';
-  } catch(e) {
-    return 'Connection lost.';
-  }
+    return data.reply || data.response || data.message || data.text || JSON.stringify(data);
+  } catch(e) { return 'Connection lost, sir.'; }
 }
 
-// ─── TTS ──────────────────────────────────────────────────────────────────────
-function speak(text) {
+// ── Whisper Transcribe ─────────────────────────────────────────────
+async function transcribe(blob) {
+  try {
+    const form = new FormData();
+    form.append('audio', blob, 'audio.webm');
+    const res  = await fetch('/transcribe', { method: 'POST', body: form });
+    const data = await res.json();
+    return data.text || '';
+  } catch(e) { return ''; }
+}
+
+// ── TTS ───────────────────────────────────────────────────────────
+function speakText(text) {
   return new Promise(resolve => {
     speechSynthesis.cancel();
-    const utt   = new SpeechSynthesisUtterance(text);
-    utt.rate    = 0.92;
-    utt.pitch   = 0.9;
-    utt.volume  = 1;
-    // try to pick a deeper voice
-    const voices = speechSynthesis.getVoices();
-    const deep   = voices.find(v => /daniel|alex|google uk english male|en-gb/i.test(v.name));
-    if (deep) utt.voice = deep;
-    utt.onend = resolve;
-    utt.onerror = resolve;
-    speechSynthesis.speak(utt);
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.rate = 0.92; utt.pitch = 0.88;
+    const trySpeak = () => {
+      const voices = speechSynthesis.getVoices();
+      const pick   = voices.find(v => /daniel|alex|fred|en.gb/i.test(v.name))
+                  || voices.find(v => v.lang && v.lang.startsWith('en'));
+      if (pick) utt.voice = pick;
+      utt.onend = resolve; utt.onerror = resolve;
+      speechSynthesis.speak(utt);
+    };
+    speechSynthesis.getVoices().length ? trySpeak()
+      : (speechSynthesis.onvoiceschanged = trySpeak);
   });
 }
 
-// ─── Speech Recognition ───────────────────────────────────────────────────────
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+// ── VAD Recorder (works in Opera/Chrome/Safari/Firefox) ──────────
+let mediaRecorder = null, audioChunks = [], silenceTimer = null;
+let audioCtx = null, analyserNode = null, vadInterval = null;
 
-if (!SR) {
-  // Fallback: double-click anywhere to type
-  let overlay;
-  document.addEventListener('dblclick', () => {
-    if (overlay) return;
-    overlay = document.createElement('div');
-    overlay.style.cssText = `
-      position:fixed;inset:0;background:rgba(0,0,0,0.85);
-      display:flex;align-items:center;justify-content:center;z-index:100;
-    `;
-    const inp = document.createElement('input');
-    inp.style.cssText = `
-      background:transparent;border:none;border-bottom:1px solid rgba(0,229,255,0.5);
-      color:#fff;font:14px 'Courier New',monospace;letter-spacing:0.2em;
-      text-align:center;width:50vw;outline:none;padding:8px 0;caret-color:#00e5ff;
-    `;
-    inp.placeholder = '...';
-    overlay.appendChild(inp);
-    document.body.appendChild(overlay);
-    inp.focus();
+async function initVAD() {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  audioCtx     = new AudioContext();
+  analyserNode = audioCtx.createAnalyser();
+  analyserNode.fftSize = 512;
+  audioCtx.createMediaStreamSource(stream).connect(analyserNode);
 
-    inp.addEventListener('keydown', async e => {
-      if (e.key !== 'Enter' || !inp.value.trim()) return;
-      const q = inp.value.trim();
-      inp.value = '';
-      overlay.remove(); overlay = null;
+  const freq = new Uint8Array(analyserNode.frequencyBinCount);
 
-      showMsg(q);
-      const reply = await sendToGhost(q);
+  function getVolume() {
+    analyserNode.getByteFrequencyData(freq);
+    return freq.reduce((s,v)=>s+v,0) / freq.length;
+  }
+
+  let isSpeaking = false;
+  const THRESHOLD = 14;
+  const SILENCE_MS = 1400; // stop after 1.4s silence
+
+  function startRec() {
+    audioChunks = [];
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+                   ? 'audio/webm;codecs=opus' : 'audio/webm';
+    mediaRecorder = new MediaRecorder(stream, { mimeType });
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+      if (busy) return;
+      busy = true;
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      setMode('thinking');
+      const transcript = await transcribe(blob);
+      if (!transcript.trim()) { setMode('listening'); busy = false; return; }
+      showMsg(transcript);
+      const reply = await askGhost(transcript);
       setMode('speaking');
       showMsg(reply);
-      await speak(reply);
+      await speakText(reply);
       setMode('listening');
-      hideMsg(4000);
-    });
+      hideMsg(4500);
+      busy = false;
+    };
+    mediaRecorder.start();
+    setMode('recording');
+  }
 
-    overlay.addEventListener('click', e => {
-      if (e.target === overlay) { overlay.remove(); overlay = null; }
-    });
-  });
+  function stopRec() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+    isSpeaking = false;
+    setMode('thinking');
+  }
 
-} else {
-
-  const rec = new SR();
-  rec.continuous      = true;
-  rec.interimResults  = false;
-  rec.lang            = 'en-US';
-  let busy = false;
-
-  rec.onresult = async (e) => {
+  vadInterval = setInterval(() => {
     if (busy) return;
-    const result = e.results[e.results.length - 1];
-    if (!result.isFinal) return;
-    const text = result[0].transcript.trim();
-    if (!text) return;
-
-    busy = true;
-    showMsg(text);
-
-    const reply = await sendToGhost(text);
-    setMode('speaking');
-    showMsg(reply);
-    await speak(reply);
-
-    setMode('listening');
-    hideMsg(4000);
-    busy = false;
-  };
-
-  rec.onerror = (e) => {
-    if (e.error === 'not-allowed') return;
-    setTimeout(() => { try { rec.start(); } catch(_){} }, 800);
-  };
-
-  rec.onend = () => {
-    if (MODE !== 'thinking' && MODE !== 'speaking') {
-      try { rec.start(); } catch(_){}
+    const vol = getVolume();
+    if (vol > THRESHOLD && !isSpeaking) {
+      isSpeaking = true;
+      clearTimeout(silenceTimer);
+      startRec();
+    } else if (vol <= THRESHOLD && isSpeaking) {
+      clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(stopRec, SILENCE_MS);
     }
-  };
+  }, 80);
 
-  // Auto-start after mic init
-  initMic().then(() => {
-    try { rec.start(); setMode('listening'); } catch(_){}
-  });
+  setMode('listening');
 }
+
+// ── Type overlay (double-click fallback) ──────────────────────────
+const typeWrap  = document.getElementById('typeWrap');
+const typeInput = document.getElementById('typeInput');
+
+document.addEventListener('dblclick', () => {
+  typeWrap.classList.add('show');
+  typeInput.value = ''; typeInput.focus();
+});
+typeWrap.addEventListener('click', e => {
+  if (e.target === typeWrap) typeWrap.classList.remove('show');
+});
+typeInput.addEventListener('keydown', async e => {
+  if (e.key !== 'Enter' || !typeInput.value.trim()) return;
+  const q = typeInput.value.trim();
+  typeInput.value = '';
+  typeWrap.classList.remove('show');
+  showMsg(q);
+  const reply = await askGhost(q);
+  setMode('speaking');
+  showMsg(reply);
+  await speakText(reply);
+  setMode('listening');
+  hideMsg(4500);
+});
+
+// ── Boot (one tap required by browser) ───────────────────────────
+tapEl.addEventListener('click', async () => {
+  tapEl.remove();
+  try {
+    await initVAD();
+  } catch(e) {
+    // mic denied — type-only mode
+    setMode('listening');
+    showMsg('Mic blocked. Double-click to type.');
+    hideMsg(4000);
+  }
+}, { once: true });
 </script>
 </body>
 </html>
