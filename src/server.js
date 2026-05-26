@@ -157,17 +157,3 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
 
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
-app.post('/transcribe', upload.single('audio'), async (req, res) => {
-  try {
-    const FormData = require('form-data');
-    const axios = require('axios');
-    const form = new FormData();
-    form.append('file', req.file.buffer, { filename: 'audio.webm', contentType: 'audio/webm' });
-    form.append('model', 'whisper-large-v3-turbo');
-    form.append('response_format', 'json');
-    const r = await axios.post('https://api.groq.com/openai/v1/audio/transcriptions', form, {
-      headers: { ...form.getHeaders(), Authorization: `Bearer ${process.env.GROQ_API_KEY}` }
-    });
-    res.json({ text: r.data.text });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
