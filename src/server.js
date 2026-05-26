@@ -155,3 +155,17 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
+
+// ── GROQ TTS ───────────────────────────────────────────────────────────────
+app.post('/speak', express.json(), async (req, res) => {
+  try {
+    const axios = require('axios');
+    const resp  = await axios.post(
+      'https://api.groq.com/openai/v1/audio/speech',
+      { model: 'playai-tts', voice: 'Fritz-PlayAI', input: req.body.text, response_format: 'wav' },
+      { headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' }, responseType: 'arraybuffer' }
+    );
+    res.set('Content-Type', 'audio/wav');
+    res.send(Buffer.from(resp.data));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
