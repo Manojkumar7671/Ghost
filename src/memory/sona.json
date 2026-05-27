@@ -1,5 +1,6 @@
 {
   "facts": [
+    "[ADMIN] Manoj's favorite color is red",
     "You are a 21-year-old CS student in Mangalagiri.",
     "You are set to graduate in 2026.",
     "Your financial target is 20L",
@@ -212,8 +213,9 @@
     "It has 4 windows.",
     "The CAD file is named 'floor_plan_10x8.dxf'.",
     "The file is saved in '/Users/manojkumarmathangi/Ghost/outputs/cad/'.",
-    "The file can be opened in AutoCAD, FreeCAD, or any DXF viewer."
+    "The file can be opened in AutoCAD, FreeCAD, or any DXF viewer.",
+    "Your favourite color is red."
   ],
-  "learnCount": 74,
-  "lastLearn": "2026-05-19T15:52:24.637Z"
+  "learnCount": 76,
+  "lastLearn": "2026-05-27T08:35:07.611Z"
 }

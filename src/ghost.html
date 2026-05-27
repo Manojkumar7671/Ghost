@@ -294,6 +294,13 @@ async function initVAD() {
   }
 
   vadInterval = setInterval(() => {
+    const _vol = getVolume();
+    if (busy && MODE === 'speaking' && _vol > THRESHOLD) {
+      speechSynthesis.cancel();
+      busy = false;
+      isSpeaking = false;
+      setMode('listening');
+    }
     if (busy) return;
     const vol = getVolume();
     if (vol > THRESHOLD && !isSpeaking) {

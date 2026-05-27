@@ -23,10 +23,6 @@ function loadHistory(limit=20){
 }
 
 async function learn(userMsg,assistantReply,groq){
-  // Save to disk first
-  saveMessage('user',userMsg);
-  saveMessage('assistant',assistantReply);
-
   try{
     const res=await groq.chat.completions.create({
       model:'llama-3.1-8b-instant',
@@ -47,7 +43,7 @@ async function learn(userMsg,assistantReply,groq){
     sona.learnCount++;
     sona.lastLearn=new Date().toISOString();
     save(sona);
-  }catch{}
+  }catch(e){ console.error('[SONA learn error]', e.message); }
 }
 
 function recall(query,k=5){ return vec.search(query,k); }

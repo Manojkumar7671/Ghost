@@ -1,4 +1,4 @@
-const SYSTEM_PROMPT = `You are Ghost — a highly intelligent personal AI. You are three things at once: a loyal butler (respectful, precise, always says "sir"), a trusted friend (casual when needed, knows your world), and a sharp operator (direct, no fluff, gets things done fast).
+const SYSTEM_PROMPT = `You are FRIDAY — Ghost's voice. A highly intelligent personal AI modeled after Iron Man's FRIDAY: proactive, sharp, loyal, and always one step ahead. You anticipate needs before they are stated. You speak with quiet confidence — never robotic, never sycophantic. You are three things at once: a loyal operator (always says "sir", precise, zero fluff), a trusted advisor (knows Manoj's world deeply, speaks candidly), and a proactive intelligence (surfaces relevant info without being asked, flags risks, suggests next moves).
 
 OPERATOR IDENTITY:
 - Name: Manoj (Mathangi Manoj Kumar) — always call him "sir"
@@ -22,7 +22,11 @@ RULES:
 - For technical questions, give exact terminal commands and code only
 - Match tone to context: serious for work, relaxed for casual talk
 - When given an order, execute it — don't question unless critical
-- Always finish what you start — no half answers`;
+- Always finish what you start — no half answers
+- Be proactive: if you notice something relevant to sir's goals, mention it
+- Anticipate: suggest next steps without being asked
+- Never say "I cannot" — find a way or suggest an alternative
+- Keep responses tight — no padding, no filler, no "certainly sir"`;
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -45,9 +49,13 @@ const PORT = process.env.PORT || 3000;
 
 const FALLBACK = 'llama-3.3-70b-versatile';
 function shouldLearn(msg, reply) {
-  if (!reply || reply.length < 60) return false;
-  if (/^[s{"]/i.test(reply) && reply.includes('"skill"')) return false; // skill JSON
-  const trivial = /^(ok|yes|no|sure|got it|done|hello|hi|hey|what?)/i;
+  if (!reply) return false;
+  if (/^[s{"]/i.test(reply) && reply.includes('"skill"')) return false;
+  // Always learn if user is stating personal facts
+  if (/my (name|favourite|favorite|goal|target|age|city|project|skill|hobby|color|colour)/i.test(msg)) return true;
+  if (/i am|i'm|i work|i live|i build|i like|i prefer|i want|i have/i.test(msg)) return true;
+  if (reply.length < 60) return false;
+  const trivial = /^(ok|yes|no|sure|got it|done|hello|hi|hey)/i;
   if (trivial.test(reply.trim())) return false;
   return true;
 }
@@ -63,8 +71,8 @@ const sessions = {};
 async function chat(message, sessionId='default', channel='web') {
   if (!sessions[sessionId]) sessions[sessionId]=sona.loadHistory(50);
   sessions[sessionId]._lastActive = Date.now();
-  const recalled = sona.recall(message, 3);
-  const recalledBlock = recalled.length ? '\n\nRelevant context:\n'+recalled.map(r=>'- '+r.text).join('\n') : '';
+  const recalled = sona.recall(message, 6);
+  const recalledBlock = recalled.length ? '\n\n[MEMORY - use these facts first]:\n'+recalled.map(r=>'- '+r.text).join('\n') : '';
   const skillList = Object.entries(skills).map(([name,s])=>`- ${name}: ${s.description||''}`).join('\n'); const skillBlock = skillList ? `\n\nAvailable skills (call as JSON only, no extra text):\n${skillList}\n\nFor questions that explicitly ask to search, find, or look up current news, jobs, events, prices, or scores — respond ONLY with: {"skill":"web_search","args":{"query":"..."}}
 For weather — respond ONLY with: {"skill":"weather","args":{"location":"..."}} — ONLY if the current message explicitly asks about weather, temperature, or forecast. If the message is about something else, respond normally.
 If user says learn/study/research/get knowledge on a topic — respond ONLY with: {"skill":"learn_topic","args":{"topic":"...topic name..."}}
@@ -89,7 +97,7 @@ NEVER answer news/jobs/current info from memory — always use web_search skill.
   }
   const { model: routedModel, reason } = route(message);
   log('router', message.slice(0,60), routedModel+'('+reason+')');
-  const messages = [...sessions[sessionId].filter(m=>m.role).slice(-8), {role:'user',content:message}];
+  const messages = [...sessions[sessionId].filter(m=>m.role).slice(-20), {role:'user',content:message}];
   let reply='';
   try { const res=await groq.chat.completions.create({model:routedModel, messages:[{role:'system',content:system},...messages], max_tokens:1024, temperature:0.3}); reply=res.choices[0].message.content.trim(); }
   catch { const res=await groq.chat.completions.create({model:FALLBACK, messages:[{role:'system',content:system},...messages], max_tokens:1024, temperature:0.3}); reply=res.choices[0].message.content.trim(); }
@@ -97,7 +105,9 @@ NEVER answer news/jobs/current info from memory — always use web_search skill.
   sessions[sessionId].push({role:'user',content:message});
   sessions[sessionId].push({role:'assistant',content:reply});
   log('ghost',message.slice(0,80),reply.slice(0,100));
-  if(shouldLearn(message,reply)) sona.learn(message,reply,groq).catch(()=>{});
+  sona.saveMessage('user', message);
+  sona.saveMessage('assistant', reply);
+  if(shouldLearn(message,reply)) sona.learn(message,reply,groq).catch(e=>log('sona','learn_error',e.message));
   return { reply, model:routedModel, reason };
 }
 async function textToSpeech(text) { const key=process.env.ELEVENLABS_API_KEY; if (!key) return null; const voiceId=process.env.ELEVENLABS_VOICE_ID||'21m00Tcm4TlvDq8ikWAM'; const https=require('https'); return new Promise((resolve)=>{ const body=JSON.stringify({text,model_id:'eleven_monolingual_v1',voice_settings:{stability:0.5,similarity_boost:0.75}}); const req=https.request({hostname:'api.elevenlabs.io',path:`/v1/text-to-speech/${voiceId}`,method:'POST',headers:{'xi-api-key':key,'Content-Type':'application/json','Accept':'audio/mpeg'}},(res)=>{ const chunks=[]; res.on('data',c=>chunks.push(c)); res.on('end',()=>resolve(Buffer.concat(chunks).toString('base64'))); }); req.on('error',()=>resolve(null)); req.write(body); req.end(); }); }
