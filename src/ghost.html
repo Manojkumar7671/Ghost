@@ -402,9 +402,19 @@ typeInput.addEventListener('keydown', async e => {
 tapEl.addEventListener('click', async () => {
   tapEl.remove();
   try {
+    const tmpCtx = new AudioContext();
+    await tmpCtx.resume();
+    const buf = tmpCtx.createBuffer(1,1,22050);
+    const src = tmpCtx.createBufferSource();
+    src.buffer = buf; src.connect(tmpCtx.destination); src.start(0);
+  } catch(e) {}
+  try {
+    const utt = new SpeechSynthesisUtterance(' ');
+    speechSynthesis.speak(utt); speechSynthesis.cancel();
+  } catch(e) {}
+  try {
     await initVAD();
   } catch(e) {
-    // mic denied — type-only mode
     setMode('listening');
     showMsg('Mic blocked. Double-click to type.');
     hideMsg(4000);

@@ -3,6 +3,12 @@
     "agent": "worker:heartbeat",
     "action": "ping",
     "result": "alive",
+    "ts": "2026-05-27T19:13:19.186Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
     "ts": "2026-05-27T19:08:19.182Z"
   },
   {
@@ -1792,11 +1798,5 @@
     "action": "180 min",
     "result": "",
     "ts": "2026-05-27T06:18:34.329Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-27T06:18:34.325Z"
   }
 ]
