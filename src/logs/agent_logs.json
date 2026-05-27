@@ -3,6 +3,648 @@
     "agent": "worker:heartbeat",
     "action": "ping",
     "result": "alive",
+    "ts": "2026-05-27T13:34:24.144Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T13:29:24.139Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "270 min",
+    "result": "",
+    "ts": "2026-05-27T13:29:24.118Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T13:29:24.115Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T13:24:24.139Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T13:19:24.136Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "260 min",
+    "result": "",
+    "ts": "2026-05-27T13:19:24.117Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T13:14:24.134Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T13:14:24.113Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T13:09:24.132Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "250 min",
+    "result": "",
+    "ts": "2026-05-27T13:09:24.115Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T13:04:24.130Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T12:59:24.128Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "240 min",
+    "result": "",
+    "ts": "2026-05-27T12:59:24.110Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T12:59:24.108Z"
+  },
+  {
+    "agent": "worker:skill_reload",
+    "action": "reloaded",
+    "result": "agent,email,github,goal,hacking,map,news,news_map,remember,self,self_repair,weather,web_search",
+    "ts": "2026-05-27T12:59:24.084Z"
+  },
+  {
+    "agent": "worker:sona_stats",
+    "action": "facts:215 vectors:215 learns:76",
+    "result": "",
+    "ts": "2026-05-27T12:59:24.068Z"
+  },
+  {
+    "agent": "worker:vec_optimize",
+    "action": "vector store size: 215",
+    "result": "",
+    "ts": "2026-05-27T12:59:24.064Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T12:54:24.125Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T12:49:24.122Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "230 min",
+    "result": "",
+    "ts": "2026-05-27T12:49:24.106Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T12:44:24.120Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T12:44:24.104Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T12:39:24.117Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "220 min",
+    "result": "",
+    "ts": "2026-05-27T12:39:24.103Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T12:34:24.119Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T12:29:24.113Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "210 min",
+    "result": "",
+    "ts": "2026-05-27T12:29:24.099Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T12:29:24.097Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T12:24:24.112Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T12:19:24.108Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "200 min",
+    "result": "",
+    "ts": "2026-05-27T12:19:24.095Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T12:14:24.106Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T12:14:24.092Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T12:09:24.103Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "190 min",
+    "result": "",
+    "ts": "2026-05-27T12:09:24.090Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T12:04:24.102Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T11:59:24.099Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T11:59:24.086Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "180 min",
+    "result": "",
+    "ts": "2026-05-27T11:59:24.084Z"
+  },
+  {
+    "agent": "worker:skill_reload",
+    "action": "reloaded",
+    "result": "agent,email,github,goal,hacking,map,news,news_map,remember,self,self_repair,weather,web_search",
+    "ts": "2026-05-27T11:59:24.075Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T11:54:24.097Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T11:49:24.093Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "170 min",
+    "result": "",
+    "ts": "2026-05-27T11:49:24.081Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T11:44:24.090Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T11:44:24.081Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T11:39:24.087Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "160 min",
+    "result": "",
+    "ts": "2026-05-27T11:39:24.078Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T11:34:24.089Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T11:29:24.084Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "150 min",
+    "result": "",
+    "ts": "2026-05-27T11:29:24.076Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T11:29:24.074Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T11:24:24.081Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T11:19:24.071Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "140 min",
+    "result": "",
+    "ts": "2026-05-27T11:19:24.069Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T11:14:24.071Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T11:14:24.068Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T11:09:24.069Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "130 min",
+    "result": "",
+    "ts": "2026-05-27T11:09:24.068Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T11:04:24.068Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T10:59:24.064Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "120 min",
+    "result": "",
+    "ts": "2026-05-27T10:59:24.062Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T10:59:24.061Z"
+  },
+  {
+    "agent": "worker:skill_reload",
+    "action": "reloaded",
+    "result": "agent,email,github,goal,hacking,map,news,news_map,remember,self,self_repair,weather,web_search",
+    "ts": "2026-05-27T10:59:24.058Z"
+  },
+  {
+    "agent": "worker:sona_stats",
+    "action": "facts:215 vectors:215 learns:76",
+    "result": "",
+    "ts": "2026-05-27T10:59:24.041Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T10:54:24.061Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T10:49:24.059Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "110 min",
+    "result": "",
+    "ts": "2026-05-27T10:49:24.056Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T10:44:24.056Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T10:44:24.050Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T10:39:24.054Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "100 min",
+    "result": "",
+    "ts": "2026-05-27T10:39:24.052Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T10:34:24.054Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T10:29:24.048Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "90 min",
+    "result": "",
+    "ts": "2026-05-27T10:29:24.046Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T10:29:24.044Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T10:24:24.050Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T10:19:24.045Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "80 min",
+    "result": "",
+    "ts": "2026-05-27T10:19:24.041Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T10:14:24.042Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T10:14:24.040Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T10:09:24.039Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "70 min",
+    "result": "",
+    "ts": "2026-05-27T10:09:24.037Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T10:04:24.039Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T09:59:24.035Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "60 min",
+    "result": "",
+    "ts": "2026-05-27T09:59:24.033Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T09:59:24.032Z"
+  },
+  {
+    "agent": "worker:skill_reload",
+    "action": "reloaded",
+    "result": "agent,email,github,goal,hacking,map,news,news_map,remember,self,self_repair,weather,web_search",
+    "ts": "2026-05-27T09:59:24.028Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T09:54:24.028Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T09:49:24.023Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "50 min",
+    "result": "",
+    "ts": "2026-05-27T09:49:24.018Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T09:44:24.021Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T09:44:24.011Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T09:39:24.015Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "40 min",
+    "result": "",
+    "ts": "2026-05-27T09:39:24.013Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T09:34:24.013Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T09:29:24.011Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "30 min",
+    "result": "",
+    "ts": "2026-05-27T09:29:24.006Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T09:29:24.004Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T09:24:24.004Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T09:19:24.000Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "20 min",
+    "result": "",
+    "ts": "2026-05-27T09:19:23.996Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T09:14:24.000Z"
+  },
+  {
+    "agent": "worker:skill_health",
+    "action": "13 skills active",
+    "result": "",
+    "ts": "2026-05-27T09:14:23.998Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T09:09:24.006Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "10 min",
+    "result": "",
+    "ts": "2026-05-27T09:09:24.005Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T09:04:24.004Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
     "ts": "2026-05-27T08:56:01.421Z"
   },
   {
@@ -1156,647 +1798,5 @@
     "action": "ping",
     "result": "alive",
     "ts": "2026-05-26T14:24:39.640Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T14:19:39.639Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T14:14:50.770Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "686 min",
-    "result": "",
-    "ts": "2026-05-26T14:14:39.658Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T14:14:39.636Z"
-  },
-  {
-    "agent": "worker:skill_reload",
-    "action": "reloaded",
-    "result": "agent,email,github,goal,hacking,map,news,news_map,remember,self,self_repair,weather,web_search",
-    "ts": "2026-05-26T14:10:18.705Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T14:09:39.633Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "676 min",
-    "result": "",
-    "ts": "2026-05-26T14:04:39.655Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T14:04:39.632Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T13:59:50.766Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T13:59:39.630Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "666 min",
-    "result": "",
-    "ts": "2026-05-26T13:54:39.652Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T13:54:39.628Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T13:49:39.624Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T13:44:50.761Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "656 min",
-    "result": "",
-    "ts": "2026-05-26T13:44:39.647Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T13:44:39.622Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T13:39:39.621Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "646 min",
-    "result": "",
-    "ts": "2026-05-26T13:34:39.640Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T13:34:39.619Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T13:29:50.754Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T13:29:39.616Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "636 min",
-    "result": "",
-    "ts": "2026-05-26T13:24:39.635Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T13:24:39.614Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T13:19:39.614Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T13:14:50.671Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "626 min",
-    "result": "",
-    "ts": "2026-05-26T13:14:39.632Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T13:14:39.611Z"
-  },
-  {
-    "agent": "worker:skill_reload",
-    "action": "reloaded",
-    "result": "agent,email,github,goal,hacking,map,news,news_map,remember,self,self_repair,weather,web_search",
-    "ts": "2026-05-26T13:10:18.683Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T13:09:39.610Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "616 min",
-    "result": "",
-    "ts": "2026-05-26T13:04:39.630Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T13:04:39.606Z"
-  },
-  {
-    "agent": "worker:sona_stats",
-    "action": "facts:213 vectors:213 learns:74",
-    "result": "",
-    "ts": "2026-05-26T13:01:25.930Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T12:59:50.665Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T12:59:39.603Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "606 min",
-    "result": "",
-    "ts": "2026-05-26T12:54:39.627Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T12:54:39.599Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T12:49:39.597Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T12:44:50.660Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "596 min",
-    "result": "",
-    "ts": "2026-05-26T12:44:39.621Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T12:44:39.595Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T12:29:50.656Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "581 min",
-    "result": "",
-    "ts": "2026-05-26T12:29:50.652Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T12:29:50.608Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T12:10:18.670Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "562 min",
-    "result": "",
-    "ts": "2026-05-26T12:10:18.669Z"
-  },
-  {
-    "agent": "worker:skill_reload",
-    "action": "reloaded",
-    "result": "agent,email,github,goal,hacking,map,news,news_map,remember,self,self_repair,weather,web_search",
-    "ts": "2026-05-26T12:10:18.668Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T12:10:18.651Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T11:52:32.168Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "544 min",
-    "result": "",
-    "ts": "2026-05-26T11:52:32.167Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T11:52:32.165Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T11:35:26.733Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "527 min",
-    "result": "",
-    "ts": "2026-05-26T11:35:26.731Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T11:35:26.729Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "509 min",
-    "result": "",
-    "ts": "2026-05-26T11:17:14.653Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T11:17:14.649Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T11:17:14.606Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "493 min",
-    "result": "",
-    "ts": "2026-05-26T11:01:25.915Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T11:01:25.914Z"
-  },
-  {
-    "agent": "worker:skill_reload",
-    "action": "reloaded",
-    "result": "agent,email,github,goal,hacking,map,news,news_map,remember,self,self_repair,weather,web_search",
-    "ts": "2026-05-26T11:01:25.912Z"
-  },
-  {
-    "agent": "worker:sona_stats",
-    "action": "facts:213 vectors:213 learns:74",
-    "result": "",
-    "ts": "2026-05-26T11:01:25.898Z"
-  },
-  {
-    "agent": "worker:vec_optimize",
-    "action": "vector store size: 213",
-    "result": "",
-    "ts": "2026-05-26T11:01:25.894Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T10:47:33.531Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "479 min",
-    "result": "",
-    "ts": "2026-05-26T10:47:33.530Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T10:47:33.529Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T10:30:58.674Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "462 min",
-    "result": "",
-    "ts": "2026-05-26T10:30:58.673Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T10:30:58.671Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T10:08:41.620Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "440 min",
-    "result": "",
-    "ts": "2026-05-26T10:08:41.215Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T10:03:41.618Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T10:03:41.614Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T09:58:41.436Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "430 min",
-    "result": "",
-    "ts": "2026-05-26T09:58:41.433Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T09:53:41.176Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T09:48:41.170Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "420 min",
-    "result": "",
-    "ts": "2026-05-26T09:48:41.152Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T09:48:41.151Z"
-  },
-  {
-    "agent": "worker:skill_reload",
-    "action": "reloaded",
-    "result": "agent,email,github,goal,hacking,map,news,news_map,remember,self,self_repair,weather,web_search",
-    "ts": "2026-05-26T09:48:41.149Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T09:43:41.171Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T09:38:41.165Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "410 min",
-    "result": "",
-    "ts": "2026-05-26T09:38:41.145Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T09:33:41.164Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T09:33:41.140Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T09:28:41.160Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "400 min",
-    "result": "",
-    "ts": "2026-05-26T09:28:41.142Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T09:23:41.159Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T09:18:41.153Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "390 min",
-    "result": "",
-    "ts": "2026-05-26T09:18:41.137Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T09:18:41.134Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T09:13:41.152Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T09:08:41.148Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "380 min",
-    "result": "",
-    "ts": "2026-05-26T09:08:41.136Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T09:03:41.145Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T09:03:41.132Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T08:58:41.142Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "370 min",
-    "result": "",
-    "ts": "2026-05-26T08:58:41.132Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T08:53:41.144Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T08:48:41.139Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "360 min",
-    "result": "",
-    "ts": "2026-05-26T08:48:41.127Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T08:48:41.126Z"
-  },
-  {
-    "agent": "worker:skill_reload",
-    "action": "reloaded",
-    "result": "agent,email,github,goal,hacking,map,news,news_map,remember,self,self_repair,weather,web_search",
-    "ts": "2026-05-26T08:48:41.125Z"
-  },
-  {
-    "agent": "worker:sona_stats",
-    "action": "facts:213 vectors:213 learns:74",
-    "result": "",
-    "ts": "2026-05-26T08:48:41.117Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T08:43:41.137Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T08:38:41.138Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "350 min",
-    "result": "",
-    "ts": "2026-05-26T08:38:41.100Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T08:33:41.136Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-26T08:33:41.091Z"
   }
 ]
