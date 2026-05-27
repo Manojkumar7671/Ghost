@@ -151,7 +151,7 @@
 <div id="dot"></div>
 <div id="recRing"></div>
 <div id="msg"></div>
-<div id="tap" style="position:fixed;inset:0;z-index:50;cursor:pointer;"></div>
+<div id="tap" style="position:fixed;inset:0;z-index:50;cursor:pointer;background:transparent;"></div>
 <div id="typeWrap"><input id="typeInput" placeholder="..." autocomplete="off" spellcheck="false"></div>
 
 <script>
@@ -371,13 +371,15 @@ async function initVAD() {
   setMode('listening');
 }
 
-// ── Type overlay (double-click fallback) ──────────────────────────
+// ── Type overlay ──────────────────────────────────────────────────
 const typeWrap  = document.getElementById('typeWrap');
 const typeInput = document.getElementById('typeInput');
+let tapDone = false;
 
-document.addEventListener('dblclick', () => {
+document.addEventListener('click', () => {
+  if (!tapDone) { tapDone = true; return; }
   typeWrap.classList.add('show');
-  typeInput.value = ''; typeInput.focus();
+  setTimeout(() => { typeInput.value = ''; typeInput.focus(); }, 50);
 });
 typeWrap.addEventListener('click', e => {
   if (e.target === typeWrap) typeWrap.classList.remove('show');
