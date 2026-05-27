@@ -1,5 +1,17 @@
 [
   {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T08:56:01.421Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T08:44:09.467Z"
+  },
+  {
     "agent": "ghost",
     "action": "what is my favourite color?",
     "result": "Your favorite color is red, sir.",
@@ -1786,17 +1798,5 @@
     "action": "13 skills active",
     "result": "",
     "ts": "2026-05-26T08:33:41.091Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-26T08:28:41.133Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "340 min",
-    "result": "",
-    "ts": "2026-05-26T08:28:41.095Z"
   }
 ]
