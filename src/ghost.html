@@ -51,7 +51,7 @@
 
   #typeWrap {
     display: none; position: fixed; inset: 0;
-    background: rgba(0,0,0,0.9); z-index: 100;
+    background: rgba(0,0,0,0.9); z-index: 9999;
     align-items: center; justify-content: center;
   }
   #typeWrap.show { display: flex; }
@@ -151,7 +151,7 @@
 <div id="dot"></div>
 <div id="recRing"></div>
 <div id="msg"></div>
-<div id="tap"></div>
+<div id="tap" style="position:fixed;inset:0;z-index:50;cursor:pointer;"></div>
 <div id="typeWrap"><input id="typeInput" placeholder="..." autocomplete="off" spellcheck="false"></div>
 
 <script>
