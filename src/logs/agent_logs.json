@@ -3,6 +3,30 @@
     "agent": "worker:heartbeat",
     "action": "ping",
     "result": "alive",
+    "ts": "2026-05-28T03:43:25.696Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "10 min",
+    "result": "",
+    "ts": "2026-05-28T03:43:25.694Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-28T03:38:25.693Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-27T19:23:19.191Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
     "ts": "2026-05-27T19:18:19.186Z"
   },
   {
@@ -1774,29 +1798,5 @@
     "action": "200 min",
     "result": "",
     "ts": "2026-05-27T06:38:34.340Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-27T06:33:34.348Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-27T06:33:34.333Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-27T06:28:34.345Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "190 min",
-    "result": "",
-    "ts": "2026-05-27T06:28:34.336Z"
   }
 ]

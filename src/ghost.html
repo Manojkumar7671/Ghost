@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GHOST</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/maplibre-gl.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/maplibre-gl.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -16,7 +18,7 @@
   }
   canvas { position: fixed; top: 0; left: 0; pointer-events: none; }
 
-  #worldMap { position:fixed; inset:0; z-index:1; width:100vw; height:100vh; opacity:0.7; pointer-events:none; border:none; }
+  #worldMap { position:fixed; inset:0; z-index:1; width:100vw; height:100vh; pointer-events:none; }
 
   #dot {
     position: fixed; top: 50%; left: 50%;
@@ -256,7 +258,7 @@
 </head>
 <body>
 
-<!-- Palantir world map SVG -->
+<div id="worldMap"></div>
 
 
 <div id="scanline"></div>
@@ -613,7 +615,7 @@ async function fetchNewsAndPlot() {
     const data = await r.json();
     const text = data.text || data.reply || '';
     clearNewsDots();
-    // Plot dots for each matched country
+    clearMapMarkers();
     const plotted = new Set();
     Object.entries(COUNTRY_COORDS).forEach(([name, coords]) => {
       if (text.includes(name) && !plotted.has(name)) {
@@ -621,13 +623,70 @@ async function fetchNewsAndPlot() {
         plotted.add(name);
       }
     });
-    // Always plot at least a few random dots if no match
+    Object.entries(NEWS_LNGLAT).forEach(([name, lnglat]) => {
+      if (text.includes(name)) addMapMarker(lnglat[0], lnglat[1], name);
+    });
     if (plotted.size === 0) {
       [COUNTRY_COORDS['US'], COUNTRY_COORDS['UK'], COUNTRY_COORDS['China']].forEach(c => addNewsDot(c[0], c[1]));
+      [[-98,38],[-2,54],[104,35]].forEach(ll => addMapMarker(ll[0], ll[1], ''));
     }
   } catch(e) {}
 }
 
+// ── MAPLIBRE WORLD MAP ───────────────────────────────────────────
+const map = new maplibregl.Map({
+  container: 'worldMap',
+  style: {
+    version: 8,
+    sources: {
+      'carto-dark': {
+        type: 'raster',
+        tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        attribution: '© CartoDB'
+      }
+    },
+    layers: [{ id: 'carto-dark', type: 'raster', source: 'carto-dark', paint: { 'raster-opacity': 0.5 } }]
+  },
+  center: [20, 20],
+  zoom: 1.8,
+  interactive: false,
+  attributionControl: false
+});
+
+// News markers on map
+let mapMarkers = [];
+
+function clearMapMarkers() {
+  mapMarkers.forEach(m => m.remove());
+  mapMarkers = [];
+}
+
+function addMapMarker(lng, lat, label) {
+  const el = document.createElement('div');
+  el.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#00e5ff;box-shadow:0 0 8px #00e5ff,0 0 20px rgba(0,229,255,0.5);animation:newsPulse 2s ease-in-out infinite;';
+  const marker = new maplibregl.Marker({ element: el })
+    .setLngLat([lng, lat])
+    .addTo(map);
+  mapMarkers.push(marker);
+}
+
+const NEWS_LNGLAT = {
+  'US': [-98, 38], 'USA': [-98, 38], 'United States': [-98, 38],
+  'UK': [-2, 54], 'Britain': [-2, 54], 'England': [-2, 54],
+  'Russia': [60, 55], 'China': [104, 35], 'India': [78, 22],
+  'Germany': [10, 51], 'France': [2, 46], 'Japan': [138, 36],
+  'Brazil': [-51, -10], 'Australia': [134, -25], 'Canada': [-96, 56],
+  'Iran': [53, 32], 'Israel': [35, 31], 'Ukraine': [32, 49],
+  'Pakistan': [70, 30], 'Korea': [128, 36], 'Turkey': [35, 39],
+  'Italy': [12, 42], 'Spain': [-3, 40], 'Nigeria': [8, 10],
+  'Egypt': [30, 26], 'Saudi': [45, 24], 'Mexico': [-102, 24],
+  'Indonesia': [118, -2], 'Philippines': [122, 12], 'Africa': [20, 0],
+  'Lebanon': [35, 34], 'Syria': [38, 35], 'Iraq': [44, 33],
+  'Yemen': [48, 15], 'Gaza': [34, 31], 'Taiwan': [121, 24],
+};
+
+// ── NEWS DOTS (override old function) ────────────────────────────
 // Fetch news dots on load and every 5 minutes
 fetchNewsAndPlot();
 setInterval(fetchNewsAndPlot, 5 * 60 * 1000);
