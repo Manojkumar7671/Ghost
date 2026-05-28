@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GHOST</title>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/maplibre-gl.min.css" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/maplibre-gl.min.js"></script>
+
+
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:#000;width:100vw;height:100vh;overflow:hidden;font-family:'Courier New',monospace;cursor:none;}
 canvas{position:fixed;top:0;left:0;pointer-events:none;z-index:0;}
-#worldMap{position:fixed;inset:0;z-index:1;width:100vw;height:100vh;opacity:0.4;pointer-events:none;}
+
 #scanline{position:fixed;inset:0;z-index:2;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,229,255,0.012) 2px,rgba(0,229,255,0.012) 4px);pointer-events:none;}
 .bracket{position:fixed;width:40px;height:40px;z-index:4;pointer-events:none;opacity:0.25;}
 .bracket.tl{top:20px;left:20px;border-top:1px solid #00e5ff;border-left:1px solid #00e5ff;}
@@ -45,7 +45,7 @@ canvas{position:fixed;top:0;left:0;pointer-events:none;z-index:0;}
 </style>
 </head>
 <body>
-<div id="worldMap"></div>
+
 <div id="scanline"></div>
 <div class="bracket tl"></div>
 <div class="bracket tr"></div>
