@@ -1,5 +1,17 @@
 [
   {
+    "agent": "worker:uptime",
+    "action": "745 min",
+    "result": "",
+    "ts": "2026-05-28T15:58:27.031Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
+    "ts": "2026-05-28T15:58:27.002Z"
+  },
+  {
     "agent": "worker:heartbeat",
     "action": "ping",
     "result": "alive",
@@ -1786,17 +1798,5 @@
     "action": "180 min",
     "result": "",
     "ts": "2026-05-27T16:48:18.954Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-27T16:48:18.953Z"
-  },
-  {
-    "agent": "worker:skill_reload",
-    "action": "reloaded",
-    "result": "agent,email,github,goal,hacking,map,news,news_map,remember,self,self_repair,weather,web_search",
-    "ts": "2026-05-27T16:48:18.950Z"
   }
 ]
