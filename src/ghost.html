@@ -137,20 +137,22 @@ async function transcribe(blob){
     const data=await res.json();return data.text||'';
   }catch(e){return'';}
 }
-function speakText(text){
-  return new Promise(resolve=>{
-    speechSynthesis.cancel();
-    const utt=new SpeechSynthesisUtterance(text);
-    utt.rate=0.92;utt.pitch=0.88;
-    const trySpeak=()=>{
-      const voices=speechSynthesis.getVoices();
-      const pick=voices.find(v=>/daniel|alex|fred|en.gb/i.test(v.name))||voices.find(v=>v.lang&&v.lang.startsWith('en'));
-      if(pick)utt.voice=pick;
-      utt.onend=resolve;utt.onerror=resolve;
-      speechSynthesis.speak(utt);
-    };
-    speechSynthesis.getVoices().length?trySpeak():(speechSynthesis.onvoiceschanged=trySpeak);
-  });
+async function speakText(text) {
+  try {
+    const res = await fetch('/voice/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    const data = await res.json();
+    if (!data.audio_b64) return;
+    const audio = new Audio('data:audio/mpeg;base64,' + data.audio_b64);
+    return new Promise(resolve => {
+      audio.onended = resolve;
+      audio.onerror = resolve;
+      audio.play();
+    });
+  } catch(e) { return; }
 }
 let mediaRecorder=null,audioChunks=[],silenceTimer=null;
 let audioCtx=null,analyserNode=null,vadInterval=null;

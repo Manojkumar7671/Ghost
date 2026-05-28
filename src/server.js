@@ -110,7 +110,36 @@ NEVER answer news/jobs/current info from memory — always use web_search skill.
   if(shouldLearn(message,reply)) sona.learn(message,reply,groq).catch(e=>log('sona','learn_error',e.message));
   return { reply, model:routedModel, reason };
 }
-async function textToSpeech(text) { const key=process.env.ELEVENLABS_API_KEY; if (!key) return null; const voiceId=process.env.ELEVENLABS_VOICE_ID||'21m00Tcm4TlvDq8ikWAM'; const https=require('https'); return new Promise((resolve)=>{ const body=JSON.stringify({text,model_id:'eleven_monolingual_v1',voice_settings:{stability:0.5,similarity_boost:0.75}}); const req=https.request({hostname:'api.elevenlabs.io',path:`/v1/text-to-speech/${voiceId}`,method:'POST',headers:{'xi-api-key':key,'Content-Type':'application/json','Accept':'audio/mpeg'}},(res)=>{ const chunks=[]; res.on('data',c=>chunks.push(c)); res.on('end',()=>resolve(Buffer.concat(chunks).toString('base64'))); }); req.on('error',()=>resolve(null)); req.write(body); req.end(); }); }
+async function textToSpeech(text) {
+  const key = process.env.FISH_API_KEY;
+  if (!key) return null;
+  const https = require('https');
+  const body = JSON.stringify({
+    text: text.slice(0, 300),
+    reference_id: 'bf322df2096a46f18c579d0baa36f41d',
+    format: 'mp3',
+    latency: 'normal'
+  });
+  return new Promise((resolve) => {
+    const req = https.request({
+      hostname: 'api.fish.audio',
+      path: '/v1/tts',
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        'Accept': 'audio/mpeg'
+      }
+    }, (res) => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => resolve(Buffer.concat(chunks).toString('base64')));
+    });
+    req.on('error', () => resolve(null));
+    req.write(body);
+    req.end();
+  });
+}
 function loadCanvas() { try { return JSON.parse(fs.readFileSync(FILES.canvas,'utf8')); } catch { return {items:[]}; } }
 function saveCanvas(d) { d.updated=new Date().toISOString(); fs.writeFileSync(FILES.canvas,JSON.stringify(d,null,2)); }
 let telegramBot=null;
