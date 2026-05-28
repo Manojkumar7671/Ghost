@@ -636,7 +636,7 @@ async function fetchNewsAndPlot() {
 }
 
 // ── MAPLIBRE WORLD MAP ───────────────────────────────────────────
-const map = new maplibregl.Map({
+const glMap = new maplibregl.Map({
   container: 'worldMap',
   style: {
     version: 8,
@@ -669,7 +669,7 @@ function addMapMarker(lng, lat, label) {
   el.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#00e5ff;box-shadow:0 0 8px #00e5ff,0 0 20px rgba(0,229,255,0.5);animation:newsPulse 2s ease-in-out infinite;';
   const marker = new maplibregl.Marker({ element: el })
     .setLngLat([lng, lat])
-    .addTo(map);
+    .addTo(glMap);
   mapMarkers.push(marker);
 }
 
