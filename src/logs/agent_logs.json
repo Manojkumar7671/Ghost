@@ -3,6 +3,18 @@
     "agent": "worker:heartbeat",
     "action": "ping",
     "result": "alive",
+    "ts": "2026-05-28T03:53:25.707Z"
+  },
+  {
+    "agent": "worker:uptime",
+    "action": "20 min",
+    "result": "",
+    "ts": "2026-05-28T03:53:25.702Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
     "ts": "2026-05-28T03:48:25.697Z"
   },
   {
@@ -1786,17 +1798,5 @@
     "action": "210 min",
     "result": "",
     "ts": "2026-05-27T06:48:34.341Z"
-  },
-  {
-    "agent": "worker:skill_health",
-    "action": "13 skills active",
-    "result": "",
-    "ts": "2026-05-27T06:48:34.338Z"
-  },
-  {
-    "agent": "worker:heartbeat",
-    "action": "ping",
-    "result": "alive",
-    "ts": "2026-05-27T06:43:34.356Z"
   }
 ]
