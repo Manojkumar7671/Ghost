@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GHOST</title>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/maplibre-gl.min.css" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/maplibre-gl.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/maplibre-gl.min.js" defer></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:#000;width:100vw;height:100vh;overflow:hidden;font-family:'Courier New',monospace;cursor:none;}
@@ -62,7 +62,7 @@ canvas{position:fixed;top:0;left:0;pointer-events:none;z-index:0;}
   <div id="newsPanelFooter"></div>
 </div>
 <div id="typeWrap"><input id="typeInput" placeholder="..." autocomplete="off" spellcheck="false"></div>
-<script>
+<script defer>
 const canvas=document.getElementById('c');
 const ctx=canvas.getContext('2d');
 const dotEl=document.getElementById('dot');
