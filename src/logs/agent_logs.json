@@ -3,6 +3,12 @@
     "agent": "worker:heartbeat",
     "action": "ping",
     "result": "alive",
+    "ts": "2026-05-28T03:58:25.709Z"
+  },
+  {
+    "agent": "worker:heartbeat",
+    "action": "ping",
+    "result": "alive",
     "ts": "2026-05-28T03:53:25.707Z"
   },
   {
@@ -1792,11 +1798,5 @@
     "action": "ping",
     "result": "alive",
     "ts": "2026-05-27T06:48:34.355Z"
-  },
-  {
-    "agent": "worker:uptime",
-    "action": "210 min",
-    "result": "",
-    "ts": "2026-05-27T06:48:34.341Z"
   }
 ]

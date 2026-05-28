@@ -4,843 +4,291 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GHOST</title>
-
-
-
-
+<link href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/maplibre-gl.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/maplibre-gl.min.js"></script>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: #000;
-    width: 100vw; height: 100vh;
-    overflow: hidden;
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'Courier New', monospace;
-    cursor: none;
-  }
-  canvas { position: fixed; top: 0; left: 0; pointer-events: none; }
-
-  #worldMap { position:fixed; inset:0; z-index:1; width:100vw; height:100vh; pointer-events:none; }
-
-  #dot {
-    position: fixed; top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    width: 7px; height: 7px; border-radius: 50%;
-    background: #00e5ff;
-    box-shadow: 0 0 14px #00e5ff, 0 0 32px rgba(0,229,255,0.4);
-    z-index: 10;
-    animation: breathe 2.5s ease-in-out infinite;
-    transition: background 0.3s, box-shadow 0.3s;
-  }
-  @keyframes breathe {
-    0%,100%{ transform:translate(-50%,-50%) scale(1);   opacity:1; }
-    50%    { transform:translate(-50%,-50%) scale(1.6); opacity:0.5; }
-  }
-
-  #msg {
-    position: fixed; bottom: 10vh; left: 50%;
-    transform: translateX(-50%);
-    color: rgba(255,255,255,0.72);
-    font-size: 13px; letter-spacing: 0.18em;
-    text-align: center; max-width: 58vw; line-height: 1.9;
-    opacity: 0; transition: opacity 0.8s ease;
-    pointer-events: none; z-index: 10;
-  }
-
-  #tap {
-    position: fixed; inset: 0; z-index: 50;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer;
-  }
-
-  #typeWrap {
-    display: none; position: fixed; inset: 0;
-    background: rgba(0,0,0,0.9); z-index: 9999;
-    align-items: center; justify-content: center;
-  }
-  #typeWrap.show { display: flex; }
-  #typeInput {
-    background: transparent; border: none;
-    border-bottom: 1px solid rgba(0,229,255,0.4);
-    color: #fff; font: 13px 'Courier New', monospace;
-    letter-spacing: 0.2em; text-align: center;
-    width: 52vw; outline: none; padding: 10px 0;
-    caret-color: #00e5ff;
-  }
-  #typeInput::placeholder { color: rgba(255,255,255,0.08); }
-
-  #recRing {
-    display: none;
-    position: fixed; top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    width: 180px; height: 180px;
-    border-radius: 50%;
-    border: 1.5px solid rgba(255,80,80,0.5);
-    box-shadow: 0 0 20px rgba(255,60,60,0.2);
-    animation: recPulse 0.8s ease-in-out infinite;
-    z-index: 5;
-    pointer-events: none;
-  }
-  @keyframes recPulse {
-    0%,100%{ transform:translate(-50%,-50%) scale(1);   opacity:0.6; }
-    50%    { transform:translate(-50%,-50%) scale(1.06); opacity:1; }
-  }
-
-  /* News dots on map */
-  .news-dot {
-    position: fixed;
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: #00e5ff;
-    box-shadow: 0 0 8px #00e5ff, 0 0 20px rgba(0,229,255,0.5);
-    z-index: 3;
-    pointer-events: none;
-    animation: newsPulse 2s ease-in-out infinite;
-    transform: translate(-50%, -50%);
-  }
-  .news-dot::after {
-    content: '';
-    position: absolute;
-    inset: -6px;
-    border-radius: 50%;
-    border: 1px solid rgba(0,229,255,0.3);
-    animation: newsRing 2s ease-out infinite;
-  }
-  @keyframes newsPulse {
-    0%,100%{ opacity: 0.9; transform: translate(-50%,-50%) scale(1); }
-    50%{ opacity: 0.4; transform: translate(-50%,-50%) scale(1.3); }
-  }
-  @keyframes newsRing {
-    0%{ transform: scale(1); opacity: 0.6; }
-    100%{ transform: scale(3); opacity: 0; }
-  }
-
-  /* Scan line overlay */
-  #scanline {
-    position: fixed; inset: 0; z-index: 2;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0,229,255,0.012) 2px,
-      rgba(0,229,255,0.012) 4px
-    );
-    pointer-events: none;
-  }
-
-  /* Corner brackets - Palantir style */
-  .bracket {
-    position: fixed; width: 40px; height: 40px;
-    z-index: 4; pointer-events: none;
-    opacity: 0.2;
-  }
-  .bracket.tl { top: 20px; left: 20px; border-top: 1px solid #00e5ff; border-left: 1px solid #00e5ff; }
-  .bracket.tr { top: 20px; right: 20px; border-top: 1px solid #00e5ff; border-right: 1px solid #00e5ff; }
-  .bracket.bl { bottom: 20px; left: 20px; border-bottom: 1px solid #00e5ff; border-left: 1px solid #00e5ff; }
-  .bracket.br { bottom: 20px; right: 20px; border-bottom: 1px solid #00e5ff; border-right: 1px solid #00e5ff; }
-
-  /* News Panel */
-  #newsPanel {
-    display: none;
-    position: fixed; top: 0; right: 0;
-    width: 340px; height: 100vh;
-    background: rgba(0,0,0,0.92);
-    border-left: 1px solid rgba(0,229,255,0.15);
-    z-index: 200;
-    flex-direction: column;
-    overflow: hidden;
-    animation: slideIn 0.4s ease;
-  }
-  #newsPanel.show { display: flex; }
-  @keyframes slideIn {
-    from { transform: translateX(100%); opacity: 0; }
-    to   { transform: translateX(0);    opacity: 1; }
-  }
-  #newsPanelHeader {
-    padding: 20px;
-    border-bottom: 1px solid rgba(0,229,255,0.1);
-    font-size: 10px; letter-spacing: 0.3em;
-    color: rgba(0,229,255,0.6);
-    display: flex; justify-content: space-between; align-items: center;
-  }
-  #newsPanelClose {
-    cursor: pointer; color: rgba(0,229,255,0.4);
-    font-size: 16px; line-height: 1;
-  }
-  #newsPanelClose:hover { color: #00e5ff; }
-  #newsPanelItems {
-    flex: 1; overflow-y: auto; padding: 10px 0;
-  }
-  #newsPanelItems::-webkit-scrollbar { width: 2px; }
-  #newsPanelItems::-webkit-scrollbar-thumb { background: rgba(0,229,255,0.2); }
-  .news-item {
-    padding: 14px 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
-    cursor: default;
-  }
-  .news-item:hover { background: rgba(0,229,255,0.03); }
-  .news-item-num {
-    font-size: 9px; color: rgba(0,229,255,0.4);
-    letter-spacing: 0.2em; margin-bottom: 6px;
-  }
-  .news-item-title {
-    font-size: 11px; color: rgba(255,255,255,0.8);
-    line-height: 1.6; letter-spacing: 0.05em;
-  }
-  .news-item-source {
-    font-size: 9px; color: rgba(0,229,255,0.35);
-    letter-spacing: 0.15em; margin-top: 6px;
-  }
-  #newsPanelFooter {
-    padding: 12px 20px;
-    border-top: 1px solid rgba(0,229,255,0.1);
-    font-size: 9px; color: rgba(255,255,255,0.15);
-    letter-spacing: 0.15em;
-  }
-
-  /* News Panel */
-  #newsPanel {
-    display: none;
-    position: fixed; top: 0; right: 0;
-    width: 340px; height: 100vh;
-    background: rgba(0,0,0,0.92);
-    border-left: 1px solid rgba(0,229,255,0.15);
-    z-index: 200;
-    flex-direction: column;
-    overflow: hidden;
-    animation: slideIn 0.4s ease;
-  }
-  #newsPanel.show { display: flex; }
-  @keyframes slideIn {
-    from { transform: translateX(100%); opacity: 0; }
-    to   { transform: translateX(0);    opacity: 1; }
-  }
-  #newsPanelHeader {
-    padding: 20px;
-    border-bottom: 1px solid rgba(0,229,255,0.1);
-    font-size: 10px; letter-spacing: 0.3em;
-    color: rgba(0,229,255,0.6);
-    display: flex; justify-content: space-between; align-items: center;
-  }
-  #newsPanelClose {
-    cursor: pointer; color: rgba(0,229,255,0.4);
-    font-size: 16px; line-height: 1;
-  }
-  #newsPanelClose:hover { color: #00e5ff; }
-  #newsPanelItems {
-    flex: 1; overflow-y: auto; padding: 10px 0;
-  }
-  #newsPanelItems::-webkit-scrollbar { width: 2px; }
-  #newsPanelItems::-webkit-scrollbar-thumb { background: rgba(0,229,255,0.2); }
-  .news-item {
-    padding: 14px 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
-    cursor: default;
-  }
-  .news-item:hover { background: rgba(0,229,255,0.03); }
-  .news-item-num {
-    font-size: 9px; color: rgba(0,229,255,0.4);
-    letter-spacing: 0.2em; margin-bottom: 6px;
-  }
-  .news-item-title {
-    font-size: 11px; color: rgba(255,255,255,0.8);
-    line-height: 1.6; letter-spacing: 0.05em;
-  }
-  .news-item-source {
-    font-size: 9px; color: rgba(0,229,255,0.35);
-    letter-spacing: 0.15em; margin-top: 6px;
-  }
-  #newsPanelFooter {
-    padding: 12px 20px;
-    border-top: 1px solid rgba(0,229,255,0.1);
-    font-size: 9px; color: rgba(255,255,255,0.15);
-    letter-spacing: 0.15em;
-  }
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#000;width:100vw;height:100vh;overflow:hidden;font-family:'Courier New',monospace;cursor:none;}
+canvas{position:fixed;top:0;left:0;pointer-events:none;z-index:0;}
+#worldMap{position:fixed;inset:0;z-index:1;width:100vw;height:100vh;opacity:0.4;pointer-events:none;}
+#scanline{position:fixed;inset:0;z-index:2;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,229,255,0.012) 2px,rgba(0,229,255,0.012) 4px);pointer-events:none;}
+.bracket{position:fixed;width:40px;height:40px;z-index:4;pointer-events:none;opacity:0.25;}
+.bracket.tl{top:20px;left:20px;border-top:1px solid #00e5ff;border-left:1px solid #00e5ff;}
+.bracket.tr{top:20px;right:20px;border-top:1px solid #00e5ff;border-right:1px solid #00e5ff;}
+.bracket.bl{bottom:20px;left:20px;border-bottom:1px solid #00e5ff;border-left:1px solid #00e5ff;}
+.bracket.br{bottom:20px;right:20px;border-bottom:1px solid #00e5ff;border-right:1px solid #00e5ff;}
+#dot{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:7px;height:7px;border-radius:50%;background:#00e5ff;box-shadow:0 0 14px #00e5ff,0 0 32px rgba(0,229,255,0.4);z-index:10;animation:breathe 2.5s ease-in-out infinite;transition:background 0.3s,box-shadow 0.3s;}
+@keyframes breathe{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:1;}50%{transform:translate(-50%,-50%) scale(1.6);opacity:0.5;}}
+#msg{position:fixed;bottom:10vh;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.72);font-size:13px;letter-spacing:0.18em;text-align:center;max-width:58vw;line-height:1.9;opacity:0;transition:opacity 0.8s ease;pointer-events:none;z-index:10;}
+#tap{position:fixed;inset:0;z-index:50;cursor:pointer;background:transparent;}
+#typeWrap{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;align-items:center;justify-content:center;}
+#typeWrap.show{display:flex;}
+#typeInput{background:transparent;border:none;border-bottom:1px solid rgba(0,229,255,0.4);color:#fff;font:13px 'Courier New',monospace;letter-spacing:0.2em;text-align:center;width:52vw;outline:none;padding:10px 0;caret-color:#00e5ff;}
+#typeInput::placeholder{color:rgba(255,255,255,0.08);}
+#recRing{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:180px;height:180px;border-radius:50%;border:1.5px solid rgba(255,80,80,0.5);box-shadow:0 0 20px rgba(255,60,60,0.2);animation:recPulse 0.8s ease-in-out infinite;z-index:5;pointer-events:none;}
+@keyframes recPulse{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:0.6;}50%{transform:translate(-50%,-50%) scale(1.06);opacity:1;}}
+#newsPanel{display:none;position:fixed;top:0;right:0;width:340px;height:100vh;background:rgba(0,0,0,0.93);border-left:1px solid rgba(0,229,255,0.12);z-index:200;flex-direction:column;animation:slideIn 0.4s ease;}
+#newsPanel.show{display:flex;}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0;}to{transform:translateX(0);opacity:1;}}
+#newsPanelHeader{padding:18px 20px;border-bottom:1px solid rgba(0,229,255,0.08);font-size:10px;letter-spacing:0.3em;color:rgba(0,229,255,0.5);display:flex;justify-content:space-between;align-items:center;}
+#newsPanelClose{cursor:pointer;color:rgba(0,229,255,0.4);font-size:16px;line-height:1;}
+#newsPanelClose:hover{color:#00e5ff;}
+#newsPanelItems{flex:1;overflow-y:auto;padding:8px 0;}
+#newsPanelItems::-webkit-scrollbar{width:2px;}
+#newsPanelItems::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.15);}
+.news-item{padding:12px 20px;border-bottom:1px solid rgba(255,255,255,0.03);}
+.news-item:hover{background:rgba(0,229,255,0.03);}
+.news-item-num{font-size:9px;color:rgba(0,229,255,0.35);letter-spacing:0.2em;margin-bottom:5px;}
+.news-item-title{font-size:11px;color:rgba(255,255,255,0.75);line-height:1.6;letter-spacing:0.04em;}
+.news-item-source{font-size:9px;color:rgba(0,229,255,0.3);letter-spacing:0.15em;margin-top:5px;}
+#newsPanelFooter{padding:10px 20px;border-top:1px solid rgba(0,229,255,0.08);font-size:9px;color:rgba(255,255,255,0.12);letter-spacing:0.12em;}
 </style>
 </head>
 <body>
-
 <div id="worldMap"></div>
-
-
 <div id="scanline"></div>
 <div class="bracket tl"></div>
 <div class="bracket tr"></div>
 <div class="bracket bl"></div>
 <div class="bracket br"></div>
-
 <canvas id="c"></canvas>
 <div id="dot"></div>
 <div id="recRing"></div>
 <div id="msg"></div>
-<div id="tap" style="position:fixed;inset:0;z-index:50;cursor:pointer;background:transparent;"></div>
+<div id="tap"></div>
 <div id="newsPanel">
-  <div id="newsPanelHeader">
-    <span>INTEL FEED</span>
-    <span id="newsPanelClose" onclick="closeNewsPanel()">✕</span>
-  </div>
+  <div id="newsPanelHeader"><span>INTEL FEED</span><span id="newsPanelClose" onclick="closeNewsPanel()">✕</span></div>
   <div id="newsPanelItems"></div>
-  <div id="newsPanelFooter" id="newsPanelTime"></div>
-</div>
-<div id="newsPanel">
-  <div id="newsPanelHeader">
-    <span>INTEL FEED</span>
-    <span id="newsPanelClose" onclick="closeNewsPanel()">✕</span>
-  </div>
-  <div id="newsPanelItems"></div>
-  <div id="newsPanelFooter" id="newsPanelTime"></div>
+  <div id="newsPanelFooter"></div>
 </div>
 <div id="typeWrap"><input id="typeInput" placeholder="..." autocomplete="off" spellcheck="false"></div>
-
 <script>
-
-
-// ── Canvas ────────────────────────────────────────────────────────
-const canvas = document.getElementById('c');
-const ctx    = canvas.getContext('2d');
-const dotEl  = document.getElementById('dot');
-const msgEl  = document.getElementById('msg');
-const tapEl  = document.getElementById('tap');
-const recRing = document.getElementById('recRing');
-
-function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-resize(); window.addEventListener('resize', resize);
-
-// ── State ─────────────────────────────────────────────────────────
-let MODE = 'idle', t = 0, busy = false, hideT;
-
-// ── Particles ─────────────────────────────────────────────────────
-const SEGS = 180, BASE = 108;
-
-function fakeAmp(i, now) {
-  if (MODE === 'recording') return Math.sin(now*2+i*0.18)*20 + Math.sin(now*5+i*0.4)*8 + 8;
-  if (MODE === 'thinking')  return Math.sin(now*5+i*0.28)*28 + Math.sin(now*9+i*0.6)*10;
-  if (MODE === 'speaking')  return Math.sin(now*3.5+i*0.22)*22 + Math.sin(now*6+i*0.5)*8 + 4;
-  return Math.sin(now*0.7+i*0.1)*8 + 3; // idle
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+const dotEl=document.getElementById('dot');
+const msgEl=document.getElementById('msg');
+const tapEl=document.getElementById('tap');
+const recRing=document.getElementById('recRing');
+function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
+resize();window.addEventListener('resize',resize);
+let MODE='idle',t=0,busy=false,hideT;
+const SEGS=180,BASE=108;
+function fakeAmp(i,now){
+  if(MODE==='recording')return Math.sin(now*2+i*0.18)*20+Math.sin(now*5+i*0.4)*8+8;
+  if(MODE==='thinking')return Math.sin(now*5+i*0.28)*28+Math.sin(now*9+i*0.6)*10;
+  if(MODE==='speaking')return Math.sin(now*3.5+i*0.22)*22+Math.sin(now*6+i*0.5)*8+4;
+  return Math.sin(now*0.7+i*0.1)*8+3;
 }
-
-function draw() {
-  requestAnimationFrame(draw);
-  t += 0.013;
-  ctx.fillStyle = 'rgba(0,0,0,0.17)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const cx = canvas.width/2, cy = canvas.height/2;
-
-  for (let i = 0; i < SEGS; i++) {
-    const angle = (i/SEGS)*Math.PI*2 - Math.PI/2;
-    const amp   = fakeAmp(i, t);
-    const r     = BASE + amp;
-    const x     = cx + Math.cos(angle)*r;
-    const y     = cy + Math.sin(angle)*r;
-    const hue   = MODE === 'recording' ? 0 + amp*0.5
-                : 185 + amp*0.9 + Math.sin(t+i*0.05)*12;
-    const alpha = 0.3 + Math.abs(Math.sin(t*1.1+i*0.12))*0.55;
-    ctx.beginPath();
-    ctx.arc(x, y, 1.5, 0, Math.PI*2);
-    ctx.fillStyle = `hsla(${hue},88%,68%,${alpha})`;
-    ctx.fill();
+function draw(){
+  requestAnimationFrame(draw);t+=0.013;
+  ctx.fillStyle='rgba(0,0,0,0.17)';ctx.fillRect(0,0,canvas.width,canvas.height);
+  const cx=canvas.width/2,cy=canvas.height/2;
+  for(let i=0;i<SEGS;i++){
+    const angle=(i/SEGS)*Math.PI*2-Math.PI/2;
+    const amp=fakeAmp(i,t);const r=BASE+amp;
+    const x=cx+Math.cos(angle)*r;const y=cy+Math.sin(angle)*r;
+    const hue=MODE==='recording'?0+amp*0.5:185+amp*0.9+Math.sin(t+i*0.05)*12;
+    const alpha=0.3+Math.abs(Math.sin(t*1.1+i*0.12))*0.55;
+    ctx.beginPath();ctx.arc(x,y,1.5,0,Math.PI*2);
+    ctx.fillStyle=`hsla(${hue},88%,68%,${alpha})`;ctx.fill();
   }
-  // inner ring
-  for (let i = 0; i < 90; i++) {
-    const angle = -(i/90)*Math.PI*2 - t*0.28;
-    const r     = BASE*0.5 + Math.sin(t*1.8+i*0.32)*7;
-    const x     = cx + Math.cos(angle)*r;
-    const y     = cy + Math.sin(angle)*r;
-    ctx.beginPath();
-    ctx.arc(x, y, 0.8, 0, Math.PI*2);
-    ctx.fillStyle = `rgba(0,200,255,${0.07+Math.abs(Math.sin(t*1.2+i*0.22))*0.1})`;
-    ctx.fill();
+  for(let i=0;i<90;i++){
+    const angle=-(i/90)*Math.PI*2-t*0.28;
+    const r=BASE*0.5+Math.sin(t*1.8+i*0.32)*7;
+    const x=cx+Math.cos(angle)*r;const y=cy+Math.sin(angle)*r;
+    ctx.beginPath();ctx.arc(x,y,0.8,0,Math.PI*2);
+    ctx.fillStyle=`rgba(0,200,255,${0.07+Math.abs(Math.sin(t*1.2+i*0.22))*0.1})`;ctx.fill();
   }
-  // glow
-  const grad = ctx.createRadialGradient(cx,cy,0,cx,cy,BASE*0.9);
-  const ga   = MODE==='thinking'?0.08:MODE==='speaking'?0.1:MODE==='recording'?0.07:0.04;
-  grad.addColorStop(0, `rgba(0,170,255,${ga})`);
-  grad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.beginPath(); ctx.arc(cx,cy,BASE*0.9,0,Math.PI*2);
-  ctx.fillStyle = grad; ctx.fill();
+  const grad=ctx.createRadialGradient(cx,cy,0,cx,cy,BASE*0.9);
+  const ga=MODE==='thinking'?0.08:MODE==='speaking'?0.1:MODE==='recording'?0.07:0.04;
+  grad.addColorStop(0,`rgba(0,170,255,${ga})`);grad.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.beginPath();ctx.arc(cx,cy,BASE*0.9,0,Math.PI*2);ctx.fillStyle=grad;ctx.fill();
 }
 draw();
-
-// ── Mode ──────────────────────────────────────────────────────────
-function setMode(m) {
-  MODE = m;
-  const map = {
-    idle:      ['#00e5ff','0 0 10px #00e5ff, 0 0 28px rgba(0,229,255,0.3)','2.5s'],
-    listening: ['#00e5ff','0 0 14px #00e5ff, 0 0 36px rgba(0,229,255,0.45)','1.1s'],
-    recording: ['#ff4444','0 0 14px #ff4444, 0 0 36px rgba(255,60,60,0.45)','0.6s'],
-    thinking:  ['#ffffff','0 0 10px #fff, 0 0 24px rgba(255,255,255,0.3)','0.35s'],
-    speaking:  ['#88ffcc','0 0 14px #88ffcc, 0 0 34px rgba(136,255,200,0.4)','0.75s'],
+function setMode(m){
+  MODE=m;
+  const map={
+    idle:['#00e5ff','0 0 10px #00e5ff,0 0 28px rgba(0,229,255,0.3)','2.5s'],
+    listening:['#00e5ff','0 0 14px #00e5ff,0 0 36px rgba(0,229,255,0.45)','1.1s'],
+    recording:['#ff4444','0 0 14px #ff4444,0 0 36px rgba(255,60,60,0.45)','0.6s'],
+    thinking:['#ffffff','0 0 10px #fff,0 0 24px rgba(255,255,255,0.3)','0.35s'],
+    speaking:['#88ffcc','0 0 14px #88ffcc,0 0 34px rgba(136,255,200,0.4)','0.75s'],
   };
-  const [bg, shadow, dur] = map[m] || map.idle;
-  dotEl.style.background        = bg;
-  dotEl.style.boxShadow         = shadow;
-  dotEl.style.animationDuration = dur;
-  recRing.style.display = m === 'recording' ? 'block' : 'none';
+  const[bg,shadow,dur]=map[m]||map.idle;
+  dotEl.style.background=bg;dotEl.style.boxShadow=shadow;dotEl.style.animationDuration=dur;
+  recRing.style.display=m==='recording'?'block':'none';
 }
-
-// ── Message ───────────────────────────────────────────────────────
-function showMsg(text) {
-  clearTimeout(hideT);
-  msgEl.textContent  = text;
-  msgEl.style.opacity = '1';
-}
-function hideMsg(delay=4500) {
-  hideT = setTimeout(() => { msgEl.style.opacity = '0'; }, delay);
-}
-
-// ── Ghost API ─────────────────────────────────────────────────────
-async function askGhost(text) {
+function showMsg(text){clearTimeout(hideT);msgEl.textContent=text;msgEl.style.opacity='1';}
+function hideMsg(delay=4500){hideT=setTimeout(()=>{msgEl.style.opacity='0';},delay);}
+async function askGhost(text){
   setMode('thinking');
-  try {
-    const res  = await fetch('/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text })
-    });
-    const data = await res.json();
-    return data.reply || data.response || data.message || data.text || JSON.stringify(data);
-  } catch(e) { return 'Connection lost, sir.'; }
+  try{
+    const res=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text})});
+    const data=await res.json();
+    const reply=data.reply||data.response||data.message||data.text||JSON.stringify(data);
+    if(/news|headline|happening|world|latest/i.test(text)&&reply.length>100)showNewsPanel(reply);
+    return reply;
+  }catch(e){return'Connection lost, sir.';}
 }
-
-// ── Whisper Transcribe ─────────────────────────────────────────────
-async function transcribe(blob) {
-  try {
-    const form = new FormData();
-    form.append('audio', blob, 'audio.webm');
-    const res  = await fetch('/transcribe', { method: 'POST', body: form });
-    const data = await res.json();
-    return data.text || '';
-  } catch(e) { return ''; }
+async function transcribe(blob){
+  try{
+    const form=new FormData();form.append('audio',blob,'audio.webm');
+    const res=await fetch('/transcribe',{method:'POST',body:form});
+    const data=await res.json();return data.text||'';
+  }catch(e){return'';}
 }
-
-// ── TTS ───────────────────────────────────────────────────────────
-function speakText(text) {
-  return new Promise(resolve => {
+function speakText(text){
+  return new Promise(resolve=>{
     speechSynthesis.cancel();
-    const utt = new SpeechSynthesisUtterance(text);
-    utt.rate = 0.92; utt.pitch = 0.88;
-    const trySpeak = () => {
-      const voices = speechSynthesis.getVoices();
-      const pick   = voices.find(v => /daniel|alex|fred|en.gb/i.test(v.name))
-                  || voices.find(v => v.lang && v.lang.startsWith('en'));
-      if (pick) utt.voice = pick;
-      utt.onend = resolve; utt.onerror = resolve;
+    const utt=new SpeechSynthesisUtterance(text);
+    utt.rate=0.92;utt.pitch=0.88;
+    const trySpeak=()=>{
+      const voices=speechSynthesis.getVoices();
+      const pick=voices.find(v=>/daniel|alex|fred|en.gb/i.test(v.name))||voices.find(v=>v.lang&&v.lang.startsWith('en'));
+      if(pick)utt.voice=pick;
+      utt.onend=resolve;utt.onerror=resolve;
       speechSynthesis.speak(utt);
     };
-    speechSynthesis.getVoices().length ? trySpeak()
-      : (speechSynthesis.onvoiceschanged = trySpeak);
+    speechSynthesis.getVoices().length?trySpeak():(speechSynthesis.onvoiceschanged=trySpeak);
   });
 }
-
-// ── VAD Recorder (works in Opera/Chrome/Safari/Firefox) ──────────
-let mediaRecorder = null, audioChunks = [], silenceTimer = null;
-let audioCtx = null, analyserNode = null, vadInterval = null;
-
-async function initVAD() {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  audioCtx     = new AudioContext();
-  analyserNode = audioCtx.createAnalyser();
-  analyserNode.fftSize = 512;
+let mediaRecorder=null,audioChunks=[],silenceTimer=null;
+let audioCtx=null,analyserNode=null,vadInterval=null;
+async function initVAD(){
+  const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+  audioCtx=new AudioContext();analyserNode=audioCtx.createAnalyser();analyserNode.fftSize=512;
   audioCtx.createMediaStreamSource(stream).connect(analyserNode);
-
-  const freq = new Uint8Array(analyserNode.frequencyBinCount);
-
-  function getVolume() {
-    analyserNode.getByteFrequencyData(freq);
-    return freq.reduce((s,v)=>s+v,0) / freq.length;
-  }
-
-  let isSpeaking = false;
-  const THRESHOLD = 14;
-  const SILENCE_MS = 1400; // stop after 1.4s silence
-
-  function startRec() {
-    audioChunks = [];
-    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-                   ? 'audio/webm;codecs=opus' : 'audio/webm';
-    mediaRecorder = new MediaRecorder(stream, { mimeType });
-    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
-    mediaRecorder.onstop = async () => {
-      if (busy) return;
-      busy = true;
-      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+  const freq=new Uint8Array(analyserNode.frequencyBinCount);
+  function getVolume(){analyserNode.getByteFrequencyData(freq);return freq.reduce((s,v)=>s+v,0)/freq.length;}
+  let isSpeaking=false;
+  const THRESHOLD=14,SILENCE_MS=1400;
+  function startRec(){
+    audioChunks=[];
+    const mimeType=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';
+    mediaRecorder=new MediaRecorder(stream,{mimeType});
+    mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data);};
+    mediaRecorder.onstop=async()=>{
+      if(busy)return;busy=true;
+      const blob=new Blob(audioChunks,{type:'audio/webm'});
       setMode('thinking');
-      const transcript = await transcribe(blob);
-      if (!transcript.trim()) { setMode('listening'); busy = false; return; }
+      const transcript=await transcribe(blob);
+      if(!transcript.trim()){setMode('listening');busy=false;return;}
       showMsg(transcript);
-      const reply = await askGhost(transcript);
-      setMode('speaking');
-      showMsg(reply);
+      const reply=await askGhost(transcript);
+      setMode('speaking');showMsg(reply);
       await speakText(reply);
-      setMode('listening');
-      hideMsg(4500);
-      busy = false;
+      setMode('listening');hideMsg(4500);busy=false;
     };
-    mediaRecorder.start();
-    setMode('recording');
+    mediaRecorder.start();setMode('recording');
   }
-
-  function stopRec() {
-    if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
-    isSpeaking = false;
-    setMode('thinking');
+  function stopRec(){
+    if(mediaRecorder&&mediaRecorder.state==='recording')mediaRecorder.stop();
+    isSpeaking=false;setMode('thinking');
   }
-
-  vadInterval = setInterval(() => {
-    const _vol = getVolume();
-    if (busy && MODE === 'speaking' && _vol > THRESHOLD) {
-      speechSynthesis.cancel();
-      busy = false;
-      isSpeaking = false;
-      setMode('listening');
+  vadInterval=setInterval(()=>{
+    const vol=getVolume();
+    if(busy&&MODE==='speaking'&&vol>THRESHOLD){
+      speechSynthesis.cancel();busy=false;isSpeaking=false;setMode('listening');
     }
-    if (busy) return;
-    const vol = getVolume();
-    if (vol > THRESHOLD && !isSpeaking) {
-      isSpeaking = true;
-      clearTimeout(silenceTimer);
-      startRec();
-    } else if (vol <= THRESHOLD && isSpeaking) {
-      clearTimeout(silenceTimer);
-      silenceTimer = setTimeout(stopRec, SILENCE_MS);
-    }
-  }, 80);
-
+    if(busy)return;
+    if(vol>THRESHOLD&&!isSpeaking){isSpeaking=true;clearTimeout(silenceTimer);startRec();}
+    else if(vol<=THRESHOLD&&isSpeaking){clearTimeout(silenceTimer);silenceTimer=setTimeout(stopRec,SILENCE_MS);}
+  },80);
   setMode('listening');
 }
-
-// ── Type overlay ──────────────────────────────────────────────────
-const typeWrap  = document.getElementById('typeWrap');
-const typeInput = document.getElementById('typeInput');
-let tapDone = false;
-
-document.addEventListener('click', () => {
-  if (!tapDone) { tapDone = true; return; }
+const typeWrap=document.getElementById('typeWrap');
+const typeInput=document.getElementById('typeInput');
+let tapDone=false;
+document.addEventListener('click',()=>{
+  if(!tapDone){tapDone=true;return;}
   typeWrap.classList.add('show');
-  setTimeout(() => { typeInput.value = ''; typeInput.focus(); }, 50);
+  setTimeout(()=>{typeInput.value='';typeInput.focus();},50);
 });
-typeWrap.addEventListener('click', e => {
-  if (e.target === typeWrap) typeWrap.classList.remove('show');
+typeWrap.addEventListener('click',e=>{if(e.target===typeWrap)typeWrap.classList.remove('show');});
+typeInput.addEventListener('keydown',async e=>{
+  if(e.key!=='Enter'||!typeInput.value.trim())return;
+  const q=typeInput.value.trim();typeInput.value='';typeWrap.classList.remove('show');
+  showMsg(q);const reply=await askGhost(q);
+  setMode('speaking');showMsg(reply);await speakText(reply);setMode('listening');hideMsg(4500);
 });
-typeInput.addEventListener('keydown', async e => {
-  if (e.key !== 'Enter' || !typeInput.value.trim()) return;
-  const q = typeInput.value.trim();
-  typeInput.value = '';
-  typeWrap.classList.remove('show');
-  showMsg(q);
-  const reply = await askGhost(q);
-  setMode('speaking');
-  showMsg(reply);
-  await speakText(reply);
-  setMode('listening');
-  hideMsg(4500);
-});
-
-// ── Boot (one tap required by browser) ───────────────────────────
-tapEl.addEventListener('click', async () => {
+tapEl.addEventListener('click',async()=>{
   tapEl.remove();
-  try {
-    const tmpCtx = new AudioContext();
-    await tmpCtx.resume();
-    const buf = tmpCtx.createBuffer(1,1,22050);
-    const src = tmpCtx.createBufferSource();
-    src.buffer = buf; src.connect(tmpCtx.destination); src.start(0);
-  } catch(e) {}
-  try {
-    const utt = new SpeechSynthesisUtterance(' ');
-    speechSynthesis.speak(utt); speechSynthesis.cancel();
-  } catch(e) {}
-  try {
-    await initVAD();
-  } catch(e) {
-    setMode('listening');
-    showMsg('Mic blocked. Double-click to type.');
-    hideMsg(4000);
+  try{
+    const tmpCtx=new AudioContext();await tmpCtx.resume();
+    const buf=tmpCtx.createBuffer(1,1,22050);const src=tmpCtx.createBufferSource();
+    src.buffer=buf;src.connect(tmpCtx.destination);src.start(0);
+  }catch(e){}
+  try{const utt=new SpeechSynthesisUtterance(' ');speechSynthesis.speak(utt);speechSynthesis.cancel();}catch(e){}
+  try{await initVAD();}catch(e){setMode('listening');showMsg('Mic blocked. Click to type.');hideMsg(4000);}
+},{once:true});
+function closeNewsPanel(){document.getElementById('newsPanel').classList.remove('show');}
+function parseNewsItems(text){
+  const items=[];
+  const lines=text.split(/\d+\./).filter(l=>l.trim().length>10);
+  lines.forEach((line,i)=>{
+    const sourceMatch=line.match(/Source:\s*([^\n\.]+)/i);
+    const source=sourceMatch?sourceMatch[1].trim():'';
+    const title=line.replace(/Source:[^\n]*/i,'').trim().slice(0,120);
+    if(title.length>10)items.push({num:i+1,title,source});
+  });
+  return items;
+}
+function showNewsPanel(text){
+  const panel=document.getElementById('newsPanel');
+  const container=document.getElementById('newsPanelItems');
+  const footer=document.getElementById('newsPanelFooter');
+  const items=parseNewsItems(text);
+  container.innerHTML='';
+  if(items.length===0){
+    container.innerHTML='<div class="news-item"><div class="news-item-title">'+text.slice(0,300)+'</div></div>';
+  }else{
+    items.forEach(item=>{
+      const div=document.createElement('div');div.className='news-item';
+      div.innerHTML='<div class="news-item-num">0'+item.num+'</div><div class="news-item-title">'+item.title+'</div>'+(item.source?'<div class="news-item-source">'+item.source.toUpperCase()+'</div>':'');
+      container.appendChild(div);
+    });
   }
-}, { once: true });
-
-
-// ── NEWS MAP ──────────────────────────────────────────────────────
-// Country coordinates mapped to screen % positions
-const COUNTRY_COORDS = {
-  'US': [16, 44], 'USA': [16, 44], 'United States': [16, 44],
-  'UK': [45, 28], 'Britain': [45, 28], 'England': [45, 28],
-  'Russia': [62, 22], 'China': [74, 35], 'India': [64, 48],
-  'Germany': [48, 26], 'France': [46, 28], 'Japan': [80, 32],
-  'Brazil': [22, 62], 'Australia': [78, 68], 'Canada': [15, 28],
-  'Iran': [58, 38], 'Israel': [54, 38], 'Ukraine': [53, 28],
-  'Pakistan': [61, 42], 'Korea': [79, 32], 'Turkey': [54, 34],
-  'Italy': [49, 30], 'Spain': [44, 30], 'Africa': [48, 55],
-  'Nigeria': [46, 52], 'Egypt': [53, 42], 'Saudi': [56, 44],
-  'Mexico': [14, 46], 'Indonesia': [76, 56], 'Philippines': [78, 48],
-};
-
-let newsDots = [];
-
-function latLngToScreen(pctX, pctY) {
-  return {
-    x: (pctX / 100) * window.innerWidth,
-    y: (pctY / 100) * window.innerHeight
-  };
+  footer.textContent=new Date().toUTCString().slice(0,25).toUpperCase();
+  panel.classList.add('show');
 }
-
-function clearNewsDots() {
-  newsDots.forEach(d => d.remove());
-  newsDots = [];
-}
-
-function addNewsDot(pctX, pctY) {
-  const dot = document.createElement('div');
-  dot.className = 'news-dot';
-  const pos = latLngToScreen(pctX, pctY);
-  dot.style.left = pos.x + 'px';
-  dot.style.top  = pos.y + 'px';
-  dot.style.animationDelay = (Math.random() * 1.5) + 's';
-  document.body.appendChild(dot);
-  newsDots.push(dot);
-}
-
-function matchCountry(text) {
-  for (const [name, coords] of Object.entries(COUNTRY_COORDS)) {
-    if (text && text.includes(name)) return coords;
-  }
-  return null;
-}
-
-async function fetchNewsAndPlot() {
-  try {
-    const r = await fetch('/skill/news', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: 'top world news today' })
-    });
-    const data = await r.json();
-    const text = data.text || data.reply || '';
-    clearNewsDots();
-    clearMapMarkers();
-    const plotted = new Set();
-    Object.entries(COUNTRY_COORDS).forEach(([name, coords]) => {
-      if (text.includes(name) && !plotted.has(name)) {
-        addNewsDot(coords[0], coords[1]);
-        plotted.add(name);
-      }
-    });
-    Object.entries(NEWS_LNGLAT).forEach(([name, lnglat]) => {
-      if (text.includes(name)) addMapMarker(lnglat[0], lnglat[1], name);
-    });
-    if (plotted.size === 0) {
-      [COUNTRY_COORDS['US'], COUNTRY_COORDS['UK'], COUNTRY_COORDS['China']].forEach(c => addNewsDot(c[0], c[1]));
-      [[-98,38],[-2,54],[104,35]].forEach(ll => addMapMarker(ll[0], ll[1], ''));
-    }
-  } catch(e) {}
-}
-
-// ── MAPLIBRE WORLD MAP ───────────────────────────────────────────
-const glMap = new maplibregl.Map({
-  container: 'worldMap',
-  style: {
-    version: 8,
-    sources: {
-      'carto-dark': {
-        type: 'raster',
-        tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
-        tileSize: 256,
-        attribution: '© CartoDB'
-      }
-    },
-    layers: [{ id: 'carto-dark', type: 'raster', source: 'carto-dark', paint: { 'raster-opacity': 0.5 } }]
-  },
-  center: [20, 20],
-  zoom: 1.8,
-  interactive: false,
-  attributionControl: false
+const glMap=new maplibregl.Map({
+  container:'worldMap',
+  style:{version:8,sources:{'carto-dark':{type:'raster',tiles:['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],tileSize:256}},layers:[{id:'carto-dark',type:'raster',source:'carto-dark',paint:{'raster-opacity':0.5}}]},
+  center:[20,15],zoom:1.5,interactive:false,attributionControl:false
 });
-
-// News markers on map
-let mapMarkers = [];
-
-function clearMapMarkers() {
-  mapMarkers.forEach(m => m.remove());
-  mapMarkers = [];
-}
-
-function addMapMarker(lng, lat, label) {
-  const el = document.createElement('div');
-  el.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#00e5ff;box-shadow:0 0 8px #00e5ff,0 0 20px rgba(0,229,255,0.5);animation:newsPulse 2s ease-in-out infinite;';
-  const marker = new maplibregl.Marker({ element: el })
-    .setLngLat([lng, lat])
-    .addTo(glMap);
-  mapMarkers.push(marker);
-}
-
-const NEWS_LNGLAT = {
-  'US': [-98, 38], 'USA': [-98, 38], 'United States': [-98, 38],
-  'UK': [-2, 54], 'Britain': [-2, 54], 'England': [-2, 54],
-  'Russia': [60, 55], 'China': [104, 35], 'India': [78, 22],
-  'Germany': [10, 51], 'France': [2, 46], 'Japan': [138, 36],
-  'Brazil': [-51, -10], 'Australia': [134, -25], 'Canada': [-96, 56],
-  'Iran': [53, 32], 'Israel': [35, 31], 'Ukraine': [32, 49],
-  'Pakistan': [70, 30], 'Korea': [128, 36], 'Turkey': [35, 39],
-  'Italy': [12, 42], 'Spain': [-3, 40], 'Nigeria': [8, 10],
-  'Egypt': [30, 26], 'Saudi': [45, 24], 'Mexico': [-102, 24],
-  'Indonesia': [118, -2], 'Philippines': [122, 12], 'Africa': [20, 0],
-  'Lebanon': [35, 34], 'Syria': [38, 35], 'Iraq': [44, 33],
-  'Yemen': [48, 15], 'Gaza': [34, 31], 'Taiwan': [121, 24],
+const NEWS_LNGLAT={
+  'US':[-98,38],'USA':[-98,38],'United States':[-98,38],
+  'UK':[-2,54],'Britain':[-2,54],'England':[-2,54],
+  'Russia':[60,55],'China':[104,35],'India':[78,22],
+  'Germany':[10,51],'France':[2,46],'Japan':[138,36],
+  'Brazil':[-51,-10],'Australia':[134,-25],'Canada':[-96,56],
+  'Iran':[53,32],'Israel':[35,31],'Ukraine':[32,49],
+  'Pakistan':[70,30],'Korea':[128,36],'Turkey':[35,39],
+  'Italy':[12,42],'Spain':[-3,40],'Nigeria':[8,10],
+  'Egypt':[30,26],'Saudi':[45,24],'Mexico':[-102,24],
+  'Indonesia':[118,-2],'Philippines':[122,12],
+  'Lebanon':[35,34],'Syria':[38,35],'Iraq':[44,33],
+  'Yemen':[48,15],'Gaza':[34,31],'Taiwan':[121,24],
 };
-
-// ── NEWS DOTS (override old function) ────────────────────────────
-// ── MAPLIBRE WORLD MAP ───────────────────────────────────────────
-const map = new maplibregl.Map({
-  container: 'worldMap',
-  style: {
-    version: 8,
-    sources: {
-      'carto-dark': {
-        type: 'raster',
-        tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
-        tileSize: 256,
-        attribution: '© CartoDB'
-      }
-    },
-    layers: [{ id: 'carto-dark', type: 'raster', source: 'carto-dark', paint: { 'raster-opacity': 0.5 } }]
-  },
-  center: [20, 20],
-  zoom: 1.8,
-  interactive: false,
-  attributionControl: false
-});
-
-// News markers on map
-
-
-
-
-function addMapMarker(lng, lat, label) {
-  const el = document.createElement('div');
-  el.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#00e5ff;box-shadow:0 0 8px #00e5ff,0 0 20px rgba(0,229,255,0.5);animation:newsPulse 2s ease-in-out infinite;';
-  const marker = new maplibregl.Marker({ element: el })
-    .setLngLat([lng, lat])
-    .addTo(map);
-  mapMarkers.push(marker);
+let glMarkers=[];
+function clearGlMarkers(){glMarkers.forEach(m=>m.remove());glMarkers=[];}
+function addGlMarker(lng,lat){
+  const el=document.createElement('div');
+  el.style.cssText='width:8px;height:8px;border-radius:50%;background:#00e5ff;box-shadow:0 0 8px #00e5ff,0 0 20px rgba(0,229,255,0.5);';
+  glMarkers.push(new maplibregl.Marker({element:el}).setLngLat([lng,lat]).addTo(glMap));
 }
-
-const NEWS_LNGLAT = {
-  'US': [-98, 38], 'USA': [-98, 38], 'United States': [-98, 38],
-  'UK': [-2, 54], 'Britain': [-2, 54], 'England': [-2, 54],
-  'Russia': [60, 55], 'China': [104, 35], 'India': [78, 22],
-  'Germany': [10, 51], 'France': [2, 46], 'Japan': [138, 36],
-  'Brazil': [-51, -10], 'Australia': [134, -25], 'Canada': [-96, 56],
-  'Iran': [53, 32], 'Israel': [35, 31], 'Ukraine': [32, 49],
-  'Pakistan': [70, 30], 'Korea': [128, 36], 'Turkey': [35, 39],
-  'Italy': [12, 42], 'Spain': [-3, 40], 'Nigeria': [8, 10],
-  'Egypt': [30, 26], 'Saudi': [45, 24], 'Mexico': [-102, 24],
-  'Indonesia': [118, -2], 'Philippines': [122, 12], 'Africa': [20, 0],
-  'Lebanon': [35, 34], 'Syria': [38, 35], 'Iraq': [44, 33],
-  'Yemen': [48, 15], 'Gaza': [34, 31], 'Taiwan': [121, 24],
-};
-
-// ── NEWS DOTS (override old function) ────────────────────────────
-// Fetch news dots on load and every 5 minutes
+async function fetchNewsAndPlot(){
+  try{
+    const r=await fetch('/skill/news',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:'top world news today'})});
+    const data=await r.json();const text=data.text||data.reply||'';
+    clearGlMarkers();
+    let hit=false;
+    Object.entries(NEWS_LNGLAT).forEach(([name,ll])=>{if(text.includes(name)){addGlMarker(ll[0],ll[1]);hit=true;}});
+    if(!hit){[[-98,38],[-2,54],[104,35]].forEach(ll=>addGlMarker(ll[0],ll[1]));}
+  }catch(e){}
+}
 fetchNewsAndPlot();
-setInterval(fetchNewsAndPlot, 5 * 60 * 1000);
-
-// ── NEWS PANEL ────────────────────────────────────────────────────
-function closeNewsPanel() {
-  document.getElementById('newsPanel').classList.remove('show');
-}
-
-function parseNewsItems(text) {
-  const items = [];
-  const lines = text.split(/\d+\./).filter(l => l.trim().length > 10);
-  lines.forEach((line, i) => {
-    const sourceMatch = line.match(/Source:\s*([^\n\.]+)/i);
-    const source = sourceMatch ? sourceMatch[1].trim() : '';
-    const title = line.replace(/Source:[^\n]*/i, '').trim().slice(0, 120);
-    if (title.length > 10) items.push({ num: i+1, title, source });
-  });
-  return items;
-}
-
-function showNewsPanel(text) {
-  const panel = document.getElementById('newsPanel');
-  const container = document.getElementById('newsPanelItems');
-  const footer = document.getElementById('newsPanelFooter');
-  const items = parseNewsItems(text);
-  container.innerHTML = '';
-  if (items.length === 0) {
-    container.innerHTML = '<div class="news-item"><div class="news-item-title">' + text.slice(0, 300) + '</div></div>';
-  } else {
-    items.forEach(item => {
-      const div = document.createElement('div');
-      div.className = 'news-item';
-      div.innerHTML = `<div class="news-item-num">0${item.num}</div>
-        <div class="news-item-title">${item.title}</div>
-        ${item.source ? '<div class="news-item-source">' + item.source.toUpperCase() + '</div>' : ''}`;
-      container.appendChild(div);
-    });
-  }
-  footer.textContent = new Date().toUTCString().slice(0,25).toUpperCase();
-  panel.classList.add('show');
-}
-
-// Hook into askGhost to detect news replies
-const _origAskGhost = askGhost;
-window.askGhost = async function(text) {
-  const reply = await _origAskGhost(text);
-  if (/news|headline|happening|world|latest/i.test(text) && reply.length > 100) {
-    showNewsPanel(reply);
-  }
-  return reply;
-};
-
-// ── NEWS PANEL ────────────────────────────────────────────────────
-function closeNewsPanel() {
-  document.getElementById('newsPanel').classList.remove('show');
-}
-
-function parseNewsItems(text) {
-  const items = [];
-  const lines = text.split(/\d+\./).filter(l => l.trim().length > 10);
-  lines.forEach((line, i) => {
-    const sourceMatch = line.match(/Source:\s*([^\n\.]+)/i);
-    const source = sourceMatch ? sourceMatch[1].trim() : '';
-    const title = line.replace(/Source:[^\n]*/i, '').trim().slice(0, 120);
-    if (title.length > 10) items.push({ num: i+1, title, source });
-  });
-  return items;
-}
-
-function showNewsPanel(text) {
-  const panel = document.getElementById('newsPanel');
-  const container = document.getElementById('newsPanelItems');
-  const footer = document.getElementById('newsPanelFooter');
-  const items = parseNewsItems(text);
-  container.innerHTML = '';
-  if (items.length === 0) {
-    container.innerHTML = '<div class="news-item"><div class="news-item-title">' + text.slice(0, 300) + '</div></div>';
-  } else {
-    items.forEach(item => {
-      const div = document.createElement('div');
-      div.className = 'news-item';
-      div.innerHTML = `<div class="news-item-num">0${item.num}</div>
-        <div class="news-item-title">${item.title}</div>
-        ${item.source ? '<div class="news-item-source">' + item.source.toUpperCase() + '</div>' : ''}`;
-      container.appendChild(div);
-    });
-  }
-  footer.textContent = new Date().toUTCString().slice(0,25).toUpperCase();
-  panel.classList.add('show');
-}
-
-// Hook into askGhost to detect news replies
-const _origAskGhost = askGhost;
-window.askGhost = async function(text) {
-  const reply = await _origAskGhost(text);
-  if (/news|headline|happening|world|latest/i.test(text) && reply.length > 100) {
-    showNewsPanel(reply);
-  }
-  return reply;
-};
+setInterval(fetchNewsAndPlot,5*60*1000);
 </script>
 </body>
 </html>
