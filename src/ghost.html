@@ -4,81 +4,95 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GHOST</title>
-
-
+<link href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/maplibre-gl.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/maplibre-gl.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:#000;width:100vw;height:100vh;overflow:hidden;font-family:'Courier New',monospace;cursor:none;}
 canvas{position:fixed;top:0;left:0;pointer-events:none;z-index:0;}
-
+#worldMap{position:fixed;inset:0;z-index:1;width:100vw;height:100vh;opacity:0.35;pointer-events:none;}
 #scanline{position:fixed;inset:0;z-index:2;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,229,255,0.012) 2px,rgba(0,229,255,0.012) 4px);pointer-events:none;}
-.bracket{position:fixed;width:40px;height:40px;z-index:4;pointer-events:none;opacity:0.25;}
+.bracket{position:fixed;width:40px;height:40px;z-index:4;pointer-events:none;opacity:0.2;}
 .bracket.tl{top:20px;left:20px;border-top:1px solid #00e5ff;border-left:1px solid #00e5ff;}
 .bracket.tr{top:20px;right:20px;border-top:1px solid #00e5ff;border-right:1px solid #00e5ff;}
 .bracket.bl{bottom:20px;left:20px;border-bottom:1px solid #00e5ff;border-left:1px solid #00e5ff;}
 .bracket.br{bottom:20px;right:20px;border-bottom:1px solid #00e5ff;border-right:1px solid #00e5ff;}
+#status{position:fixed;top:24px;left:50%;transform:translateX(-50%);font-size:9px;letter-spacing:0.3em;color:rgba(0,229,255,0.3);z-index:10;pointer-events:none;}
 #dot{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:7px;height:7px;border-radius:50%;background:#00e5ff;box-shadow:0 0 14px #00e5ff,0 0 32px rgba(0,229,255,0.4);z-index:10;animation:breathe 2.5s ease-in-out infinite;transition:background 0.3s,box-shadow 0.3s;}
 @keyframes breathe{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:1;}50%{transform:translate(-50%,-50%) scale(1.6);opacity:0.5;}}
 #msg{position:fixed;bottom:10vh;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.72);font-size:13px;letter-spacing:0.18em;text-align:center;max-width:58vw;line-height:1.9;opacity:0;transition:opacity 0.8s ease;pointer-events:none;z-index:10;}
-#tap{position:fixed;inset:0;z-index:50;cursor:pointer;background:transparent;}
-#typeWrap{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;align-items:center;justify-content:center;}
+#tap{position:fixed;inset:0;z-index:50;cursor:pointer;background:transparent;display:flex;align-items:center;justify-content:center;}
+#tap-hint{font-size:11px;letter-spacing:0.35em;color:rgba(0,229,255,0.3);animation:fadepulse 2s ease-in-out infinite;}
+@keyframes fadepulse{0%,100%{opacity:0.3;}50%{opacity:0.7;}}
+#typeWrap{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:20px;}
 #typeWrap.show{display:flex;}
-#typeInput{background:transparent;border:none;border-bottom:1px solid rgba(0,229,255,0.4);color:#fff;font:13px 'Courier New',monospace;letter-spacing:0.2em;text-align:center;width:52vw;outline:none;padding:10px 0;caret-color:#00e5ff;}
-#typeInput::placeholder{color:rgba(255,255,255,0.08);}
+#typeInput{background:transparent;border:none;border-bottom:1px solid rgba(0,229,255,0.4);color:#fff;font:14px 'Courier New',monospace;letter-spacing:0.2em;text-align:center;width:60vw;outline:none;padding:12px 0;caret-color:#00e5ff;}
+#typeInput::placeholder{color:rgba(255,255,255,0.12);}
+#typeHint{font-size:9px;letter-spacing:0.25em;color:rgba(255,255,255,0.15);}
 #recRing{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:180px;height:180px;border-radius:50%;border:1.5px solid rgba(255,80,80,0.5);box-shadow:0 0 20px rgba(255,60,60,0.2);animation:recPulse 0.8s ease-in-out infinite;z-index:5;pointer-events:none;}
 @keyframes recPulse{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:0.6;}50%{transform:translate(-50%,-50%) scale(1.06);opacity:1;}}
-#newsPanel{display:none;position:fixed;top:0;right:0;width:340px;height:100vh;background:rgba(0,0,0,0.93);border-left:1px solid rgba(0,229,255,0.12);z-index:200;flex-direction:column;animation:slideIn 0.4s ease;}
-#newsPanel.show{display:flex;}
+#newsPanel{display:none;position:fixed;top:0;right:0;width:360px;height:100vh;background:rgba(0,0,0,0.94);border-left:1px solid rgba(0,229,255,0.1);z-index:200;flex-direction:column;}
+#newsPanel.show{display:flex;animation:slideIn 0.4s ease;}
 @keyframes slideIn{from{transform:translateX(100%);opacity:0;}to{transform:translateX(0);opacity:1;}}
-#newsPanelHeader{padding:18px 20px;border-bottom:1px solid rgba(0,229,255,0.08);font-size:10px;letter-spacing:0.3em;color:rgba(0,229,255,0.5);display:flex;justify-content:space-between;align-items:center;}
-#newsPanelClose{cursor:pointer;color:rgba(0,229,255,0.4);font-size:16px;line-height:1;}
-#newsPanelClose:hover{color:#00e5ff;}
+#newsPanelHeader{padding:20px;border-bottom:1px solid rgba(0,229,255,0.08);font-size:10px;letter-spacing:0.3em;color:rgba(0,229,255,0.5);display:flex;justify-content:space-between;align-items:center;}
+#newsPanelClose{cursor:pointer;color:rgba(0,229,255,0.4);font-size:18px;line-height:1;pointer-events:all;}
 #newsPanelItems{flex:1;overflow-y:auto;padding:8px 0;}
 #newsPanelItems::-webkit-scrollbar{width:2px;}
 #newsPanelItems::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.15);}
-.news-item{padding:12px 20px;border-bottom:1px solid rgba(255,255,255,0.03);}
-.news-item:hover{background:rgba(0,229,255,0.03);}
-.news-item-num{font-size:9px;color:rgba(0,229,255,0.35);letter-spacing:0.2em;margin-bottom:5px;}
-.news-item-title{font-size:11px;color:rgba(255,255,255,0.75);line-height:1.6;letter-spacing:0.04em;}
-.news-item-source{font-size:9px;color:rgba(0,229,255,0.3);letter-spacing:0.15em;margin-top:5px;}
-#newsPanelFooter{padding:10px 20px;border-top:1px solid rgba(0,229,255,0.08);font-size:9px;color:rgba(255,255,255,0.12);letter-spacing:0.12em;}
+.news-item{padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.03);}
+.news-item-num{font-size:9px;color:rgba(0,229,255,0.35);letter-spacing:0.2em;margin-bottom:6px;}
+.news-item-title{font-size:11px;color:rgba(255,255,255,0.78);line-height:1.7;letter-spacing:0.04em;}
+.news-item-source{font-size:9px;color:rgba(0,229,255,0.3);letter-spacing:0.15em;margin-top:6px;}
+#newsPanelFooter{padding:12px 20px;border-top:1px solid rgba(0,229,255,0.08);font-size:9px;color:rgba(255,255,255,0.1);letter-spacing:0.12em;}
+#wakeIndicator{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);font-size:9px;letter-spacing:0.25em;color:rgba(0,229,255,0.2);z-index:10;pointer-events:none;}
 </style>
 </head>
 <body>
-
+<div id="worldMap"></div>
 <div id="scanline"></div>
 <div class="bracket tl"></div>
 <div class="bracket tr"></div>
 <div class="bracket bl"></div>
 <div class="bracket br"></div>
 <canvas id="c"></canvas>
+<div id="status">FRIDAY — ONLINE</div>
 <div id="dot"></div>
 <div id="recRing"></div>
 <div id="msg"></div>
-<div id="tap"></div>
+<div id="wakeIndicator">SAY "GHOST" TO ACTIVATE</div>
+<div id="tap"><span id="tap-hint">TAP TO ACTIVATE</span></div>
 <div id="newsPanel">
   <div id="newsPanelHeader"><span>INTEL FEED</span><span id="newsPanelClose" onclick="closeNewsPanel()">✕</span></div>
   <div id="newsPanelItems"></div>
-  <div id="newsPanelFooter"></div>
+  <div id="newsPanelFooter" id="newsPanelTime"></div>
 </div>
-<div id="typeWrap"><input id="typeInput" placeholder="..." autocomplete="off" spellcheck="false"></div>
-<script defer>
+<div id="typeWrap">
+  <input id="typeInput" placeholder="speak to friday..." autocomplete="off" spellcheck="false">
+  <span id="typeHint">ENTER TO SEND · ESC TO CLOSE</span>
+</div>
+<script>
 const canvas=document.getElementById('c');
 const ctx=canvas.getContext('2d');
 const dotEl=document.getElementById('dot');
 const msgEl=document.getElementById('msg');
 const tapEl=document.getElementById('tap');
 const recRing=document.getElementById('recRing');
+const statusEl=document.getElementById('status');
+const wakeEl=document.getElementById('wakeIndicator');
+
 function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
 resize();window.addEventListener('resize',resize);
+
 let MODE='idle',t=0,busy=false,hideT;
 const SEGS=180,BASE=108;
+
 function fakeAmp(i,now){
   if(MODE==='recording')return Math.sin(now*2+i*0.18)*20+Math.sin(now*5+i*0.4)*8+8;
   if(MODE==='thinking')return Math.sin(now*5+i*0.28)*28+Math.sin(now*9+i*0.6)*10;
   if(MODE==='speaking')return Math.sin(now*3.5+i*0.22)*22+Math.sin(now*6+i*0.5)*8+4;
   return Math.sin(now*0.7+i*0.1)*8+3;
 }
+
 function draw(){
   requestAnimationFrame(draw);t+=0.013;
   ctx.fillStyle='rgba(0,0,0,0.17)';ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -105,6 +119,7 @@ function draw(){
   ctx.beginPath();ctx.arc(cx,cy,BASE*0.9,0,Math.PI*2);ctx.fillStyle=grad;ctx.fill();
 }
 draw();
+
 function setMode(m){
   MODE=m;
   const map={
@@ -117,9 +132,28 @@ function setMode(m){
   const[bg,shadow,dur]=map[m]||map.idle;
   dotEl.style.background=bg;dotEl.style.boxShadow=shadow;dotEl.style.animationDuration=dur;
   recRing.style.display=m==='recording'?'block':'none';
+  statusEl.textContent=m==='idle'?'FRIDAY — ONLINE':m==='listening'?'FRIDAY — LISTENING':m==='recording'?'FRIDAY — RECORDING':m==='thinking'?'FRIDAY — PROCESSING':'FRIDAY — SPEAKING';
 }
+
 function showMsg(text){clearTimeout(hideT);msgEl.textContent=text;msgEl.style.opacity='1';}
-function hideMsg(delay=4500){hideT=setTimeout(()=>{msgEl.style.opacity='0';},delay);}
+function hideMsg(delay=5000){hideT=setTimeout(()=>{msgEl.style.opacity='0';},delay);}
+
+let currentAudio=null;
+async function playAudio(b64){
+  if(currentAudio){currentAudio.pause();currentAudio=null;}
+  return new Promise(resolve=>{
+    const audio=new Audio('data:audio/mpeg;base64,'+b64);
+    currentAudio=audio;
+    audio.onended=()=>{currentAudio=null;resolve();};
+    audio.onerror=resolve;
+    audio.play().catch(resolve);
+  });
+}
+
+function stopAudio(){
+  if(currentAudio){currentAudio.pause();currentAudio=null;}
+}
+
 async function askGhost(text){
   setMode('thinking');
   try{
@@ -127,9 +161,10 @@ async function askGhost(text){
     const data=await res.json();
     const reply=data.reply||data.response||data.message||data.text||JSON.stringify(data);
     if(/news|headline|happening|world|latest/i.test(text)&&reply.length>100)showNewsPanel(reply);
-    return reply;
-  }catch(e){return'Connection lost, sir.';}
+    return{reply,audio:data.audio_b64||null};
+  }catch(e){return{reply:'Connection lost, sir.',audio:null};}
 }
+
 async function transcribe(blob){
   try{
     const form=new FormData();form.append('audio',blob,'audio.webm');
@@ -137,25 +172,10 @@ async function transcribe(blob){
     const data=await res.json();return data.text||'';
   }catch(e){return'';}
 }
-async function speakText(text) {
-  try {
-    const res = await fetch('/voice/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text })
-    });
-    const data = await res.json();
-    if (!data.audio_b64) return;
-    const audio = new Audio('data:audio/mpeg;base64,' + data.audio_b64);
-    return new Promise(resolve => {
-      audio.onended = resolve;
-      audio.onerror = resolve;
-      audio.play();
-    });
-  } catch(e) { return; }
-}
+
 let mediaRecorder=null,audioChunks=[],silenceTimer=null;
 let audioCtx=null,analyserNode=null,vadInterval=null;
+
 async function initVAD(){
   const stream=await navigator.mediaDevices.getUserMedia({audio:true});
   audioCtx=new AudioContext();analyserNode=audioCtx.createAnalyser();analyserNode.fftSize=512;
@@ -164,6 +184,7 @@ async function initVAD(){
   function getVolume(){analyserNode.getByteFrequencyData(freq);return freq.reduce((s,v)=>s+v,0)/freq.length;}
   let isSpeaking=false;
   const THRESHOLD=14,SILENCE_MS=1400;
+
   function startRec(){
     audioChunks=[];
     const mimeType=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';
@@ -176,43 +197,71 @@ async function initVAD(){
       const transcript=await transcribe(blob);
       if(!transcript.trim()){setMode('listening');busy=false;return;}
       showMsg(transcript);
-      const reply=await askGhost(transcript);
+      const{reply,audio}=await askGhost(transcript);
       setMode('speaking');showMsg(reply);
-      await speakText(reply);
-      setMode('listening');hideMsg(4500);busy=false;
+      if(audio)await playAudio(audio);
+      setMode('listening');hideMsg(5000);busy=false;
     };
     mediaRecorder.start();setMode('recording');
   }
+
   function stopRec(){
     if(mediaRecorder&&mediaRecorder.state==='recording')mediaRecorder.stop();
     isSpeaking=false;setMode('thinking');
   }
+
   vadInterval=setInterval(()=>{
     const vol=getVolume();
     if(busy&&MODE==='speaking'&&vol>THRESHOLD){
-      speechSynthesis.cancel();busy=false;isSpeaking=false;setMode('listening');
+      stopAudio();busy=false;isSpeaking=false;setMode('listening');
     }
     if(busy)return;
     if(vol>THRESHOLD&&!isSpeaking){isSpeaking=true;clearTimeout(silenceTimer);startRec();}
     else if(vol<=THRESHOLD&&isSpeaking){clearTimeout(silenceTimer);silenceTimer=setTimeout(stopRec,SILENCE_MS);}
   },80);
   setMode('listening');
+  wakeEl.style.display='none';
 }
+
+// Wake word detection
+let wakeRecognition=null;
+function initWakeWord(){
+  const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SpeechRecognition)return;
+  wakeRecognition=new SpeechRecognition();
+  wakeRecognition.continuous=true;
+  wakeRecognition.interimResults=true;
+  wakeRecognition.onresult=e=>{
+    const transcript=Array.from(e.results).map(r=>r[0].transcript).join('').toLowerCase();
+    if(transcript.includes('ghost')&&!busy){
+      wakeRecognition.stop();
+      wakeEl.textContent='GHOST ACTIVATED';
+      setTimeout(()=>{wakeEl.textContent='SAY "GHOST" TO ACTIVATE';},2000);
+      initVAD().catch(()=>{});
+    }
+  };
+  wakeRecognition.onend=()=>{if(MODE==='idle')wakeRecognition.start();};
+  wakeRecognition.start();
+}
+
 const typeWrap=document.getElementById('typeWrap');
 const typeInput=document.getElementById('typeInput');
-let tapDone=false;
-document.addEventListener('click',()=>{
-  if(!tapDone){tapDone=true;return;}
-  typeWrap.classList.add('show');
-  setTimeout(()=>{typeInput.value='';typeInput.focus();},50);
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape')typeWrap.classList.remove('show');
 });
+
 typeWrap.addEventListener('click',e=>{if(e.target===typeWrap)typeWrap.classList.remove('show');});
 typeInput.addEventListener('keydown',async e=>{
   if(e.key!=='Enter'||!typeInput.value.trim())return;
   const q=typeInput.value.trim();typeInput.value='';typeWrap.classList.remove('show');
-  showMsg(q);const reply=await askGhost(q);
-  setMode('speaking');showMsg(reply);await speakText(reply);setMode('listening');hideMsg(4500);
+  showMsg(q);
+  const{reply,audio}=await askGhost(q);
+  setMode('speaking');showMsg(reply);
+  if(audio)await playAudio(audio);
+  setMode('listening');hideMsg(5000);
 });
+
 tapEl.addEventListener('click',async()=>{
   tapEl.remove();
   try{
@@ -220,9 +269,18 @@ tapEl.addEventListener('click',async()=>{
     const buf=tmpCtx.createBuffer(1,1,22050);const src=tmpCtx.createBufferSource();
     src.buffer=buf;src.connect(tmpCtx.destination);src.start(0);
   }catch(e){}
-  try{const utt=new SpeechSynthesisUtterance(' ');speechSynthesis.speak(utt);speechSynthesis.cancel();}catch(e){}
-  try{await initVAD();}catch(e){setMode('listening');showMsg('Mic blocked. Click to type.');hideMsg(4000);}
+  try{await initVAD();}catch(e){
+    setMode('listening');
+    showMsg('Mic blocked. Double-click to type.');hideMsg(4000);
+  }
+  initWakeWord();
+  document.addEventListener('dblclick',()=>{
+    typeWrap.classList.add('show');
+    setTimeout(()=>{typeInput.value='';typeInput.focus();},50);
+  });
 },{once:true});
+
+// News panel
 function closeNewsPanel(){document.getElementById('newsPanel').classList.remove('show');}
 function parseNewsItems(text){
   const items=[];
@@ -230,7 +288,7 @@ function parseNewsItems(text){
   lines.forEach((line,i)=>{
     const sourceMatch=line.match(/Source:\s*([^\n\.]+)/i);
     const source=sourceMatch?sourceMatch[1].trim():'';
-    const title=line.replace(/Source:[^\n]*/i,'').trim().slice(0,120);
+    const title=line.replace(/Source:[^\n]*/i,'').trim().slice(0,140);
     if(title.length>10)items.push({num:i+1,title,source});
   });
   return items;
@@ -242,7 +300,7 @@ function showNewsPanel(text){
   const items=parseNewsItems(text);
   container.innerHTML='';
   if(items.length===0){
-    container.innerHTML='<div class="news-item"><div class="news-item-title">'+text.slice(0,300)+'</div></div>';
+    container.innerHTML='<div class="news-item"><div class="news-item-title">'+text.slice(0,400)+'</div></div>';
   }else{
     items.forEach(item=>{
       const div=document.createElement('div');div.className='news-item';
@@ -253,11 +311,18 @@ function showNewsPanel(text){
   footer.textContent=new Date().toUTCString().slice(0,25).toUpperCase();
   panel.classList.add('show');
 }
-window.addEventListener("load",function(){const glMap=new maplibregl.Map({
+
+// MapLibre world map
+const glMap=new maplibregl.Map({
   container:'worldMap',
-  style:{version:8,sources:{'carto-dark':{type:'raster',tiles:['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],tileSize:256}},layers:[{id:'carto-dark',type:'raster',source:'carto-dark',paint:{'raster-opacity':0.5}}]},
+  style:{
+    version:8,
+    sources:{'carto':{ type:'raster', tiles:['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'], tileSize:256, attribution:'CartoDB' }},
+    layers:[{id:'carto',type:'raster',source:'carto',paint:{'raster-opacity':0.6}}]
+  },
   center:[20,15],zoom:1.5,interactive:false,attributionControl:false
 });
+
 const NEWS_LNGLAT={
   'US':[-98,38],'USA':[-98,38],'United States':[-98,38],
   'UK':[-2,54],'Britain':[-2,54],'England':[-2,54],
@@ -268,17 +333,19 @@ const NEWS_LNGLAT={
   'Pakistan':[70,30],'Korea':[128,36],'Turkey':[35,39],
   'Italy':[12,42],'Spain':[-3,40],'Nigeria':[8,10],
   'Egypt':[30,26],'Saudi':[45,24],'Mexico':[-102,24],
-  'Indonesia':[118,-2],'Philippines':[122,12],
   'Lebanon':[35,34],'Syria':[38,35],'Iraq':[44,33],
   'Yemen':[48,15],'Gaza':[34,31],'Taiwan':[121,24],
 };
+
 let glMarkers=[];
 function clearGlMarkers(){glMarkers.forEach(m=>m.remove());glMarkers=[];}
 function addGlMarker(lng,lat){
   const el=document.createElement('div');
-  el.style.cssText='width:8px;height:8px;border-radius:50%;background:#00e5ff;box-shadow:0 0 8px #00e5ff,0 0 20px rgba(0,229,255,0.5);';
+  el.style.cssText='width:8px;height:8px;border-radius:50%;background:#00e5ff;box-shadow:0 0 8px #00e5ff,0 0 20px rgba(0,229,255,0.5);cursor:pointer;';
+  el.style.animation='pulse 2s ease-in-out infinite';
   glMarkers.push(new maplibregl.Marker({element:el}).setLngLat([lng,lat]).addTo(glMap));
 }
+
 async function fetchNewsAndPlot(){
   try{
     const r=await fetch('/skill/news',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:'top world news today'})});
@@ -286,12 +353,12 @@ async function fetchNewsAndPlot(){
     clearGlMarkers();
     let hit=false;
     Object.entries(NEWS_LNGLAT).forEach(([name,ll])=>{if(text.includes(name)){addGlMarker(ll[0],ll[1]);hit=true;}});
-    if(!hit){[[-98,38],[-2,54],[104,35]].forEach(ll=>addGlMarker(ll[0],ll[1]));}
+    if(!hit){[[-98,38],[-2,54],[104,35],[60,55],[78,22]].forEach(ll=>addGlMarker(ll[0],ll[1]));}
   }catch(e){}
 }
-fetchNewsAndPlot();
+
+glMap.on('load',()=>{fetchNewsAndPlot();});
 setInterval(fetchNewsAndPlot,5*60*1000);
-});
 </script>
 </body>
 </html>
