@@ -73,9 +73,9 @@ async function textToSpeech(text) {
       }, (res) => {
         const chunks = [];
         res.on('data', c => chunks.push(c));
-        res.on('end', () => resolve(Buffer.concat(chunks).toString('base64')));
+        res.on('end', () => { const b64 = Buffer.concat(chunks).toString('base64'); console.log('[TTS]', res.statusCode, b64.length); resolve(b64.length > 100 ? b64 : null); });
       });
-      req.on('error', () => resolve(null));
+      req.on('error', (e) => { console.error('[TTS ERROR]', e.message); resolve(null); });
       req.write(body);
       req.end();
     });
