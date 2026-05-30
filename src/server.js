@@ -63,7 +63,7 @@ async function textToSpeech(text) {
     return new Promise((resolve) => {
       const req = https.request({
         hostname: 'api.elevenlabs.io',
-        path: '/v1/text-to-speech/onwK4e9ZLuTAKqWW03F9/stream',
+        path: '/v1/text-to-speech/YOUR_VOICE_ID/stream',
         method: 'POST',
         headers: {
           'xi-api-key': key,
