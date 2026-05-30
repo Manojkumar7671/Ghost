@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GHOST</title>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/maplibre-gl.min.css" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/3.6.2/maplibre-gl.min.js"></script>
+
+
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:#000;width:100vw;height:100vh;overflow:hidden;font-family:'Courier New',monospace;cursor:none;}
@@ -48,7 +48,7 @@ canvas{position:fixed;top:0;left:0;pointer-events:none;z-index:0;}
 </style>
 </head>
 <body>
-<div id="worldMap"></div>
+
 <div id="scanline"></div>
 <div class="bracket tl"></div>
 <div class="bracket tr"></div>
@@ -312,54 +312,7 @@ function showNewsPanel(text){
   panel.classList.add('show');
 }
 
-// MapLibre world map
 
-const glMap=new maplibregl.Map({
-  container:'worldMap',
-  style:{
-    version:8,
-    sources:{'carto':{ type:'raster', tiles:['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'], tileSize:256, attribution:'CartoDB' }},
-    layers:[{id:'carto',type:'raster',source:'carto',paint:{'raster-opacity':0.6}}]
-  },
-  center:[20,15],zoom:1.5,interactive:false,attributionControl:false
-});
-
-const NEWS_LNGLAT={
-  'US':[-98,38],'USA':[-98,38],'United States':[-98,38],
-  'UK':[-2,54],'Britain':[-2,54],'England':[-2,54],
-  'Russia':[60,55],'China':[104,35],'India':[78,22],
-  'Germany':[10,51],'France':[2,46],'Japan':[138,36],
-  'Brazil':[-51,-10],'Australia':[134,-25],'Canada':[-96,56],
-  'Iran':[53,32],'Israel':[35,31],'Ukraine':[32,49],
-  'Pakistan':[70,30],'Korea':[128,36],'Turkey':[35,39],
-  'Italy':[12,42],'Spain':[-3,40],'Nigeria':[8,10],
-  'Egypt':[30,26],'Saudi':[45,24],'Mexico':[-102,24],
-  'Lebanon':[35,34],'Syria':[38,35],'Iraq':[44,33],
-  'Yemen':[48,15],'Gaza':[34,31],'Taiwan':[121,24],
-};
-
-let glMarkers=[];
-function clearGlMarkers(){glMarkers.forEach(m=>m.remove());glMarkers=[];}
-function addGlMarker(lng,lat){
-  const el=document.createElement('div');
-  el.style.cssText='width:8px;height:8px;border-radius:50%;background:#00e5ff;box-shadow:0 0 8px #00e5ff,0 0 20px rgba(0,229,255,0.5);cursor:pointer;';
-  el.style.animation='pulse 2s ease-in-out infinite';
-  glMarkers.push(new maplibregl.Marker({element:el}).setLngLat([lng,lat]).addTo(glMap));
-}
-
-async function fetchNewsAndPlot(){
-  try{
-    const r=await fetch('/skill/news',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:'top world news today'})});
-    const data=await r.json();const text=data.text||data.reply||'';
-    clearGlMarkers();
-    let hit=false;
-    Object.entries(NEWS_LNGLAT).forEach(([name,ll])=>{if(text.includes(name)){addGlMarker(ll[0],ll[1]);hit=true;}});
-    if(!hit){[[-98,38],[-2,54],[104,35],[60,55],[78,22]].forEach(ll=>addGlMarker(ll[0],ll[1]));}
-  }catch(e){}
-}
-
-glMap.on('load',()=>{fetchNewsAndPlot();});
-setInterval(fetchNewsAndPlot,5*60*1000);
 </script>
 </body>
 </html>
