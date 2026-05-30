@@ -87,7 +87,7 @@ app.post('/chat', async (req, res) => {
   if (!message) return res.status(400).json({ error: 'message required' });
   try {
     const reply = await chat(message, 'manoj_' + session_id);
-    const audio_b64 = await textToSpeech(reply);
+    const audio_b64 = null;
     res.json({ reply, audio_b64 });
   } catch (e) {
     res.status(500).json({ error: e.message });
