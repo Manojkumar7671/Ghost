@@ -132,7 +132,7 @@ function setMode(m){
   const[bg,shadow,dur]=map[m]||map.idle;
   dotEl.style.background=bg;dotEl.style.boxShadow=shadow;dotEl.style.animationDuration=dur;
   recRing.style.display=m==='recording'?'block':'none';
-  statusEl.textContent=m==='idle'?'FRIDAY — ONLINE':m==='listening'?'FRIDAY — LISTENING':m==='recording'?'FRIDAY — RECORDING':m==='thinking'?'FRIDAY — PROCESSING':'FRIDAY — SPEAKING';
+  statusEl.textContent='GHOST';
 }
 
 function showMsg(text){clearTimeout(hideT);msgEl.textContent=text;msgEl.style.opacity='1';}
@@ -237,7 +237,7 @@ function initWakeWord(){
       wakeRecognition.stop();
       wakeEl.textContent='GHOST ACTIVATED';
       setTimeout(()=>{wakeEl.textContent='SAY "GHOST" TO ACTIVATE';},2000);
-      initVAD().catch(()=>{});
+      if(tapEl.parentNode)return; if(tapEl.parentNode)return; if(tapEl.parentNode)return; initVAD().catch(()=>{});
     }
   };
   wakeRecognition.onend=()=>{if(MODE==='idle')wakeRecognition.start();};
