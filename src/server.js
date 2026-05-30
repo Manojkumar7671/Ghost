@@ -39,9 +39,9 @@ async function chat(message, sessionId = 'default') {
   if (sessions[sessionId].length > 40) sessions[sessionId] = sessions[sessionId].slice(-40);
 
   const res = await groq.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
+    model: 'llama-3.1-8b-instant',
     messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...sessions[sessionId]],
-    max_tokens: 1024,
+    max_tokens: 300,
     temperature: 0.3
   });
 
