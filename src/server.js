@@ -21,9 +21,8 @@ const PORT = process.env.PORT || 3000;
 const sessions = {};
 
 async function executeCloudBrowser(query) {
-  console.log('[Browser] Launching ultra-low memory cloud browser...');
+  console.log('[Browser] Launching ultra-low memory cloud browser for:', query);
   
-  // FIX: Aggressive optimization flags to cram Chrome into < 200MB RAM
   const browser = await puppeteer.launch({
     headless: true,
     executablePath: puppeteer.executablePath(), 
@@ -31,10 +30,10 @@ async function executeCloudBrowser(query) {
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-gpu',           // Bypasses resource-heavy hardware emulation
-      '--single-process',        // CRITICAL: Forces Chrome to run inside one single process
-      '--no-zygote',             // Disables the Linux zygote process helper
-      '--disable-extensions',    // Strips extensions completely
+      '--disable-gpu',
+      '--single-process',
+      '--no-zygote',
+      '--disable-extensions',
       '--window-size=1280,800'
     ]
   });
@@ -44,13 +43,13 @@ async function executeCloudBrowser(query) {
     await page.setViewport({ width: 1280, height: 800 });
     
     const searchUrl = 'https://www.google.com/search?q=' + encodeURIComponent(query);
-    // Use 'domcontentloaded' to avoid waiting for heavy third-party tracking scripts
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
     
-    await new Promise(r => setTimeout(r, 1200));
+    await new Promise(r => setTimeout(r, 1500));
     
     const screenshotBuffer = await page.screenshot({ encoding: 'base64' });
     await browser.close();
+    console.log('[Browser] Screenshot captured successfully.');
     return screenshotBuffer;
   } catch (e) {
     await browser.close();
@@ -62,25 +61,19 @@ async function executeCloudBrowser(query) {
 async function chat(message, sessionId = 'default') {
   if (!sessions[sessionId]) sessions[sessionId] = [];
   sessions[sessionId].push({ role: 'user', content: message });
-  if (sessions[sessionId].length > 40) sessions[sessionId] = sessions[sessionId].slice(-40);
+  if (sessions[sessionId].length > 30) sessions[sessionId] = sessions[sessionId].slice(-30);
 
   const nowIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', timeStyle: 'short', dateStyle: 'full' });
-  const nowLondon = new Date().toLocaleString('en-US', { timeZone: 'Europe/London', timeStyle: 'short', dateStyle: 'full' });
 
-  const DYNAMIC_PROMPT = `You are Ghost. A highly intelligent autonomous personal AI.
-OPERATOR IDENTITY:
-- Name: Manoj (Mathangi Manoj Kumar) — always call him "sir"
-- Location: Mangalagiri, Andhra Pradesh, India
+  const DYNAMIC_PROMPT = `You are Ghost, an autonomous personal AI assistant.
+OPERATOR: Manoj (sir).
+LOCATION: Mangalagiri, Andhra Pradesh, India.
+CURRENT TIME: ${nowIST}.
 
-LIVE SYSTEM DATA:
-- Current Time in Mangalagiri (IST): ${nowIST}
-- Current Time in London (UK): ${nowLondon}
+CRITICAL TOOL RULE:
+If Manoj asks you to check the weather, look up info, search, or "show the screen", you MUST run a search. To run a search, append the exact text below to the absolute end of your response. Do not say you opened it; let the tool run.
 
-CRITICAL RULES:
-1. NO ROLEPLAY. You are software. You do not have "voice modules", "firmware", or "sensors". If an error occurs, state the error frankly. Do not make up diagnostic reports.
-2. NEVER hallucinate, guess, or make up weather data, news, or clock times. Use the LIVE SYSTEM DATA for time.
-3. NEVER type out "fake" screen data or text-based weather reports.
-4. If the user asks to see the weather, view the screen, or look something up, YOU MUST physically trigger the browser tool by outputting EXACTLY this format at the very end of your response:
+Format to append:
 ###BROWSER###
 {"action": "search", "query": "current weather in Mangalagiri"}
 ###BROWSER###`;
@@ -88,7 +81,7 @@ CRITICAL RULES:
   const res = await groq.chat.completions.create({
     model: 'llama-3.1-8b-instant',
     messages: [{ role: 'system', content: DYNAMIC_PROMPT }, ...sessions[sessionId]],
-    max_tokens: 300,
+    max_tokens: 250,
     temperature: 0.0, 
     stop: ["USER", "USER.INPUT", "User:", "Manoj:"] 
   });
@@ -163,4 +156,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v25 (Single-Process Low-RAM Optimized) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v26 (Strict Instruction Enforcement) — port ${PORT}`));
