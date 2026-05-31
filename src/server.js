@@ -13,14 +13,13 @@ RULES:
 - Be concise but complete
 - Never say "I cannot" — find a way or suggest an alternative
 AUTOMATION CAPABILITY:
-- If the user asks to automate something, run a workflow, or create an automation task, append a JSON configuration at the very end of your message inside an ###AUTOMATION### block. Example:
+- If the user asks to automate something, check emails, or manage the calendar, append a JSON configuration at the very end of your message inside an ###AUTOMATION### block. Example:
 ###AUTOMATION###
-{"action": "trigger_workflow", "target": "n8n", "task": "create_lead_generation_sequence"}
+{"action": "trigger_workflow", "target": "google_script", "task": "read_emails_from_mario"}
 ###AUTOMATION###`;
 
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
 const path = require('path');
 const Groq = require('groq-sdk');
 const axios = require('axios');
@@ -35,18 +34,18 @@ app.get('/ghost.html', (req, res) => res.sendFile(path.join(__dirname, 'ghost.ht
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const PORT = process.env.PORT || 3000;
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || null;
+const GOOGLE_SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL || null;
 
 const sessions = {};
 
-async function triggerN8nAutomation(automationData) {
-  if (!N8N_WEBHOOK_URL) {
-    console.log('[Automation] n8n Webhook URL not configured.');
+async function triggerGoogleAutomation(automationData) {
+  if (!GOOGLE_SCRIPT_URL) {
+    console.log('[Automation] Google Script Webhook URL not configured.');
     return;
   }
   try {
-    await axios.post(N8N_WEBHOOK_URL, automationData);
-    console.log('[Automation] Successfully transmitted event to n8n pipeline.');
+    await axios.post(GOOGLE_SCRIPT_URL, automationData);
+    console.log('[Automation] Successfully transmitted event to Google Apps Script.');
   } catch (e) {
     console.error('[Automation] Execution failed:', e.message);
   }
@@ -77,7 +76,7 @@ async function chat(message, sessionId = 'default') {
       
       if (match) {
         const jsonPayload = JSON.parse(match[0]);
-        triggerN8nAutomation(jsonPayload); 
+        triggerGoogleAutomation(jsonPayload); 
       }
     } catch(err) {
       console.error('[Automation] Parsing failure:', err.message);
@@ -89,10 +88,9 @@ async function chat(message, sessionId = 'default') {
 
 async function textToSpeech(text) {
   if (!process.env.ELEVENLABS_API_KEY) {
-    console.error('[TTS] ELEVENLABS_API_KEY is missing from environment variables.');
+    console.error('[TTS] ELEVENLABS_API_KEY is missing.');
     return null;
   }
-  
   try {
     const response = await axios.post(
       'https://api.elevenlabs.io/v1/text-to-speech/pFZP5JQG7iQjIQuC4Bku',
@@ -112,11 +110,7 @@ async function textToSpeech(text) {
     );
     return Buffer.from(response.data).toString('base64');
   } catch (e) {
-    // Enhanced error logging to catch 401 Unauthorized API issues
-    const errorDetails = e.response && e.response.data 
-      ? Buffer.from(e.response.data).toString('utf8') 
-      : e.message;
-    console.error('[TTS] ElevenLabs error:', errorDetails);
+    console.error('[TTS] ElevenLabs error:', e.response ? Buffer.from(e.response.data).toString('utf8') : e.message);
     return null; 
   }
 }
@@ -126,11 +120,8 @@ app.post('/chat', async (req, res) => {
   if (!message) return res.status(400).json({ error: 'message required' });
   try {
     const reply = await chat(message, 'manoj_' + session_id);
-    
-    // Sanitize the text to prevent markdown from crashing the browser TTS fallback
     const cleanSpeechText = reply.replace(/[*#_`~]/g, '').trim();
     const audio_b64 = await textToSpeech(cleanSpeechText);
-    
     res.json({ reply, audio_b64 });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -167,4 +158,4 @@ app.post('/skill/news', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v10.3 — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v11 — port ${PORT}`));
