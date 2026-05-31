@@ -199,7 +199,7 @@ async function initVAD(){
       showMsg(transcript);
       const{reply,audio}=await askGhost(transcript);
       setMode('speaking');showMsg(reply);
-      if(audio)await playAudio(audio);
+      if(audio)await playAudio(audio); else { const u=new SpeechSynthesisUtterance(reply); u.rate=0.9; speechSynthesis.speak(u); await new Promise(r=>{u.onend=r;u.onerror=r;}); }
       setMode('listening');hideMsg(5000);busy=false;
     };
     mediaRecorder.start();setMode('recording');
@@ -258,7 +258,7 @@ typeInput.addEventListener('keydown',async e=>{
   showMsg(q);
   const{reply,audio}=await askGhost(q);
   setMode('speaking');showMsg(reply);
-  if(audio)await playAudio(audio);
+  if(audio)await playAudio(audio); else { const u=new SpeechSynthesisUtterance(reply); u.rate=0.9; speechSynthesis.speak(u); await new Promise(r=>{u.onend=r;u.onerror=r;}); }
   setMode('listening');hideMsg(5000);
 });
 
