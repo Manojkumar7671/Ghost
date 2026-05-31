@@ -22,8 +22,11 @@ const sessions = {};
 
 async function executeCloudBrowser(query) {
   console.log('[Browser] Booting cloud browser for query:', query);
+  
+  // FIX: Force Puppeteer to use the explicit cache path
   const browser = await puppeteer.launch({
     headless: true,
+    executablePath: puppeteer.executablePath(), 
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--window-size=1280,800']
   });
   
@@ -31,7 +34,7 @@ async function executeCloudBrowser(query) {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
     
-    const searchUrl = '[https://www.google.com/search?q=](https://www.google.com/search?q=)' + encodeURIComponent(query);
+    const searchUrl = 'https://www.google.com/search?q=' + encodeURIComponent(query);
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
     
     await new Promise(r => setTimeout(r, 1500));
@@ -89,9 +92,9 @@ CRITICAL RULES:
     reply = parts[0].trim(); 
     
     try {
-      // FIX: Aggressive markdown stripping to prevent JSON parse crashes
       let potentialJson = parts[1];
-      potentialJson = potentialJson.replace(/```json/gi, '').replace(/```/g, '').trim();
+      potentialJson = potentialJson.replace(/```json/gi, '').replace(/
+```/g, '').trim();
       
       const startIdx = potentialJson.indexOf('{');
       const endIdx = potentialJson.lastIndexOf('}');
@@ -113,7 +116,7 @@ CRITICAL RULES:
 async function textToSpeech(text) {
   try {
     const results = await googleTTS.getAllAudioBase64(text, {
-      lang: 'en', slow: false, host: '[https://translate.google.com](https://translate.google.com)', splitPunct: ',.?'
+      lang: 'en', slow: false, host: 'https://translate.google.com', splitPunct: ',.?'
     });
     return results.map(r => r.base64);
   } catch (e) {
@@ -143,7 +146,7 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     form.append('model', 'whisper-large-v3-turbo');
     form.append('response_format', 'json');
     const resp = await axios.post(
-      '[https://api.groq.com/openai/v1/audio/transcriptions](https://api.groq.com/openai/v1/audio/transcriptions)',
+      'https://api.groq.com/openai/v1/audio/transcriptions',
       form,
       { headers: { ...form.getHeaders(), Authorization: `Bearer ${process.env.GROQ_API_KEY}` } }
     );
@@ -153,4 +156,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v21 (Bulletproof JSON Parser & Chrome Engine) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v22 (Fixed Puppeteer Path) — port ${PORT}`));
