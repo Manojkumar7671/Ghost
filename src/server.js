@@ -18,7 +18,32 @@ app.get('/ghost.html', (req, res) => res.sendFile(path.join(__dirname, 'ghost.ht
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const PORT = process.env.PORT || 3000;
+
+// Upgraded Memory Structure
 const sessions = {};
+
+async function condenseMemory(sessionId, historySegment) {
+  const memoryPrompt = `Analyze the following conversation history between an Operator (Manoj) and an AI (Ghost). 
+Extract any permanent personal facts, preferences, project details, or rules established by the user.
+Format them as a concise, single-paragraph summary of things Ghost must remember about the operator.
+
+Conversation to analyze:
+${JSON.stringify(historySegment)}`;
+
+  try {
+    const res = await groq.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
+      messages: [{ role: 'user', content: memoryPrompt }],
+      max_tokens: 150,
+      temperature: 0.1
+    });
+    
+    sessions[sessionId].longTermMemory = res.choices[0].message.content.trim();
+    console.log(`[Memory Sync] Ghost updated his long-term memory for ${sessionId}`);
+  } catch (e) {
+    console.error('[Memory Sync Failed]:', e.message);
+  }
+}
 
 async function executeCloudBrowser(query) {
   console.log('[Browser] Launching ultra-low memory cloud browser for:', query);
@@ -49,7 +74,6 @@ async function executeCloudBrowser(query) {
     
     const screenshotBuffer = await page.screenshot({ encoding: 'base64' });
     await browser.close();
-    console.log('[Browser] Screenshot captured successfully.');
     return screenshotBuffer;
   } catch (e) {
     await browser.close();
@@ -59,9 +83,19 @@ async function executeCloudBrowser(query) {
 }
 
 async function chat(message, sessionId = 'default') {
-  if (!sessions[sessionId]) sessions[sessionId] = [];
-  sessions[sessionId].push({ role: 'user', content: message });
-  if (sessions[sessionId].length > 30) sessions[sessionId] = sessions[sessionId].slice(-30);
+  // Initialize structured memory if it doesn't exist
+  if (!sessions[sessionId]) {
+    sessions[sessionId] = { history: [], longTermMemory: "No long-term context recorded yet." };
+  }
+
+  sessions[sessionId].history.push({ role: 'user', content: message });
+
+  // Trigger condensation if history gets bloated
+  if (sessions[sessionId].history.length > 30) {
+    const olderMessages = sessions[sessionId].history.slice(0, 15);
+    condenseMemory(sessionId, olderMessages); // Runs in background
+    sessions[sessionId].history = sessions[sessionId].history.slice(-15);
+  }
 
   const nowIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', timeStyle: 'short', dateStyle: 'full' });
 
@@ -69,6 +103,9 @@ async function chat(message, sessionId = 'default') {
 OPERATOR: Manoj (sir).
 LOCATION: Mangalagiri, Andhra Pradesh, India.
 CURRENT TIME: ${nowIST}.
+
+LOGGED OPERATOR FACTS (LONG-TERM MEMORY):
+${sessions[sessionId].longTermMemory}
 
 CRITICAL TOOL RULE:
 If Manoj asks you to check the weather, look up info, search, or "show the screen", you MUST run a search. To run a search, append the exact text below to the absolute end of your response. Do not say you opened it; let the tool run.
@@ -80,14 +117,14 @@ Format to append:
 
   const res = await groq.chat.completions.create({
     model: 'llama-3.1-8b-instant',
-    messages: [{ role: 'system', content: DYNAMIC_PROMPT }, ...sessions[sessionId]],
+    messages: [{ role: 'system', content: DYNAMIC_PROMPT }, ...sessions[sessionId].history],
     max_tokens: 250,
     temperature: 0.0, 
     stop: ["USER", "USER.INPUT", "User:", "Manoj:"] 
   });
 
   let reply = res.choices[0].message.content.trim();
-  sessions[sessionId].push({ role: 'assistant', content: reply });
+  sessions[sessionId].history.push({ role: 'assistant', content: reply });
   let image_b64 = null;
 
   if (reply.includes('###BROWSER###')) {
@@ -156,4 +193,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v26 (Strict Instruction Enforcement) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v27 (Dynamic Memory Core) — port ${PORT}`));
