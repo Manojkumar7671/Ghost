@@ -28,6 +28,10 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname)));
 
+// FIX: Restored the missing frontend UI routes
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'ghost.html')));
+app.get('/ghost.html', (req, res) => res.sendFile(path.join(__dirname, 'ghost.html')));
+
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const PORT = process.env.PORT || 3000;
 const sessions = {};
@@ -79,9 +83,14 @@ async function chat(message, sessionId = 'default') {
     reply = parts[0].trim(); 
     
     try {
-      const match = parts[1].match(/\{[\s\S]*\}/);
-      if (match) {
-        const jsonPayload = JSON.parse(match[0]);
+      // FIX: Bulletproof JSON extraction to ignore markdown backticks
+      const rawString = parts[1];
+      const startIdx = rawString.indexOf('{');
+      const endIdx = rawString.lastIndexOf('}');
+      
+      if (startIdx !== -1 && endIdx !== -1) {
+        const jsonStr = rawString.substring(startIdx, endIdx + 1);
+        const jsonPayload = JSON.parse(jsonStr);
         if (jsonPayload.action === 'search') {
           image_b64 = await executeCloudBrowser(jsonPayload.query);
         }
@@ -96,10 +105,13 @@ async function chat(message, sessionId = 'default') {
 
 async function textToSpeech(text) {
   try {
+    // FIX: Changed 'en-GB' to standard 'en' to stop the library from crashing
     const results = await googleTTS.getAllAudioBase64(text, {
-      lang: 'en-GB', slow: false, host: 'https://translate.google.com', splitPunct: ',.?'
+      lang: 'en', 
+      slow: false, 
+      host: 'https://translate.google.com', 
+      splitPunct: ',.?'
     });
-    // FIX: Return the raw array of base64 chunks instead of corrupting the file
     return results.map(r => r.base64);
   } catch (e) {
     console.error('[TTS] Free Cloud TTS error:', e.message);
@@ -120,4 +132,4 @@ app.post('/chat', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v14 (Fixed Cloud Voice + Vision) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v15 (Stable UI & Voice) — port ${PORT}`));
