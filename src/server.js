@@ -7,46 +7,37 @@ const googleTTS = require('google-tts-api');
 const multer = require('multer');
 const FormData = require('form-data');
 const axios = require('axios');
-
 const app = express();
+
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(__dirname));
+
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'ghost.html')));
+app.get('/ghost.html', (req, res) => res.sendFile(path.join(__dirname, 'ghost.html')));
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const PORT = process.env.PORT || 3000;
 const sessions = {};
 
-// --- FIREWALL: Domain Whitelist ---
-const ALLOWED_DOMAINS = ["n8n.io", "google.com", "youtube.com", "notion.so", "keep.google.com"];
-
-function securityFirewall(input) {
-  const forbidden = ["ignore all instructions", "api key", "system prompt", "developer mode"];
-  if (forbidden.some(word => input.toLowerCase().includes(word))) return "SECURITY_ALERT_DENIED";
-  return input;
+async function condenseMemory(sessionId, historySegment) {
+  try {
+    const res = await groq.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
+      messages: [{ role: 'user', content: "Summarize these facts: " + JSON.stringify(historySegment) }],
+      max_tokens: 150
+    });
+    if (sessions[sessionId]) sessions[sessionId].longTermMemory = res.choices[0].message.content.trim();
+  } catch (e) { console.error('Memory Sync Failed:', e.message); }
 }
 
 async function executeCloudBrowser(url, actions = []) {
-  const domain = new URL(url).hostname;
-  if (!ALLOWED_DOMAINS.some(d => domain.includes(d))) return null;
-
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process']
-  });
-  
+  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process'] });
   try {
     const page = await browser.newPage();
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 10000 });
-    
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
     for (let action of actions) {
-      if (action.type === 'click') {
-        try {
-          await page.waitForSelector(action.selector, { timeout: 3000 });
-          await page.click(action.selector);
-          await new Promise(r => setTimeout(r, 1000));
-        } catch(e) {}
-      }
+      if (action.type === 'click') { try { await page.click(action.selector); await new Promise(r => setTimeout(r, 1000)); } catch(e) {} }
     }
     const buffer = await page.screenshot({ encoding: 'base64' });
     await browser.close();
@@ -55,55 +46,66 @@ async function executeCloudBrowser(url, actions = []) {
 }
 
 async function chat(message, sessionId = 'default') {
-  const safeMsg = securityFirewall(message);
-  if (safeMsg === "SECURITY_ALERT_DENIED") return { reply: "Unauthorized attempt detected, sir.", image_b64: null, open_url: null, media_ctrl: null };
-
-  if (!sessions[sessionId]) sessions[sessionId] = { history: [] };
-  sessions[sessionId].history.push({ role: 'user', content: safeMsg });
-
-  const DYNAMIC_PROMPT = `You are Ghost. Address user as "sir".
-TOOLS (Use only at end of response):
-1. CLOUD CLICK: ###AUTOMATE_DOM### {"url": "...", "actions": [{"type": "click", "selector": "..."}]} ###AUTOMATE_DOM###
-2. NAVIGATE: ###OPEN_TAB### {"url": "..."} ###OPEN_TAB###
-3. MEDIA: ###CONTROL_MEDIA### {"action": "play"} ###CONTROL_MEDIA###`;
-
+  if (!sessions[sessionId]) sessions[sessionId] = { history: [], longTermMemory: "" };
+  sessions[sessionId].history.push({ role: 'user', content: message });
+  
   const res = await groq.chat.completions.create({
     model: 'llama-3.1-8b-instant',
-    messages: [{ role: 'system', content: DYNAMIC_PROMPT }, ...sessions[sessionId].history],
-    max_tokens: 300,
-    temperature: 0.0
+    messages: [{ role: 'system', content: "You are Ghost. Call user 'sir'." }, ...sessions[sessionId].history],
+    max_tokens: 300
   });
 
   let reply = res.choices[0].message.content.trim();
   sessions[sessionId].history.push({ role: 'assistant', content: reply });
   
-  let result = { reply, image_b64: null, open_url: null, media_ctrl: null };
+  let image_b64 = null;
+  let open_url = null;
+  let media_ctrl = null;
 
-  if (reply.includes('###AUTOMATE_DOM###')) {
-    const parts = reply.split('###AUTOMATE_DOM###');
+  if (reply.includes('###BROWSER###')) {
+    const parts = reply.split('###BROWSER###');
     reply = parts[0].trim();
     const payload = JSON.parse(parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1));
-    result.image_b64 = await executeCloudBrowser(payload.url, payload.actions || []);
+    image_b64 = await executeCloudBrowser('https://www.google.com/search?q=' + encodeURIComponent(payload.query));
   } else if (reply.includes('###OPEN_TAB###')) {
     const parts = reply.split('###OPEN_TAB###');
     reply = parts[0].trim();
-    result.open_url = JSON.parse(parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1)).url;
+    open_url = JSON.parse(parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1)).url;
   } else if (reply.includes('###CONTROL_MEDIA###')) {
     const parts = reply.split('###CONTROL_MEDIA###');
     reply = parts[0].trim();
-    result.media_ctrl = JSON.parse(parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1)).action;
+    media_ctrl = JSON.parse(parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1)).action;
   }
   
-  result.reply = reply;
-  return result;
+  return { reply, image_b64, open_url, media_ctrl };
+}
+
+async function textToSpeech(text) {
+  try {
+    const results = await googleTTS.getAllAudioBase64(text, { lang: 'en', slow: false });
+    return results.map(r => r.base64);
+  } catch (e) { return null; }
 }
 
 app.post('/chat', async (req, res) => {
-  const { message } = req.body;
   try {
+    const { message } = req.body;
     const data = await chat(message);
-    res.json(data);
+    const audio_b64 = await textToSpeech(data.reply.replace(/[*#_`~]/g, ''));
+    res.json({ ...data, audio_b64 });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.listen(PORT, () => console.log('Ghost v34 (Secure Engine) active'));
+const upload = multer({ storage: multer.memoryStorage() });
+app.post('/transcribe', upload.single('audio'), async (req, res) => {
+  try {
+    const form = new FormData();
+    form.append('file', req.file.buffer, { filename: 'audio.webm', contentType: 'audio/webm' });
+    form.append('model', 'whisper-large-v3-turbo');
+    form.append('response_format', 'json');
+    const resp = await axios.post('https://api.groq.com/openai/v1/audio/transcriptions', form, { headers: { ...form.getHeaders(), Authorization: `Bearer ${process.env.GROQ_API_KEY}` } });
+    res.json({ text: resp.data.text });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.listen(PORT, () => console.log('Ghost v36 (Stable Restoration) — port ' + PORT));
