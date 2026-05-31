@@ -199,7 +199,34 @@ async function initVAD(){
       showMsg(transcript);
       const{reply,audio}=await askGhost(transcript);
       setMode('speaking');showMsg(reply);
-      if(audio)await playAudio(audio); else { const u=new SpeechSynthesisUtterance(reply); u.rate=0.9; speechSynthesis.speak(u); await new Promise(r=>{u.onend=r;u.onerror=r;}); }
+      if(audio){
+      await playAudio(audio);
+    } else {
+      await new Promise(resolve => {
+        const u = new SpeechSynthesisUtterance(reply);
+        
+        // Target specific FRIDAY-style voices
+        const voices = window.speechSynthesis.getVoices();
+        const fridayVoice = voices.find(v => v.name.includes('Google UK English Female')) || 
+                            voices.find(v => v.lang === 'en-GB' && v.name.includes('Female')) ||
+                            voices.find(v => v.lang === 'en-GB') || 
+                            voices[0];
+        if(fridayVoice) u.voice = fridayVoice;
+        
+        u.rate = 1.05; 
+        u.pitch = 1.1; 
+        
+        // Prevent Chrome from killing the audio mid-sentence
+        const resumeInfinity = setInterval(() => {
+            if (window.speechSynthesis.speaking) window.speechSynthesis.resume();
+        }, 10000);
+        
+        u.onend = () => { clearInterval(resumeInfinity); resolve(); };
+        u.onerror = (e) => { clearInterval(resumeInfinity); console.error("TTS Error:", e); resolve(); };
+        
+        window.speechSynthesis.speak(u);
+      });
+    }
       setMode('listening');hideMsg(5000);busy=false;
     };
     mediaRecorder.start();setMode('recording');
@@ -258,7 +285,34 @@ typeInput.addEventListener('keydown',async e=>{
   showMsg(q);
   const{reply,audio}=await askGhost(q);
   setMode('speaking');showMsg(reply);
-  if(audio)await playAudio(audio); else { const u=new SpeechSynthesisUtterance(reply); u.rate=0.9; speechSynthesis.speak(u); await new Promise(r=>{u.onend=r;u.onerror=r;}); }
+  if(audio){
+      await playAudio(audio);
+    } else {
+      await new Promise(resolve => {
+        const u = new SpeechSynthesisUtterance(reply);
+        
+        // Target specific FRIDAY-style voices
+        const voices = window.speechSynthesis.getVoices();
+        const fridayVoice = voices.find(v => v.name.includes('Google UK English Female')) || 
+                            voices.find(v => v.lang === 'en-GB' && v.name.includes('Female')) ||
+                            voices.find(v => v.lang === 'en-GB') || 
+                            voices[0];
+        if(fridayVoice) u.voice = fridayVoice;
+        
+        u.rate = 1.05; 
+        u.pitch = 1.1; 
+        
+        // Prevent Chrome from killing the audio mid-sentence
+        const resumeInfinity = setInterval(() => {
+            if (window.speechSynthesis.speaking) window.speechSynthesis.resume();
+        }, 10000);
+        
+        u.onend = () => { clearInterval(resumeInfinity); resolve(); };
+        u.onerror = (e) => { clearInterval(resumeInfinity); console.error("TTS Error:", e); resolve(); };
+        
+        window.speechSynthesis.speak(u);
+      });
+    }
   setMode('listening');hideMsg(5000);
 });
 
