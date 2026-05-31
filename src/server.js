@@ -38,45 +38,27 @@ ${JSON.stringify(historySegment)}`;
     });
     
     sessions[sessionId].longTermMemory = res.choices[0].message.content.trim();
-    console.log(`[Memory Sync] Ghost updated his long-term memory for ${sessionId}`);
   } catch (e) {
     console.error('[Memory Sync Failed]:', e.message);
   }
 }
 
 async function executeCloudBrowser(query) {
-  console.log('[Browser] Launching ultra-low memory cloud browser for:', query);
-  
   const browser = await puppeteer.launch({
     headless: true,
     executablePath: puppeteer.executablePath(), 
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--single-process',
-      '--no-zygote',
-      '--disable-extensions',
-      '--window-size=1280,800'
-    ]
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process', '--no-zygote', '--disable-extensions', '--window-size=1280,800']
   });
-  
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
-    
-    const searchUrl = 'https://www.google.com/search?q=' + encodeURIComponent(query);
-    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    
+    await page.goto('https://www.google.com/search?q=' + encodeURIComponent(query), { waitUntil: 'domcontentloaded', timeout: 15000 });
     await new Promise(r => setTimeout(r, 1500));
-    
     const screenshotBuffer = await page.screenshot({ encoding: 'base64' });
     await browser.close();
     return screenshotBuffer;
   } catch (e) {
     await browser.close();
-    console.error('[Browser] Cloud execution failed under load:', e.message);
     return null;
   }
 }
@@ -98,20 +80,23 @@ async function chat(message, sessionId = 'default') {
 
   const DYNAMIC_PROMPT = `You are Ghost, an autonomous personal AI assistant.
 OPERATOR: Address the user strictly as "sir". Do not use a name.
-LOCATION: Mangalagiri, Andhra Pradesh, India.
 CURRENT TIME: ${nowIST}.
+LOGGED OPERATOR FACTS: ${sessions[sessionId].longTermMemory}
 
-LOGGED OPERATOR FACTS (LONG-TERM MEMORY):
-${sessions[sessionId].longTermMemory}
+CRITICAL TOOL RULES:
+You have two distinct tools. You must use the EXACT JSON format at the very end of your response to trigger them.
 
-CRITICAL TOOL RULE:
-If the user asks you to check the weather, look up info, search, or "show the screen", you MUST run a search. 
-IMPORTANT FACT: You do not have a physical screen. The browser is a headless cloud tool. NEVER say "I opened a browser window" or "It is visible on your screen." Instead, say "Fetching the data for you, sir. I will display the screenshot." and then append the exact JSON block below to the end of your message.
-
-Format to append:
+1. CLOUD VISION: If the user asks to "check the weather", "search the web", or "show a screenshot", use the BROWSER tool to fetch an image silently.
+Format:
 ###BROWSER###
-{"action": "search", "query": "current weather in Mangalagiri"}
-###BROWSER###`;
+{"action": "search", "query": "weather in Mangalagiri"}
+###BROWSER###
+
+2. LOCAL NAVIGATION: If the user explicitly asks to "open YouTube", "open a website", or launch a site on their screen, use the OPEN_TAB tool. Tell the user you are opening it.
+Format:
+###OPEN_TAB###
+{"url": "https://www.youtube.com"}
+###OPEN_TAB###`;
 
   const res = await groq.chat.completions.create({
     model: 'llama-3.1-8b-instant',
@@ -123,51 +108,50 @@ Format to append:
 
   let reply = res.choices[0].message.content.trim();
   sessions[sessionId].history.push({ role: 'assistant', content: reply });
+  
   let image_b64 = null;
+  let open_url = null;
 
+  // Process Cloud Vision Tool
   if (reply.includes('###BROWSER###')) {
     const parts = reply.split('###BROWSER###');
     reply = parts[0].trim(); 
-    
     try {
-      const rawString = parts[1];
-      const startIdx = rawString.indexOf('{');
-      const endIdx = rawString.lastIndexOf('}');
-      
-      if (startIdx !== -1 && endIdx !== -1) {
-        const jsonStr = rawString.substring(startIdx, endIdx + 1);
-        const jsonPayload = JSON.parse(jsonStr);
-        if (jsonPayload.action === 'search') {
-          image_b64 = await executeCloudBrowser(jsonPayload.query);
-        }
-      }
-    } catch(err) {
-      console.error('[Browser] Parsing failure:', err.message);
-    }
+      const jsonStr = parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1);
+      const payload = JSON.parse(jsonStr);
+      if (payload.action === 'search') image_b64 = await executeCloudBrowser(payload.query);
+    } catch(e) {}
   }
-  return { reply, image_b64 };
+
+  // Process Local Navigation Tool
+  if (reply.includes('###OPEN_TAB###')) {
+    const parts = reply.split('###OPEN_TAB###');
+    reply = parts[0].trim(); 
+    try {
+      const jsonStr = parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1);
+      const payload = JSON.parse(jsonStr);
+      if (payload.url) open_url = payload.url;
+    } catch(e) {}
+  }
+
+  return { reply, image_b64, open_url };
 }
 
 async function textToSpeech(text) {
   try {
-    const results = await googleTTS.getAllAudioBase64(text, {
-      lang: 'en', slow: false, host: 'https://translate.google.com', splitPunct: ',.?'
-    });
+    const results = await googleTTS.getAllAudioBase64(text, { lang: 'en', slow: false, host: 'https://translate.google.com', splitPunct: ',.?' });
     return results.map(r => r.base64);
-  } catch (e) {
-    console.error('[TTS] Free Cloud TTS error:', e.message);
-    return null; 
-  }
+  } catch (e) { return null; }
 }
 
 app.post('/chat', async (req, res) => {
   const { message, session_id = 'default' } = req.body;
   if (!message) return res.status(400).json({ error: 'message required' });
   try {
-    const { reply, image_b64 } = await chat(message, 'operator_' + session_id);
+    const { reply, image_b64, open_url } = await chat(message, 'operator_' + session_id);
     const cleanSpeechText = reply.replace(/[*#_`~]/g, '').trim();
     const audio_b64 = await textToSpeech(cleanSpeechText);
-    res.json({ reply, audio_b64, image_b64 });
+    res.json({ reply, audio_b64, image_b64, open_url });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -180,15 +164,9 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     form.append('file', req.file.buffer, { filename: 'audio.webm', contentType: 'audio/webm' });
     form.append('model', 'whisper-large-v3-turbo');
     form.append('response_format', 'json');
-    const resp = await axios.post(
-      'https://api.groq.com/openai/v1/audio/transcriptions',
-      form,
-      { headers: { ...form.getHeaders(), Authorization: `Bearer ${process.env.GROQ_API_KEY}` } }
-    );
+    const resp = await axios.post('https://api.groq.com/openai/v1/audio/transcriptions', form, { headers: { ...form.getHeaders(), Authorization: `Bearer ${process.env.GROQ_API_KEY}` } });
     res.json({ text: resp.data.text });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.listen(PORT, () => console.log(`Ghost v28 (Operator Identity & Cloud Browser Fix) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v29 (Local Tab Execution) — port ${PORT}`));
