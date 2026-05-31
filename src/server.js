@@ -55,7 +55,7 @@ async function textToSpeech(text) {
     const axios = require('axios');
     const resp = await axios.post(
       'https://api.groq.com/openai/v1/audio/speech',
-      { model: 'playai-tts', voice: 'Fritz-PlayAI', input: text.slice(0,300), response_format: 'mp3' },
+      { model: 'playai-tts', voice: 'Arista-PlayAI', input: text.slice(0,300), response_format: 'wav' },
       { headers: { Authorization: 'Bearer ' + process.env.GROQ_API_KEY, 'Content-Type': 'application/json' }, responseType: 'arraybuffer' }
     );
     console.log('[TTS] groq ok', resp.data.byteLength);
