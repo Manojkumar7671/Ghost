@@ -179,7 +179,16 @@
       document.getElementById('init-overlay').style.display = 'none';
       updateState('', 'SYSTEM ONLINE');
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      
+      // Background persistence hack for hidden tabs
+      setInterval(() => {
+        if (audioContext && audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
+      }, 5000);
+
       audioContext = new (window.AudioContext || window.webkitAudioContext)();
       analyser = audioContext.createAnalyser();
       microphone = audioContext.createMediaStreamSource(stream);

@@ -18,13 +18,12 @@ app.get('/ghost.html', (req, res) => res.sendFile(path.join(__dirname, 'ghost.ht
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const PORT = process.env.PORT || 3000;
-
 const sessions = {};
 
 async function condenseMemory(sessionId, historySegment) {
   const memoryPrompt = `Analyze the following conversation history between an Operator and an AI (Ghost). 
 Extract any permanent personal facts, preferences, project details, or rules established by the user.
-Format them as a concise, single-paragraph summary of things Ghost must remember about the operator.
+Format them as a concise summary of things Ghost must remember about the operator.
 
 Conversation to analyze:
 ${JSON.stringify(historySegment)}`;
@@ -36,23 +35,45 @@ ${JSON.stringify(historySegment)}`;
       max_tokens: 150,
       temperature: 0.1
     });
-    
     sessions[sessionId].longTermMemory = res.choices[0].message.content.trim();
   } catch (e) {
     console.error('[Memory Sync Failed]:', e.message);
   }
 }
 
-async function executeCloudBrowser(query) {
+// Upgraded Puppeteer function to handle sequential actions
+async function executeCloudBrowser(query, actions = []) {
+  console.log('[Browser] Executing DOM automation sequence...');
   const browser = await puppeteer.launch({
     headless: true,
     executablePath: puppeteer.executablePath(), 
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process', '--no-zygote', '--disable-extensions', '--window-size=1280,800']
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process', '--no-zygote', '--window-size=1280,800']
   });
+  
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
-    await page.goto('https://www.google.com/search?q=' + encodeURIComponent(query), { waitUntil: 'domcontentloaded', timeout: 15000 });
+    
+    let url = query.startsWith('http') ? query : 'https://www.google.com/search?q=' + encodeURIComponent(query);
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    
+    // Execute dynamic actions requested by Ghost
+    for (let action of actions) {
+      if (action.type === 'click') {
+        try {
+          await page.waitForSelector(action.selector, { timeout: 3000 });
+          await page.click(action.selector);
+          await new Promise(r => setTimeout(r, 1000));
+        } catch(e) { console.log('Click failed on:', action.selector) }
+      }
+      if (action.type === 'type') {
+        try {
+          await page.waitForSelector(action.selector, { timeout: 3000 });
+          await page.type(action.selector, action.text);
+        } catch(e) { console.log('Type failed on:', action.selector) }
+      }
+    }
+    
     await new Promise(r => setTimeout(r, 1500));
     const screenshotBuffer = await page.screenshot({ encoding: 'base64' });
     await browser.close();
@@ -69,39 +90,42 @@ async function chat(message, sessionId = 'default') {
   }
 
   sessions[sessionId].history.push({ role: 'user', content: message });
-
   if (sessions[sessionId].history.length > 30) {
     const olderMessages = sessions[sessionId].history.slice(0, 15);
     condenseMemory(sessionId, olderMessages); 
     sessions[sessionId].history = sessions[sessionId].history.slice(-15);
   }
 
-  const nowIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', timeStyle: 'short', dateStyle: 'full' });
-
   const DYNAMIC_PROMPT = `You are Ghost, an autonomous personal AI assistant.
 OPERATOR: Address the user strictly as "sir". Do not use a name.
-CURRENT TIME: ${nowIST}.
-LOGGED OPERATOR FACTS: ${sessions[sessionId].longTermMemory}
 
 CRITICAL TOOL RULES:
-You have three distinct tools. You must use the EXACT JSON format at the very end of your response to trigger them.
+You have four distinct tools. Use the EXACT JSON format at the very end of your response to trigger them.
 
-1. CLOUD VISION (Background Screenshot): Use to check data silently.
-Format: ###BROWSER### {"action": "search", "query": "weather in Mangalagiri"} ###BROWSER###
+1. CLOUD VISION: Use to check data silently.
+Format: ###BROWSER### {"action": "search", "query": "weather"} ###BROWSER###
 
-2. LOCAL NAVIGATION (Open in New Tab): Use to open websites on the user's screen.
+2. LOCAL NAVIGATION: Use ONLY to open websites on the user's local screen for viewing.
 Format: ###OPEN_TAB### {"url": "https://www.youtube.com"} ###OPEN_TAB###
 
-3. AUTONOMOUS ACTION (Execute Webhook/Automation): If the user asks you to "make an automation", "trigger a workflow", or run a script, use the EXECUTE_ACTION tool. 
+3. AUTONOMOUS ACTION (Execute Webhook): Trigger a pre-built script (n8n, Google Apps).
+Format: ###EXECUTE_ACTION### {"target": "n8n_webhook", "payload": "run_workflow_x"} ###EXECUTE_ACTION###
+
+4. DOM AUTOMATION (Cloud Interaction): If the user asks you to "do a task on a website", "click around", or "build an automation on a site", use the AUTOMATE_DOM tool. This launches a cloud browser and executes the actions you define.
 Format:
-###EXECUTE_ACTION###
-{"target": "google_script", "payload": "instructions or data"}
-###EXECUTE_ACTION###`;
+###AUTOMATE_DOM###
+{
+  "url": "https://n8n.io",
+  "actions": [
+    {"type": "click", "selector": "a[href='/templates']"}
+  ]
+}
+###AUTOMATE_DOM###`;
 
   const res = await groq.chat.completions.create({
     model: 'llama-3.1-8b-instant',
     messages: [{ role: 'system', content: DYNAMIC_PROMPT }, ...sessions[sessionId].history],
-    max_tokens: 250,
+    max_tokens: 300,
     temperature: 0.0, 
     stop: ["USER", "USER.INPUT", "User:", "Operator:"] 
   });
@@ -112,43 +136,30 @@ Format:
   let image_b64 = null;
   let open_url = null;
 
-  if (reply.includes('###BROWSER###')) {
-    const parts = reply.split('###BROWSER###');
-    reply = parts[0].trim(); 
-    try {
+  try {
+    if (reply.includes('###BROWSER###')) {
+      const parts = reply.split('###BROWSER###');
+      reply = parts[0].trim(); 
       const jsonStr = parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1);
       const payload = JSON.parse(jsonStr);
       if (payload.action === 'search') image_b64 = await executeCloudBrowser(payload.query);
-    } catch(e) {}
-  }
-
-  if (reply.includes('###OPEN_TAB###')) {
-    const parts = reply.split('###OPEN_TAB###');
-    reply = parts[0].trim(); 
-    try {
+    }
+    else if (reply.includes('###OPEN_TAB###')) {
+      const parts = reply.split('###OPEN_TAB###');
+      reply = parts[0].trim(); 
       const jsonStr = parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1);
       const payload = JSON.parse(jsonStr);
       if (payload.url) open_url = payload.url;
-    } catch(e) {}
-  }
-
-  if (reply.includes('###EXECUTE_ACTION###')) {
-    const parts = reply.split('###EXECUTE_ACTION###');
-    reply = parts[0].trim(); 
-    try {
+    }
+    else if (reply.includes('###AUTOMATE_DOM###')) {
+      const parts = reply.split('###AUTOMATE_DOM###');
+      reply = parts[0].trim(); 
       const jsonStr = parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1);
       const payload = JSON.parse(jsonStr);
-      
-      if (payload.target === 'google_script') {
-        console.log('[Automation] Triggering background execution...');
-        // Replace this URL later with your actual n8n or Google Script Webhook
-        const webhookUrl = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec'; 
-        axios.post(webhookUrl, { data: payload.payload }).catch(e => console.error('Webhook failed:', e.message));
-      }
-    } catch(e) {
-      console.error('[Action] Parsing failure:', e.message);
+      // Ghost physically acts on the cloud browser and returns the result screenshot
+      image_b64 = await executeCloudBrowser(payload.url, payload.actions || []);
     }
-  }
+  } catch(e) { console.error('Tool Parsing Error:', e.message); }
 
   return { reply, image_b64, open_url };
 }
@@ -185,4 +196,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.listen(PORT, () => console.log(`Ghost v31 (Action Engine Enabled) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v32 (DOM Automation & Autonomy) — port ${PORT}`));
