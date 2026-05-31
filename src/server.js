@@ -21,29 +21,40 @@ const PORT = process.env.PORT || 3000;
 const sessions = {};
 
 async function executeCloudBrowser(query) {
-  console.log('[Browser] Booting cloud browser for query:', query);
+  console.log('[Browser] Launching ultra-low memory cloud browser...');
   
+  // FIX: Aggressive optimization flags to cram Chrome into < 200MB RAM
   const browser = await puppeteer.launch({
     headless: true,
     executablePath: puppeteer.executablePath(), 
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--window-size=1280,800']
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',           // Bypasses resource-heavy hardware emulation
+      '--single-process',        // CRITICAL: Forces Chrome to run inside one single process
+      '--no-zygote',             // Disables the Linux zygote process helper
+      '--disable-extensions',    // Strips extensions completely
+      '--window-size=1280,800'
+    ]
   });
   
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
     
-    const searchUrl = '[https://www.google.com/search?q=](https://www.google.com/search?q=)' + encodeURIComponent(query);
-    await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
+    const searchUrl = 'https://www.google.com/search?q=' + encodeURIComponent(query);
+    // Use 'domcontentloaded' to avoid waiting for heavy third-party tracking scripts
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
     
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise(r => setTimeout(r, 1200));
     
     const screenshotBuffer = await page.screenshot({ encoding: 'base64' });
     await browser.close();
     return screenshotBuffer;
   } catch (e) {
     await browser.close();
-    console.error('[Browser] Cloud execution failed:', e.message);
+    console.error('[Browser] Cloud execution failed under load:', e.message);
     return null;
   }
 }
@@ -91,8 +102,6 @@ CRITICAL RULES:
     reply = parts[0].trim(); 
     
     try {
-      // FIX: The simplest, most fail-safe JSON extractor. 
-      // It just finds the first { and last } inside the block and parses it.
       const rawString = parts[1];
       const startIdx = rawString.indexOf('{');
       const endIdx = rawString.lastIndexOf('}');
@@ -114,7 +123,7 @@ CRITICAL RULES:
 async function textToSpeech(text) {
   try {
     const results = await googleTTS.getAllAudioBase64(text, {
-      lang: 'en', slow: false, host: '[https://translate.google.com](https://translate.google.com)', splitPunct: ',.?'
+      lang: 'en', slow: false, host: 'https://translate.google.com', splitPunct: ',.?'
     });
     return results.map(r => r.base64);
   } catch (e) {
@@ -144,7 +153,7 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     form.append('model', 'whisper-large-v3-turbo');
     form.append('response_format', 'json');
     const resp = await axios.post(
-      '[https://api.groq.com/openai/v1/audio/transcriptions](https://api.groq.com/openai/v1/audio/transcriptions)',
+      'https://api.groq.com/openai/v1/audio/transcriptions',
       form,
       { headers: { ...form.getHeaders(), Authorization: `Bearer ${process.env.GROQ_API_KEY}` } }
     );
@@ -154,4 +163,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v24 (Raw Tool Execution) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v25 (Single-Process Low-RAM Optimized) — port ${PORT}`));
