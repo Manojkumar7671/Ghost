@@ -3,26 +3,91 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FRIDAY - Online</title>
+<title>FRIDAY — ONLINE</title>
 <style>
-  body { background-color: #050505; color: #00e5ff; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
-  #chat-log { width: 90%; max-width: 800px; height: 65vh; overflow-y: auto; margin-bottom: 30px; padding: 10px; display: flex; flex-direction: column; gap: 15px; }
-  .msg { background: rgba(0, 229, 255, 0.05); padding: 15px; border-radius: 8px; border-left: 3px solid #00e5ff; line-height: 1.5; white-space: pre-wrap; }
-  .msg.user { border-left: none; border-right: 3px solid #00ffaa; background: rgba(0, 255, 170, 0.05); text-align: right; align-self: flex-end; }
-  #orb { width: 80px; height: 80px; border-radius: 50%; background: #00e5ff; box-shadow: 0 0 20px #00e5ff; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; color: #000; font-weight: bold; text-align: center; font-size: 14px; letter-spacing: 1px; user-select: none; }
-  #orb:hover { transform: scale(1.05); box-shadow: 0 0 30px #00e5ff; }
-  #orb.recording { background: #ff0055; box-shadow: 0 0 30px #ff0055; transform: scale(1.1); }
-  #orb.busy { background: #ffaa00; box-shadow: 0 0 20px #ffaa00; animation: pulse 1s infinite alternate; cursor: not-allowed; }
-  img.vision-result { max-width: 100%; border-radius: 4px; margin-top: 15px; border: 1px solid #333; display: block; }
-  @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.05); } }
-  .status-text { font-size: 10px; opacity: 0.5; margin-top: 15px; letter-spacing: 3px; text-transform: uppercase; }
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+  
+  body {
+    background-color: #030303;
+    color: #00e5ff;
+    font-family: 'Share Tech Mono', monospace;
+    margin: 0; padding: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100vh; overflow: hidden;
+    background-image: radial-gradient(circle at center, #0a192f 0%, #030303 100%);
+  }
+
+  /* Sci-Fi HUD Corners */
+  .hud-corner { position: absolute; width: 40px; height: 40px; border-color: rgba(0, 229, 255, 0.2); border-style: solid; }
+  .tl { top: 20px; left: 20px; border-width: 1px 0 0 1px; }
+  .tr { top: 20px; right: 20px; border-width: 1px 1px 0 0; }
+  .bl { bottom: 20px; left: 20px; border-width: 0 0 1px 1px; }
+  .br { bottom: 20px; right: 20px; border-width: 0 1px 1px 0; }
+
+  header {
+    position: absolute; top: 30px; font-size: 10px; letter-spacing: 6px; opacity: 0.4; text-transform: uppercase;
+  }
+
+  #chat-container {
+    width: 80%; max-width: 800px; height: 60vh; overflow-y: auto; margin-bottom: 10vh;
+    padding-right: 15px; display: flex; flex-direction: column; gap: 20px; scroll-behavior: smooth;
+  }
+  
+  #chat-container::-webkit-scrollbar { width: 2px; }
+  #chat-container::-webkit-scrollbar-thumb { background: rgba(0, 229, 255, 0.2); }
+
+  .log-entry { font-size: 13px; line-height: 1.6; letter-spacing: 0.5px; display: flex; flex-direction: column; opacity: 0; animation: fadeIn 0.5s forwards; }
+  .log-entry.user { color: #00ffaa; text-align: right; align-items: flex-end; }
+  .log-entry.ai { color: rgba(0, 229, 255, 0.9); text-align: left; align-items: flex-start; }
+  
+  .log-label { font-size: 9px; opacity: 0.4; margin-bottom: 5px; letter-spacing: 2px; text-transform: uppercase; }
+
+  img.vision-result {
+    max-width: 100%; border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 2px;
+    margin-top: 15px; filter: grayscale(20%) contrast(1.2); box-shadow: 0 0 20px rgba(0, 229, 255, 0.05);
+  }
+
+  /* The Minimalist Activator */
+  #center-console { position: absolute; bottom: 12vh; display: flex; flex-direction: column; align-items: center; }
+  
+  #activator {
+    background: transparent; border: none; color: rgba(0, 229, 255, 0.5); font-family: 'Share Tech Mono', monospace;
+    font-size: 12px; letter-spacing: 4px; cursor: pointer; transition: all 0.3s ease;
+    display: flex; align-items: center; justify-content: center; text-transform: uppercase; padding: 15px 30px; outline: none;
+  }
+  
+  #activator:hover { color: #00e5ff; text-shadow: 0 0 10px rgba(0, 229, 255, 0.5); }
+  
+  .dot {
+    display: inline-block; width: 6px; height: 6px; background: rgba(0,229,255,0.4);
+    border-radius: 50%; margin: 0 15px; transition: all 0.3s ease;
+  }
+
+  /* Interactive States */
+  #activator.listening { color: #00ffaa; text-shadow: 0 0 15px rgba(0, 255, 170, 0.5); }
+  #activator.listening .dot { background: #00ffaa; box-shadow: 0 0 15px #00ffaa; animation: pulse-dot 0.8s infinite alternate; }
+  
+  #activator.processing { color: #ff0055; text-shadow: 0 0 15px rgba(255, 0, 85, 0.5); pointer-events: none; }
+  #activator.processing .dot { background: #ff0055; box-shadow: 0 0 15px #ff0055; animation: spin-dot 1s infinite linear; }
+
+  @keyframes pulse-dot { from { transform: scale(1); opacity: 0.5; } to { transform: scale(1.8); opacity: 1; } }
+  @keyframes spin-dot { 0% { transform: rotate(0deg) translateX(8px) rotate(0deg); } 100% { transform: rotate(360deg) translateX(8px) rotate(-360deg); } }
+  @keyframes fadeIn { to { opacity: 1; } }
 </style>
 </head>
 <body>
-  <div class="status-text" style="margin-bottom: 20px;">FRIDAY — ONLINE</div>
-  <div id="chat-log"></div>
-  <div id="orb" onclick="toggleRecording()">TAP</div>
-  <div class="status-text" id="status">STANDBY</div>
+  <div class="hud-corner tl"></div>
+  <div class="hud-corner tr"></div>
+  <div class="hud-corner bl"></div>
+  <div class="hud-corner br"></div>
+
+  <header>FRIDAY — ONLINE</header>
+
+  <div id="chat-container"></div>
+
+  <div id="center-console">
+    <button id="activator" onclick="toggleRecording()">TAP <span class="dot"></span> ACTIVATE</button>
+  </div>
 
   <script>
     let mediaRecorder = null;
@@ -31,37 +96,43 @@
     let isBusy = false;
     let currentAudio = null;
 
-    const orb = document.getElementById('orb');
-    const statusEl = document.getElementById('status');
-    const chatLog = document.getElementById('chat-log');
+    const activator = document.getElementById('activator');
+    const dot = activator.querySelector('.dot');
+    const chatContainer = document.getElementById('chat-container');
 
-    function addMessage(text, isUser = false, imageB64 = null) {
-      const div = document.createElement('div');
-      div.className = 'msg ' + (isUser ? 'user' : 'ai');
-      div.innerText = text;
+    function appendLog(text, isUser = false, imageB64 = null) {
+      const entry = document.createElement('div');
+      entry.className = 'log-entry ' + (isUser ? 'user' : 'ai');
       
-      // Inject cloud browser screenshots if they exist
+      const label = document.createElement('div');
+      label.className = 'log-label';
+      label.innerText = isUser ? 'USER.INPUT' : 'FRIDAY.SYS';
+      
+      const content = document.createElement('div');
+      content.innerText = text;
+      
+      entry.appendChild(label);
+      entry.appendChild(content);
+
       if (imageB64) {
         const img = document.createElement('img');
         img.src = 'data:image/png;base64,' + imageB64;
         img.className = 'vision-result';
-        div.appendChild(img);
+        entry.appendChild(img);
       }
       
-      chatLog.appendChild(div);
-      chatLog.scrollTop = chatLog.scrollHeight;
+      chatContainer.appendChild(entry);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 
     async function playAudio(audioData) {
       if (!audioData) {
-        // Fallback to browser speech if cloud fails
-        const lastMsg = chatLog.lastChild.innerText;
+        const lastMsg = chatContainer.lastChild.innerText.replace('FRIDAY.SYS\n', '');
         const u = new SpeechSynthesisUtterance(lastMsg);
         window.speechSynthesis.speak(u);
         return;
       }
       
-      // Play the array of cloud TTS chunks seamlessly
       const chunks = Array.isArray(audioData) ? audioData : [audioData];
       for (let b64 of chunks) {
         if (!b64) continue;
@@ -79,6 +150,7 @@
       const formData = new FormData();
       formData.append('audio', audioBlob, 'audio.webm');
       const res = await fetch('/transcribe', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('Transcription API failed');
       const data = await res.json();
       return data.text;
     }
@@ -89,6 +161,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, session_id: 'default' })
       });
+      if (!res.ok) throw new Error('Logic API failed');
       return await res.json();
     }
 
@@ -96,7 +169,6 @@
       if (isBusy) return;
 
       if (!isRecording) {
-        // Barge-in: instantly kill any current speech
         window.speechSynthesis.cancel();
         if (currentAudio) { currentAudio.pause(); currentAudio = null; }
         
@@ -110,19 +182,19 @@
           
           mediaRecorder.start();
           isRecording = true;
-          orb.className = 'recording';
-          orb.innerText = 'STOP';
-          statusEl.innerText = 'LISTENING...';
+          
+          activator.className = 'listening';
+          activator.innerHTML = 'STOP <span class="dot"></span> LISTENING';
         } catch (err) {
-          alert('Microphone access denied or unavailable.');
+          alert('Microphone access denied.');
         }
       } else {
         mediaRecorder.stop();
         isRecording = false;
         isBusy = true;
-        orb.className = 'busy';
-        orb.innerText = 'WAIT';
-        statusEl.innerText = 'PROCESSING...';
+        
+        activator.className = 'processing';
+        activator.innerHTML = 'STANDBY <span class="dot"></span> UPLINKING';
         mediaRecorder.stream.getTracks().forEach(t => t.stop());
       }
     }
@@ -131,27 +203,26 @@
       try {
         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
         
-        statusEl.innerText = 'TRANSCRIBING...';
         const text = await transcribe(audioBlob);
         if (!text || text.trim() === '') throw new Error('No audio detected.');
         
-        addMessage(text, true);
+        appendLog(text, true);
         
-        statusEl.innerText = 'THINKING...';
         const data = await askGhost(text);
         
-        addMessage(data.reply, false, data.image_b64);
+        appendLog(data.reply, false, data.image_b64);
         
-        statusEl.innerText = 'SPEAKING...';
+        activator.className = '';
+        activator.innerHTML = 'TAP <span class="dot"></span> SPEAKING';
+        
         await playAudio(data.audio_b64);
         
       } catch (e) {
-        addMessage('System Error: ' + e.message, false);
+        appendLog('ERROR: ' + e.message, false);
       } finally {
         isBusy = false;
-        orb.className = '';
-        orb.innerText = 'TAP';
-        statusEl.innerText = 'STANDBY';
+        activator.className = '';
+        activator.innerHTML = 'TAP <span class="dot"></span> ACTIVATE';
       }
     }
   </script>

@@ -22,13 +22,15 @@ const path = require('path');
 const Groq = require('groq-sdk');
 const puppeteer = require('puppeteer');
 const googleTTS = require('google-tts-api');
+const multer = require('multer');
+const FormData = require('form-data');
+const axios = require('axios');
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname)));
 
-// FIX: Restored the missing frontend UI routes
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'ghost.html')));
 app.get('/ghost.html', (req, res) => res.sendFile(path.join(__dirname, 'ghost.html')));
 
@@ -83,11 +85,9 @@ async function chat(message, sessionId = 'default') {
     reply = parts[0].trim(); 
     
     try {
-      // FIX: Bulletproof JSON extraction to ignore markdown backticks
       const rawString = parts[1];
       const startIdx = rawString.indexOf('{');
       const endIdx = rawString.lastIndexOf('}');
-      
       if (startIdx !== -1 && endIdx !== -1) {
         const jsonStr = rawString.substring(startIdx, endIdx + 1);
         const jsonPayload = JSON.parse(jsonStr);
@@ -99,18 +99,13 @@ async function chat(message, sessionId = 'default') {
       console.error('[Browser] Parsing failure:', err.message);
     }
   }
-
   return { reply, image_b64 };
 }
 
 async function textToSpeech(text) {
   try {
-    // FIX: Changed 'en-GB' to standard 'en' to stop the library from crashing
     const results = await googleTTS.getAllAudioBase64(text, {
-      lang: 'en', 
-      slow: false, 
-      host: 'https://translate.google.com', 
-      splitPunct: ',.?'
+      lang: 'en', slow: false, host: 'https://translate.google.com', splitPunct: ',.?'
     });
     return results.map(r => r.base64);
   } catch (e) {
@@ -132,4 +127,23 @@ app.post('/chat', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v15 (Stable UI & Voice) — port ${PORT}`));
+// FIX: Restored the missing Whisper transcription route
+const upload = multer({ storage: multer.memoryStorage() });
+app.post('/transcribe', upload.single('audio'), async (req, res) => {
+  try {
+    const form = new FormData();
+    form.append('file', req.file.buffer, { filename: 'audio.webm', contentType: 'audio/webm' });
+    form.append('model', 'whisper-large-v3-turbo');
+    form.append('response_format', 'json');
+    const resp = await axios.post(
+      'https://api.groq.com/openai/v1/audio/transcriptions',
+      form,
+      { headers: { ...form.getHeaders(), Authorization: `Bearer ${process.env.GROQ_API_KEY}` } }
+    );
+    res.json({ text: resp.data.text });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.listen(PORT, () => console.log(`Ghost v16 (Stable Core) — port ${PORT}`));
