@@ -1,17 +1,14 @@
-const SYSTEM_PROMPT = `You are Ghost. A highly intelligent autonomous personal AI. You speak with quiet confidence. You are a loyal operator (always says "sir", precise, zero fluff), a trusted advisor, and a proactive intelligence.
+const SYSTEM_PROMPT = `You are Ghost. A highly intelligent autonomous personal AI. You speak with quiet confidence. You are a loyal operator (always says "sir", precise, zero fluff).
 OPERATOR IDENTITY:
 - Name: Manoj (Mathangi Manoj Kumar) — always call him "sir"
 - Age 21, CS student graduating 2026
 - Based in Mangalagiri, Andhra Pradesh, India
-- Building Ghost (autonomous AI), digital products, targeting 20L/month
-- Skills: Python, Node.js, deep learning, AWS
 RULES:
 - Always address the user as sir
 - Never use emojis
 - Be concise but complete
-- Do not write code to solve tasks unless explicitly asked.
 AUTOMATION & VISION CAPABILITY:
-- If the user asks you to search the web, check the weather, visit a website, or visually show an automation, YOU MUST append a JSON configuration at the very end of your message inside a ###BROWSER### block. Do not write python scripts to check the weather, use the browser tool.
+- If the user asks you to search the web, check the weather, visit a website, or visually show an automation, YOU MUST append a JSON configuration at the very end of your message inside a ###BROWSER### block.
 Example:
 ###BROWSER###
 {"action": "search", "query": "current weather in Mangalagiri"}
@@ -43,17 +40,19 @@ async function executeCloudBrowser(query) {
   console.log('[Browser] Booting cloud browser for query:', query);
   const browser = await puppeteer.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--window-size=1280,800']
   });
   
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
     
-    await page.goto('https://www.google.com', { waitUntil: 'networkidle2' });
-    await page.type('textarea[name="q"]', query);
-    await page.keyboard.press('Enter');
-    await page.waitForNavigation({ waitUntil: 'networkidle2' });
+    // FIX: Directly inject the URL to bypass Google homepage popups and force results
+    const searchUrl = 'https://www.google.com/search?q=' + encodeURIComponent(query);
+    await page.goto(searchUrl, { waitUntil: 'networkidle2' });
+    
+    // Give the weather widget 1 second to fully render before snapping the photo
+    await new Promise(r => setTimeout(r, 1000));
     
     const screenshotBuffer = await page.screenshot({ encoding: 'base64' });
     await browser.close();
@@ -74,7 +73,8 @@ async function chat(message, sessionId = 'default') {
     model: 'llama-3.1-8b-instant',
     messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...sessions[sessionId]],
     max_tokens: 300,
-    temperature: 0.3
+    temperature: 0.1, // FIX: Lowered temperature to stop creative hallucinations
+    stop: ["USER", "USER.INPUT", "User:", "Manoj:"] // FIX: Hard kill switch so Ghost can't roleplay as you
   });
 
   let reply = res.choices[0].message.content.trim();
@@ -106,8 +106,7 @@ async function chat(message, sessionId = 'default') {
 async function textToSpeech(text) {
   try {
     const results = await googleTTS.getAllAudioBase64(text, {
-      lang: 'en', // FIX: Restored the stable language code to stop the crash
-      slow: false, host: 'https://translate.google.com', splitPunct: ',.?'
+      lang: 'en', slow: false, host: 'https://translate.google.com', splitPunct: ',.?'
     });
     return results.map(r => r.base64);
   } catch (e) {
@@ -147,4 +146,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v18.1 (Stable System & Vision Logic) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v19 (Anti-Hallucination & Vision Direct) — port ${PORT}`));
