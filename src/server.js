@@ -23,7 +23,6 @@ const sessions = {};
 async function executeCloudBrowser(query) {
   console.log('[Browser] Booting cloud browser for query:', query);
   
-  // FIX: Force Puppeteer to use the explicit cache path
   const browser = await puppeteer.launch({
     headless: true,
     executablePath: puppeteer.executablePath(), 
@@ -93,8 +92,12 @@ CRITICAL RULES:
     
     try {
       let potentialJson = parts[1];
-      potentialJson = potentialJson.replace(/```json/gi, '').replace(/
-```/g, '').trim();
+      
+      // FIX: Terminal-safe markdown stripping (Bypasses zsh backtick bugs)
+      const ticks = String.fromCharCode(96, 96, 96);
+      potentialJson = potentialJson.replace(new RegExp(ticks + 'json', 'gi'), '');
+      potentialJson = potentialJson.replace(new RegExp(ticks, 'g'), '');
+      potentialJson = potentialJson.trim();
       
       const startIdx = potentialJson.indexOf('{');
       const endIdx = potentialJson.lastIndexOf('}');
@@ -156,4 +159,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v22 (Fixed Puppeteer Path) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v23 (Syntax Fixed & Chrome Locked) — port ${PORT}`));
