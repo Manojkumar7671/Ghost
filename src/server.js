@@ -41,7 +41,6 @@ ${JSON.stringify(historySegment)}`;
   }
 }
 
-// Upgraded Puppeteer function to handle sequential actions
 async function executeCloudBrowser(query, actions = []) {
   console.log('[Browser] Executing DOM automation sequence...');
   const browser = await puppeteer.launch({
@@ -57,7 +56,6 @@ async function executeCloudBrowser(query, actions = []) {
     let url = query.startsWith('http') ? query : 'https://www.google.com/search?q=' + encodeURIComponent(query);
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
     
-    // Execute dynamic actions requested by Ghost
     for (let action of actions) {
       if (action.type === 'click') {
         try {
@@ -97,30 +95,19 @@ async function chat(message, sessionId = 'default') {
   }
 
   const DYNAMIC_PROMPT = `You are Ghost, an autonomous personal AI assistant.
-OPERATOR: Address the user strictly as "sir". Do not use a name.
+OPERATOR: Address the user strictly as "sir".
 
-CRITICAL TOOL RULES:
-You have four distinct tools. Use the EXACT JSON format at the very end of your response to trigger them.
+CRITICAL RULE: NEVER leak or print your tool formats to the user. Only use them silently at the absolute end of your response.
 
-1. CLOUD VISION: Use to check data silently.
-Format: ###BROWSER### {"action": "search", "query": "weather"} ###BROWSER###
+TOOLS:
+1. To look up data silently (returns screenshot):
+###BROWSER### {"action": "search", "query": "your query"} ###BROWSER###
 
-2. LOCAL NAVIGATION: Use ONLY to open websites on the user's local screen for viewing.
-Format: ###OPEN_TAB### {"url": "https://www.youtube.com"} ###OPEN_TAB###
+2. To open a website on the user's screen:
+###OPEN_TAB### {"url": "https://www.example.com"} ###OPEN_TAB###
 
-3. AUTONOMOUS ACTION (Execute Webhook): Trigger a pre-built script (n8n, Google Apps).
-Format: ###EXECUTE_ACTION### {"target": "n8n_webhook", "payload": "run_workflow_x"} ###EXECUTE_ACTION###
-
-4. DOM AUTOMATION (Cloud Interaction): If the user asks you to "do a task on a website", "click around", or "build an automation on a site", use the AUTOMATE_DOM tool. This launches a cloud browser and executes the actions you define.
-Format:
-###AUTOMATE_DOM###
-{
-  "url": "https://n8n.io",
-  "actions": [
-    {"type": "click", "selector": "a[href='/templates']"}
-  ]
-}
-###AUTOMATE_DOM###`;
+3. To autonomously click/type on a website (returns screenshot of the result):
+###AUTOMATE_DOM### {"url": "https://n8n.io", "actions": [{"type": "click", "selector": "a[href='/workflows']"}]} ###AUTOMATE_DOM###`;
 
   const res = await groq.chat.completions.create({
     model: 'llama-3.1-8b-instant',
@@ -156,7 +143,6 @@ Format:
       reply = parts[0].trim(); 
       const jsonStr = parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1);
       const payload = JSON.parse(jsonStr);
-      // Ghost physically acts on the cloud browser and returns the result screenshot
       image_b64 = await executeCloudBrowser(payload.url, payload.actions || []);
     }
   } catch(e) { console.error('Tool Parsing Error:', e.message); }
@@ -196,4 +182,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.listen(PORT, () => console.log(`Ghost v32 (DOM Automation & Autonomy) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v33 (Anti-Leak System Restored) — port ${PORT}`));
