@@ -50,18 +50,7 @@ async function chat(message, sessionId = 'default') {
   return reply;
 }
 
-async function textToSpeech(text) {
-  try {
-    const axios = require('axios');
-    const resp = await axios.post(
-      'https://api.groq.com/openai/v1/audio/speech',
-      { model: 'playai-tts', voice: 'Arista-PlayAI', input: text.slice(0,300), response_format: 'wav' },
-      { headers: { Authorization: 'Bearer ' + process.env.GROQ_API_KEY, 'Content-Type': 'application/json' }, responseType: 'arraybuffer' }
-    );
-    console.log('[TTS] groq ok', resp.data.byteLength);
-    return Buffer.from(resp.data).toString('base64');
-  } catch(e) { console.error('[TTS] groq error', e.message); return null; }
-}
+async function textToSpeech(text) { return null; }
 
 app.post('/chat', async (req, res) => {
   const { message, session_id = 'default' } = req.body;
