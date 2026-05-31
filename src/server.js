@@ -71,9 +71,18 @@ async function chat(message, sessionId = 'default') {
   if (reply.includes('###AUTOMATION###')) {
     const parts = reply.split('###AUTOMATION###');
     reply = parts[0].trim(); // Clean response for voice synthesis
+    
     try {
-      const jsonPayload = JSON.parse(parts[1].trim());
-      triggerN8nAutomation(jsonPayload); // Dispatched asynchronously to prevent latency spikes
+      // Regex to extract ONLY the JSON object, ignoring markdown like ```json
+      const rawString = parts[1];
+      const match = rawString.match(/\{[\s\S]*\}/);
+      
+      if (match) {
+        const jsonPayload = JSON.parse(match[0]);
+        triggerN8nAutomation(jsonPayload); // Dispatched asynchronously
+      } else {
+        console.error('[Automation] Parsing failure: No valid JSON brackets found in the block.');
+      }
     } catch(err) {
       console.error('[Automation] Parsing failure:', err.message);
     }
@@ -83,7 +92,7 @@ async function chat(message, sessionId = 'default') {
 }
 
 async function textToSpeech(text) {
-  return null; // Local browser speech fallback executes handling
+  return null; 
 }
 
 app.post('/chat', async (req, res) => {
@@ -109,7 +118,7 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     form.append('model', 'whisper-large-v3-turbo');
     form.append('response_format', 'json');
     const resp = await axios.post(
-      'https://api.groq.com/openai/v1/audio/transcriptions',
+      '[https://api.groq.com/openai/v1/audio/transcriptions](https://api.groq.com/openai/v1/audio/transcriptions)',
       form,
       { headers: { ...form.getHeaders(), Authorization: `Bearer ${process.env.GROQ_API_KEY}` } }
     );
@@ -128,4 +137,4 @@ app.post('/skill/news', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v10 — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v10.1 — port ${PORT}`));
