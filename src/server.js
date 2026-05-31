@@ -50,7 +50,22 @@ async function chat(message, sessionId = 'default') {
   return reply;
 }
 
-async function textToSpeech(text) { return null; });
+async function textToSpeech(text) {
+  // Returns null to cleanly activate the browser fallback logic in ghost.html
+  return null;
+}
+
+app.post('/chat', async (req, res) => {
+  const { message, session_id = 'default' } = req.body;
+  if (!message) return res.status(400).json({ error: 'message required' });
+  try {
+    const reply = await chat(message, 'manoj_' + session_id);
+    const audio_b64 = await textToSpeech(reply);
+    res.json({ reply, audio_b64 });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
