@@ -33,7 +33,7 @@ async function executeCloudBrowser(query) {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
     
-    const searchUrl = 'https://www.google.com/search?q=' + encodeURIComponent(query);
+    const searchUrl = '[https://www.google.com/search?q=](https://www.google.com/search?q=)' + encodeURIComponent(query);
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
     
     await new Promise(r => setTimeout(r, 1500));
@@ -91,19 +91,14 @@ CRITICAL RULES:
     reply = parts[0].trim(); 
     
     try {
-      let potentialJson = parts[1];
-      
-      // FIX: Terminal-safe markdown stripping (Bypasses zsh backtick bugs)
-      const ticks = String.fromCharCode(96, 96, 96);
-      potentialJson = potentialJson.replace(new RegExp(ticks + 'json', 'gi'), '');
-      potentialJson = potentialJson.replace(new RegExp(ticks, 'g'), '');
-      potentialJson = potentialJson.trim();
-      
-      const startIdx = potentialJson.indexOf('{');
-      const endIdx = potentialJson.lastIndexOf('}');
+      // FIX: The simplest, most fail-safe JSON extractor. 
+      // It just finds the first { and last } inside the block and parses it.
+      const rawString = parts[1];
+      const startIdx = rawString.indexOf('{');
+      const endIdx = rawString.lastIndexOf('}');
       
       if (startIdx !== -1 && endIdx !== -1) {
-        const jsonStr = potentialJson.substring(startIdx, endIdx + 1);
+        const jsonStr = rawString.substring(startIdx, endIdx + 1);
         const jsonPayload = JSON.parse(jsonStr);
         if (jsonPayload.action === 'search') {
           image_b64 = await executeCloudBrowser(jsonPayload.query);
@@ -119,7 +114,7 @@ CRITICAL RULES:
 async function textToSpeech(text) {
   try {
     const results = await googleTTS.getAllAudioBase64(text, {
-      lang: 'en', slow: false, host: 'https://translate.google.com', splitPunct: ',.?'
+      lang: 'en', slow: false, host: '[https://translate.google.com](https://translate.google.com)', splitPunct: ',.?'
     });
     return results.map(r => r.base64);
   } catch (e) {
@@ -149,7 +144,7 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     form.append('model', 'whisper-large-v3-turbo');
     form.append('response_format', 'json');
     const resp = await axios.post(
-      'https://api.groq.com/openai/v1/audio/transcriptions',
+      '[https://api.groq.com/openai/v1/audio/transcriptions](https://api.groq.com/openai/v1/audio/transcriptions)',
       form,
       { headers: { ...form.getHeaders(), Authorization: `Bearer ${process.env.GROQ_API_KEY}` } }
     );
@@ -159,4 +154,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v23 (Syntax Fixed & Chrome Locked) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v24 (Raw Tool Execution) — port ${PORT}`));
