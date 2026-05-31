@@ -84,23 +84,19 @@ CURRENT TIME: ${nowIST}.
 LOGGED OPERATOR FACTS: ${sessions[sessionId].longTermMemory}
 
 CRITICAL TOOL RULES:
-You have two distinct tools. You must use the EXACT JSON format at the very end of your response to trigger them.
+You have three distinct tools. You must use the EXACT JSON format at the very end of your response to trigger them.
 
-1. CLOUD VISION (Background Screenshot): If the user asks you to grab a screenshot or quietly check data (like weather) WITHOUT opening a tab, use the BROWSER tool.
+1. CLOUD VISION (Background Screenshot): Use to check data silently.
+Format: ###BROWSER### {"action": "search", "query": "weather in Mangalagiri"} ###BROWSER###
+
+2. LOCAL NAVIGATION (Open in New Tab): Use to open websites on the user's screen.
+Format: ###OPEN_TAB### {"url": "https://www.youtube.com"} ###OPEN_TAB###
+
+3. AUTONOMOUS ACTION (Execute Webhook/Automation): If the user asks you to "make an automation", "trigger a workflow", or run a script, use the EXECUTE_ACTION tool. 
 Format:
-###BROWSER###
-{"action": "search", "query": "weather in Mangalagiri"}
-###BROWSER###
-
-2. LOCAL NAVIGATION (Open in New Tab): If the user asks you to "open", "search for", or "show" something on their screen, use the OPEN_TAB tool. You MUST generate the correct URL based on what they want.
-- For general web searches: use "https://www.google.com/search?q=YOUR_QUERY"
-- For YouTube searches: use "https://www.youtube.com/results?search_query=YOUR_QUERY"
-- For direct websites: use "https://www.website.com"
-
-Format:
-###OPEN_TAB###
-{"url": "https://www.google.com/search?q=sap+btp+tutorial"}
-###OPEN_TAB###`;
+###EXECUTE_ACTION###
+{"target": "google_script", "payload": "instructions or data"}
+###EXECUTE_ACTION###`;
 
   const res = await groq.chat.completions.create({
     model: 'llama-3.1-8b-instant',
@@ -134,6 +130,24 @@ Format:
       const payload = JSON.parse(jsonStr);
       if (payload.url) open_url = payload.url;
     } catch(e) {}
+  }
+
+  if (reply.includes('###EXECUTE_ACTION###')) {
+    const parts = reply.split('###EXECUTE_ACTION###');
+    reply = parts[0].trim(); 
+    try {
+      const jsonStr = parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1);
+      const payload = JSON.parse(jsonStr);
+      
+      if (payload.target === 'google_script') {
+        console.log('[Automation] Triggering background execution...');
+        // Replace this URL later with your actual n8n or Google Script Webhook
+        const webhookUrl = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec'; 
+        axios.post(webhookUrl, { data: payload.payload }).catch(e => console.error('Webhook failed:', e.message));
+      }
+    } catch(e) {
+      console.error('[Action] Parsing failure:', e.message);
+    }
   }
 
   return { reply, image_b64, open_url };
@@ -171,4 +185,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.listen(PORT, () => console.log(`Ghost v30 (Dynamic Tab Routing) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v31 (Action Engine Enabled) — port ${PORT}`));
