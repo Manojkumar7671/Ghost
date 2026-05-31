@@ -34,7 +34,6 @@ const sessions = {};
 
 async function executeCloudBrowser(query) {
   console.log('[Browser] Booting cloud browser for query:', query);
-  // These args are mandatory for Render's cloud environment
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
@@ -44,13 +43,11 @@ async function executeCloudBrowser(query) {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
     
-    // Cloud Automation: Go to Google and search the query
     await page.goto('https://www.google.com', { waitUntil: 'networkidle2' });
     await page.type('textarea[name="q"]', query);
     await page.keyboard.press('Enter');
     await page.waitForNavigation({ waitUntil: 'networkidle2' });
     
-    // Snap the screenshot
     const screenshotBuffer = await page.screenshot({ encoding: 'base64' });
     await browser.close();
     return screenshotBuffer;
@@ -102,9 +99,10 @@ async function textToSpeech(text) {
     const results = await googleTTS.getAllAudioBase64(text, {
       lang: 'en-GB', slow: false, host: 'https://translate.google.com', splitPunct: ',.?'
     });
-    const buffers = results.map(r => Buffer.from(r.base64, 'base64'));
-    return Buffer.concat(buffers).toString('base64');
+    // FIX: Return the raw array of base64 chunks instead of corrupting the file
+    return results.map(r => r.base64);
   } catch (e) {
+    console.error('[TTS] Free Cloud TTS error:', e.message);
     return null; 
   }
 }
@@ -122,4 +120,4 @@ app.post('/chat', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v13 (Cloud Vision) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v14 (Fixed Cloud Voice + Vision) — port ${PORT}`));

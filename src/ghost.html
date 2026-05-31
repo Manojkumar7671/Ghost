@@ -139,10 +139,21 @@ function showMsg(text){clearTimeout(hideT);msgEl.textContent=text;msgEl.style.op
 function hideMsg(delay=5000){hideT=setTimeout(()=>{msgEl.style.opacity='0';},delay);}
 
 let currentAudio=null;
-async function playAudio(b64){
-  if(currentAudio){currentAudio.pause();currentAudio=null;}
-  return new Promise(resolve=>{
-    const audio=new Audio('data:audio/mpeg;base64,'+b64);
+async function playAudio(audioData){
+  const chunks = Array.isArray(audioData) ? audioData : [audioData];
+  for(let b64 of chunks){
+    if(!b64) continue;
+    await new Promise(resolve=>{
+      const audio=new Audio('data:audio/mpeg;base64,'+b64);
+      window.currentAudio=audio;
+      audio.onended=()=>{window.currentAudio=null;resolve();};
+      audio.onerror=resolve;
+      audio.play().catch(resolve);
+    });
+  }
+}
+
+const audio=new Audio('data:audio/mpeg;base64,'+b64);
     currentAudio=audio;
     audio.onended=()=>{currentAudio=null;resolve();};
     audio.onerror=resolve;
