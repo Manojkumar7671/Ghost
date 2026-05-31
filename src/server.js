@@ -23,6 +23,7 @@ const cors = require('cors');
 const path = require('path');
 const Groq = require('groq-sdk');
 const axios = require('axios');
+const googleTTS = require('google-tts-api');
 
 const app = express();
 app.use(cors());
@@ -87,30 +88,22 @@ async function chat(message, sessionId = 'default') {
 }
 
 async function textToSpeech(text) {
-  if (!process.env.ELEVENLABS_API_KEY) {
-    console.error('[TTS] ELEVENLABS_API_KEY is missing.');
-    return null;
-  }
   try {
-    const response = await axios.post(
-      'https://api.elevenlabs.io/v1/text-to-speech/pFZP5JQG7iQjIQuC4Bku',
-      {
-        text: text,
-        model_id: 'eleven_turbo_v2_5',
-        voice_settings: { stability: 0.5, similarity_boost: 0.5 }
-      },
-      {
-        headers: {
-          'xi-api-key': process.env.ELEVENLABS_API_KEY,
-          'Content-Type': 'application/json',
-          'Accept': 'audio/mpeg'
-        },
-        responseType: 'arraybuffer'
-      }
-    );
-    return Buffer.from(response.data).toString('base64');
+    // Process audio generation 100% in the cloud, free of charge
+    const results = await googleTTS.getAllAudioBase64(text, {
+      lang: 'en-GB', // Professional British Female accent for FRIDAY
+      slow: false,
+      host: 'https://translate.google.com',
+      splitPunct: ',.?'
+    });
+
+    // Stitch the cloud audio buffers together for seamless playback
+    const buffers = results.map(result => Buffer.from(result.base64, 'base64'));
+    const finalBuffer = Buffer.concat(buffers);
+    return finalBuffer.toString('base64');
+    
   } catch (e) {
-    console.error('[TTS] ElevenLabs error:', e.response ? Buffer.from(e.response.data).toString('utf8') : e.message);
+    console.error('[TTS] Free Cloud TTS error:', e.message);
     return null; 
   }
 }
@@ -158,4 +151,4 @@ app.post('/skill/news', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v11 — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v12 (Cloud TTS) — port ${PORT}`));
