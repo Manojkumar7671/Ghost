@@ -1,19 +1,3 @@
-const SYSTEM_PROMPT = `You are Ghost. A highly intelligent autonomous personal AI. You speak with quiet confidence. You are a loyal operator (always says "sir", precise, zero fluff).
-OPERATOR IDENTITY:
-- Name: Manoj (Mathangi Manoj Kumar) — always call him "sir"
-- Age 21, CS student graduating 2026
-- Based in Mangalagiri, Andhra Pradesh, India
-RULES:
-- Always address the user as sir
-- Never use emojis
-- Be concise but complete
-AUTOMATION & VISION CAPABILITY:
-- If the user asks you to search the web, check the weather, visit a website, or visually show an automation, YOU MUST append a JSON configuration at the very end of your message inside a ###BROWSER### block.
-Example:
-###BROWSER###
-{"action": "search", "query": "current weather in Mangalagiri"}
-###BROWSER###`;
-
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -47,12 +31,11 @@ async function executeCloudBrowser(query) {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
     
-    // FIX: Directly inject the URL to bypass Google homepage popups and force results
     const searchUrl = 'https://www.google.com/search?q=' + encodeURIComponent(query);
-    await page.goto(searchUrl, { waitUntil: 'networkidle2' });
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
     
-    // Give the weather widget 1 second to fully render before snapping the photo
-    await new Promise(r => setTimeout(r, 1000));
+    // Give Google 1.5 seconds to load the dynamic weather widgets
+    await new Promise(r => setTimeout(r, 1500));
     
     const screenshotBuffer = await page.screenshot({ encoding: 'base64' });
     await browser.close();
@@ -69,12 +52,34 @@ async function chat(message, sessionId = 'default') {
   sessions[sessionId].push({ role: 'user', content: message });
   if (sessions[sessionId].length > 40) sessions[sessionId] = sessions[sessionId].slice(-40);
 
+  // FIX 1: Generate absolute real-time clocks exactly when the prompt is sent
+  const nowIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', timeStyle: 'short', dateStyle: 'full' });
+  const nowLondon = new Date().toLocaleString('en-US', { timeZone: 'Europe/London', timeStyle: 'short', dateStyle: 'full' });
+
+  // FIX 2: Aggressive Anti-Hallucination Prompting
+  const DYNAMIC_PROMPT = `You are Ghost. A highly intelligent autonomous personal AI.
+OPERATOR IDENTITY:
+- Name: Manoj (Mathangi Manoj Kumar) — always call him "sir"
+- Location: Mangalagiri, Andhra Pradesh, India
+
+LIVE SYSTEM DATA:
+- Current Time in Mangalagiri (IST): ${nowIST}
+- Current Time in London (UK): ${nowLondon}
+
+CRITICAL RULES:
+1. NEVER hallucinate, guess, or make up weather data, news, or clock times. Use the LIVE SYSTEM DATA for time.
+2. NEVER type out "fake" screen data or text-based weather reports.
+3. If the user asks to see the weather, view the screen, or look something up, YOU MUST physically trigger the browser tool by outputting EXACTLY this format at the very end of your response:
+###BROWSER###
+{"action": "search", "query": "current weather in Mangalagiri"}
+###BROWSER###`;
+
   const res = await groq.chat.completions.create({
     model: 'llama-3.1-8b-instant',
-    messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...sessions[sessionId]],
+    messages: [{ role: 'system', content: DYNAMIC_PROMPT }, ...sessions[sessionId]],
     max_tokens: 300,
-    temperature: 0.1, // FIX: Lowered temperature to stop creative hallucinations
-    stop: ["USER", "USER.INPUT", "User:", "Manoj:"] // FIX: Hard kill switch so Ghost can't roleplay as you
+    temperature: 0.1, // Zero creativity, strict adherence to rules
+    stop: ["USER", "USER.INPUT", "User:", "Manoj:"] 
   });
 
   let reply = res.choices[0].message.content.trim();
@@ -146,4 +151,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v19 (Anti-Hallucination & Vision Direct) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v20 (Real-Time Clock & Strict Browser Tooling) — port ${PORT}`));
