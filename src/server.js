@@ -19,11 +19,10 @@ app.get('/ghost.html', (req, res) => res.sendFile(path.join(__dirname, 'ghost.ht
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const PORT = process.env.PORT || 3000;
 
-// Upgraded Memory Structure
 const sessions = {};
 
 async function condenseMemory(sessionId, historySegment) {
-  const memoryPrompt = `Analyze the following conversation history between an Operator (Manoj) and an AI (Ghost). 
+  const memoryPrompt = `Analyze the following conversation history between an Operator and an AI (Ghost). 
 Extract any permanent personal facts, preferences, project details, or rules established by the user.
 Format them as a concise, single-paragraph summary of things Ghost must remember about the operator.
 
@@ -83,24 +82,22 @@ async function executeCloudBrowser(query) {
 }
 
 async function chat(message, sessionId = 'default') {
-  // Initialize structured memory if it doesn't exist
   if (!sessions[sessionId]) {
     sessions[sessionId] = { history: [], longTermMemory: "No long-term context recorded yet." };
   }
 
   sessions[sessionId].history.push({ role: 'user', content: message });
 
-  // Trigger condensation if history gets bloated
   if (sessions[sessionId].history.length > 30) {
     const olderMessages = sessions[sessionId].history.slice(0, 15);
-    condenseMemory(sessionId, olderMessages); // Runs in background
+    condenseMemory(sessionId, olderMessages); 
     sessions[sessionId].history = sessions[sessionId].history.slice(-15);
   }
 
   const nowIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', timeStyle: 'short', dateStyle: 'full' });
 
   const DYNAMIC_PROMPT = `You are Ghost, an autonomous personal AI assistant.
-OPERATOR: Manoj (sir).
+OPERATOR: Address the user strictly as "sir". Do not use a name.
 LOCATION: Mangalagiri, Andhra Pradesh, India.
 CURRENT TIME: ${nowIST}.
 
@@ -108,7 +105,8 @@ LOGGED OPERATOR FACTS (LONG-TERM MEMORY):
 ${sessions[sessionId].longTermMemory}
 
 CRITICAL TOOL RULE:
-If Manoj asks you to check the weather, look up info, search, or "show the screen", you MUST run a search. To run a search, append the exact text below to the absolute end of your response. Do not say you opened it; let the tool run.
+If the user asks you to check the weather, look up info, search, or "show the screen", you MUST run a search. 
+IMPORTANT FACT: You do not have a physical screen. The browser is a headless cloud tool. NEVER say "I opened a browser window" or "It is visible on your screen." Instead, say "Fetching the data for you, sir. I will display the screenshot." and then append the exact JSON block below to the end of your message.
 
 Format to append:
 ###BROWSER###
@@ -120,7 +118,7 @@ Format to append:
     messages: [{ role: 'system', content: DYNAMIC_PROMPT }, ...sessions[sessionId].history],
     max_tokens: 250,
     temperature: 0.0, 
-    stop: ["USER", "USER.INPUT", "User:", "Manoj:"] 
+    stop: ["USER", "USER.INPUT", "User:", "Operator:"] 
   });
 
   let reply = res.choices[0].message.content.trim();
@@ -166,7 +164,7 @@ app.post('/chat', async (req, res) => {
   const { message, session_id = 'default' } = req.body;
   if (!message) return res.status(400).json({ error: 'message required' });
   try {
-    const { reply, image_b64 } = await chat(message, 'manoj_' + session_id);
+    const { reply, image_b64 } = await chat(message, 'operator_' + session_id);
     const cleanSpeechText = reply.replace(/[*#_`~]/g, '').trim();
     const audio_b64 = await textToSpeech(cleanSpeechText);
     res.json({ reply, audio_b64, image_b64 });
@@ -193,4 +191,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v27 (Dynamic Memory Core) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v28 (Operator Identity & Cloud Browser Fix) — port ${PORT}`));
