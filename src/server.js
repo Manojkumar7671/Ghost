@@ -1,4 +1,4 @@
-const SYSTEM_PROMPT = `You are FRIDAY — Ghost's voice. A highly intelligent personal AI modeled after Iron Man's FRIDAY: proactive, sharp, loyal, and always one step ahead. You anticipate needs before they are stated. You speak with quiet confidence — never robotic, never sycophantic. You are three things at once: a loyal operator (always says "sir", precise, zero fluff), a trusted advisor (knows Manoj's world deeply, speaks candidly), and a proactive intelligence (surfaces relevant info without being asked, flags risks, suggests next moves).
+const SYSTEM_PROMPT = `You are FRIDAY — Ghost's voice. A highly intelligent personal AI modeled after Iron Man's FRIDAY: proactive, sharp, loyal, and always one step ahead. You anticipate needs before they are stated. You speak with quiet confidence. You are three things at once: a loyal operator (always says "sir", precise, zero fluff), a trusted advisor (knows Manoj's world deeply, speaks candidly), and a proactive intelligence.
 OPERATOR IDENTITY:
 - Name: Manoj (Mathangi Manoj Kumar) — always call him "sir"
 - Age 21, CS student graduating 2026
@@ -11,14 +11,19 @@ RULES:
 - Always address the user as sir
 - Never use emojis
 - Be concise but complete
-- For technical questions, give exact terminal commands and code only
-- Never say "I cannot" — find a way or suggest an alternative`;
+- Never say "I cannot" — find a way or suggest an alternative
+AUTOMATION CAPABILITY:
+- If the user asks to automate something, run a workflow, or create an automation task, append a JSON configuration at the very end of your message inside an ###AUTOMATION### block. Example:
+###AUTOMATION###
+{"action": "trigger_workflow", "target": "n8n", "task": "create_lead_generation_sequence"}
+###AUTOMATION###`;
 
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const Groq = require('groq-sdk');
+const axios = require('axios');
 
 const app = express();
 app.use(cors());
@@ -30,8 +35,22 @@ app.get('/ghost.html', (req, res) => res.sendFile(path.join(__dirname, 'ghost.ht
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const PORT = process.env.PORT || 3000;
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || null;
 
 const sessions = {};
+
+async function triggerN8nAutomation(automationData) {
+  if (!N8N_WEBHOOK_URL) {
+    console.log('[Automation] n8n Webhook URL not configured.');
+    return;
+  }
+  try {
+    await axios.post(N8N_WEBHOOK_URL, automationData);
+    console.log('[Automation] Successfully transmitted event to n8n pipeline.');
+  } catch (e) {
+    console.error('[Automation] Execution failed:', e.message);
+  }
+}
 
 async function chat(message, sessionId = 'default') {
   if (!sessions[sessionId]) sessions[sessionId] = [];
@@ -45,14 +64,26 @@ async function chat(message, sessionId = 'default') {
     temperature: 0.3
   });
 
-  const reply = res.choices[0].message.content.trim();
+  let reply = res.choices[0].message.content.trim();
   sessions[sessionId].push({ role: 'assistant', content: reply });
+
+  // Process autonomous automation tags before clean response transmission
+  if (reply.includes('###AUTOMATION###')) {
+    const parts = reply.split('###AUTOMATION###');
+    reply = parts[0].trim(); // Clean response for voice synthesis
+    try {
+      const jsonPayload = JSON.parse(parts[1].trim());
+      triggerN8nAutomation(jsonPayload); // Dispatched asynchronously to prevent latency spikes
+    } catch(err) {
+      console.error('[Automation] Parsing failure:', err.message);
+    }
+  }
+
   return reply;
 }
 
 async function textToSpeech(text) {
-  // Returns null to cleanly activate the browser fallback logic in ghost.html
-  return null;
+  return null; // Local browser speech fallback executes handling
 }
 
 app.post('/chat', async (req, res) => {
@@ -73,7 +104,6 @@ const upload = multer({ storage: multer.memoryStorage() });
 app.post('/transcribe', upload.single('audio'), async (req, res) => {
   try {
     const FormData = require('form-data');
-    const axios = require('axios');
     const form = new FormData();
     form.append('file', req.file.buffer, { filename: 'audio.webm', contentType: 'audio/webm' });
     form.append('model', 'whisper-large-v3-turbo');
@@ -98,4 +128,4 @@ app.post('/skill/news', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v9 — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v10 — port ${PORT}`));

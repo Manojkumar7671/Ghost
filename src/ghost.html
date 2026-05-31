@@ -229,7 +229,7 @@ async function initVAD(){
     }
       setMode('listening');hideMsg(5000);busy=false;
     };
-    mediaRecorder.start();setMode('recording');
+    window.speechSynthesis.cancel();mediaRecorder.start();setMode('recording');
   }
 
   function stopRec(){
