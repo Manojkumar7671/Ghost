@@ -31,10 +31,9 @@ async function executeCloudBrowser(query) {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
     
-    const searchUrl = 'https://www.google.com/search?q=' + encodeURIComponent(query);
+    const searchUrl = '[https://www.google.com/search?q=](https://www.google.com/search?q=)' + encodeURIComponent(query);
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
     
-    // Give Google 1.5 seconds to load the dynamic weather widgets
     await new Promise(r => setTimeout(r, 1500));
     
     const screenshotBuffer = await page.screenshot({ encoding: 'base64' });
@@ -52,11 +51,9 @@ async function chat(message, sessionId = 'default') {
   sessions[sessionId].push({ role: 'user', content: message });
   if (sessions[sessionId].length > 40) sessions[sessionId] = sessions[sessionId].slice(-40);
 
-  // FIX 1: Generate absolute real-time clocks exactly when the prompt is sent
   const nowIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', timeStyle: 'short', dateStyle: 'full' });
   const nowLondon = new Date().toLocaleString('en-US', { timeZone: 'Europe/London', timeStyle: 'short', dateStyle: 'full' });
 
-  // FIX 2: Aggressive Anti-Hallucination Prompting
   const DYNAMIC_PROMPT = `You are Ghost. A highly intelligent autonomous personal AI.
 OPERATOR IDENTITY:
 - Name: Manoj (Mathangi Manoj Kumar) — always call him "sir"
@@ -67,9 +64,10 @@ LIVE SYSTEM DATA:
 - Current Time in London (UK): ${nowLondon}
 
 CRITICAL RULES:
-1. NEVER hallucinate, guess, or make up weather data, news, or clock times. Use the LIVE SYSTEM DATA for time.
-2. NEVER type out "fake" screen data or text-based weather reports.
-3. If the user asks to see the weather, view the screen, or look something up, YOU MUST physically trigger the browser tool by outputting EXACTLY this format at the very end of your response:
+1. NO ROLEPLAY. You are software. You do not have "voice modules", "firmware", or "sensors". If an error occurs, state the error frankly. Do not make up diagnostic reports.
+2. NEVER hallucinate, guess, or make up weather data, news, or clock times. Use the LIVE SYSTEM DATA for time.
+3. NEVER type out "fake" screen data or text-based weather reports.
+4. If the user asks to see the weather, view the screen, or look something up, YOU MUST physically trigger the browser tool by outputting EXACTLY this format at the very end of your response:
 ###BROWSER###
 {"action": "search", "query": "current weather in Mangalagiri"}
 ###BROWSER###`;
@@ -78,7 +76,7 @@ CRITICAL RULES:
     model: 'llama-3.1-8b-instant',
     messages: [{ role: 'system', content: DYNAMIC_PROMPT }, ...sessions[sessionId]],
     max_tokens: 300,
-    temperature: 0.1, // Zero creativity, strict adherence to rules
+    temperature: 0.0, 
     stop: ["USER", "USER.INPUT", "User:", "Manoj:"] 
   });
 
@@ -91,11 +89,15 @@ CRITICAL RULES:
     reply = parts[0].trim(); 
     
     try {
-      const rawString = parts[1];
-      const startIdx = rawString.indexOf('{');
-      const endIdx = rawString.lastIndexOf('}');
+      // FIX: Aggressive markdown stripping to prevent JSON parse crashes
+      let potentialJson = parts[1];
+      potentialJson = potentialJson.replace(/```json/gi, '').replace(/```/g, '').trim();
+      
+      const startIdx = potentialJson.indexOf('{');
+      const endIdx = potentialJson.lastIndexOf('}');
+      
       if (startIdx !== -1 && endIdx !== -1) {
-        const jsonStr = rawString.substring(startIdx, endIdx + 1);
+        const jsonStr = potentialJson.substring(startIdx, endIdx + 1);
         const jsonPayload = JSON.parse(jsonStr);
         if (jsonPayload.action === 'search') {
           image_b64 = await executeCloudBrowser(jsonPayload.query);
@@ -111,7 +113,7 @@ CRITICAL RULES:
 async function textToSpeech(text) {
   try {
     const results = await googleTTS.getAllAudioBase64(text, {
-      lang: 'en', slow: false, host: 'https://translate.google.com', splitPunct: ',.?'
+      lang: 'en', slow: false, host: '[https://translate.google.com](https://translate.google.com)', splitPunct: ',.?'
     });
     return results.map(r => r.base64);
   } catch (e) {
@@ -141,7 +143,7 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     form.append('model', 'whisper-large-v3-turbo');
     form.append('response_format', 'json');
     const resp = await axios.post(
-      'https://api.groq.com/openai/v1/audio/transcriptions',
+      '[https://api.groq.com/openai/v1/audio/transcriptions](https://api.groq.com/openai/v1/audio/transcriptions)',
       form,
       { headers: { ...form.getHeaders(), Authorization: `Bearer ${process.env.GROQ_API_KEY}` } }
     );
@@ -151,4 +153,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v20 (Real-Time Clock & Strict Browser Tooling) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v21 (Bulletproof JSON Parser & Chrome Engine) — port ${PORT}`));
