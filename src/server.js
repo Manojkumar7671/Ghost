@@ -78,8 +78,6 @@ async function chat(message, sessionId = 'default') {
       if (match) {
         const jsonPayload = JSON.parse(match[0]);
         triggerN8nAutomation(jsonPayload); 
-      } else {
-        console.error('[Automation] Parsing failure: No valid JSON brackets found.');
       }
     } catch(err) {
       console.error('[Automation] Parsing failure:', err.message);
@@ -90,7 +88,10 @@ async function chat(message, sessionId = 'default') {
 }
 
 async function textToSpeech(text) {
-  if (!process.env.ELEVENLABS_API_KEY) return null;
+  if (!process.env.ELEVENLABS_API_KEY) {
+    console.error('[TTS] ELEVENLABS_API_KEY is missing from environment variables.');
+    return null;
+  }
   
   try {
     const response = await axios.post(
@@ -111,8 +112,12 @@ async function textToSpeech(text) {
     );
     return Buffer.from(response.data).toString('base64');
   } catch (e) {
-    console.error('[TTS] ElevenLabs error:', e.message);
-    return null; // Gracefully fallback to browser voice if API limit hits
+    // Enhanced error logging to catch 401 Unauthorized API issues
+    const errorDetails = e.response && e.response.data 
+      ? Buffer.from(e.response.data).toString('utf8') 
+      : e.message;
+    console.error('[TTS] ElevenLabs error:', errorDetails);
+    return null; 
   }
 }
 
@@ -121,7 +126,11 @@ app.post('/chat', async (req, res) => {
   if (!message) return res.status(400).json({ error: 'message required' });
   try {
     const reply = await chat(message, 'manoj_' + session_id);
-    const audio_b64 = await textToSpeech(reply);
+    
+    // Sanitize the text to prevent markdown from crashing the browser TTS fallback
+    const cleanSpeechText = reply.replace(/[*#_`~]/g, '').trim();
+    const audio_b64 = await textToSpeech(cleanSpeechText);
+    
     res.json({ reply, audio_b64 });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -158,4 +167,4 @@ app.post('/skill/news', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v10.2 — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v10.3 — port ${PORT}`));
