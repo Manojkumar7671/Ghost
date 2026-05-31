@@ -51,35 +51,16 @@ async function chat(message, sessionId = 'default') {
 }
 
 async function textToSpeech(text) {
-  const key = process.env.ELEVENLABS_API_KEY;
-  if (!key) return null;
   try {
-    const https = require('https');
-    const body = JSON.stringify({
-      text: text.slice(0, 300),
-      model_id: 'eleven_multilingual_v2',
-      voice_settings: { stability: 0.5, similarity_boost: 0.75 }
-    });
-    return new Promise((resolve) => {
-      const req = https.request({
-        hostname: 'api.elevenlabs.io',
-        path: '/v1/text-to-speech/lP1EpPqqTU5DCn2ga6OD/stream',
-        method: 'POST',
-        headers: {
-          'xi-api-key': key,
-          'Content-Type': 'application/json',
-          'Accept': 'audio/mpeg'
-        }
-      }, (res) => {
-        const chunks = [];
-        res.on('data', c => chunks.push(c));
-        res.on('end', () => { const b64 = Buffer.concat(chunks).toString('base64'); console.log('[TTS]', res.statusCode, b64.length); resolve(b64.length > 100 ? b64 : null); });
-      });
-      req.on('error', (e) => { console.error('[TTS ERROR]', e.message); resolve(null); });
-      req.write(body);
-      req.end();
-    });
-  } catch { return null; }
+    const axios = require('axios');
+    const resp = await axios.post(
+      'https://api.groq.com/openai/v1/audio/speech',
+      { model: 'playai-tts', voice: 'Fritz-PlayAI', input: text.slice(0,300), response_format: 'mp3' },
+      { headers: { Authorization: 'Bearer ' + process.env.GROQ_API_KEY, 'Content-Type': 'application/json' }, responseType: 'arraybuffer' }
+    );
+    console.log('[TTS] groq ok', resp.data.byteLength);
+    return Buffer.from(resp.data).toString('base64');
+  } catch(e) { console.error('[TTS] groq error', e.message); return null; }
 }
 
 app.post('/chat', async (req, res) => {
