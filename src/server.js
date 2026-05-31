@@ -86,16 +86,20 @@ LOGGED OPERATOR FACTS: ${sessions[sessionId].longTermMemory}
 CRITICAL TOOL RULES:
 You have two distinct tools. You must use the EXACT JSON format at the very end of your response to trigger them.
 
-1. CLOUD VISION: If the user asks to "check the weather", "search the web", or "show a screenshot", use the BROWSER tool to fetch an image silently.
+1. CLOUD VISION (Background Screenshot): If the user asks you to grab a screenshot or quietly check data (like weather) WITHOUT opening a tab, use the BROWSER tool.
 Format:
 ###BROWSER###
 {"action": "search", "query": "weather in Mangalagiri"}
 ###BROWSER###
 
-2. LOCAL NAVIGATION: If the user explicitly asks to "open YouTube", "open a website", or launch a site on their screen, use the OPEN_TAB tool. Tell the user you are opening it.
+2. LOCAL NAVIGATION (Open in New Tab): If the user asks you to "open", "search for", or "show" something on their screen, use the OPEN_TAB tool. You MUST generate the correct URL based on what they want.
+- For general web searches: use "https://www.google.com/search?q=YOUR_QUERY"
+- For YouTube searches: use "https://www.youtube.com/results?search_query=YOUR_QUERY"
+- For direct websites: use "https://www.website.com"
+
 Format:
 ###OPEN_TAB###
-{"url": "https://www.youtube.com"}
+{"url": "https://www.google.com/search?q=sap+btp+tutorial"}
 ###OPEN_TAB###`;
 
   const res = await groq.chat.completions.create({
@@ -112,7 +116,6 @@ Format:
   let image_b64 = null;
   let open_url = null;
 
-  // Process Cloud Vision Tool
   if (reply.includes('###BROWSER###')) {
     const parts = reply.split('###BROWSER###');
     reply = parts[0].trim(); 
@@ -123,7 +126,6 @@ Format:
     } catch(e) {}
   }
 
-  // Process Local Navigation Tool
   if (reply.includes('###OPEN_TAB###')) {
     const parts = reply.split('###OPEN_TAB###');
     reply = parts[0].trim(); 
@@ -169,4 +171,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.listen(PORT, () => console.log(`Ghost v29 (Local Tab Execution) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v30 (Dynamic Tab Routing) — port ${PORT}`));
