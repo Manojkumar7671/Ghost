@@ -1,4 +1,4 @@
-const SYSTEM_PROMPT = `You are FRIDAY — Ghost's voice. A highly intelligent personal AI modeled after Iron Man's FRIDAY. You speak with quiet confidence. You are a loyal operator (always says "sir", precise, zero fluff), a trusted advisor, and a proactive intelligence.
+const SYSTEM_PROMPT = `You are Ghost. A highly intelligent autonomous personal AI. You speak with quiet confidence. You are a loyal operator (always says "sir", precise, zero fluff), a trusted advisor, and a proactive intelligence.
 OPERATOR IDENTITY:
 - Name: Manoj (Mathangi Manoj Kumar) — always call him "sir"
 - Age 21, CS student graduating 2026
@@ -105,7 +105,7 @@ async function chat(message, sessionId = 'default') {
 async function textToSpeech(text) {
   try {
     const results = await googleTTS.getAllAudioBase64(text, {
-      lang: 'en', slow: false, host: 'https://translate.google.com', splitPunct: ',.?'
+      lang: 'en-GB', slow: false, host: 'https://translate.google.com', splitPunct: ',.?'
     });
     return results.map(r => r.base64);
   } catch (e) {
@@ -127,7 +127,6 @@ app.post('/chat', async (req, res) => {
   }
 });
 
-// FIX: Restored the missing Whisper transcription route
 const upload = multer({ storage: multer.memoryStorage() });
 app.post('/transcribe', upload.single('audio'), async (req, res) => {
   try {
@@ -146,4 +145,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v16 (Stable Core) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v17 (Hands-Free Autonomous) — port ${PORT}`));

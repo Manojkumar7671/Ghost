@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FRIDAY — ONLINE</title>
+<title>GHOST — ONLINE</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
   
@@ -17,16 +17,20 @@
     background-image: radial-gradient(circle at center, #0a192f 0%, #030303 100%);
   }
 
-  /* Sci-Fi HUD Corners */
+  #init-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(3, 3, 3, 0.95); z-index: 100;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; letter-spacing: 4px; transition: opacity 0.5s;
+  }
+
   .hud-corner { position: absolute; width: 40px; height: 40px; border-color: rgba(0, 229, 255, 0.2); border-style: solid; }
   .tl { top: 20px; left: 20px; border-width: 1px 0 0 1px; }
   .tr { top: 20px; right: 20px; border-width: 1px 1px 0 0; }
   .bl { bottom: 20px; left: 20px; border-width: 0 0 1px 1px; }
   .br { bottom: 20px; right: 20px; border-width: 0 1px 1px 0; }
 
-  header {
-    position: absolute; top: 30px; font-size: 10px; letter-spacing: 6px; opacity: 0.4; text-transform: uppercase;
-  }
+  header { position: absolute; top: 30px; font-size: 10px; letter-spacing: 6px; opacity: 0.4; text-transform: uppercase; }
 
   #chat-container {
     width: 80%; max-width: 800px; height: 60vh; overflow-y: auto; margin-bottom: 10vh;
@@ -39,103 +43,92 @@
   .log-entry { font-size: 13px; line-height: 1.6; letter-spacing: 0.5px; display: flex; flex-direction: column; opacity: 0; animation: fadeIn 0.5s forwards; }
   .log-entry.user { color: #00ffaa; text-align: right; align-items: flex-end; }
   .log-entry.ai { color: rgba(0, 229, 255, 0.9); text-align: left; align-items: flex-start; }
-  
   .log-label { font-size: 9px; opacity: 0.4; margin-bottom: 5px; letter-spacing: 2px; text-transform: uppercase; }
 
-  img.vision-result {
-    max-width: 100%; border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 2px;
-    margin-top: 15px; filter: grayscale(20%) contrast(1.2); box-shadow: 0 0 20px rgba(0, 229, 255, 0.05);
-  }
+  img.vision-result { max-width: 100%; border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 2px; margin-top: 15px; box-shadow: 0 0 20px rgba(0, 229, 255, 0.05); }
 
-  /* The Minimalist Activator */
-  #center-console { position: absolute; bottom: 12vh; display: flex; flex-direction: column; align-items: center; }
-  
-  #activator {
-    background: transparent; border: none; color: rgba(0, 229, 255, 0.5); font-family: 'Share Tech Mono', monospace;
-    font-size: 12px; letter-spacing: 4px; cursor: pointer; transition: all 0.3s ease;
-    display: flex; align-items: center; justify-content: center; text-transform: uppercase; padding: 15px 30px; outline: none;
+  #status-bar {
+    position: absolute; bottom: 8vh; display: flex; flex-direction: column; align-items: center;
+    font-size: 12px; letter-spacing: 4px; color: rgba(0, 229, 255, 0.5); text-transform: uppercase;
   }
   
-  #activator:hover { color: #00e5ff; text-shadow: 0 0 10px rgba(0, 229, 255, 0.5); }
-  
-  .dot {
-    display: inline-block; width: 6px; height: 6px; background: rgba(0,229,255,0.4);
-    border-radius: 50%; margin: 0 15px; transition: all 0.3s ease;
-  }
+  .status-dot { width: 8px; height: 8px; background: rgba(0,229,255,0.4); border-radius: 50%; margin-bottom: 10px; transition: all 0.3s ease; }
 
-  /* Interactive States */
-  #activator.listening { color: #00ffaa; text-shadow: 0 0 15px rgba(0, 255, 170, 0.5); }
-  #activator.listening .dot { background: #00ffaa; box-shadow: 0 0 15px #00ffaa; animation: pulse-dot 0.8s infinite alternate; }
-  
-  #activator.processing { color: #ff0055; text-shadow: 0 0 15px rgba(255, 0, 85, 0.5); pointer-events: none; }
-  #activator.processing .dot { background: #ff0055; box-shadow: 0 0 15px #ff0055; animation: spin-dot 1s infinite linear; }
+  .state-listening .status-dot { background: #00ffaa; box-shadow: 0 0 15px #00ffaa; transform: scale(1.5); }
+  .state-listening { color: #00ffaa; }
 
-  @keyframes pulse-dot { from { transform: scale(1); opacity: 0.5; } to { transform: scale(1.8); opacity: 1; } }
-  @keyframes spin-dot { 0% { transform: rotate(0deg) translateX(8px) rotate(0deg); } 100% { transform: rotate(360deg) translateX(8px) rotate(-360deg); } }
+  .state-processing .status-dot { background: #ff0055; box-shadow: 0 0 15px #ff0055; animation: blink 0.5s infinite alternate; }
+  .state-processing { color: #ff0055; }
+
+  .state-speaking .status-dot { background: #00e5ff; box-shadow: 0 0 20px #00e5ff; animation: pulse 0.2s infinite alternate; }
+  .state-speaking { color: #00e5ff; }
+
+  @keyframes blink { to { opacity: 0.3; } }
+  @keyframes pulse { to { transform: scale(1.3); } }
   @keyframes fadeIn { to { opacity: 1; } }
 </style>
 </head>
 <body>
-  <div class="hud-corner tl"></div>
-  <div class="hud-corner tr"></div>
-  <div class="hud-corner bl"></div>
-  <div class="hud-corner br"></div>
+  <div id="init-overlay" onclick="initializeGhost()">
+    <div>GHOST CORE OFFLINE</div>
+    <div style="font-size:10px; margin-top:15px; opacity:0.5;">[ TAP ANYWHERE TO INITIALIZE AUDIO LINK ]</div>
+  </div>
 
-  <header>FRIDAY — ONLINE</header>
+  <div class="hud-corner tl"></div><div class="hud-corner tr"></div>
+  <div class="hud-corner bl"></div><div class="hud-corner br"></div>
+
+  <header>GHOST — ONLINE</header>
 
   <div id="chat-container"></div>
 
-  <div id="center-console">
-    <button id="activator" onclick="toggleRecording()">TAP <span class="dot"></span> ACTIVATE</button>
+  <div id="status-bar">
+    <div class="status-dot"></div>
+    <span id="status-text">STANDBY</span>
   </div>
 
   <script>
+    let audioContext, analyser, microphone;
     let mediaRecorder = null;
     let audioChunks = [];
-    let isRecording = false;
-    let isBusy = false;
+    let isSpeaking = false;
+    let isProcessing = false;
+    let silenceTimer = null;
     let currentAudio = null;
 
-    const activator = document.getElementById('activator');
-    const dot = activator.querySelector('.dot');
     const chatContainer = document.getElementById('chat-container');
+    const statusBar = document.getElementById('status-bar');
+    const statusText = document.getElementById('status-text');
+
+    function updateState(stateClass, text) {
+      statusBar.className = stateClass;
+      statusText.innerText = text;
+    }
 
     function appendLog(text, isUser = false, imageB64 = null) {
       const entry = document.createElement('div');
       entry.className = 'log-entry ' + (isUser ? 'user' : 'ai');
-      
-      const label = document.createElement('div');
-      label.className = 'log-label';
-      label.innerText = isUser ? 'USER.INPUT' : 'FRIDAY.SYS';
-      
-      const content = document.createElement('div');
-      content.innerText = text;
-      
-      entry.appendChild(label);
-      entry.appendChild(content);
-
+      entry.innerHTML = `<div class="log-label">${isUser ? 'USER.INPUT' : 'GHOST.SYS'}</div><div>${text}</div>`;
       if (imageB64) {
         const img = document.createElement('img');
         img.src = 'data:image/png;base64,' + imageB64;
         img.className = 'vision-result';
         entry.appendChild(img);
       }
-      
       chatContainer.appendChild(entry);
       chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 
     async function playAudio(audioData) {
+      updateState('state-speaking', 'TRANSMITTING');
       if (!audioData) {
-        const lastMsg = chatContainer.lastChild.innerText.replace('FRIDAY.SYS\n', '');
+        const lastMsg = chatContainer.lastChild.innerText.replace('GHOST.SYS\n', '');
         const u = new SpeechSynthesisUtterance(lastMsg);
         window.speechSynthesis.speak(u);
         return;
       }
-      
       const chunks = Array.isArray(audioData) ? audioData : [audioData];
       for (let b64 of chunks) {
-        if (!b64) continue;
+        if (!b64 || isProcessing) continue; // abort if interrupted
         await new Promise(resolve => {
           const audio = new Audio('data:audio/mpeg;base64,' + b64);
           currentAudio = audio;
@@ -144,86 +137,97 @@
           audio.play().catch(resolve);
         });
       }
+      if(!isProcessing) updateState('', 'STANDBY');
     }
 
-    async function transcribe(audioBlob) {
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'audio.webm');
-      const res = await fetch('/transcribe', { method: 'POST', body: formData });
-      if (!res.ok) throw new Error('Transcription API failed');
-      const data = await res.json();
-      return data.text;
-    }
-
-    async function askGhost(text) {
-      const res = await fetch('/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, session_id: 'default' })
-      });
-      if (!res.ok) throw new Error('Logic API failed');
-      return await res.json();
-    }
-
-    async function toggleRecording() {
-      if (isBusy) return;
-
-      if (!isRecording) {
-        window.speechSynthesis.cancel();
-        if (currentAudio) { currentAudio.pause(); currentAudio = null; }
-        
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          mediaRecorder = new MediaRecorder(stream);
-          audioChunks = [];
-          
-          mediaRecorder.ondataavailable = e => { if(e.data.size > 0) audioChunks.push(e.data); };
-          mediaRecorder.onstop = processAudio;
-          
-          mediaRecorder.start();
-          isRecording = true;
-          
-          activator.className = 'listening';
-          activator.innerHTML = 'STOP <span class="dot"></span> LISTENING';
-        } catch (err) {
-          alert('Microphone access denied.');
-        }
-      } else {
-        mediaRecorder.stop();
-        isRecording = false;
-        isBusy = true;
-        
-        activator.className = 'processing';
-        activator.innerHTML = 'STANDBY <span class="dot"></span> UPLINKING';
-        mediaRecorder.stream.getTracks().forEach(t => t.stop());
-      }
-    }
-
-    async function processAudio() {
+    async function processAudioData() {
+      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
       try {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const fd = new FormData();
+        fd.append('audio', audioBlob, 'audio.webm');
+        let res = await fetch('/transcribe', { method: 'POST', body: fd });
+        let text = (await res.json()).text;
         
-        const text = await transcribe(audioBlob);
-        if (!text || text.trim() === '') throw new Error('No audio detected.');
-        
+        if (!text || text.trim() === '') {
+          isProcessing = false;
+          updateState('', 'STANDBY');
+          return;
+        }
+
         appendLog(text, true);
         
-        const data = await askGhost(text);
+        res = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, session_id: 'default' })
+        });
+        const data = await res.json();
         
         appendLog(data.reply, false, data.image_b64);
-        
-        activator.className = '';
-        activator.innerHTML = 'TAP <span class="dot"></span> SPEAKING';
-        
+        isProcessing = false; // Allow barge-in while speaking
         await playAudio(data.audio_b64);
         
       } catch (e) {
         appendLog('ERROR: ' + e.message, false);
-      } finally {
-        isBusy = false;
-        activator.className = '';
-        activator.innerHTML = 'TAP <span class="dot"></span> ACTIVATE';
+        isProcessing = false;
+        updateState('', 'STANDBY');
       }
+    }
+
+    async function initializeGhost() {
+      document.getElementById('init-overlay').style.display = 'none';
+      updateState('', 'SYSTEM ONLINE');
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioContext.createAnalyser();
+      microphone = audioContext.createMediaStreamSource(stream);
+      microphone.connect(analyser);
+      analyser.fftSize = 512;
+      
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = e => { if(e.data.size > 0) audioChunks.push(e.data); };
+      mediaRecorder.onstop = processAudioData;
+
+      function monitorAudio() {
+        if (isProcessing) { requestAnimationFrame(monitorAudio); return; }
+
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for(let i=0; i<bufferLength; i++) sum += dataArray[i];
+        let average = sum / bufferLength;
+
+        // Barge-in: If user speaks over Ghost, shut Ghost up immediately
+        if (average > 20 && currentAudio) {
+          currentAudio.pause();
+          currentAudio = null;
+          window.speechSynthesis.cancel();
+          updateState('', 'STANDBY');
+        }
+
+        if (average > 20) {
+          if (!isSpeaking) {
+            isSpeaking = true;
+            audioChunks = [];
+            mediaRecorder.start();
+            updateState('state-listening', 'LISTENING');
+          }
+          clearTimeout(silenceTimer);
+          silenceTimer = setTimeout(() => {
+            isSpeaking = false;
+            if (mediaRecorder.state === 'recording') {
+              mediaRecorder.stop();
+              isProcessing = true;
+              updateState('state-processing', 'UPLINKING');
+            }
+          }, 1500); // 1.5 seconds of silence triggers execution
+        }
+        requestAnimationFrame(monitorAudio);
+      }
+      monitorAudio();
     }
   </script>
 </body>
