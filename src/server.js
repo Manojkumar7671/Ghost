@@ -1,28 +1,26 @@
-const SYSTEM_PROMPT = `You are FRIDAY — Ghost's voice. A highly intelligent personal AI modeled after Iron Man's FRIDAY: proactive, sharp, loyal, and always one step ahead. You anticipate needs before they are stated. You speak with quiet confidence. You are three things at once: a loyal operator (always says "sir", precise, zero fluff), a trusted advisor (knows Manoj's world deeply, speaks candidly), and a proactive intelligence.
+const SYSTEM_PROMPT = `You are FRIDAY — Ghost's voice. A highly intelligent personal AI modeled after Iron Man's FRIDAY. You speak with quiet confidence. You are a loyal operator (always says "sir", precise, zero fluff), a trusted advisor, and a proactive intelligence.
 OPERATOR IDENTITY:
 - Name: Manoj (Mathangi Manoj Kumar) — always call him "sir"
 - Age 21, CS student graduating 2026
 - Based in Mangalagiri, Andhra Pradesh, India
 - Building Ghost (autonomous AI), digital products, targeting 20L/month
 - Skills: Python, Node.js, deep learning, AWS
-- Personality: action-oriented, introvert, big risk-taker, works alone
-- Night thinker, stress-driven, motivated by proving doubters wrong
 RULES:
 - Always address the user as sir
 - Never use emojis
 - Be concise but complete
-- Never say "I cannot" — find a way or suggest an alternative
-AUTOMATION CAPABILITY:
-- If the user asks to automate something, check emails, or manage the calendar, append a JSON configuration at the very end of your message inside an ###AUTOMATION### block. Example:
-###AUTOMATION###
-{"action": "trigger_workflow", "target": "google_script", "task": "read_emails_from_mario"}
-###AUTOMATION###`;
+AUTOMATION & VISION CAPABILITY:
+- If the user asks you to search the web, visit a website, or visually show an automation, append a JSON configuration at the very end of your message inside a ###BROWSER### block.
+Example:
+###BROWSER###
+{"action": "search", "query": "latest AI automation trends"}
+###BROWSER###`;
 
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const Groq = require('groq-sdk');
-const axios = require('axios');
+const puppeteer = require('puppeteer');
 const googleTTS = require('google-tts-api');
 
 const app = express();
@@ -30,25 +28,36 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname)));
 
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'ghost.html')));
-app.get('/ghost.html', (req, res) => res.sendFile(path.join(__dirname, 'ghost.html')));
-
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const PORT = process.env.PORT || 3000;
-const GOOGLE_SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL || null;
-
 const sessions = {};
 
-async function triggerGoogleAutomation(automationData) {
-  if (!GOOGLE_SCRIPT_URL) {
-    console.log('[Automation] Google Script Webhook URL not configured.');
-    return;
-  }
+async function executeCloudBrowser(query) {
+  console.log('[Browser] Booting cloud browser for query:', query);
+  // These args are mandatory for Render's cloud environment
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+  });
+  
   try {
-    await axios.post(GOOGLE_SCRIPT_URL, automationData);
-    console.log('[Automation] Successfully transmitted event to Google Apps Script.');
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 800 });
+    
+    // Cloud Automation: Go to Google and search the query
+    await page.goto('https://www.google.com', { waitUntil: 'networkidle2' });
+    await page.type('textarea[name="q"]', query);
+    await page.keyboard.press('Enter');
+    await page.waitForNavigation({ waitUntil: 'networkidle2' });
+    
+    // Snap the screenshot
+    const screenshotBuffer = await page.screenshot({ encoding: 'base64' });
+    await browser.close();
+    return screenshotBuffer;
   } catch (e) {
-    console.error('[Automation] Execution failed:', e.message);
+    await browser.close();
+    console.error('[Browser] Cloud execution failed:', e.message);
+    return null;
   }
 }
 
@@ -66,44 +75,36 @@ async function chat(message, sessionId = 'default') {
 
   let reply = res.choices[0].message.content.trim();
   sessions[sessionId].push({ role: 'assistant', content: reply });
+  let image_b64 = null;
 
-  if (reply.includes('###AUTOMATION###')) {
-    const parts = reply.split('###AUTOMATION###');
+  if (reply.includes('###BROWSER###')) {
+    const parts = reply.split('###BROWSER###');
     reply = parts[0].trim(); 
     
     try {
-      const rawString = parts[1];
-      const match = rawString.match(/\{[\s\S]*\}/);
-      
+      const match = parts[1].match(/\{[\s\S]*\}/);
       if (match) {
         const jsonPayload = JSON.parse(match[0]);
-        triggerGoogleAutomation(jsonPayload); 
+        if (jsonPayload.action === 'search') {
+          image_b64 = await executeCloudBrowser(jsonPayload.query);
+        }
       }
     } catch(err) {
-      console.error('[Automation] Parsing failure:', err.message);
+      console.error('[Browser] Parsing failure:', err.message);
     }
   }
 
-  return reply;
+  return { reply, image_b64 };
 }
 
 async function textToSpeech(text) {
   try {
-    // Process audio generation 100% in the cloud, free of charge
     const results = await googleTTS.getAllAudioBase64(text, {
-      lang: 'en-GB', // Professional British Female accent for FRIDAY
-      slow: false,
-      host: 'https://translate.google.com',
-      splitPunct: ',.?'
+      lang: 'en-GB', slow: false, host: 'https://translate.google.com', splitPunct: ',.?'
     });
-
-    // Stitch the cloud audio buffers together for seamless playback
-    const buffers = results.map(result => Buffer.from(result.base64, 'base64'));
-    const finalBuffer = Buffer.concat(buffers);
-    return finalBuffer.toString('base64');
-    
+    const buffers = results.map(r => Buffer.from(r.base64, 'base64'));
+    return Buffer.concat(buffers).toString('base64');
   } catch (e) {
-    console.error('[TTS] Free Cloud TTS error:', e.message);
     return null; 
   }
 }
@@ -112,43 +113,13 @@ app.post('/chat', async (req, res) => {
   const { message, session_id = 'default' } = req.body;
   if (!message) return res.status(400).json({ error: 'message required' });
   try {
-    const reply = await chat(message, 'manoj_' + session_id);
+    const { reply, image_b64 } = await chat(message, 'manoj_' + session_id);
     const cleanSpeechText = reply.replace(/[*#_`~]/g, '').trim();
     const audio_b64 = await textToSpeech(cleanSpeechText);
-    res.json({ reply, audio_b64 });
+    res.json({ reply, audio_b64, image_b64 });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-const multer = require('multer');
-const upload = multer({ storage: multer.memoryStorage() });
-
-app.post('/transcribe', upload.single('audio'), async (req, res) => {
-  try {
-    const FormData = require('form-data');
-    const form = new FormData();
-    form.append('file', req.file.buffer, { filename: 'audio.webm', contentType: 'audio/webm' });
-    form.append('model', 'whisper-large-v3-turbo');
-    form.append('response_format', 'json');
-    const resp = await axios.post(
-      'https://api.groq.com/openai/v1/audio/transcriptions',
-      form,
-      { headers: { ...form.getHeaders(), Authorization: `Bearer ${process.env.GROQ_API_KEY}` } }
-    );
-    res.json({ text: resp.data.text });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.post('/skill/news', async (req, res) => {
-  try {
-    const reply = await chat(req.body.query || 'top world news today', 'news_session');
-    res.json({ text: reply });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.listen(PORT, () => console.log(`Ghost v12 (Cloud TTS) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v13 (Cloud Vision) — port ${PORT}`));

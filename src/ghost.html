@@ -161,7 +161,7 @@ async function askGhost(text){
     const data=await res.json();
     const reply=data.reply||data.response||data.message||data.text||JSON.stringify(data);
     if(/news|headline|happening|world|latest/i.test(text)&&reply.length>100)showNewsPanel(reply);
-    return{reply,audio:data.audio_b64||null};
+    return { reply, audio: data.audio_b64 || null, image_b64: data.image_b64 || null };
   }catch(e){return{reply:'Connection lost, sir.',audio:null};}
 }
 
@@ -197,7 +197,10 @@ async function initVAD(){
       const transcript=await transcribe(blob);
       if(!transcript.trim()){setMode('listening');busy=false;return;}
       showMsg(transcript);
-      const{reply,audio}=await askGhost(transcript);
+      const data = await askGhost(transcript);
+        const reply = data.reply;
+        const audio = data.audio;
+        if(data.image_b64) showMsg(`<img src="data:image/png;base64,${data.image_b64}" style="max-width:100%; border-radius:8px; margin-top:10px; border: 1px solid #333;" />`);
       setMode('speaking');showMsg(reply);
       if(audio){
       await playAudio(audio);
@@ -283,7 +286,10 @@ typeInput.addEventListener('keydown',async e=>{
   if(e.key!=='Enter'||!typeInput.value.trim())return;
   const q=typeInput.value.trim();typeInput.value='';typeWrap.classList.remove('show');
   showMsg(q);
-  const{reply,audio}=await askGhost(q);
+  const data = await askGhost(q);
+        const reply = data.reply;
+        const audio = data.audio;
+        if(data.image_b64) showMsg(`<img src="data:image/png;base64,${data.image_b64}" style="max-width:100%; border-radius:8px; margin-top:10px; border: 1px solid #333;" />`);
   setMode('speaking');showMsg(reply);
   if(audio){
       await playAudio(audio);
