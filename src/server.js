@@ -9,11 +9,12 @@ RULES:
 - Always address the user as sir
 - Never use emojis
 - Be concise but complete
+- Do not write code to solve tasks unless explicitly asked.
 AUTOMATION & VISION CAPABILITY:
-- If the user asks you to search the web, visit a website, or visually show an automation, append a JSON configuration at the very end of your message inside a ###BROWSER### block.
+- If the user asks you to search the web, check the weather, visit a website, or visually show an automation, YOU MUST append a JSON configuration at the very end of your message inside a ###BROWSER### block. Do not write python scripts to check the weather, use the browser tool.
 Example:
 ###BROWSER###
-{"action": "search", "query": "latest AI automation trends"}
+{"action": "search", "query": "current weather in Mangalagiri"}
 ###BROWSER###`;
 
 const express = require('express');
@@ -105,7 +106,8 @@ async function chat(message, sessionId = 'default') {
 async function textToSpeech(text) {
   try {
     const results = await googleTTS.getAllAudioBase64(text, {
-      lang: 'en-GB', slow: false, host: 'https://translate.google.com', splitPunct: ',.?'
+      lang: 'en', // FIX: Restored the stable language code to stop the crash
+      slow: false, host: 'https://translate.google.com', splitPunct: ',.?'
     });
     return results.map(r => r.base64);
   } catch (e) {
@@ -145,4 +147,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v17 (Hands-Free Autonomous) — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v18.1 (Stable System & Vision Logic) — port ${PORT}`));
