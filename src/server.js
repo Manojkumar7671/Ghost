@@ -67,21 +67,19 @@ async function chat(message, sessionId = 'default') {
   let reply = res.choices[0].message.content.trim();
   sessions[sessionId].push({ role: 'assistant', content: reply });
 
-  // Process autonomous automation tags before clean response transmission
   if (reply.includes('###AUTOMATION###')) {
     const parts = reply.split('###AUTOMATION###');
-    reply = parts[0].trim(); // Clean response for voice synthesis
+    reply = parts[0].trim(); 
     
     try {
-      // Regex to extract ONLY the JSON object, ignoring markdown like ```json
       const rawString = parts[1];
       const match = rawString.match(/\{[\s\S]*\}/);
       
       if (match) {
         const jsonPayload = JSON.parse(match[0]);
-        triggerN8nAutomation(jsonPayload); // Dispatched asynchronously
+        triggerN8nAutomation(jsonPayload); 
       } else {
-        console.error('[Automation] Parsing failure: No valid JSON brackets found in the block.');
+        console.error('[Automation] Parsing failure: No valid JSON brackets found.');
       }
     } catch(err) {
       console.error('[Automation] Parsing failure:', err.message);
@@ -92,7 +90,30 @@ async function chat(message, sessionId = 'default') {
 }
 
 async function textToSpeech(text) {
-  return null; 
+  if (!process.env.ELEVENLABS_API_KEY) return null;
+  
+  try {
+    const response = await axios.post(
+      'https://api.elevenlabs.io/v1/text-to-speech/pFZP5JQG7iQjIQuC4Bku',
+      {
+        text: text,
+        model_id: 'eleven_turbo_v2_5',
+        voice_settings: { stability: 0.5, similarity_boost: 0.5 }
+      },
+      {
+        headers: {
+          'xi-api-key': process.env.ELEVENLABS_API_KEY,
+          'Content-Type': 'application/json',
+          'Accept': 'audio/mpeg'
+        },
+        responseType: 'arraybuffer'
+      }
+    );
+    return Buffer.from(response.data).toString('base64');
+  } catch (e) {
+    console.error('[TTS] ElevenLabs error:', e.message);
+    return null; // Gracefully fallback to browser voice if API limit hits
+  }
 }
 
 app.post('/chat', async (req, res) => {
@@ -118,7 +139,7 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     form.append('model', 'whisper-large-v3-turbo');
     form.append('response_format', 'json');
     const resp = await axios.post(
-      '[https://api.groq.com/openai/v1/audio/transcriptions](https://api.groq.com/openai/v1/audio/transcriptions)',
+      'https://api.groq.com/openai/v1/audio/transcriptions',
       form,
       { headers: { ...form.getHeaders(), Authorization: `Bearer ${process.env.GROQ_API_KEY}` } }
     );
@@ -137,4 +158,4 @@ app.post('/skill/news', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Ghost v10.1 — port ${PORT}`));
+app.listen(PORT, () => console.log(`Ghost v10.2 — port ${PORT}`));
