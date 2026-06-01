@@ -22,7 +22,12 @@ app.post('/scrape', async (req, res) => {
     try {
         const response = await axios.get('https://worldmonitor.com', { headers: { 'User-Agent': 'Mozilla/5.0' } });
         const $ = cheerio.load(response.data);
-        const text = $('body').text().replace(/\s+/g, ' ').substring(0, 3000);
+        
+        // THE FIX: Strip out all styling, scripts, and background code
+        $('script, style, noscript, iframe, header, footer').remove();
+        
+        // Now grab the clean text
+        const text = $('body').text().replace(/\s+/g, ' ').trim().substring(0, 3000);
         res.json({ content: text });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
