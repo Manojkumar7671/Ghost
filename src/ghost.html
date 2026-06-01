@@ -203,7 +203,7 @@
       mediaRecorder.onstop = processAudioData;
 
       function monitorAudio() {
-        if (isProcessing) { requestAnimationFrame(monitorAudio); return; }
+        if (isProcessing || window.speechSynthesis.speaking || window.currentAudio) { requestAnimationFrame(monitorAudio); return; }
 
         analyser.getByteFrequencyData(dataArray);
         let sum = 0;
