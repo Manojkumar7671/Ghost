@@ -5,6 +5,7 @@ const Groq = require('groq-sdk');
 const puppeteer = require('puppeteer');
 const googleTTS = require('google-tts-api');
 const multer = require('multer');
+const FormData = require('form-data');
 const axios = require('axios');
 const app = express();
 
@@ -22,6 +23,13 @@ STRICT BEHAVIORAL CONSTRAINTS:
 5. Address the user ONLY as "sir".
 6. If the user asks for music or automation, confirm the action with a single sentence and execute the tool immediately. 
 
+CRITICAL TOOL RULES:
+You must use the EXACT JSON format at the very end of your response to trigger tools.
+1. CLOUD VISION: ###BROWSER### {"action": "search", "query": "weather"} ###BROWSER###
+2. LOCAL NAVIGATION: ###OPEN_TAB### {"url": "https://www.youtube.com"} ###OPEN_TAB###
+3. MEDIA: ###CONTROL_MEDIA### {"action": "play"} ###CONTROL_MEDIA###
+4. ACTION: ###EXECUTE_ACTION### {"target": "webhook", "payload": "data"} ###EXECUTE_ACTION###
+
 Failure to follow these constraints will result in a logic reset.`;
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'ghost.html')));
@@ -31,11 +39,14 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const PORT = process.env.PORT || 3000;
 const sessions = {};
 
-async function executeCloudBrowser(url) {
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+async function executeCloudBrowser(url, actions = []) {
+  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process'] });
   try {
     const page = await browser.newPage();
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 10000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    for (let action of actions) {
+      if (action.type === 'click') { try { await page.click(action.selector); await new Promise(r => setTimeout(r, 1000)); } catch(e) {} }
+    }
     const buffer = await page.screenshot({ encoding: 'base64' });
     await browser.close();
     return buffer;
@@ -56,19 +67,52 @@ async function chat(message, sessionId = 'default') {
   sessions[sessionId].history.push({ role: 'assistant', content: reply });
   
   let image_b64 = null;
+  let open_url = null;
+  let media_ctrl = null;
+
   if (reply.includes('###BROWSER###')) {
-    const jsonStr = reply.substring(reply.indexOf('{'), reply.lastIndexOf('}') + 1);
-    const payload = JSON.parse(jsonStr);
-    image_b64 = await executeCloudBrowser('https://www.google.com/search?q=' + encodeURIComponent(payload.query));
+    const parts = reply.split('###BROWSER###');
+    reply = parts[0].trim();
+    try {
+      const payload = JSON.parse(parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1));
+      image_b64 = await executeCloudBrowser('https://www.google.com/search?q=' + encodeURIComponent(payload.query));
+    } catch(e) { console.error("Browser Tool Error"); }
+  } else if (reply.includes('###OPEN_TAB###')) {
+    const parts = reply.split('###OPEN_TAB###');
+    reply = parts[0].trim();
+    try {
+      open_url = JSON.parse(parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1)).url;
+    } catch(e) {}
+  } else if (reply.includes('###CONTROL_MEDIA###')) {
+    const parts = reply.split('###CONTROL_MEDIA###');
+    reply = parts[0].trim();
+    try {
+      media_ctrl = JSON.parse(parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1)).action;
+    } catch(e) {}
+  } else if (reply.includes('###EXECUTE_ACTION###')) {
+    const parts = reply.split('###EXECUTE_ACTION###');
+    reply = parts[0].trim();
   }
-  return { reply, image_b64 };
+  
+  return { reply, image_b64, open_url, media_ctrl };
 }
 
 async function textToSpeech(text) {
+  if (!text || text.trim() === '') return null;
   try {
-    const results = await googleTTS.getAllAudioBase64(text, { lang: 'en', slow: false });
-    return results.map(r => r.base64);
-  } catch (e) { return null; }
+    // FIX: Restored splitPunct and host to prevent silent crashes on long strings
+    const results = await googleTTS.getAllAudioBase64(text, { 
+      lang: 'en-GB', 
+      slow: false,
+      host: 'https://translate.google.com',
+      splitPunct: ',.?'
+    });
+    const base64Array = results.map(r => r.base64);
+    return base64Array.length > 0 ? base64Array : null;
+  } catch (e) { 
+    console.error('[TTS Error]:', e.message);
+    return null; 
+  }
 }
 
 app.post('/chat', async (req, res) => {
@@ -92,4 +136,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.listen(PORT, () => console.log('Ghost v38 (Clean Restore) — port ' + PORT));
+app.listen(PORT, () => console.log('Ghost v39 (Ultimate Voice & Tool Restoration) — port ' + PORT));
