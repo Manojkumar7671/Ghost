@@ -20,8 +20,8 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'ghost.html')));
 
 app.post('/scrape', async (req, res) => {
     try {
-        // FIX 1: Point the scraper to a real, ultra-fast text news site
-        const target = 'https://lite.cnn.com';
+        const { url } = req.body;
+        const target = url || 'https://lite.cnn.com';
         const response = await axios.get(target, { headers: { 'User-Agent': 'Mozilla/5.0' } });
         const $ = cheerio.load(response.data);
         
@@ -37,7 +37,6 @@ app.post('/chat', async (req, res) => {
         if (!sessions['default']) sessions['default'] = { history: [] };
         sessions['default'].history.push({ role: 'user', content: message });
         
-        // FIX 2: Give Ghost real-time awareness of the clock and location
         const currentTime = new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"});
         const systemMsg = `You are Ghost, an AI assistant. Direct and concise. The current date and time is ${currentTime} in Mangalagiri, India. You have real-time access to the world. If asked for news, summarize the provided text. IF ASKED TO WRITE CODE: wrap it in markdown triple backticks. Keep spoken explanations brief.`;
         
@@ -50,8 +49,8 @@ app.post('/chat', async (req, res) => {
         let reply = resAi.choices[0].message.content.trim();
         sessions['default'].history.push({ role: 'assistant', content: reply });
         
-        let speechText = reply.replace(/```[\s\S]*?
-```/g, " I have compiled the requested code to your data terminal. ").replace(/[*#_`~]/g, '');
+        // BULLETPROOF FIX: Using RegExp constructor to prevent multi-line breaks on backticks
+        let speechText = reply.replace(new RegExp('```[\\s\\S]*?```', 'g'), " I have compiled the requested code to your data terminal. ").replace(/[*#_`~]/g, '');
         
         const results = await googleTTS.getAllAudioBase64(speechText, { lang: 'en', slow: false });
         res.json({ reply: reply, audio_b64: results.map(r => r.base64) });
