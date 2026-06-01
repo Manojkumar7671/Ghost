@@ -2,39 +2,108 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>GHOST.SYS</title>
+  <title>GHOST.SYS // HOLOGRAM</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <style>
-    body { background: #030508; color: #00e5ff; font-family: monospace; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; margin: 0; }
-    #chat-container { width: 80%; max-width: 900px; display: flex; flex-direction: column; gap: 20px; }
-    #chat-stream { height: 60vh; overflow-y: auto; border: 1px solid #00e5ff; padding: 20px; font-size: 14px; line-height: 1.5; }
+    body { background: #030508; color: #00e5ff; font-family: monospace; height: 100vh; overflow: hidden; margin: 0; display: flex; flex-direction: column; align-items: center; }
+    
+    /* 3D Hologram Area */
+    #canvas-container { width: 100%; height: 55vh; display: flex; justify-content: center; align-items: center; position: relative; z-index: 1; }
+    
+    /* Chat & Controls Area */
+    #chat-container { width: 80%; max-width: 900px; height: 40vh; display: flex; flex-direction: column; gap: 15px; z-index: 10; position: relative; }
+    #chat-stream { flex-grow: 1; overflow-y: auto; border: 1px solid rgba(0, 229, 255, 0.2); padding: 20px; font-size: 14px; line-height: 1.5; background: rgba(3, 5, 8, 0.6); box-shadow: 0 -10px 30px rgba(0,229,255,0.05); }
     #input-area { display: flex; gap: 10px; }
-    input { flex-grow: 1; background: transparent; border: 1px solid #00e5ff; color: #00e5ff; padding: 15px; font-family: monospace; outline: none; }
-    button { background: #00e5ff; color: #000; border: none; padding: 0 25px; font-weight: bold; cursor: pointer; font-family: monospace; }
-    #mic-btn { background: transparent; border: 1px solid #00e5ff; color: #00e5ff; transition: 0.2s; }
-    #mic-btn.active { background: #ff0055; border-color: #ff0055; color: #fff; box-shadow: 0 0 10px rgba(255,0,85,0.5); }
+    input { flex-grow: 1; background: rgba(0,0,0,0.8); border: 1px solid rgba(0, 229, 255, 0.5); color: #00e5ff; padding: 15px; font-family: monospace; outline: none; transition: 0.3s; }
+    input:focus { border-color: #00e5ff; box-shadow: 0 0 10px rgba(0,229,255,0.2); }
+    button { background: rgba(0, 229, 255, 0.1); color: #00e5ff; border: 1px solid #00e5ff; padding: 0 25px; font-weight: bold; cursor: pointer; font-family: monospace; transition: 0.3s; }
+    button:hover { background: #00e5ff; color: #000; }
+    
+    /* Mic Button States */
+    #mic-btn.active { background: #ff0055; border-color: #ff0055; color: #fff; box-shadow: 0 0 15px rgba(255,0,85,0.4); animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
   </style>
 </head>
 <body>
+  <div id="canvas-container"></div>
+  
   <div id="chat-container">
-    <div id="chat-stream"><div>System Online.</div><br></div>
+    <div id="chat-stream"><div>GHOST: Hardware sync established. Holographic interface online.</div><br></div>
     <div id="input-area">
-      <input type="text" id="text-input" placeholder="Type here..." autocomplete="off">
-      <button onclick="sendText()">Send</button>
-      <button id="mic-btn" onclick="toggleMic()">🎤 Mic</button>
+      <input type="text" id="text-input" placeholder="Awaiting command..." autocomplete="off">
+      <button onclick="sendText()">SEND</button>
+      <button id="mic-btn" onclick="toggleMic()">🎤 MIC</button>
     </div>
   </div>
 
   <script>
+    // --- 1. THREE.JS 3D PARTICLE SPHERE ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+
+    const particleCount = 3000;
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    const radius = 2.2;
+
+    // Fibonacci sphere distribution for perfect Jarvis look
+    for (let i = 0; i < particleCount; i++) {
+        const phi = Math.acos(1 - 2 * (i + 0.5) / particleCount);
+        const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+        positions[i * 3] = radius * Math.cos(theta) * Math.sin(phi);
+        positions[i * 3 + 1] = radius * Math.sin(theta) * Math.sin(phi);
+        positions[i * 3 + 2] = radius * Math.cos(phi);
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const material = new THREE.PointsMaterial({
+        color: 0x00e5ff, size: 0.04, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending
+    });
+
+    const sphere = new THREE.Points(geometry, material);
+    scene.add(sphere);
+    camera.position.z = 5;
+    window.isSpeaking = false;
+
+    // Animation Loop: Reacts to speaking state
+    function animate() {
+        requestAnimationFrame(animate);
+        if (window.isSpeaking) {
+            sphere.rotation.y += 0.015; // Spin faster
+            sphere.rotation.x += 0.005;
+            const scale = 1 + Math.sin(Date.now() * 0.01) * 0.08; // Heavy pulse
+            sphere.scale.set(scale, scale, scale);
+            material.opacity = 1.0;
+        } else {
+            sphere.rotation.y += 0.002; // Idle spin
+            sphere.rotation.x += 0.001;
+            const scale = 1 + Math.sin(Date.now() * 0.002) * 0.02; // Gentle pulse
+            sphere.scale.set(scale, scale, scale);
+            material.opacity = 0.5;
+        }
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+
+    // --- 2. GHOST AI LOGIC (Intact) ---
     let mediaRecorder, audioChunks = [], isRecording = false;
     let activeAudioElements = [], currentPlaybackId = 0;
 
-    document.getElementById('text-input').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') sendText();
-    });
+    document.getElementById('text-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendText(); });
 
     function appendLog(text, isUser) {
         const stream = document.getElementById('chat-stream');
-        stream.innerHTML += `<div>${isUser ? 'User' : 'Ghost'}: ${text}</div><br>`;
+        stream.innerHTML += `<div style="color: ${isUser ? '#fff' : '#00e5ff'}">${isUser ? 'USER: ' : 'GHOST: '}${text}</div><br>`;
         stream.scrollTop = stream.scrollHeight;
     }
 
@@ -42,11 +111,14 @@
         currentPlaybackId++;
         activeAudioElements.forEach(a => { a.pause(); a.src = ""; a.load(); });
         activeAudioElements = [];
+        window.isSpeaking = false;
     }
 
     async function playAudio(chunks) {
         if (!chunks) return;
         let playbackId = ++currentPlaybackId;
+        window.isSpeaking = true; // Triggers the sphere to spin rapidly!
+        
         for (let chunk of chunks) {
             if (playbackId !== currentPlaybackId) break;
             await new Promise(r => {
@@ -55,12 +127,13 @@
                 a.onended = r; a.play().catch(r);
             });
         }
+        if (playbackId === currentPlaybackId) window.isSpeaking = false;
     }
 
     async function askGhost(text) {
         killAllAudio();
         if (text.toLowerCase().includes("news")) {
-            appendLog("Scraping WorldMonitor...", false);
+            appendLog("Accessing global data streams...", false);
             const res = await fetch('/scrape', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:'https://worldmonitor.com'})});
             const data = await res.json();
             text = "Summarize this: " + data.content;
@@ -98,12 +171,12 @@
                 audioChunks = [];
                 mediaRecorder.start();
                 isRecording = true;
-                btn.className = 'active'; btn.innerText = '🔴 Recording...';
+                btn.className = 'active'; btn.innerText = '🔴 RECORDING...';
             } catch(e) { alert("Microphone access denied."); }
         } else {
             mediaRecorder.stop();
             isRecording = false;
-            btn.className = ''; btn.innerText = '🎤 Mic';
+            btn.className = ''; btn.innerText = '🎤 MIC';
         }
     }
   </script>
