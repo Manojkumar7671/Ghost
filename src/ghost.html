@@ -189,6 +189,67 @@
         } catch (err) { setStatus("STANDBY", "MIC ERROR", "#ff0000"); }
     }
   </script>
+
+<script>
+// --- AUTONOMOUS WAKE WORD ENGINE ---
+(function() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        console.error("Wake word engine not supported in this browser.");
+        return;
+    }
+    
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
+
+    let isRecordingCommand = false;
+    
+    recognition.onresult = (event) => {
+        const last = event.results.length - 1;
+        const transcript = event.results[last][0].transcript.toLowerCase();
+        
+        if (transcript.includes("ghost") && !isRecordingCommand) {
+            console.log("[WAKE WORD TRIGGERED] Awaiting command...");
+            isRecordingCommand = true;
+            
+            // 1. Pause the wake word listener so it does not overlap with Whisper capture
+            recognition.stop();
+            
+            // 2. Trigger the main recording UI
+            const micButton = document.getElementById("record-btn") || document.querySelector("button"); 
+            if (micButton) {
+                micButton.click(); // Simulates you pressing the record button
+                
+                // 3. Reset and resume listening for the wake word after the command finishes
+                setTimeout(() => {
+                    isRecordingCommand = false;
+                    try { recognition.start(); } catch(e){}
+                }, 7000); // Adjust this timer based on how long you typically speak
+            } else {
+                console.error("Could not find the microphone button to trigger recording.");
+            }
+        }
+    };
+    
+    // Automatically restart the listener if it stops silently
+    recognition.onend = () => {
+        if (!isRecordingCommand) {
+            try { recognition.start(); } catch(e){}
+        }
+    };
+    
+    // Boot up the engine
+    try {
+        recognition.start();
+        console.log("Wake word engine initialized. Listening for strictly "Ghost"...");
+    } catch(e) {
+        console.error("Wake word engine failed to start:", e);
+    }
+})();
+</script>
+
 </body>
 </html>
 <script>
