@@ -5,4 +5,4 @@ const app = express();
 app.use(cors());
 app.use(express.static(__dirname));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'ghost.html')));
-app.listen(3000, () => console.log('Server running on port 3000'));
+app.listen(3000, () => console.log('Server running'));

@@ -1,13 +1,9 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <title>Ghost System</title>
-    <style>body { background: #000; color: #0f0; font-family: monospace; padding: 20px; }</style>
-</head>
+<head><title>Ghost</title><style>body { background: #000; color: #0f0; font-family: monospace; }</style></head>
 <body>
     <div id="log">System Online</div>
-    <input type="text" id="input" placeholder="Type here...">
-    <button onclick="send()">Send</button>
+    <input type="text" id="input"><button onclick="send()">Send</button>
     <script>
         function send() {
             const input = document.getElementById('input');
