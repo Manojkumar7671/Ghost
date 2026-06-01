@@ -30,20 +30,21 @@ app.post('/scrape', async (req, res) => {
         res.json({ content: text });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
-
-app.post('/chat', async (req, res) => {
+app.post('/chat', async (req, res) => {  
     try {
-        const { message } = req.body;
-        if (!sessions['default']) sessions['default'] = { history: [] };
-        sessions['default'].history.push({ role: 'user', content: message });
-        
         const currentTime = new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"});
-        const systemMsg = `You are Ghost, an AI assistant. Direct and concise. The current date and time is ${currentTime} in Mangalagiri, India. You have real-time access to the world. If asked for news, summarize the provided text. IF ASKED TO WRITE CODE: wrap it in markdown triple backticks. Keep spoken explanations brief.`;
+        const systemMsg = `You are Ghost, an AI assistant. Direct and concise. The current date and time is ${currentTime}`;
         
+        let currentSystemMsg = systemMsg;
+        if (message.toLowerCase().includes('news')) {
+            currentSystemMsg += `\n\nThe user just asked for the news. Respond concisely, confirming you are opening the World Monitor. You MUST append this exact trigger at the end of your response: [OPEN_WM]`;
+        }
+            
         const resAi = await groq.chat.completions.create({
             model: 'llama-3.1-8b-instant',
-            messages: [{ role: 'system', content: systemMsg }, ...sessions['default'].history],
+            messages: [{ role: 'system', content: currentSystemMsg }, ...sessions['default'].history],
             max_tokens: 800, temperature: 0.0
+        });
         });
         
         let reply = resAi.choices[0].message.content.trim();

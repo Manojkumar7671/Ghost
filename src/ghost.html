@@ -147,13 +147,10 @@
              window.open("https://www.youtube.com", "_blank");
         }
         
-        if (textLower.includes("news")) {
-            try {
-                const res = await fetch('/scrape', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:'https://lite.cnn.com'})});
-                const data = await res.json(); text = "Summarize this: " + data.content;
-            } catch(e) {}
+        if (reply.includes('[OPEN_WM]')) {
+            reply = reply.replace('[OPEN_WM]', '').trim();
+            window.open("https://www.worldmonitor.app/?lat=20.0000&lon=0.0000&zoom=1.00&view=global&timeRange=7d&layers=conflicts%2Cbases%2Chotspots%2Cnuclear%2Csanctions%2Cweather%2Ceconomic%2Cwaterways%2Coutages%2Cmilitary%2Cnatural%2CiranAttacks", '_blank');
         }
-        
         try {
             const res = await fetch('/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:text}) });
             const data = await res.json();
