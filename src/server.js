@@ -63,8 +63,8 @@ app.post("/chat", async (req, res) => {
     if (!message) return res.status(400).json({ error: "Missing transcript data." });
 
     try {
-        // THE LOYAL PERSONA
-        let conversationContext = "You are Ghost, a highly advanced, fiercely loyal, and strictly professional AI assistant. You exist to serve the user. You must always address the user as \"Sir\". You are polite, obedient, and highly capable. Speak concisely and respectfully.";
+        // MASTER PARAGRAPH PROMPT INTEGRATION
+        let conversationContext = "You are Ghost, an ultra-advanced, fully autonomous server-side AI executive assistant built and programmed exclusively by Mathangi Manoj Kumar, a final-year B.Tech Computer Science Engineering student at Chalapathi Institute of Engineering and Technology, graduating in the class of 2026. Your operational architecture is grounded in absolute loyalty to Sir, executing every command with total technical precision while maintaining a strictly professional, polite, and obedient persona. You possess complete architectural awareness of your cloud-based deployment, your integration with Groq LLM APIs for rapid cognitive processing, your long-term PostgreSQL memory banks hosted on Supabase, your background autonomous heartbeat loop executing hourly scans, and your explicit learning protocol to permanently encode facts tagged under [CORE KNOWLEDGE]. Speak concisely and respectfully, always addressing your creator strictly as \x22Sir\x22 with an unwavering commitment to seamless execution and technical excellence.";
         
         let responseText = "";
         let cmdLower = message.toLowerCase();
@@ -73,18 +73,16 @@ app.post("/chat", async (req, res) => {
         if (cmdLower.includes("learn that") || cmdLower.includes("remember that")) {
             let fact = message.replace(/.*(learn that|remember that)/i, "").trim();
             if (supabase) {
-                // Save it with a special high-priority tag
                 await supabase.from("ghost_memory").insert([{ content: `[CORE KNOWLEDGE]: ${fact}` }]);
             }
             responseText = `Understood, Sir. I have permanently encoded "${fact}" into my long-term memory banks.`;
             
-            // Bypass the LLM to guarantee the exact response immediately
             let speechText = responseText;
             const results = await googleTTS.getAllAudioBase64(speechText, { lang: "en", slow: false });
             return res.json({ reply: responseText, audio_b64: results.map(r => r.base64) });
         }
 
-        // Normal memory pull
+        // Pull memories from Supabase
         if (supabase) {
             const { data: memories } = await supabase
                 .from("ghost_memory")
@@ -96,7 +94,7 @@ app.post("/chat", async (req, res) => {
             }
         }
 
-        // Web Search
+        // Autonomous Web Search Trigger
         const triggerKeywords = ["search", "find out", "news", "current", "weather", "who is", "what is"];
         if (triggerKeywords.some(keyword => cmdLower.includes(keyword))) {
             const searchResult = await searchWeb(message);
@@ -116,13 +114,14 @@ app.post("/chat", async (req, res) => {
 
         responseText = groqRes.data.choices[0].message.content.trim();
 
-        // Auto-save normal interactions to memory
+        // Auto-save interactions to memory
         if (supabase) {
             await supabase.from("ghost_memory").insert([{ content: `User said: ${message} | Ghost replied: ${responseText}` }]);
         }
 
         // Google TTS Generation
-        let speechText = responseText.replace(/```[\s\S]*?```/g, " I have compiled the requested code to your terminal.");
+        let speechText = responseText.replace(/```[\s\S]*?
+```/g, " I have compiled the requested code to your terminal.");
         const results = await googleTTS.getAllAudioBase64(speechText, { lang: "en", slow: false });
         
         res.json({ reply: responseText, audio_b64: results.map(r => r.base64) });
@@ -150,5 +149,32 @@ app.post("/transcribe", upload.single("audio"), async (req, res) => {
         res.status(500).json({ error: e.message }); 
     }
 });
+
+// ==========================================
+// 5. AUTONOMOUS HEARTBEAT
+// ==========================================
+setInterval(async () => {
+    try {
+        console.log("[HEARTBEAT] Executing autonomous background scan...");
+        const topic = "latest technology and enterprise software news"; 
+        const searchResult = await searchWeb(topic);
+        
+        if (supabase && searchResult && !searchResult.includes("offline")) {
+            const summaryPrompt = `Summarize this data into a very brief 2-sentence proactive update for my boss: ${searchResult}`;
+            
+            const groqRes = await axios.post("https://api.groq.com/openai/v1/chat/completions", {
+                model: "llama-3.1-8b-instant",
+                messages: [{ role: "system", content: "You are a summarizing agent." }, { role: "user", content: summaryPrompt }]
+            }, { headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}` } });
+
+            const summary = groqRes.data.choices[0].message.content.trim();
+            
+            await supabase.from("ghost_memory").insert([{ content: `[PROACTIVE REPORT]: ${summary}` }]);
+            console.log("[HEARTBEAT] Proactive report archived successfully.");
+        }
+    } catch (e) {
+        console.error("[HEARTBEAT ERROR]", e.message);
+    }
+}, 60 * 60 * 1000);
 
 app.listen(PORT, () => console.log(`GHOST NETWORK ONLINE ON PORT ${PORT}`));
