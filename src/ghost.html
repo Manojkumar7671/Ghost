@@ -23,7 +23,6 @@
     .boot-text { color: rgba(0,229,255,0.7); font-size: 13px; letter-spacing: 6px; border: 1px solid rgba(0,229,255,0.2); padding: 25px 50px; text-transform: uppercase; transition: 0.3s; }
     .boot-text:hover { background: rgba(0,229,255,0.05); border-color: rgba(0,229,255,0.8); box-shadow: 0 0 20px rgba(0,229,255,0.1); }
 
-    /* Restored Chat Stream with Cinematic Fades */
     #chat-stream {
       position: absolute; top: 5vh; width: 70%; max-width: 900px; height: 50vh;
       overflow-y: auto; display: flex; flex-direction: column; gap: 15px;
@@ -36,7 +35,6 @@
     .user-log { color: rgba(255, 255, 255, 0.7); align-self: flex-end; text-align: right; background: rgba(255,255,255,0.02); padding: 10px 15px; border-radius: 4px; border-right: 2px solid rgba(255,255,255,0.2); }
     .ghost-log { color: #00e5ff; align-self: flex-start; text-align: left; background: rgba(0,229,255,0.02); padding: 10px 15px; border-radius: 4px; border-left: 2px solid rgba(0,229,255,0.5); text-shadow: 0 0 10px rgba(0, 229, 255, 0.2); }
 
-    /* The Core Visualizer */
     #core-container {
       position: absolute; top: 65vh; display: flex; flex-direction: column; align-items: center; gap: 20px;
     }
@@ -70,7 +68,6 @@
     #manual-override input:focus { border-bottom-color: rgba(0, 229, 255, 0.5); }
     #manual-override input::placeholder { color: rgba(255, 255, 255, 0.1); letter-spacing: 4px;}
 
-    /* Sidebar */
     #sidebar {
       position: fixed; top: 0; right: 0; width: 500px; height: 100vh;
       background: rgba(3, 5, 8, 0.98); border-left: 1px solid rgba(0, 229, 255, 0.1);
@@ -125,6 +122,8 @@
     let audioContext, analyser, microphone;
     let silenceTimer = null;
     let activeAudioElements = [];
+    let currentPlaybackId = 0; // Tracks active audio generation to prevent overlaps
+    let currentAudioResolve = null;
 
     document.getElementById('text-input').addEventListener('keydown', async function(e) {
       if (e.key === 'Enter') {
@@ -169,6 +168,7 @@
     }
 
     function stopSpeaking() {
+       currentPlaybackId++; // Instantly invalidates background playback loops
        for (let i = 0; i < activeAudioElements.length; i++) {
            try {
                activeAudioElements[i].pause();
@@ -176,6 +176,10 @@
            } catch(e) {}
        }
        activeAudioElements = [];
+       if (currentAudioResolve) {
+           currentAudioResolve(); // Release the promise lock
+           currentAudioResolve = null;
+       }
        window.isSpeaking = false;
        setCoreState('', 'SYSTEM STANDBY');
     }
@@ -197,32 +201,42 @@
         mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) audioChunks.push(e.data); };
         mediaRecorder.onstop = processAudio;
 
+        let speechFrames = 0; // Debouncer to ignore random static clicks
+
         function monitor() {
           analyser.getByteFrequencyData(dataArray);
           let sum = 0;
           for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
           let average = sum / bufferLength;
 
-          if (average > 15) { 
-            if (window.isSpeaking) {
-                stopSpeaking();
-                appendLog("[ SYSTEM INTERRUPTED ]", false);
-            }
+          // Raised threshold from 15 to 35 to ignore breathing/static
+          if (average > 35) { 
+            speechFrames++;
+            
+            // Require 5 consecutive loud frames before triggering (approx 80ms)
+            if (speechFrames > 5) {
+                if (window.isSpeaking) {
+                    stopSpeaking();
+                    appendLog("[ SYSTEM INTERRUPTED ]", false);
+                }
 
-            if (!isRecording) {
-              audioChunks = [];
-              mediaRecorder.start();
-              isRecording = true;
-              setCoreState('listening', 'LISTENING');
+                if (!isRecording) {
+                  audioChunks = [];
+                  mediaRecorder.start();
+                  isRecording = true;
+                  setCoreState('listening', 'LISTENING');
+                }
+                clearTimeout(silenceTimer);
+                silenceTimer = setTimeout(function() {
+                  if (isRecording) {
+                    mediaRecorder.stop();
+                    isRecording = false;
+                    setCoreState('processing', 'UPLINKING');
+                  }
+                }, 1500); 
             }
-            clearTimeout(silenceTimer);
-            silenceTimer = setTimeout(function() {
-              if (isRecording) {
-                mediaRecorder.stop();
-                isRecording = false;
-                setCoreState('processing', 'UPLINKING');
-              }
-            }, 1500); 
+          } else {
+            speechFrames = 0; // Reset debouncer on silence
           }
           requestAnimationFrame(monitor);
         }
@@ -241,11 +255,21 @@
       try {
         const res = await fetch('/transcribe', { method: 'POST', body: formData });
         const data = await res.json();
-        if (data.text && data.text.trim() !== '') {
-          appendLog(data.text, true);
-          await askGhost(data.text);
+        
+        // Hallucination Filter: Ignore Whisper static artifacts
+        if (data.text) {
+            const textLower = data.text.trim().toLowerCase();
+            const hallucinations = ["obrigada.", "thank you.", "dos chavayú", "amém.", "you.", "okay."];
+            
+            if (hallucinations.includes(textLower) || data.text.trim().length < 3) {
+                setCoreState('', 'SYSTEM STANDBY');
+                return; // Discard phantom input
+            }
+            
+            appendLog(data.text, true);
+            await askGhost(data.text);
         } else {
-          setCoreState('', 'SYSTEM STANDBY');
+            setCoreState('', 'SYSTEM STANDBY');
         }
       } catch (err) {
         setCoreState('', 'SYSTEM STANDBY');
@@ -288,22 +312,38 @@
       window.isSpeaking = true;
       setCoreState('speaking', 'TRANSMITTING');
       
+      let playbackId = ++currentPlaybackId;
+
       for (let i = 0; i < chunks.length; i++) {
-        if (!window.isSpeaking) break; 
+        // If the playback ID has changed, another track interrupted us. Kill loop.
+        if (playbackId !== currentPlaybackId) break; 
+        
         const base64 = chunks[i];
         await new Promise(function(resolve) {
+          currentAudioResolve = resolve;
           const audio = new Audio("data:audio/mp3;base64," + base64);
           activeAudioElements.push(audio);
+          
           audio.onended = () => {
              const idx = activeAudioElements.indexOf(audio);
              if (idx > -1) activeAudioElements.splice(idx, 1);
+             if (currentAudioResolve === resolve) currentAudioResolve = null;
              resolve();
           };
-          audio.onerror = resolve;
-          audio.play().catch(resolve);
+          audio.onerror = () => {
+             if (currentAudioResolve === resolve) currentAudioResolve = null;
+             resolve();
+          };
+          
+          audio.play().catch((e) => {
+             if (currentAudioResolve === resolve) currentAudioResolve = null;
+             resolve();
+          });
         });
       }
-      if (window.isSpeaking) {
+      
+      // Only set to standby if this wasn't interrupted by a newer generation
+      if (playbackId === currentPlaybackId && window.isSpeaking) {
          window.isSpeaking = false;
          setCoreState('', 'SYSTEM STANDBY');
       }
