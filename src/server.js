@@ -28,7 +28,6 @@ app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.static(__dirname)); 
 
-// FIX: Explicitly route the root URL to ghost.html
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "ghost.html")));
 
 // ==========================================
@@ -104,8 +103,9 @@ app.post("/chat", async (req, res) => {
             await supabase.from("ghost_memory").insert([{ content: `User said: ${message} | Ghost replied: ${responseText}` }]);
         }
 
-        // Google TTS Generation (Restored)
-        let speechText = responseText.replace(new RegExp("```[\\s\\S]*?```", "g"), " I have compiled the requested code to your terminal.");
+        // Google TTS Generation
+        let speechText = responseText.replace(new RegExp("```[\\s\\S]*?
+```", "g"), " I have compiled the requested code to your terminal.");
         const results = await googleTTS.getAllAudioBase64(speechText, { lang: "en", slow: false });
         
         res.json({ reply: responseText, audio_b64: results.map(r => r.base64) });
@@ -116,7 +116,7 @@ app.post("/chat", async (req, res) => {
 });
 
 // ==========================================
-// 4. WHISPER AUDIO TRANSCRIPTION (Restored)
+// 4. WHISPER AUDIO TRANSCRIPTION 
 // ==========================================
 const upload = multer({ storage: multer.memoryStorage() });
 app.post("/transcribe", upload.single("audio"), async (req, res) => {
