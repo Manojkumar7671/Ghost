@@ -143,14 +143,8 @@
     function appendLog(text, isUser) {
       const stream = document.getElementById('chat-stream');
       const line = document.createElement('div');
-      
-      let displayText = text;
-      if (text.length > 300 && !isUser) {
-          displayText = text.substring(0, 150) + "... [DATA IN TERMINAL]";
-      }
-      
       line.className = isUser ? 'log-line user-log' : 'log-line ghost-log';
-      line.innerText = displayText;
+      line.innerText = text;
       stream.appendChild(line);
       stream.scrollTop = stream.scrollHeight;
     }
