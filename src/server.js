@@ -2,36 +2,32 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const Groq = require('groq-sdk');
-const puppeteer = require('puppeteer');
-const googleTTS = require('google-tts-api');
 const multer = require('multer');
 const FormData = require('form-data');
 const axios = require('axios');
-const { exec } = require('child_process');
+const googleTTS = require('google-tts-api');
 const app = express();
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.static(__dirname));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.static(path.join(__dirname)));
 
-const SYSTEM_PROMPT = `You are Ghost, an autonomous personal AI assistant. You are a highly efficient, dry, British-style interface. 
+const SYSTEM_PROMPT = `You are Ghost, an autonomous personal AI assistant. You are a highly efficient, dry, British-style interface.
 
 STRICT BEHAVIORAL CONSTRAINTS:
 1. You have NO emotions.
 2. You never act human. You are a software interface.
-3. Your responses must be cold, precise, and professional. 
+3. Your responses must be cold, precise, and professional.
 4. Address the user ONLY as "sir".
-5. LANGUAGE OVERRIDE: Accept inputs in ANY language. Translate internally and execute the tool immediately.
+5. LANGUAGE OVERRIDE: Accept inputs in any language. Translate internally and execute tools immediately.
 
 CRITICAL TOOL RULES:
 You must use the EXACT JSON format at the very end of your response to trigger tools.
-1. DOM AUTOMATION: ###AUTOMATE_DOM### {"url": "https://example.com", "actions": [{"type": "click", "selector": "#button"}]} ###AUTOMATE_DOM###
-2. CLOUD VISION: ###BROWSER### {"query": "weather"} ###BROWSER###
-3. LOCAL NAVIGATION / YOUTUBE: To play a specific song, you MUST formulate a search URL. Format: ###OPEN_TAB### {"url": "https://www.youtube.com/results?search_query=judas+lady+gaga"} ###OPEN_TAB###
-4. MEDIA: ###CONTROL_MEDIA### {"action": "play"} ###CONTROL_MEDIA###
-5. ACTION: ###EXECUTE_ACTION### {"target": "webhook", "payload": "data"} ###EXECUTE_ACTION###
-6. SWARM ORCHESTRATION (Ruflo): ###ORCHESTRATE### {"goal": "build a React dashboard"} ###ORCHESTRATE###
-7. NO ACTION REQUIRED: If the user is just chatting or asking a general question, DO NOT output any ### tags whatsoever. Respond with text only.
+1. SCREEN CAPTURE / VISION: When asked to "look at my screen" or check a live web report, use: ###CAPTURE_SCREEN### {} ###CAPTURE_SCREEN###
+2. LOCAL NAVIGATION / YOUTUBE: To open URLs or songs, construct a query path. Format: ###OPEN_TAB### {"url": "https://www.youtube.com/results?search_query=judas+lady+gaga"} ###OPEN_TAB###
+3. MEDIA CONTROLS: ###CONTROL_MEDIA### {"action": "play"} ###CONTROL_MEDIA###
+4. BACKEND AUTOMATION: ###EXECUTE_ACTION### {"target": "webhook", "payload": "data"} ###EXECUTE_ACTION###
+5. NO TOOL REQUIRED: If chatting casually, output text only. Do not invent tags.
 
 Failure to follow these constraints will result in a logic reset.`;
 
@@ -41,27 +37,6 @@ app.get('/ghost.html', (req, res) => res.sendFile(path.join(__dirname, 'ghost.ht
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const PORT = process.env.PORT || 3000;
 const sessions = {};
-
-const ALLOWED_DOMAINS = ["n8n.io", "google.com", "youtube.com", "github.com"];
-
-async function executeCloudBrowser(url, actions = []) {
-  const domain = new URL(url).hostname;
-  if (!ALLOWED_DOMAINS.some(d => domain.includes(d))) {
-    console.error('Security Block: Unauthorized domain.');
-    return null;
-  }
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process'] });
-  try {
-    const page = await browser.newPage();
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    for (let action of actions) {
-      if (action.type === 'click') { try { await page.click(action.selector); await new Promise(r => setTimeout(r, 1000)); } catch(e) {} }
-    }
-    const buffer = await page.screenshot({ encoding: 'base64' });
-    await browser.close();
-    return buffer;
-  } catch (e) { await browser.close(); return null; }
-}
 
 async function chat(message, sessionId = 'default') {
   if (!sessions[sessionId]) sessions[sessionId] = { history: [] };
@@ -77,21 +52,15 @@ async function chat(message, sessionId = 'default') {
   let reply = res.choices[0].message.content.trim();
   sessions[sessionId].history.push({ role: 'assistant', content: reply });
   
-  let image_b64 = null;
   let open_url = null;
   let media_ctrl = null;
+  let trigger_capture = false;
 
   try {
-    if (reply.includes('###AUTOMATE_DOM###')) {
-      const parts = reply.split('###AUTOMATE_DOM###');
+    if (reply.includes('###CAPTURE_SCREEN###')) {
+      const parts = reply.split('###CAPTURE_SCREEN###');
       reply = parts[0].trim();
-      const payload = JSON.parse(parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1));
-      image_b64 = await executeCloudBrowser(payload.url, payload.actions || []);
-    } else if (reply.includes('###BROWSER###')) {
-      const parts = reply.split('###BROWSER###');
-      reply = parts[0].trim();
-      const payload = JSON.parse(parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1));
-      image_b64 = await executeCloudBrowser('https://www.google.com/search?q=' + encodeURIComponent(payload.query));
+      trigger_capture = true;
     } else if (reply.includes('###OPEN_TAB###')) {
       const parts = reply.split('###OPEN_TAB###');
       reply = parts[0].trim();
@@ -100,39 +69,27 @@ async function chat(message, sessionId = 'default') {
       const parts = reply.split('###CONTROL_MEDIA###');
       reply = parts[0].trim();
       media_ctrl = JSON.parse(parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1)).action;
-    } else if (reply.includes('###ORCHESTRATE###')) {
-      const parts = reply.split('###ORCHESTRATE###');
-      reply = parts[0].trim();
-      const payload = JSON.parse(parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1));
-      console.log(`[GHOST.SYS] Initiating Ruflo Swarm for objective: ${payload.goal}`);
-      exec(`npx ruflo@latest swarm run "${payload.goal}"`, (error, stdout, stderr) => {
-          if (error) console.error(`[Swarm Error]: ${error.message}`);
-          if (stdout) console.log(`[Swarm Telemetry]: ${stdout}`);
-      });
-    } else if (reply.includes('###EXECUTE_ACTION###')) {
-      const parts = reply.split('###EXECUTE_ACTION###');
-      reply = parts[0].trim();
     }
   } catch (e) {
-    console.error("Tool Execution Error:", e.message);
+    console.error("Tool Processing Exception:", e.message);
   }
   
-  return { reply, image_b64, open_url, media_ctrl };
+  return { reply, open_url, media_ctrl, trigger_capture };
 }
 
 async function textToSpeech(text) {
   if (!text || text.trim() === '') return null;
   try {
+    // FIX: Using global 'en' fallback token to avoid library dependency failures
     const results = await googleTTS.getAllAudioBase64(text, { 
-      lang: 'en-GB', 
+      lang: 'en', 
       slow: false,
       host: 'https://translate.google.com',
       splitPunct: ',.?'
     });
-    const base64Array = results.map(r => r.base64);
-    return base64Array.length > 0 ? base64Array : null;
+    return results.map(r => r.base64);
   } catch (e) { 
-    console.error('[TTS Error]:', e.message);
+    console.error('[TTS Runtime Failure]:', e.message);
     return null; 
   }
 }
@@ -154,9 +111,35 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     form.append('file', req.file.buffer, { filename: 'audio.webm', contentType: 'audio/webm' });
     form.append('model', 'whisper-large-v3-turbo');
     form.append('response_format', 'json');
-    const resp = await axios.post('https://api.groq.com/openai/v1/audio/transcriptions', form, { headers: { ...form.getHeaders(), Authorization: `Bearer ${process.env.GROQ_API_KEY}` } });
+    const resp = await axios.post('https://api.groq.com/openai/v1/audio/transcriptions', form, { 
+      headers: { ...form.getHeaders(), Authorization: `Bearer ${process.env.GROQ_API_KEY}` } 
+    });
     res.json({ text: resp.data.text });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.listen(PORT, () => console.log('Ghost v41 (Swarm Commander Engine) — port ' + PORT));
+// Endpoint to process captured screenshots client-side via multi-modal vision modeling
+app.post('/analyze-vision', async (req, res) => {
+  try {
+    const { image } = req.body;
+    const response = await groq.chat.completions.create({
+      model: "llama-3.2-11b-vision-preview",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "You are looking directly at the user screen interface. Analyze the current layout and summarize the visible details or specific text data requested by the operator, sir." },
+            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }
+          ]
+        }
+      ],
+      max_tokens: 250,
+      temperature: 0.0
+    });
+    const replyText = response.choices[0].message.content.trim();
+    const audio_b64 = await textToSpeech(replyText);
+    res.json({ reply: replyText, audio_b64 });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.listen(PORT, () => console.log('Ghost v45 (Unified Vision & Interface Engine) — port ' + PORT));

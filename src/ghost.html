@@ -213,7 +213,14 @@
         });
         const data = await res.json();
         
-        appendLog(data.reply, false, data.image_b64);
+        
+        appendLog(data.reply, false);
+        if (data.trigger_capture) {
+            await captureAndAnalyzeScreen();
+            return;
+        }
+        if (data.open_url) window.open(data.open_url, '_blank');
+
         if (data.open_url) window.open(data.open_url, '_blank');
         isProcessing = false; // Allow barge-in while speaking
         await playAudio(data.audio_b64);
@@ -226,7 +233,7 @@
     }
 
     async function initializeGhost() {
-      document.getElementById('init-overlay').style.display = 'none';
+      document.getElementById('init-overlay').style.display = 'none'; initializeGhost();
       updateState('', 'SYSTEM ONLINE');
 
       
