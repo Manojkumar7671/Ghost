@@ -7,6 +7,7 @@ const googleTTS = require('google-tts-api');
 const multer = require('multer');
 const FormData = require('form-data');
 const axios = require('axios');
+const { exec } = require('child_process');
 const app = express();
 
 app.use(cors());
@@ -25,11 +26,12 @@ STRICT BEHAVIORAL CONSTRAINTS:
 
 CRITICAL TOOL RULES:
 You must use the EXACT JSON format at the very end of your response to trigger tools.
-1. DOM AUTOMATION (Navigate & Click): ###AUTOMATE_DOM### {"url": "https://example.com", "actions": [{"type": "click", "selector": "#button"}]} ###AUTOMATE_DOM###
-2. CLOUD VISION (Google Search): ###BROWSER### {"query": "weather"} ###BROWSER###
+1. DOM AUTOMATION: ###AUTOMATE_DOM### {"url": "https://example.com", "actions": [{"type": "click", "selector": "#button"}]} ###AUTOMATE_DOM###
+2. CLOUD VISION: ###BROWSER### {"query": "weather"} ###BROWSER###
 3. LOCAL NAVIGATION: ###OPEN_TAB### {"url": "https://www.youtube.com"} ###OPEN_TAB###
 4. MEDIA: ###CONTROL_MEDIA### {"action": "play"} ###CONTROL_MEDIA###
 5. ACTION: ###EXECUTE_ACTION### {"target": "webhook", "payload": "data"} ###EXECUTE_ACTION###
+6. SWARM ORCHESTRATION (Ruflo): ###ORCHESTRATE### {"goal": "build a React dashboard"} ###ORCHESTRATE###
 
 Failure to follow these constraints will result in a logic reset.`;
 
@@ -40,7 +42,6 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const PORT = process.env.PORT || 3000;
 const sessions = {};
 
-// Domain Firewall
 const ALLOWED_DOMAINS = ["n8n.io", "google.com", "youtube.com", "github.com"];
 
 async function executeCloudBrowser(url, actions = []) {
@@ -70,7 +71,7 @@ async function chat(message, sessionId = 'default') {
     model: 'llama-3.1-8b-instant',
     messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...sessions[sessionId].history],
     max_tokens: 300,
-    temperature: 0.0 // FIX: Ironclad anti-hallucination
+    temperature: 0.0
   });
 
   let reply = res.choices[0].message.content.trim();
@@ -99,6 +100,15 @@ async function chat(message, sessionId = 'default') {
       const parts = reply.split('###CONTROL_MEDIA###');
       reply = parts[0].trim();
       media_ctrl = JSON.parse(parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1)).action;
+    } else if (reply.includes('###ORCHESTRATE###')) {
+      const parts = reply.split('###ORCHESTRATE###');
+      reply = parts[0].trim();
+      const payload = JSON.parse(parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1));
+      console.log(`[GHOST.SYS] Initiating Ruflo Swarm for objective: ${payload.goal}`);
+      exec(`npx ruflo@latest swarm run "${payload.goal}"`, (error, stdout, stderr) => {
+          if (error) console.error(`[Swarm Error]: ${error.message}`);
+          if (stdout) console.log(`[Swarm Telemetry]: ${stdout}`);
+      });
     } else if (reply.includes('###EXECUTE_ACTION###')) {
       const parts = reply.split('###EXECUTE_ACTION###');
       reply = parts[0].trim();
@@ -148,4 +158,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.listen(PORT, () => console.log('Ghost v40 (Ironclad Logic & Web Browser Control) — port ' + PORT));
+app.listen(PORT, () => console.log('Ghost v41 (Swarm Commander Engine) — port ' + PORT));
