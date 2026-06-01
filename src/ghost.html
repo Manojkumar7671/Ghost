@@ -250,6 +250,40 @@
 })();
 </script>
 
+
+<script>
+// --- NATIVE WEB COMMAND INTERCEPTOR ---
+(function() {
+    const originalFetch = window.fetch;
+    window.fetch = async function() {
+        const response = await originalFetch.apply(this, arguments);
+        
+        // Clone the response so we don't break the original stream
+        const clone = response.clone();
+        clone.json().then(data => {
+            const reply = data.reply || data.message || data.response || "";
+            
+            // Execute [OPEN: url]
+            const openMatch = reply.match(/\[OPEN:\s*(.+?)\]/);
+            if (openMatch) {
+                console.log("Ghost is opening:", openMatch[1]);
+                window.open(openMatch[1], '_blank');
+            }
+            
+            // Execute [SEARCH: query]
+            const searchMatch = reply.match(/\[SEARCH:\s*(.+?)\]/);
+            if (searchMatch) {
+                console.log("Ghost is searching for:", searchMatch[1]);
+                window.open('https://www.google.com/search?q=' + encodeURIComponent(searchMatch[1]), '_blank');
+            }
+        }).catch(e => console.log("Interceptor parsing skipped."));
+        
+        return response;
+    };
+    console.log("Native Web Command Interceptor Online.");
+})();
+</script>
+
 </body>
 </html>
 <script>
