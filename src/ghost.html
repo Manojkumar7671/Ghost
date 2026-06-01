@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GHOST.SYS // TERMINAL</title>
+  <title>GHOST.SYS // HUD</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
     
@@ -15,7 +15,6 @@
       align-items: center; justify-content: center;
     }
     
-    /* Initialization Overlay */
     #init-overlay {
       position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
       background: #030508; z-index: 3000; display: flex; flex-direction: column;
@@ -24,21 +23,22 @@
     .boot-text { color: rgba(0,229,255,0.7); font-size: 13px; letter-spacing: 6px; border: 1px solid rgba(0,229,255,0.2); padding: 25px 50px; text-transform: uppercase; transition: 0.3s; }
     .boot-text:hover { background: rgba(0,229,255,0.05); border-color: rgba(0,229,255,0.8); box-shadow: 0 0 20px rgba(0,229,255,0.1); }
 
-    /* Central Dialogue Display (Ultra Minimalist) */
-    #dialogue-container {
-      position: absolute; top: 20vh; width: 80%; max-width: 900px; text-align: center;
-      display: flex; flex-direction: column; gap: 20px; z-index: 100;
+    /* Restored Chat Stream with Cinematic Fades */
+    #chat-stream {
+      position: absolute; top: 5vh; width: 70%; max-width: 900px; height: 50vh;
+      overflow-y: auto; display: flex; flex-direction: column; gap: 15px;
+      mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+      padding: 20px 10px; scrollbar-width: none; z-index: 100;
     }
-    .current-text {
-      font-size: 24px; font-weight: 300; letter-spacing: 1px; line-height: 1.5;
-      color: #ffffff; text-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
-      animation: fadeIn 0.4s ease-out forwards;
-    }
-    .ghost-text { color: #00e5ff; text-shadow: 0 0 20px rgba(0, 229, 255, 0.4); }
+    #chat-stream::-webkit-scrollbar { display: none; }
+    .log-line { line-height: 1.6; font-size: 14px; letter-spacing: 1px; animation: slideUp 0.3s ease-out forwards; opacity: 0; transform: translateY(10px); max-width: 80%; }
+    .user-log { color: rgba(255, 255, 255, 0.7); align-self: flex-end; text-align: right; background: rgba(255,255,255,0.02); padding: 10px 15px; border-radius: 4px; border-right: 2px solid rgba(255,255,255,0.2); }
+    .ghost-log { color: #00e5ff; align-self: flex-start; text-align: left; background: rgba(0,229,255,0.02); padding: 10px 15px; border-radius: 4px; border-left: 2px solid rgba(0,229,255,0.5); text-shadow: 0 0 10px rgba(0, 229, 255, 0.2); }
 
-    /* The Core Visualizer (Refined & Subtle) */
+    /* The Core Visualizer */
     #core-container {
-      position: absolute; top: 60vh; display: flex; flex-direction: column; align-items: center; gap: 30px;
+      position: absolute; top: 65vh; display: flex; flex-direction: column; align-items: center; gap: 20px;
     }
     #core {
       width: 70px; height: 70px; border-radius: 50%; border: 1px solid rgba(0, 229, 255, 0.2);
@@ -61,7 +61,6 @@
 
     #status-text { font-size: 10px; letter-spacing: 6px; color: rgba(255, 255, 255, 0.3); text-transform: uppercase; }
 
-    /* Minimal Text Input */
     #manual-override { position: absolute; bottom: 8vh; width: 500px; }
     #manual-override input {
       width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -71,7 +70,7 @@
     #manual-override input:focus { border-bottom-color: rgba(0, 229, 255, 0.5); }
     #manual-override input::placeholder { color: rgba(255, 255, 255, 0.1); letter-spacing: 4px;}
 
-    /* Data Terminal Sidebar (Cleaned up) */
+    /* Sidebar */
     #sidebar {
       position: fixed; top: 0; right: 0; width: 500px; height: 100vh;
       background: rgba(3, 5, 8, 0.98); border-left: 1px solid rgba(0, 229, 255, 0.1);
@@ -85,7 +84,7 @@
     #sidebar-content { overflow-y: auto; flex-grow: 1; font-size: 13px; line-height: 1.7; color: rgba(255,255,255,0.8);}
     #sidebar-content pre { background: rgba(0, 0, 0, 0.5); padding: 25px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); overflow-x: auto; white-space: pre-wrap; margin-bottom: 20px;}
     
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideUp { to { opacity: 1; transform: translateY(0); } }
     @keyframes spin { 100% { transform: rotate(360deg); } }
     @keyframes heartbeat { 0% { transform: scale(0.85); } 50% { transform: scale(1.15); } 100% { transform: scale(0.85); } }
     @keyframes wave { 0% { transform: scale(0.8); } 100% { transform: scale(1.3); } }
@@ -97,9 +96,7 @@
     <div class="boot-text">INITIALIZE CORE</div>
   </div>
 
-  <div id="dialogue-container">
-    <div id="main-dialogue" class="current-text ghost-text">SYSTEM ONLINE. AWAITING INPUT.</div>
-  </div>
+  <div id="chat-stream"></div>
 
   <div id="core-container">
     <div id="core">
@@ -134,7 +131,7 @@
         const text = e.target.value.trim();
         if (!text || window.isSpeaking) return;
         e.target.value = '';
-        updateDialogue(text, true);
+        appendLog(text, true);
         await askGhost(text);
       }
     });
@@ -144,21 +141,19 @@
       document.getElementById('status-text').innerText = text;
     }
 
-    function updateDialogue(text, isUser) {
-      const display = document.getElementById('main-dialogue');
+    function appendLog(text, isUser) {
+      const stream = document.getElementById('chat-stream');
+      const line = document.createElement('div');
       
-      // If it's a huge block of text from an automation, truncate it for the central display
       let displayText = text;
-      if (text.length > 200) {
+      if (text.length > 300 && !isUser) {
           displayText = text.substring(0, 150) + "... [DATA IN TERMINAL]";
       }
       
-      display.className = isUser ? 'current-text' : 'current-text ghost-text';
-      // Force animation restart
-      display.style.animation = 'none';
-      display.offsetHeight; 
-      display.style.animation = null;
-      display.innerText = displayText;
+      line.className = isUser ? 'log-line user-log' : 'log-line ghost-log';
+      line.innerText = displayText;
+      stream.appendChild(line);
+      stream.scrollTop = stream.scrollHeight;
     }
 
     async function initializeGhost() {
@@ -166,10 +161,10 @@
         const overlay = document.getElementById('init-overlay');
         overlay.style.opacity = '0';
         setTimeout(function() { overlay.style.display = 'none'; }, 500);
-        updateDialogue("Hardware sync established.", false);
+        appendLog("Hardware sync established. Awaiting input.", false);
         await startVAD();
       } catch(err) {
-        updateDialogue("Hardware Sync Failed.", false);
+        appendLog("Hardware Sync Failed.", false);
       }
     }
 
@@ -211,7 +206,7 @@
           if (average > 15) { 
             if (window.isSpeaking) {
                 stopSpeaking();
-                updateDialogue("[ SYSTEM INTERRUPTED ]", false);
+                appendLog("[ SYSTEM INTERRUPTED ]", false);
             }
 
             if (!isRecording) {
@@ -234,7 +229,7 @@
         monitor();
       } catch (err) {
         console.error("Microphone access denied.", err);
-        updateDialogue("Audio offline.", false);
+        appendLog("Audio offline.", false);
       }
     }
 
@@ -247,7 +242,7 @@
         const res = await fetch('/transcribe', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.text && data.text.trim() !== '') {
-          updateDialogue(data.text, true);
+          appendLog(data.text, true);
           await askGhost(data.text);
         } else {
           setCoreState('', 'SYSTEM STANDBY');
@@ -339,11 +334,10 @@
         });
         const data = await res.json();
         
-        // Ensure vision logic doesn't crash the dialogue display
-        updateDialogue(data.reply, false);
+        appendLog(data.reply, false);
         await playAudio(data.audio_b64);
       } catch (err) {
-        updateDialogue('Vision Core Error: ' + err.message, false);
+        appendLog('Vision Core Error: ' + err.message, false);
         setCoreState('', 'SYSTEM STANDBY');
       }
     }
@@ -360,10 +354,9 @@
         
         if (data.reply) {
           data.reply = processTaskData(data.reply);
-          updateDialogue(data.reply, false);
+          appendLog(data.reply, false);
         }
         
-        // Only trigger screen capture if the backend explicitly requests it
         if (data.trigger_capture === true) {
           await captureAndAnalyzeScreen();
           return;
