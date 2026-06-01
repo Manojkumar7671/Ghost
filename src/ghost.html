@@ -192,7 +192,7 @@
 </body>
 </html>
 <script>
-// --- YOUTUBE AUTONOMOUS OVERRIDE ---
+// --- AUTONOMOUS ROUTER OVERRIDE ---
 const originalGhostFetch = window.fetch;
 window.fetch = async function() {
     if (arguments[0] && typeof arguments[0] === "string" && arguments[0].includes("/chat")) {
@@ -201,20 +201,24 @@ window.fetch = async function() {
             let body = JSON.parse(options.body);
             if (body && body.message) {
                 let cmd = body.message.toLowerCase();
+                
+                // ROUTE 1: YOUTUBE PLAY COMMANDS
                 if (cmd.includes("youtube") && cmd.includes("play")) {
-                    // Extract the song name
                     let song = cmd.replace(/(ghost|open|youtube|and|play|can you|please|on|in)/gi, "").trim();
-                    
-                    // Force the browser to open the tab
                     window.open("https://www.youtube.com/results?search_query=" + encodeURIComponent(song), "_blank");
-                    
-                    // Override the message sent to the backend so Ghost remains loyal
                     body.message = `I just asked you to play ${song} on YouTube. Please say: "Right away, Sir. I have opened a new tab with your requested music."`;
+                    options.body = JSON.stringify(body);
+                }
+                
+                // ROUTE 2: NEWS / WORLD MONITOR COMMANDS
+                else if (cmd.includes("news") || cmd.includes("worldmonitor") || cmd.includes("world monitor")) {
+                    window.open("https://www.worldmonitor.app/", "_blank");
+                    body.message = `I just asked you for the news. Please say: "Right away, Sir. I have launched the World Monitor global intelligence dashboard for your review."`;
                     options.body = JSON.stringify(body);
                 }
             }
         } catch (e) {
-            console.error("Ghost Interceptor Alert:", e);
+            console.error("Ghost Router Error:", e);
         }
     }
     return originalGhostFetch.apply(this, arguments);
