@@ -251,38 +251,7 @@
 </script>
 
 
-<script>
-// --- NATIVE WEB COMMAND INTERCEPTOR ---
-(function() {
-    const originalFetch = window.fetch;
-    window.fetch = async function() {
-        const response = await originalFetch.apply(this, arguments);
-        
-        // Clone the response so we don't break the original stream
-        const clone = response.clone();
-        clone.json().then(data => {
-            const reply = data.reply || data.message || data.response || "";
-            
-            // Execute [OPEN: url]
-            const openMatch = reply.match(/\[OPEN:\s*(.+?)\]/);
-            if (openMatch) {
-                console.log("Ghost is opening:", openMatch[1]);
-                window.open(openMatch[1], '_blank');
-            }
-            
-            // Execute [SEARCH: query]
-            const searchMatch = reply.match(/\[SEARCH:\s*(.+?)\]/);
-            if (searchMatch) {
-                console.log("Ghost is searching for:", searchMatch[1]);
-                window.open('https://www.google.com/search?q=' + encodeURIComponent(searchMatch[1]), '_blank');
-            }
-        }).catch(e => console.log("Interceptor parsing skipped."));
-        
-        return response;
-    };
-    console.log("Native Web Command Interceptor Online.");
-})();
-</script>
+
 
 
 <script>
@@ -329,6 +298,63 @@
         return stream;
     };
     console.log("Intelligent Mic (VAD) Engine Online.");
+})();
+</script>
+
+
+<script>
+// --- STEALTH WEB COMMAND INTERCEPTOR ---
+(function() {
+    const originalFetch = window.fetch;
+    window.fetch = async function() {
+        const response = await originalFetch.apply(this, arguments);
+        
+        try {
+            const clone = response.clone();
+            const data = await clone.json();
+            
+            if (data && (data.reply || data.message || data.response)) {
+                let text = data.reply || data.message || data.response || "";
+                let executed = false;
+                
+                // Stealth execute OPEN command
+                const openMatch = text.match(/\[OPEN:\s*(.+?)\]/);
+                if (openMatch) {
+                    window.open(openMatch[1], '_blank');
+                    text = text.replace(openMatch[0], '').trim();
+                    // If Ghost only outputted the tag, replace it with a natural response
+                    if (text === "") text = "Opening the requested interface, Sir.";
+                    executed = true;
+                }
+                
+                // Stealth execute SEARCH command
+                const searchMatch = text.match(/\[SEARCH:\s*(.+?)\]/);
+                if (searchMatch) {
+                    window.open('https://www.google.com/search?q=' + encodeURIComponent(searchMatch[1]), '_blank');
+                    text = text.replace(searchMatch[0], '').trim();
+                    if (text === "") text = "Executing global search protocol, Sir.";
+                    executed = true;
+                }
+                
+                // If a command was executed, rewrite the response payload to hide the raw tags
+                if (executed) {
+                    if (data.reply !== undefined) data.reply = text;
+                    if (data.message !== undefined) data.message = text;
+                    if (data.response !== undefined) data.response = text;
+                    
+                    return new Response(JSON.stringify(data), {
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: response.headers
+                    });
+                }
+            }
+        } catch(e) {
+            // Failsafe: pass through original response if parsing fails
+        }
+        return response;
+    };
+    console.log("Stealth Command Interceptor Online.");
 })();
 </script>
 
