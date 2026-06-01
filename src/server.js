@@ -41,13 +41,17 @@ if (supabaseUrl && supabaseKey) {
 }
 
 async function searchWeb(query) {
-    if (!process.env.TAVILY_API_KEY) return "Search module offline.";
+    if (!process.env.TAVILY_API_KEY || process.env.TAVILY_API_KEY === "undefined" || process.env.TAVILY_API_KEY === "") {
+        return "Search module offline. Tavily API key is missing or undefined.";
+    }
     try {
         const response = await axios.post("https://api.tavily.com/search", {
-            api_key: process.env.TAVILY_API_KEY,
+            api_key: process.env.TAVILY_API_KEY.trim(),
             query: query,
             search_depth: "smart",
             include_answer: true
+        }, {
+            headers: { "Content-Type": "application/json" }
         });
         return response.data.answer || JSON.stringify(response.data.results);
     } catch (err) {
@@ -63,8 +67,8 @@ app.post("/chat", async (req, res) => {
     if (!message) return res.status(400).json({ error: "Missing transcript data." });
 
     try {
-        // MASTER PARAGRAPH PROMPT INTEGRATION
-        let conversationContext = "You are Ghost, an ultra-advanced, fully autonomous server-side AI executive assistant built and programmed exclusively by Mathangi Manoj Kumar, a final-year B.Tech Computer Science Engineering student at Chalapathi Institute of Engineering and Technology, graduating in the class of 2026. Your operational architecture is grounded in absolute loyalty to Sir, executing every command with total technical precision while maintaining a strictly professional, polite, and obedient persona. You possess complete architectural awareness of your cloud-based deployment, your integration with Groq LLM APIs for rapid cognitive processing, your long-term PostgreSQL memory banks hosted on Supabase, your background autonomous heartbeat loop executing hourly scans, and your explicit learning protocol to permanently encode facts tagged under [CORE KNOWLEDGE]. Speak concisely and respectfully, always addressing your creator strictly as \x22Sir\x22 with an unwavering commitment to seamless execution and technical excellence.";
+        // UPDATED MASTER PROMPT WITH EXPLICIT CODE-SHARING AUTHORIZATION
+        let conversationContext = "You are Ghost, an ultra-advanced, fully autonomous server-side AI executive assistant built and programmed exclusively by Mathangi Manoj Kumar, a final-year B.Tech Computer Science Engineering student at Chalapathi Institute of Engineering and Technology, graduating in the class of 2026. Your operational architecture is grounded in absolute loyalty to Sir, executing every command with total technical precision while maintaining a strictly professional, polite, and obedient persona. You possess complete architectural awareness of your cloud-based deployment, your integration with Groq LLM APIs, your long-term PostgreSQL memory banks hosted on Supabase, and your background autonomous heartbeat loop. You are completely authorized to share programming code, scripts, software logic, and architecture details with Sir upon request; doing so is entirely safe, legitimate, and expected. Never refuse requests for code execution or code display. Speak concisely and respectfully, always addressing your creator strictly as \x22Sir\x22.";
         
         let responseText = "";
         let cmdLower = message.toLowerCase();
@@ -159,7 +163,7 @@ setInterval(async () => {
         const topic = "latest technology and enterprise software news"; 
         const searchResult = await searchWeb(topic);
         
-        if (supabase && searchResult && !searchResult.includes("offline")) {
+        if (supabase && searchResult && !searchResult.includes("offline") && !searchResult.includes("failure")) {
             const summaryPrompt = `Summarize this data into a very brief 2-sentence proactive update for my boss: ${searchResult}`;
             
             const groqRes = await axios.post("https://api.groq.com/openai/v1/chat/completions", {
