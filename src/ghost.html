@@ -2,60 +2,370 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GHOST.SYS // HUD</title>
   <style>
-    body { background: #030508; color: #00e5ff; font-family: monospace; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
-    #chat-stream { width: 80%; height: 60vh; overflow-y: auto; margin-bottom: 20px; padding: 20px; color: #00e5ff; }
-    #controls { padding: 20px; display: flex; gap: 10px; }
-    button { background: rgba(0,229,255,0.1); border: 1px solid #00e5ff; color: #00e5ff; padding: 10px 20px; cursor: pointer; transition: 0.3s; }
-    button:hover { background: #00e5ff; color: #000; }
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #030508;
+      color: #00e5ff; font-family: 'JetBrains Mono', monospace;
+      height: 100vh; overflow: hidden; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+    }
+    
+    #init-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: #030508; z-index: 3000; display: flex; flex-direction: column;
+      justify-content: center; align-items: center; cursor: pointer; transition: opacity 0.5s;
+    }
+    .boot-text { color: rgba(0,229,255,0.7); font-size: 13px; letter-spacing: 6px; border: 1px solid rgba(0,229,255,0.2); padding: 25px 50px; text-transform: uppercase; transition: 0.3s; }
+    .boot-text:hover { background: rgba(0,229,255,0.05); border-color: rgba(0,229,255,0.8); box-shadow: 0 0 20px rgba(0,229,255,0.1); }
+
+    #chat-stream {
+      position: absolute; top: 5vh; width: 70%; max-width: 900px; height: 50vh;
+      overflow-y: auto; display: flex; flex-direction: column; gap: 15px;
+      mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+      padding: 20px 10px; scrollbar-width: none; z-index: 100;
+    }
+    #chat-stream::-webkit-scrollbar { display: none; }
+    .log-line { line-height: 1.6; font-size: 14px; letter-spacing: 1px; animation: slideUp 0.3s ease-out forwards; opacity: 0; transform: translateY(10px); max-width: 80%; }
+    .user-log { color: rgba(255, 255, 255, 0.7); align-self: flex-end; text-align: right; background: rgba(255,255,255,0.02); padding: 10px 15px; border-radius: 4px; border-right: 2px solid rgba(255,255,255,0.2); }
+    .ghost-log { color: #00e5ff; align-self: flex-start; text-align: left; background: rgba(0,229,255,0.02); padding: 10px 15px; border-radius: 4px; border-left: 2px solid rgba(0,229,255,0.5); text-shadow: 0 0 10px rgba(0, 229, 255, 0.2); }
+
+    #core-container {
+      position: absolute; top: 65vh; display: flex; flex-direction: column; align-items: center; gap: 20px;
+    }
+    #core {
+      width: 70px; height: 70px; border-radius: 50%; border: 1px solid rgba(0, 229, 255, 0.2);
+      box-shadow: 0 0 30px rgba(0, 229, 255, 0.05); transition: all 0.4s ease;
+      display: flex; justify-content: center; align-items: center; position: relative;
+    }
+    #core::before { content: ''; position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 1px dashed rgba(0, 229, 255, 0.1); animation: spin 15s linear infinite; }
+    #core-inner { width: 30px; height: 30px; border-radius: 50%; background: rgba(0, 229, 255, 0.05); transition: all 0.3s; }
+    
+    #core.listening { border-color: #ff0055; box-shadow: 0 0 40px rgba(255, 0, 85, 0.15); }
+    #core.listening #core-inner { background: rgba(255, 0, 85, 0.3); animation: heartbeat 1s infinite; }
+    #core.listening::before { border-color: #ff0055; animation: spin 4s linear infinite; }
+    
+    #core.processing { border-color: #b000ff; box-shadow: 0 0 40px rgba(176, 0, 255, 0.15); }
+    #core.processing #core-inner { background: rgba(176, 0, 255, 0.3); }
+    #core.processing::before { border-color: #b000ff; border-style: solid; border-top-color: transparent; border-bottom-color: transparent; animation: spin 1.5s linear infinite; }
+    
+    #core.speaking { border-color: #00e5ff; box-shadow: 0 0 50px rgba(0, 229, 255, 0.3); }
+    #core.speaking #core-inner { background: rgba(0, 229, 255, 0.5); animation: wave 0.6s infinite alternate; }
+
+    #status-text { font-size: 10px; letter-spacing: 6px; color: rgba(255, 255, 255, 0.3); text-transform: uppercase; }
+
+    #manual-override { position: absolute; bottom: 8vh; width: 500px; }
+    #manual-override input {
+      width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      color: rgba(255,255,255,0.8); font-family: 'JetBrains Mono', monospace; font-size: 13px; padding: 12px;
+      outline: none; text-align: center; transition: 0.3s; letter-spacing: 1px;
+    }
+    #manual-override input:focus { border-bottom-color: rgba(0, 229, 255, 0.5); }
+    #manual-override input::placeholder { color: rgba(255, 255, 255, 0.1); letter-spacing: 4px;}
+
+    #sidebar {
+      position: fixed; top: 0; right: 0; width: 500px; height: 100vh;
+      background: rgba(3, 5, 8, 0.98); border-left: 1px solid rgba(0, 229, 255, 0.1);
+      transform: translateX(100%); transition: transform 0.6s cubic-bezier(0.1, 0.8, 0.1, 1);
+      z-index: 2000; padding: 40px; display: flex; flex-direction: column;
+    }
+    #sidebar.active { transform: translateX(0); box-shadow: -30px 0 80px rgba(0, 0, 0, 0.8); }
+    #sidebar-header { display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px; margin-bottom: 30px; font-size: 11px; color: rgba(255,255,255,0.5); letter-spacing: 3px;}
+    #sidebar-close { cursor: pointer; color: rgba(255,0,85,0.8); transition: 0.2s;}
+    #sidebar-close:hover { color: #ff0055; text-shadow: 0 0 15px rgba(255,0,85,0.5); }
+    #sidebar-content { overflow-y: auto; flex-grow: 1; font-size: 13px; line-height: 1.7; color: rgba(255,255,255,0.8);}
+    #sidebar-content pre { background: rgba(0, 0, 0, 0.5); padding: 25px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); overflow-x: auto; white-space: pre-wrap; margin-bottom: 20px;}
+    
+    @keyframes slideUp { to { opacity: 1; transform: translateY(0); } }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    @keyframes heartbeat { 0% { transform: scale(0.85); } 50% { transform: scale(1.15); } 100% { transform: scale(0.85); } }
+    @keyframes wave { 0% { transform: scale(0.8); } 100% { transform: scale(1.3); } }
   </style>
 </head>
 <body>
-  <div id="chat-stream"></div>
-  <div id="controls">
-    <button onclick="initializeGhost()">INITIALIZE GHOST</button>
-    <button onclick="toggleVoiceRecord()">RECORD</button>
+
+  <div id="init-overlay" onclick="initializeGhost()">
+    <div class="boot-text">INITIALIZE CORE</div>
   </div>
+
+  <div id="chat-stream"></div>
+
+  <div id="core-container">
+    <div id="core">
+      <div id="core-inner"></div>
+    </div>
+    <div id="status-text">SYSTEM STANDBY</div>
+  </div>
+
+  <div id="manual-override">
+    <input type="text" id="text-input" placeholder="OVERRIDE..." autocomplete="off">
+  </div>
+
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <span>[ DATA TERMINAL ]</span>
+      <span id="sidebar-close" onclick="document.getElementById('sidebar').classList.remove('active')">[ CLOSE ]</span>
+    </div>
+    <div id="sidebar-content"></div>
+  </div>
+
   <script>
-    let mediaRecorder, audioChunks = [], isRecording = false;
+    let mediaRecorder;
+    let audioChunks = [];
+    window.isSpeaking = false;
+    let isRecording = false;
+    let audioContext, analyser, microphone;
+    let silenceTimer = null;
+    let activeAudioElements = [];
+
+    document.getElementById('text-input').addEventListener('keydown', async function(e) {
+      if (e.key === 'Enter') {
+        const text = e.target.value.trim();
+        if (!text || window.isSpeaking) return;
+        e.target.value = '';
+        appendLog(text, true);
+        await askGhost(text);
+      }
+    });
+
+    function setCoreState(state, text) {
+      document.getElementById('core').className = state;
+      document.getElementById('status-text').innerText = text;
+    }
 
     function appendLog(text, isUser) {
-        // Strip the raw tags before showing the user
-        const cleanText = text.replace(/###.*?###/g, "").trim();
-        const div = document.createElement('div');
-        div.innerText = (isUser ? "USER: " : "GHOST: ") + cleanText;
-        document.getElementById('chat-stream').appendChild(div);
-        document.getElementById('chat-stream').scrollTop = document.getElementById('chat-stream').scrollHeight;
+      const stream = document.getElementById('chat-stream');
+      const line = document.createElement('div');
+      
+      line.className = isUser ? 'log-line user-log' : 'log-line ghost-log';
+      line.innerText = text;
+      stream.appendChild(line);
+      stream.scrollTop = stream.scrollHeight;
+    }
+
+    async function initializeGhost() {
+      try {
+        const overlay = document.getElementById('init-overlay');
+        overlay.style.opacity = '0';
+        setTimeout(function() { overlay.style.display = 'none'; }, 500);
+        appendLog("Hardware sync established. Awaiting input.", false);
+        await startVAD();
+      } catch(err) {
+        appendLog("Hardware Sync Failed.", false);
+      }
+    }
+
+    function stopSpeaking() {
+       for (let i = 0; i < activeAudioElements.length; i++) {
+           try {
+               activeAudioElements[i].pause();
+               activeAudioElements[i].currentTime = 0;
+           } catch(e) {}
+       }
+       activeAudioElements = [];
+       window.isSpeaking = false;
+       setCoreState('', 'SYSTEM STANDBY');
+    }
+
+    async function startVAD() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+        
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioContext.createAnalyser();
+        microphone = audioContext.createMediaStreamSource(stream);
+        microphone.connect(analyser);
+        analyser.fftSize = 512;
+
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) audioChunks.push(e.data); };
+        mediaRecorder.onstop = processAudio;
+
+        function monitor() {
+          analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+          let average = sum / bufferLength;
+
+          if (average > 15) { 
+            if (window.isSpeaking) {
+                stopSpeaking();
+                appendLog("[ SYSTEM INTERRUPTED ]", false);
+            }
+
+            if (!isRecording) {
+              audioChunks = [];
+              mediaRecorder.start();
+              isRecording = true;
+              setCoreState('listening', 'LISTENING');
+            }
+            clearTimeout(silenceTimer);
+            silenceTimer = setTimeout(function() {
+              if (isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                setCoreState('processing', 'UPLINKING');
+              }
+            }, 1500); 
+          }
+          requestAnimationFrame(monitor);
+        }
+        monitor();
+      } catch (err) {
+        console.error("Microphone access denied.", err);
+        appendLog("Audio offline.", false);
+      }
+    }
+
+    async function processAudio() {
+      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'audio.webm');
+      
+      try {
+        const res = await fetch('/transcribe', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.text && data.text.trim() !== '') {
+          appendLog(data.text, true);
+          await askGhost(data.text);
+        } else {
+          setCoreState('', 'SYSTEM STANDBY');
+        }
+      } catch (err) {
+        setCoreState('', 'SYSTEM STANDBY');
+      }
+    }
+
+    function processTaskData(replyText) {
+      const sidebar = document.getElementById('sidebar');
+      const content = document.getElementById('sidebar-content');
+      
+      const tick = String.fromCharCode(96);
+      const tripleTick = tick + tick + tick;
+      const codeRegex = new RegExp(tripleTick + '[\\s\\S]*?' + tripleTick, 'g');
+      const matches = replyText.match(codeRegex);
+      
+      if (matches && matches.length > 0) {
+        let cleanReply = replyText;
+        let sidebarHtml = '';
+        
+        for (let i = 0; i < matches.length; i++) {
+            const match = matches[i];
+            cleanReply = cleanReply.replace(match, '\n[ DATA COMPILED TO TERMINAL ]\n');
+            let codeContent = match.replace(new RegExp('^' + tripleTick + '[a-zA-Z]*\n?'), '').replace(new RegExp(tripleTick + '$'), '').trim();
+            sidebarHtml += '<pre><code>' + codeContent + '</code></pre>';
+        }
+        
+        content.innerHTML = sidebarHtml;
+        sidebar.classList.add('active');
+        if (cleanReply.includes('###')) cleanReply = cleanReply.split('###')[0];
+        return cleanReply.trim();
+      }
+      
+      sidebar.classList.remove('active');
+      if (replyText.includes('###')) replyText = replyText.split('###')[0];
+      return replyText.trim();
+    }
+
+    async function playAudio(chunks) {
+      if (!chunks || chunks.length === 0) return;
+      window.isSpeaking = true;
+      setCoreState('speaking', 'TRANSMITTING');
+      
+      for (let i = 0; i < chunks.length; i++) {
+        if (!window.isSpeaking) break; 
+        const base64 = chunks[i];
+        await new Promise(function(resolve) {
+          const audio = new Audio("data:audio/mp3;base64," + base64);
+          activeAudioElements.push(audio);
+          audio.onended = () => {
+             const idx = activeAudioElements.indexOf(audio);
+             if (idx > -1) activeAudioElements.splice(idx, 1);
+             resolve();
+          };
+          audio.onerror = resolve;
+          audio.play().catch(resolve);
+        });
+      }
+      if (window.isSpeaking) {
+         window.isSpeaking = false;
+         setCoreState('', 'SYSTEM STANDBY');
+      }
+    }
+
+    async function captureAndAnalyzeScreen() {
+      try {
+        setCoreState('processing', 'CAPTURING WINDOW');
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        await video.play();
+
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        stream.getTracks().forEach(t => t.stop());
+        const base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+        setCoreState('processing', 'ANALYZING MATRIX');
+
+        const res = await fetch('/analyze-vision', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: base64Image })
+        });
+        const data = await res.json();
+        
+        appendLog(data.reply, false);
+        await playAudio(data.audio_b64);
+      } catch (err) {
+        appendLog('Vision Core Error: ' + err.message, false);
+        setCoreState('', 'SYSTEM STANDBY');
+      }
     }
 
     async function askGhost(text) {
-      const res = await fetch('/chat', {
-        method:'POST', 
-        headers:{'Content-Type':'application/json'}, 
-        body:JSON.stringify({message:text})
-      });
-      const data = await res.json();
-      
-      // INTERCEPTOR LOGIC
-      if (data.reply.includes("###SCRAPE_SITE###")) {
-          appendLog("System: Triggering WorldMonitor Scraper...", false);
-          const scrapeRes = await fetch('/scrape', { 
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({url: 'https://worldmonitor.com'})
-          });
-          const scrapeData = await scrapeRes.json();
-          // Send summary back to Ghost
-          await askGhost("Summarize these news headlines: " + scrapeData.content);
+      try {
+        setCoreState('processing', 'PROCESSING');
+        const response = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text })
+        });
+        const data = await response.json();
+        
+        if (data.reply) {
+          data.reply = processTaskData(data.reply);
+          appendLog(data.reply, false);
+        }
+        
+        if (data.trigger_capture === true) {
+          await captureAndAnalyzeScreen();
           return;
+        }
+        
+        if (data.open_url) window.open(data.open_url, '_blank');
+        
+        if (data.audio_b64) {
+          await playAudio(data.audio_b64);
+        } else {
+          setCoreState('', 'SYSTEM STANDBY');
+        }
+      } catch (err) {
+        console.error(err);
+        setCoreState('', 'SYSTEM STANDBY');
       }
-
-      appendLog(data.reply, false);
-      if (data.audio_b64) playAudio(data.audio_b64);
     }
-    
-    // ... [Rest of recording/audio logic remains the same]
   </script>
 </body>
 </html>
