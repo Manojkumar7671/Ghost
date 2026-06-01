@@ -84,7 +84,7 @@
     </style>
 </head>
 <body>
-  <div id="init-overlay" onclick="initializeGhost()">
+  <div id="init-overlay" onclick="this.style.display='none'; if(typeof initializeGhost === 'function') initializeGhost();">
     <div>GHOST CORE OFFLINE</div>
     <div style="font-size:10px; margin-top:15px; opacity:0.5;">[ TAP ANYWHERE TO INITIALIZE AUDIO LINK ]</div>
   </div>
