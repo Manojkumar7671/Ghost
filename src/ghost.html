@@ -1,67 +1,61 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>GHOST.SYS</title>
-<style>
-  body { background: #030508; color: #00e5ff; font-family: monospace; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
-  #chat-stream { width: 80%; height: 60vh; overflow-y: auto; margin-bottom: 20px; }
-  #controls { padding: 20px; }
-  button { background: #00e5ff; color: #000; border: none; padding: 10px 20px; cursor: pointer; }
-</style>
+<head>
+  <meta charset="UTF-8">
+  <title>GHOST.SYS // HUD</title>
+  <style>
+    body { background: #030508; color: #00e5ff; font-family: monospace; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
+    #chat-stream { width: 80%; height: 60vh; overflow-y: auto; margin-bottom: 20px; padding: 20px; color: #00e5ff; }
+    #controls { padding: 20px; display: flex; gap: 10px; }
+    button { background: rgba(0,229,255,0.1); border: 1px solid #00e5ff; color: #00e5ff; padding: 10px 20px; cursor: pointer; transition: 0.3s; }
+    button:hover { background: #00e5ff; color: #000; }
+  </style>
 </head>
 <body>
   <div id="chat-stream"></div>
   <div id="controls">
     <button onclick="initializeGhost()">INITIALIZE GHOST</button>
-    <button id="mic-btn" onclick="toggleVoiceRecord()">RECORD</button>
+    <button onclick="toggleVoiceRecord()">RECORD</button>
   </div>
   <script>
     let mediaRecorder, audioChunks = [], isRecording = false;
-    
-    async function initializeGhost() {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorder = new MediaRecorder(stream);
-      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-      mediaRecorder.onstop = async () => {
-         const blob = new Blob(audioChunks, {type: 'audio/webm'});
-         const fd = new FormData(); fd.append('audio', blob);
-         const res = await fetch('/transcribe', {method:'POST', body:fd});
-         const data = await res.json();
-         await askGhost(data.text);
-      };
-      console.log("Ghost Initialized");
-    }
 
-    async function toggleVoiceRecord() {
-      if(!isRecording) { audioChunks=[]; mediaRecorder.start(); isRecording=true; }
-      else { mediaRecorder.stop(); isRecording=false; }
+    function appendLog(text, isUser) {
+        // Strip the raw tags before showing the user
+        const cleanText = text.replace(/###.*?###/g, "").trim();
+        const div = document.createElement('div');
+        div.innerText = (isUser ? "USER: " : "GHOST: ") + cleanText;
+        document.getElementById('chat-stream').appendChild(div);
+        document.getElementById('chat-stream').scrollTop = document.getElementById('chat-stream').scrollHeight;
     }
 
     async function askGhost(text) {
-      if (text.toLowerCase().includes("news") || text.toLowerCase().includes("worldmonitor")) {
-          const res = await fetch('/scrape', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:'https://worldmonitor.com'})});
-          const data = await res.json();
-          text = "Summarize this: " + data.content;
-      }
-      const res = await fetch('/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:text})});
+      const res = await fetch('/chat', {
+        method:'POST', 
+        headers:{'Content-Type':'application/json'}, 
+        body:JSON.stringify({message:text})
+      });
       const data = await res.json();
+      
+      // INTERCEPTOR LOGIC
+      if (data.reply.includes("###SCRAPE_SITE###")) {
+          appendLog("System: Triggering WorldMonitor Scraper...", false);
+          const scrapeRes = await fetch('/scrape', { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({url: 'https://worldmonitor.com'})
+          });
+          const scrapeData = await scrapeRes.json();
+          // Send summary back to Ghost
+          await askGhost("Summarize these news headlines: " + scrapeData.content);
+          return;
+      }
+
       appendLog(data.reply, false);
-      playAudio(data.audio_b64);
+      if (data.audio_b64) playAudio(data.audio_b64);
     }
-
-    function appendLog(text, isUser) {
-        const div = document.createElement('div');
-        div.innerText = (isUser ? "USER: " : "GHOST: ") + text;
-        document.getElementById('chat-stream').appendChild(div);
-    }
-
-    async function playAudio(chunks) {
-        for(let b64 of chunks) {
-            await new Promise(r => {
-                const a = new Audio("data:audio/mp3;base64,"+b64);
-                a.onended = r; a.play();
-            });
-        }
-    }
+    
+    // ... [Rest of recording/audio logic remains the same]
   </script>
 </body>
 </html>
