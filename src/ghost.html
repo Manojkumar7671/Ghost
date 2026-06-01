@@ -123,6 +123,7 @@
     let isRecording = false;
     let audioContext, analyser, microphone;
     let silenceTimer = null;
+    let activeAudioElements = []; // Track active audio for interruption
 
     document.getElementById('text-input').addEventListener('keydown', async function(e) {
       if (e.key === 'Enter') {
@@ -160,6 +161,19 @@
       }
     }
 
+    // Interruption Engine: Stop all current audio immediately
+    function stopSpeaking() {
+       for (let i = 0; i < activeAudioElements.length; i++) {
+           try {
+               activeAudioElements[i].pause();
+               activeAudioElements[i].currentTime = 0;
+           } catch(e) {}
+       }
+       activeAudioElements = [];
+       window.isSpeaking = false;
+       setCoreState('', 'SYSTEM STANDBY');
+    }
+
     async function startVAD() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
@@ -178,17 +192,18 @@
         mediaRecorder.onstop = processAudio;
 
         function monitor() {
-          if (window.isSpeaking || document.getElementById('core').classList.contains('processing')) {
-            requestAnimationFrame(monitor);
-            return;
-          }
-
           analyser.getByteFrequencyData(dataArray);
           let sum = 0;
           for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
           let average = sum / bufferLength;
 
           if (average > 15) { 
+            // BARGE-IN INTERRUPTION: If Ghost is speaking and you speak, shut him up.
+            if (window.isSpeaking) {
+                stopSpeaking();
+                appendLog("[ SYSTEM INTERRUPTED ]", false);
+            }
+
             if (!isRecording) {
               audioChunks = [];
               mediaRecorder.start();
@@ -237,9 +252,12 @@
       const sidebar = document.getElementById('sidebar');
       const content = document.getElementById('sidebar-content');
       
+      // Robust Markdown Extractor
       const tick = String.fromCharCode(96);
       const tripleTick = tick + tick + tick;
-      const codeRegex = new RegExp(tripleTick + '[\\s\\S]*?' + tripleTick, 'g');
+      
+      // Regex to find content between ``` 
+      const codeRegex = new RegExp(tripleTick + '(.*?)' + tripleTick, 'gs');
       const matches = replyText.match(codeRegex);
       
       if (matches && matches.length > 0) {
@@ -249,8 +267,9 @@
         for (let i = 0; i < matches.length; i++) {
             const match = matches[i];
             cleanReply = cleanReply.replace(match, '\n[ DATA COMPILED TO TERMINAL ]\n');
-            let codeContent = match.replace(new RegExp(tripleTick + '[a-zA-Z]*', 'g'), '');
-            codeContent = codeContent.replace(new RegExp(tripleTick, 'g'), '').trim();
+            
+            // Strip the backticks and language identifier
+            let codeContent = match.replace(new RegExp('^' + tripleTick + '[a-zA-Z]*\n?'), '').replace(new RegExp(tripleTick + '$'), '').trim();
             sidebarHtml += '<pre><code>' + codeContent + '</code></pre>';
         }
         
@@ -271,22 +290,34 @@
       setCoreState('speaking', 'TRANSMITTING');
       
       for (let i = 0; i < chunks.length; i++) {
+        // If interrupted during playback, break the loop
+        if (!window.isSpeaking) break; 
+
         const base64 = chunks[i];
         await new Promise(function(resolve) {
           const audio = new Audio("data:audio/mp3;base64," + base64);
-          audio.onended = resolve;
+          activeAudioElements.push(audio);
+          
+          audio.onended = () => {
+             const idx = activeAudioElements.indexOf(audio);
+             if (idx > -1) activeAudioElements.splice(idx, 1);
+             resolve();
+          };
           audio.onerror = resolve;
+          
           audio.play().catch(resolve);
         });
       }
-      window.isSpeaking = false;
-      setCoreState('', 'SYSTEM STANDBY');
+      if (window.isSpeaking) {
+         window.isSpeaking = false;
+         setCoreState('', 'SYSTEM STANDBY');
+      }
     }
 
     async function captureAndAnalyzeScreen() {
       try {
         setCoreState('processing', 'CAPTURING WINDOW');
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
         const video = document.createElement('video');
         video.srcObject = stream;
         await video.play();
@@ -297,7 +328,7 @@
         const ctx = canvas.getContext('2d');
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         
-        stream.getVideoTracks()[0].stop();
+        stream.getTracks().forEach(t => t.stop());
         const base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
         setCoreState('processing', 'ANALYZING MATRIX');
 
