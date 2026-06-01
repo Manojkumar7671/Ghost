@@ -4,27 +4,107 @@
   <meta charset="UTF-8">
   <title>GHOST.SYS</title>
   <style>
-    body { background: #030508; color: #00e5ff; font-family: monospace; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
-    #chat-stream { width: 70%; height: 60vh; overflow-y: auto; border: 1px solid #00e5ff; padding: 20px; margin-bottom: 20px; }
-    #input-area { width: 70%; display: flex; gap: 10px; }
-    input { flex-grow: 1; background: #000; border: 1px solid #00e5ff; color: #fff; padding: 10px; }
-    button { background: #00e5ff; color: #000; padding: 10px 20px; border: none; cursor: pointer; }
+    body { background: #030508; color: #00e5ff; font-family: monospace; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; margin: 0; }
+    #chat-container { width: 80%; max-width: 900px; display: flex; flex-direction: column; gap: 20px; }
+    #chat-stream { height: 60vh; overflow-y: auto; border: 1px solid #00e5ff; padding: 20px; font-size: 14px; line-height: 1.5; }
+    #input-area { display: flex; gap: 10px; }
+    input { flex-grow: 1; background: transparent; border: 1px solid #00e5ff; color: #00e5ff; padding: 15px; font-family: monospace; outline: none; }
+    button { background: #00e5ff; color: #000; border: none; padding: 0 25px; font-weight: bold; cursor: pointer; font-family: monospace; }
+    #mic-btn { background: transparent; border: 1px solid #00e5ff; color: #00e5ff; transition: 0.2s; }
+    #mic-btn.active { background: #ff0055; border-color: #ff0055; color: #fff; box-shadow: 0 0 10px rgba(255,0,85,0.5); }
   </style>
 </head>
 <body>
-  <div id="chat-stream"></div>
-  <div id="input-area">
-    <input type="text" id="text-input" placeholder="Type here...">
-    <button onclick="send()">Send</button>
+  <div id="chat-container">
+    <div id="chat-stream"><div>System Online.</div><br></div>
+    <div id="input-area">
+      <input type="text" id="text-input" placeholder="Type here..." autocomplete="off">
+      <button onclick="sendText()">Send</button>
+      <button id="mic-btn" onclick="toggleMic()">🎤 Mic</button>
+    </div>
   </div>
+
   <script>
-    function send() {
-      const input = document.getElementById('text-input');
-      if (!input.value.trim()) return;
-      const log = document.getElementById('chat-stream');
-      log.innerHTML += '<div>User: ' + input.value + '</div>';
-      input.value = '';
-      log.scrollTop = log.scrollHeight;
+    let mediaRecorder, audioChunks = [], isRecording = false;
+    let activeAudioElements = [], currentPlaybackId = 0;
+
+    document.getElementById('text-input').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') sendText();
+    });
+
+    function appendLog(text, isUser) {
+        const stream = document.getElementById('chat-stream');
+        stream.innerHTML += `<div>${isUser ? 'User' : 'Ghost'}: ${text}</div><br>`;
+        stream.scrollTop = stream.scrollHeight;
+    }
+
+    function killAllAudio() {
+        currentPlaybackId++;
+        activeAudioElements.forEach(a => { a.pause(); a.src = ""; a.load(); });
+        activeAudioElements = [];
+    }
+
+    async function playAudio(chunks) {
+        if (!chunks) return;
+        let playbackId = ++currentPlaybackId;
+        for (let chunk of chunks) {
+            if (playbackId !== currentPlaybackId) break;
+            await new Promise(r => {
+                const a = new Audio("data:audio/mp3;base64," + chunk);
+                activeAudioElements.push(a);
+                a.onended = r; a.play().catch(r);
+            });
+        }
+    }
+
+    async function askGhost(text) {
+        killAllAudio();
+        if (text.toLowerCase().includes("news")) {
+            appendLog("Scraping WorldMonitor...", false);
+            const res = await fetch('/scrape', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:'https://worldmonitor.com'})});
+            const data = await res.json();
+            text = "Summarize this: " + data.content;
+        }
+        const res = await fetch('/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:text}) });
+        const data = await res.json();
+        appendLog(data.reply, false);
+        if(data.audio_b64) playAudio(data.audio_b64);
+    }
+
+    function sendText() {
+        const input = document.getElementById('text-input');
+        const text = input.value.trim();
+        if (!text) return;
+        appendLog(text, true);
+        input.value = '';
+        askGhost(text);
+    }
+
+    async function toggleMic() {
+        const btn = document.getElementById('mic-btn');
+        if (!isRecording) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = async () => {
+                    const blob = new Blob(audioChunks, {type: 'audio/webm'});
+                    const fd = new FormData(); fd.append('audio', blob);
+                    appendLog("Transcribing...", false);
+                    const res = await fetch('/transcribe', {method:'POST', body:fd});
+                    const data = await res.json();
+                    if(data.text) { appendLog(data.text, true); askGhost(data.text); }
+                };
+                audioChunks = [];
+                mediaRecorder.start();
+                isRecording = true;
+                btn.className = 'active'; btn.innerText = '🔴 Recording...';
+            } catch(e) { alert("Microphone access denied."); }
+        } else {
+            mediaRecorder.stop();
+            isRecording = false;
+            btn.className = ''; btn.innerText = '🎤 Mic';
+        }
     }
   </script>
 </body>
