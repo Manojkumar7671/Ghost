@@ -1,38 +1,4 @@
 
-// --- ELEVENLABS NEURAL VOICE UPGRADE ---
-const express = require('express');
-const _originalJson = express.response.json;
-express.response.json = async function(data) {
-    if (data.reply && process.env.ELEVENLABS_API_KEY) {
-        try {
-            console.log("[Ghost Engine] Routing audio to ElevenLabs Neural TTS...");
-            const fetchReq = global.fetch || require('node-fetch');
-            const elRes = await fetchReq('https://api.elevenlabs.io/v1/text-to-speech/pNInz6obpgDQGcFmaJcg', {
-                method: 'POST',
-                headers: {
-                    'xi-api-key': process.env.ELEVENLABS_API_KEY,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    text: data.reply,
-                    model_id: 'eleven_monolingual_v1',
-                    voice_settings: { stability: 0.5, similarity_boost: 0.75 }
-                })
-            });
-            if (elRes.ok) {
-                const audioBuffer = await elRes.arrayBuffer();
-                data.audio_b64 = [Buffer.from(audioBuffer).toString('base64')];
-                console.log("[Ghost Engine] Neural audio synthesis complete.");
-            } else {
-                console.error("[Ghost Engine] Neural TTS failed:", elRes.statusText);
-            }
-        } catch(e) {
-            console.error("[Ghost Engine] Audio integration error:", e);
-        }
-    }
-    return _originalJson.call(this, data);
-};
-// ---------------------------------------
 
 const express = require("express");
 const cors = require("cors");
