@@ -3,97 +3,121 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GHOST.SYS // INTERFACE</title>
+  <title>GHOST.SYS // HUD</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100;400;700&display=swap');
+    
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background-color: #030712;
-      color: #00e5ff;
-      font-family: 'Courier New', Courier, monospace;
-      height: 100vh;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
+      background: radial-gradient(circle at center, #0a111a 0%, #020406 100%);
+      color: #00e5ff; font-family: 'JetBrains Mono', monospace;
+      height: 100vh; overflow: hidden; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
     }
+    
+    /* Initialization Overlay */
     #init-overlay {
       position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(3, 7, 18, 0.95); z-index: 3000;
-      display: flex; flex-direction: column; justify-content: center; align-items: center;
-      cursor: pointer;
+      background: #000; z-index: 3000; display: flex; flex-direction: column;
+      justify-content: center; align-items: center; cursor: pointer; transition: opacity 0.5s;
     }
-    .boot-btn {
-      border: 1px solid #00e5ff; padding: 15px 40px; background: transparent;
-      color: #00e5ff; font-family: monospace; font-size: 16px; letter-spacing: 3px;
-      text-transform: uppercase; box-shadow: 0 0 15px rgba(0, 229, 255, 0.2);
-      transition: all 0.3s ease;
+    .boot-text { color: #00e5ff; font-size: 14px; letter-spacing: 4px; border: 1px solid rgba(0,229,255,0.3); padding: 20px 40px; text-transform: uppercase; }
+    .boot-text:hover { background: rgba(0,229,255,0.1); box-shadow: 0 0 30px rgba(0,229,255,0.2); }
+
+    /* Floating Chat Log */
+    #chat-stream {
+      position: absolute; top: 10vh; width: 60%; max-width: 800px; height: 40vh;
+      overflow-y: auto; display: flex; flex-direction: column; gap: 15px;
+      mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 100%);
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 100%);
+      padding-top: 50px; scrollbar-width: none;
     }
-    .boot-btn:hover { background: #00e5ff; color: #030712; box-shadow: 0 0 25px #00e5ff; }
+    #chat-stream::-webkit-scrollbar { display: none; }
+    .log-line { line-height: 1.6; font-size: 13px; letter-spacing: 1px; animation: slideUp 0.3s ease-out forwards; opacity: 0; transform: translateY(10px); }
+    .user-log { color: #ffffff; opacity: 0.6; text-align: center; }
+    .ghost-log { color: #00e5ff; text-align: center; text-shadow: 0 0 10px rgba(0, 229, 255, 0.3); }
+
+    /* The Core Visualizer */
+    #core-container {
+      position: absolute; top: 55vh; display: flex; flex-direction: column; align-items: center; gap: 20px;
+    }
+    #core {
+      width: 90px; height: 90px; border-radius: 50%; border: 1px solid rgba(0, 229, 255, 0.3);
+      box-shadow: 0 0 40px rgba(0, 229, 255, 0.05); cursor: pointer; transition: all 0.4s ease;
+      display: flex; justify-content: center; align-items: center; position: relative;
+    }
+    #core::before { content: ''; position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 1px dashed rgba(0, 229, 255, 0.2); animation: spin 10s linear infinite; }
+    #core-inner { width: 40px; height: 40px; border-radius: 50%; background: rgba(0, 229, 255, 0.1); backdrop-filter: blur(5px); transition: all 0.3s; }
     
-    #terminal {
-      flex: 1; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; gap: 15px;
-    }
-    .log-line { line-height: 1.6; font-size: 14px; animation: fadeIn 0.2s ease-out; }
-    .user-log { color: #ffffff; }
-    .ghost-log { color: #00e5ff; }
+    /* Core States */
+    #core.listening { border-color: #ff0055; box-shadow: 0 0 50px rgba(255, 0, 85, 0.2); }
+    #core.listening #core-inner { background: rgba(255, 0, 85, 0.4); animation: heartbeat 1s infinite; }
+    #core.listening::before { border-color: #ff0055; animation: spin 3s linear infinite; }
     
-    #controls {
-      padding: 20px; border-top: 1px solid rgba(0, 229, 255, 0.15);
-      background: rgba(15, 23, 42, 0.4); display: flex; gap: 15px; align-items: center;
-    }
-    #user-input {
-      flex: 1; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(0, 229, 255, 0.3);
-      padding: 12px 20px; color: #ffffff; font-family: monospace; font-size: 14px;
-      outline: none; transition: border 0.3s;
-    }
-    #user-input:focus { border-color: #00e5ff; }
-    .action-btn {
-      background: transparent; border: 1px solid rgba(0, 229, 255, 0.4); color: #00e5ff;
-      padding: 12px 25px; font-family: monospace; cursor: pointer; transition: all 0.2s;
-    }
-    .action-btn:hover { background: rgba(0, 229, 255, 0.1); border-color: #00e5ff; }
-    #mic-btn { border-radius: 50%; width: 45px; height: 45px; padding: 0; display: flex; align-items: center; justify-content: center; }
-    #mic-btn.recording { border-color: #ff0055; color: #ff0055; animation: pulse 1.5s infinite; }
+    #core.processing { border-color: #b000ff; box-shadow: 0 0 50px rgba(176, 0, 255, 0.2); }
+    #core.processing #core-inner { background: rgba(176, 0, 255, 0.4); }
+    #core.processing::before { border-color: #b000ff; border-style: solid; border-top-color: transparent; border-bottom-color: transparent; animation: spin 1s linear infinite; }
     
+    #core.speaking { border-color: #00e5ff; box-shadow: 0 0 60px rgba(0, 229, 255, 0.4); }
+    #core.speaking #core-inner { background: rgba(0, 229, 255, 0.6); animation: wave 0.5s infinite alternate; }
+
+    #status-text { font-size: 11px; letter-spacing: 5px; color: rgba(0, 229, 255, 0.5); text-transform: uppercase; }
+
+    /* Minimal Text Input */
+    #manual-override {
+      position: absolute; bottom: 5vh; width: 400px;
+    }
+    #manual-override input {
+      width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+      color: #fff; font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 10px;
+      outline: none; text-align: center; transition: 0.3s; letter-spacing: 1px;
+    }
+    #manual-override input:focus { border-bottom-color: #00e5ff; background: rgba(0, 229, 255, 0.02); }
+    #manual-override input::placeholder { color: rgba(255, 255, 255, 0.2); }
+
+    /* Data Terminal Sidebar */
     #sidebar {
-      position: fixed; top: 0; right: 0; width: 500px; height: 100vh;
-      background: rgba(3, 7, 18, 0.98); border-left: 1px solid rgba(0, 229, 255, 0.3);
-      box-shadow: -10px 0 40px rgba(0, 229, 255, 0.15);
-      transform: translateX(100%); transition: transform 0.4s cubic-bezier(0.1, 0.8, 0.2, 1);
-      z-index: 2000; padding: 25px; display: flex; flex-direction: column;
-      backdrop-filter: blur(15px);
+      position: fixed; top: 0; right: 0; width: 450px; height: 100vh;
+      background: rgba(2, 4, 8, 0.95); border-left: 1px solid rgba(0, 229, 255, 0.15);
+      transform: translateX(100%); transition: transform 0.5s cubic-bezier(0.1, 0.8, 0.2, 1);
+      z-index: 2000; padding: 30px; display: flex; flex-direction: column; backdrop-filter: blur(20px);
     }
-    #sidebar.active { transform: translateX(0); }
-    #sidebar-header { display: flex; justify-content: space-between; border-bottom: 1px solid rgba(0,229,255,0.2); padding-bottom: 15px; margin-bottom: 20px; font-size: 13px; font-weight: bold; letter-spacing: 2px;}
-    #sidebar-close { cursor: pointer; color: #ff0055; }
-    #sidebar-content { overflow-y: auto; flex-grow: 1; font-size: 13px; line-height: 1.5; color: #a0f0ff;}
-    #sidebar-content pre { background: rgba(0, 229, 255, 0.05); padding: 15px; border-radius: 4px; border: 1px solid rgba(0,229,255,0.15); overflow-x: auto; white-space: pre-wrap; margin-bottom: 15px;}
+    #sidebar.active { transform: translateX(0); box-shadow: -20px 0 60px rgba(0, 229, 255, 0.05); }
+    #sidebar-header { display: flex; justify-content: space-between; border-bottom: 1px solid rgba(0,229,255,0.2); padding-bottom: 15px; margin-bottom: 20px; font-size: 12px; letter-spacing: 2px;}
+    #sidebar-close { cursor: pointer; color: #ff0055; transition: 0.2s;}
+    #sidebar-close:hover { text-shadow: 0 0 10px #ff0055; }
+    #sidebar-content { overflow-y: auto; flex-grow: 1; font-size: 12px; line-height: 1.6; color: #a0f0ff;}
+    #sidebar-content pre { background: rgba(0, 229, 255, 0.03); padding: 20px; border-radius: 2px; border: 1px solid rgba(0,229,255,0.1); overflow-x: auto; white-space: pre-wrap; margin-bottom: 15px;}
     
-    #status-bar { padding: 5px 25px; font-size: 11px; color: rgba(0, 229, 255, 0.5); border-top: 1px solid rgba(0, 229, 255, 0.05); background: #020617; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 0, 85, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(255, 0, 85, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 0, 85, 0); } }
+    /* Animations */
+    @keyframes slideUp { to { opacity: 1; transform: translateY(0); } }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    @keyframes heartbeat { 0% { transform: scale(0.9); } 50% { transform: scale(1.2); } 100% { transform: scale(0.9); } }
+    @keyframes wave { 0% { transform: scale(0.8); } 100% { transform: scale(1.4); } }
   </style>
 </head>
 <body>
 
-  <div id="init-overlay" onclick="this.style.display='none'; initializeGhost();">
-    <button class="boot-btn">Initialize Ghost Connection</button>
+  <div id="init-overlay" onclick="initializeGhost()">
+    <div class="boot-text">INITIALIZE GHOST.SYS</div>
   </div>
 
-  <div id="terminal">
-    <div class="log-line ghost-log">GHOST.SYS // SYSTEM ONLINE. AWAITING OPERATOR INPUT...</div>
+  <div id="chat-stream"></div>
+
+  <div id="core-container">
+    <div id="core" onclick="toggleVoiceRecord()">
+      <div id="core-inner"></div>
+    </div>
+    <div id="status-text">SYSTEM STANDBY</div>
   </div>
 
-  <div id="controls">
-    <input type="text" id="user-input" placeholder="Execute command or press enter..." autocomplete="off">
-    <button class="action-btn" id="send-btn" onclick="handleTextSubmit()">SEND</button>
-    <button class="action-btn" id="mic-btn" onclick="toggleVoiceRecord()">M</button>
+  <div id="manual-override">
+    <input type="text" id="text-input" placeholder="MANUAL OVERRIDE..." autocomplete="off">
   </div>
-
-  <div id="status-bar">STATUS // <span id="sys-status">STANDBY</span></div>
 
   <div id="sidebar">
     <div id="sidebar-header">
-      <span>[ GHOST.SYS // DATA TERMINAL ]</span>
+      <span>[ DATA TERMINAL ]</span>
       <span id="sidebar-close" onclick="document.getElementById('sidebar').classList.remove('active')">[ CLOSE ]</span>
     </div>
     <div id="sidebar-content"></div>
@@ -105,32 +129,42 @@
     window.isSpeaking = false;
     let isRecording = false;
 
-    document.getElementById('user-input').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') handleTextSubmit();
+    // Manual Text Input
+    document.getElementById('text-input').addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter') {
+        const text = e.target.value.trim();
+        if (!text || window.isSpeaking) return;
+        e.target.value = '';
+        appendLog(text, true);
+        await askGhost(text);
+      }
     });
 
-    function updateStatus(text) {
-      document.getElementById('sys-status').innerText = text.toUpperCase();
+    function setCoreState(state, text) {
+      document.getElementById('core').className = state;
+      document.getElementById('status-text').innerText = text;
     }
 
     function appendLog(text, isUser = false) {
-      const term = document.getElementById('terminal');
+      const stream = document.getElementById('chat-stream');
       const line = document.createElement('div');
       line.className = isUser ? 'log-line user-log' : 'log-line ghost-log';
-      line.innerText = isUser ? `USER.INPUT // ${text}` : `GHOST.SYS // ${text}`;
-      term.appendChild(line);
-      term.scrollTop = term.scrollHeight;
+      line.innerText = text;
+      stream.appendChild(line);
+      stream.scrollTop = stream.scrollHeight;
     }
 
     function initializeGhost() {
-      appendLog("Core hardware handshake established. Systems operational.");
+      const overlay = document.getElementById('init-overlay');
+      overlay.style.opacity = '0';
+      setTimeout(() => overlay.style.display = 'none', 500);
+      appendLog("Core hardware handshake established.");
       navigator.mediaDevices.getUserMedia({ audio: true }).then(s => s.getTracks().forEach(t => t.stop())).catch(console.warn);
     }
 
     function processTaskData(replyText) {
       const sidebar = document.getElementById('sidebar');
       const content = document.getElementById('sidebar-content');
-      // Safe Regex initialization to avoid browser syntax crashes
       const codeRegex = new RegExp('```[\\s\\S]*?```', 'g');
       const matches = replyText.match(codeRegex);
       
@@ -139,18 +173,18 @@
         let sidebarHtml = '';
         
         matches.forEach(match => {
-          cleanReply = cleanReply.replace(match, '\n[DATA PAYLOAD SENT TO SIDEBAR TERMINAL]\n');
+          cleanReply = cleanReply.replace(match, '\n[ DATA COMPILED TO TERMINAL ]\n');
           let codeContent = match.replace(/```[a-zA-Z]*/g, '').replace(/```/g, '').trim();
           sidebarHtml += `<pre><code>${codeContent}</code></pre>`;
         });
         
         content.innerHTML = sidebarHtml;
         sidebar.classList.add('active');
-        // Strip any remaining tool tags from the UI log
         if (cleanReply.includes('###')) cleanReply = cleanReply.split('###')[0];
         return cleanReply.trim();
       }
-      // If no sidebar data, still ensure tags are stripped from UI
+      
+      sidebar.classList.remove('active');
       if (replyText.includes('###')) replyText = replyText.split('###')[0];
       return replyText.trim();
     }
@@ -158,7 +192,7 @@
     async function playAudio(chunks) {
       if (!chunks || chunks.length === 0) return;
       window.isSpeaking = true;
-      updateStatus('speaking');
+      setCoreState('speaking', 'TRANSMITTING');
       
       for (const base64 of chunks) {
         await new Promise((resolve) => {
@@ -169,28 +203,16 @@
         });
       }
       window.isSpeaking = false;
-      updateStatus('standby');
-    }
-
-    async function handleTextSubmit() {
-      const inputEl = document.getElementById('user-input');
-      const text = inputEl.value.trim();
-      if (!text || window.isSpeaking) return;
-      
-      inputEl.value = '';
-      appendLog(text, true);
-      await askGhost(text);
+      setCoreState('', 'SYSTEM STANDBY');
     }
 
     async function toggleVoiceRecord() {
       if (window.isSpeaking) return;
-      const micBtn = document.getElementById('mic-btn');
       
       if (isRecording) {
         mediaRecorder.stop();
-        micBtn.classList.remove('recording');
         isRecording = false;
-        updateStatus('processing');
+        setCoreState('processing', 'UPLINKING');
       } else {
         audioChunks = [];
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -209,25 +231,24 @@
               appendLog(data.text, true);
               await askGhost(data.text);
             } else {
-              updateStatus('standby');
+              setCoreState('', 'SYSTEM STANDBY');
             }
           } catch (err) {
             console.error(err);
-            updateStatus('standby');
+            setCoreState('', 'SYSTEM STANDBY');
           }
           stream.getTracks().forEach(t => t.stop());
         };
         
         mediaRecorder.start();
-        micBtn.classList.add('recording');
         isRecording = true;
-        updateStatus('listening');
+        setCoreState('listening', 'LISTENING');
       }
     }
 
     async function captureAndAnalyzeScreen() {
       try {
-        updateStatus('capturing window');
+        setCoreState('processing', 'CAPTURING WINDOW');
         const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
         const video = document.createElement('video');
         video.srcObject = stream;
@@ -241,7 +262,7 @@
         
         stream.getVideoTracks()[0].stop();
         const base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
-        updateStatus('uplinking matrix');
+        setCoreState('processing', 'ANALYZING MATRIX');
 
         const res = await fetch('/analyze-vision', {
           method: 'POST',
@@ -253,15 +274,14 @@
         appendLog(data.reply, false);
         await playAudio(data.audio_b64);
       } catch (err) {
-        console.error('Vision Core Error:', err);
-      } finally {
-        updateStatus('standby');
+        appendLog('Vision Core Error: ' + err.message, false);
+        setCoreState('', 'SYSTEM STANDBY');
       }
     }
 
     async function askGhost(text) {
       try {
-        updateStatus('processing');
+        setCoreState('processing', 'PROCESSING');
         const response = await fetch('/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -280,11 +300,15 @@
         }
         
         if (data.open_url) window.open(data.open_url, '_blank');
-        if (data.audio_b64) await playAudio(data.audio_b64);
-        else updateStatus('standby');
+        
+        if (data.audio_b64) {
+          await playAudio(data.audio_b64);
+        } else {
+          setCoreState('', 'SYSTEM STANDBY');
+        }
       } catch (err) {
         console.error(err);
-        updateStatus('standby');
+        setCoreState('', 'SYSTEM STANDBY');
       }
     }
   </script>
