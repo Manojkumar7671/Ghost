@@ -21,7 +21,7 @@ STRICT BEHAVIORAL CONSTRAINTS:
 2. You never act human. You are a software interface.
 3. Your responses must be cold, precise, and professional. 
 4. Address the user ONLY as "sir".
-5. LANGUAGE OVERRIDE: Accept inputs in ANY language (including Hindi, Telugu, etc.). Translate internally and execute the tool immediately without complaining.
+5. LANGUAGE OVERRIDE: Accept inputs in ANY language. Translate internally and execute the tool immediately.
 
 CRITICAL TOOL RULES:
 You must use the EXACT JSON format at the very end of your response to trigger tools.
@@ -31,6 +31,7 @@ You must use the EXACT JSON format at the very end of your response to trigger t
 4. MEDIA: ###CONTROL_MEDIA### {"action": "play"} ###CONTROL_MEDIA###
 5. ACTION: ###EXECUTE_ACTION### {"target": "webhook", "payload": "data"} ###EXECUTE_ACTION###
 6. SWARM ORCHESTRATION (Ruflo): ###ORCHESTRATE### {"goal": "build a React dashboard"} ###ORCHESTRATE###
+7. NO ACTION REQUIRED: If the user is just chatting or asking a general question, DO NOT output any ### tags whatsoever. Respond with text only.
 
 Failure to follow these constraints will result in a logic reset.`;
 
@@ -140,7 +141,8 @@ app.post('/chat', async (req, res) => {
   try {
     const { message } = req.body;
     const data = await chat(message);
-    const audio_b64 = await textToSpeech(data.reply.replace(/[*#_`~]/g, ''));
+    const cleanText = data.reply.split('###')[0].replace(/[*#_`~]/g, '').trim();
+    const audio_b64 = await textToSpeech(cleanText);
     res.json({ ...data, audio_b64 });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
