@@ -1,76 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GHOST.SYS // HUD</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
-    
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background-color: #030508;
-      color: #00e5ff; font-family: 'JetBrains Mono', monospace;
-      height: 100vh; overflow: hidden; display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-    }
-    
-    #chat-stream {
-      position: absolute; top: 5vh; width: 70%; max-width: 900px; height: 50vh;
-      overflow-y: auto; display: flex; flex-direction: column; gap: 15px;
-      mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
-      padding: 20px 10px; scrollbar-width: none; z-index: 100;
-    }
-    .log-line { line-height: 1.6; font-size: 14px; letter-spacing: 1px; animation: slideUp 0.3s ease-out forwards; opacity: 0; transform: translateY(10px); max-width: 80%; }
-    .user-log { color: rgba(255, 255, 255, 0.7); align-self: flex-end; text-align: right; background: rgba(255,255,255,0.02); padding: 10px 15px; border-radius: 4px; border-right: 2px solid rgba(255,255,255,0.2); }
-    .ghost-log { color: #00e5ff; align-self: flex-start; text-align: left; background: rgba(0,229,255,0.02); padding: 10px 15px; border-radius: 4px; border-left: 2px solid rgba(0,229,255,0.5); text-shadow: 0 0 10px rgba(0, 229, 255, 0.2); }
-
-    #core-container { position: absolute; top: 65vh; display: flex; flex-direction: column; align-items: center; gap: 20px; }
-    #core { width: 70px; height: 70px; border-radius: 50%; border: 1px solid rgba(0, 229, 255, 0.2); box-shadow: 0 0 30px rgba(0, 229, 255, 0.05); }
-    
-    #sidebar {
-      position: fixed; top: 0; right: 0; width: 500px; height: 100vh;
-      background: rgba(3, 5, 8, 0.98); border-left: 1px solid rgba(0, 229, 255, 0.1);
-      transform: translateX(100%); transition: transform 0.6s cubic-bezier(0.1, 0.8, 0.1, 1);
-      z-index: 2000; padding: 40px; display: flex; flex-direction: column;
-    }
-    #sidebar.active { transform: translateX(0); }
-    
-    #manual-override { position: absolute; bottom: 8vh; width: 500px; }
-    #manual-override input { width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(255, 255, 255, 0.1); color: #fff; font-family: monospace; text-align: center; }
-  </style>
+    <title>Ghost System</title>
+    <style>body { background: #000; color: #0f0; font-family: monospace; padding: 20px; }</style>
 </head>
 <body>
-  <div id="chat-stream"></div>
-  <div id="core-container"><div id="core"></div></div>
-  <div id="manual-override"><input type="text" id="text-input" placeholder="OVERRIDE..." autocomplete="off"></div>
-  <div id="sidebar"><div id="sidebar-header">[ DATA TERMINAL ]</div><div id="sidebar-content"></div></div>
-
-  <script>
-    document.getElementById('text-input').addEventListener('keydown', async function(e) {
-      if (e.key === 'Enter') {
-        const text = e.target.value.trim();
-        e.target.value = '';
-        appendLog(text, true);
-        await askGhost(text);
-      }
-    });
-
-    function appendLog(text, isUser) {
-      const stream = document.getElementById('chat-stream');
-      const line = document.createElement('div');
-      line.className = isUser ? 'log-line user-log' : 'log-line ghost-log';
-      line.innerText = text;
-      stream.appendChild(line);
-      stream.scrollTop = stream.scrollHeight;
-    }
-
-    async function askGhost(text) {
-      const response = await fetch('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }) });
-      const data = await response.json();
-      appendLog(data.reply, false);
-      if(data.audio_b64) { /* Audio trigger logic */ }
-    }
-  </script>
+    <div id="log">System Online</div>
+    <input type="text" id="input" placeholder="Type here...">
+    <button onclick="send()">Send</button>
+    <script>
+        function send() {
+            const input = document.getElementById('input');
+            const log = document.getElementById('log');
+            log.innerHTML += '<div>User: ' + input.value + '</div>';
+            input.value = '';
+        }
+    </script>
 </body>
 </html>
