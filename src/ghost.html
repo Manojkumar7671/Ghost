@@ -1,21 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>GHOST.SYS // HUD</title>
+  <meta charset="UTF-8"><title>GHOST.SYS</title>
   <style>
     body { background: #030508; color: #00e5ff; font-family: monospace; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
     #chat-stream { width: 80%; height: 60vh; overflow-y: auto; margin-bottom: 20px; padding: 20px; color: #00e5ff; }
-    #controls { padding: 20px; display: flex; gap: 10px; }
-    button { background: rgba(0,229,255,0.1); border: 1px solid #00e5ff; color: #00e5ff; padding: 10px 20px; cursor: pointer; }
   </style>
 </head>
 <body>
   <div id="chat-stream"></div>
-  <div id="controls">
-    <button onclick="initializeGhost()">INITIALIZE GHOST</button>
-    <button onclick="toggleVoiceRecord()">RECORD</button>
-  </div>
+  <button onclick="initializeGhost()">INITIALIZE GHOST</button>
+  <button onclick="toggleVoiceRecord()">RECORD</button>
   <script>
     let mediaRecorder, audioChunks = [], isRecording = false, activeAudioElements = [], currentPlaybackId = 0;
 
@@ -27,39 +22,32 @@
     }
 
     async function playAudio(chunks) {
-      if (!chunks || chunks.length === 0) return;
-      window.isSpeaking = true;
+      if (!chunks) return;
       let playbackId = ++currentPlaybackId;
-      for (let i = 0; i < chunks.length; i++) {
-        if (playbackId !== currentPlaybackId) break; 
-        await new Promise(resolve => {
-          const audio = new Audio("data:audio/mp3;base64,"+chunks[i]);
-          activeAudioElements.push(audio);
-          audio.onended = resolve; audio.onerror = resolve;
-          audio.play().catch(resolve);
+      for (let chunk of chunks) {
+        if (playbackId !== currentPlaybackId) break;
+        await new Promise(r => {
+          const a = new Audio("data:audio/mp3;base64,"+chunk);
+          activeAudioElements.push(a);
+          a.onended = r; a.play().catch(r);
         });
       }
-      window.isSpeaking = false;
-    }
-
-    function appendLog(text, isUser) {
-        const cleanText = text.replace(/###.*?###/g, "").trim();
-        const div = document.createElement('div');
-        div.innerText = (isUser ? "USER: " : "GHOST: ") + cleanText;
-        document.getElementById('chat-stream').appendChild(div);
     }
 
     async function askGhost(text) {
+      stopSpeaking();
       if (text.toLowerCase().includes("news")) {
-          appendLog("Accessing WorldMonitor...", false);
           const res = await fetch('/scrape', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:'https://worldmonitor.com'})});
           const data = await res.json();
-          text = "Summarize these news headlines: " + data.content;
+          text = "Summarize these headlines: " + data.content;
       }
       const res = await fetch('/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:text})});
       const data = await res.json();
-      appendLog(data.reply, false);
-      if (data.audio_b64) playAudio(data.audio_b64);
+      const clean = data.reply.replace(/###.*?###/g, "");
+      const div = document.createElement('div');
+      div.innerText = "GHOST: " + clean;
+      document.getElementById('chat-stream').appendChild(div);
+      playAudio(data.audio_b64);
     }
 
     async function initializeGhost() {
