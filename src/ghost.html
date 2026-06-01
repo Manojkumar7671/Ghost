@@ -284,6 +284,54 @@
 })();
 </script>
 
+
+<script>
+// --- AUTONOMOUS SILENCE DETECTION (VAD) ---
+(function() {
+    let audioCtx, analyser, silenceTimer;
+    const SILENCE_DELAY = 1500; // 1.5 seconds of silence
+    const SILENCE_THRESHOLD = 12; // Decibel sensitivity
+
+    const originalGetUserMedia = navigator.mediaDevices.getUserMedia;
+    navigator.mediaDevices.getUserMedia = async function(constraints) {
+        const stream = await originalGetUserMedia.call(this, constraints);
+        if (constraints.audio) {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioCtx.createAnalyser();
+            const microphone = audioCtx.createMediaStreamSource(stream);
+            microphone.connect(analyser);
+            analyser.fftSize = 256;
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+            function checkSilence() {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for(let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                let avg = sum / dataArray.length;
+
+                if (avg < SILENCE_THRESHOLD) {
+                    if (!silenceTimer) {
+                        silenceTimer = setTimeout(() => {
+                            console.log("[Ghost VAD] Silence detected. Executing command...");
+                            // Triggers whatever record/stop button you have
+                            const btn = document.getElementById("record-btn") || document.getElementById("stop-btn") || document.querySelector("button");
+                            if (btn) btn.click();
+                        }, SILENCE_DELAY);
+                    }
+                } else {
+                    clearTimeout(silenceTimer);
+                    silenceTimer = null;
+                }
+                if (stream.active) requestAnimationFrame(checkSilence);
+            }
+            checkSilence();
+        }
+        return stream;
+    };
+    console.log("Intelligent Mic (VAD) Engine Online.");
+})();
+</script>
+
 </body>
 </html>
 <script>
