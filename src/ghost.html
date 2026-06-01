@@ -91,8 +91,7 @@
         const matches = [...replyText.matchAll(codeRegex)];
         if (matches.length > 0) {
             let html = "";
-            matches.forEach(m => { html += `<pre><code>${m[1].replace(/^.*?
-/, "").trim()}</code></pre>`; });
+            matches.forEach(m => { html += `<pre><code>${m[1].replace(/^.*?\n/, "").trim()}</code></pre>`; });
             document.getElementById("sidebar-content").innerHTML = html;
             document.getElementById("sidebar").classList.add("active");
             return replyText.replace(codeRegex, "[ DATA COMPILED TO TERMINAL ]");
@@ -161,7 +160,7 @@
                     if (data.text) {
                         let spoken = data.text.trim();
                         let lower = spoken.toLowerCase();
-                        if (spoken === "" || lower.includes("obrigado") || lower.includes("thank you") || lower.includes("didn"t say anything") || lower.includes("subtitles by")) {
+                        if (spoken === "" || lower.includes("obrigado") || lower.includes("thank you") || lower.includes("subtitles by")) {
                             setStatus("STANDBY", "SYSTEM STANDBY", "#00e5ff");
                         } else {
                             appendLog(spoken, true); 
