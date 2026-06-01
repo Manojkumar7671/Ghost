@@ -2,38 +2,36 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>GHOST.SYS // HOLOGRAM</title>
+  <title>GHOST.SYS // HOLOGRAM CORE</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <style>
     body { background: #030508; color: #00e5ff; font-family: monospace; height: 100vh; overflow: hidden; margin: 0; display: flex; flex-direction: column; align-items: center; }
     
+    /* Initialization Overlay */
+    #init-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #030508; z-index: 3000; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: opacity 0.5s; }
+    .boot-text { color: #00e5ff; font-size: 16px; letter-spacing: 6px; border: 1px solid #00e5ff; padding: 25px 50px; text-transform: uppercase; transition: 0.3s; }
+    .boot-text:hover { background: rgba(0,229,255,0.1); box-shadow: 0 0 20px rgba(0,229,255,0.4); }
+
     /* 3D Hologram Area */
-    #canvas-container { width: 100%; height: 55vh; display: flex; justify-content: center; align-items: center; position: relative; z-index: 1; }
+    #canvas-container { width: 100%; height: 60vh; display: flex; justify-content: center; align-items: center; position: relative; z-index: 1; }
     
-    /* Chat & Controls Area */
-    #chat-container { width: 80%; max-width: 900px; height: 40vh; display: flex; flex-direction: column; gap: 15px; z-index: 10; position: relative; }
-    #chat-stream { flex-grow: 1; overflow-y: auto; border: 1px solid rgba(0, 229, 255, 0.2); padding: 20px; font-size: 14px; line-height: 1.5; background: rgba(3, 5, 8, 0.6); box-shadow: 0 -10px 30px rgba(0,229,255,0.05); }
-    #input-area { display: flex; gap: 10px; }
-    input { flex-grow: 1; background: rgba(0,0,0,0.8); border: 1px solid rgba(0, 229, 255, 0.5); color: #00e5ff; padding: 15px; font-family: monospace; outline: none; transition: 0.3s; }
-    input:focus { border-color: #00e5ff; box-shadow: 0 0 10px rgba(0,229,255,0.2); }
-    button { background: rgba(0, 229, 255, 0.1); color: #00e5ff; border: 1px solid #00e5ff; padding: 0 25px; font-weight: bold; cursor: pointer; font-family: monospace; transition: 0.3s; }
-    button:hover { background: #00e5ff; color: #000; }
-    
-    /* Mic Button States */
-    #mic-btn.active { background: #ff0055; border-color: #ff0055; color: #fff; box-shadow: 0 0 15px rgba(255,0,85,0.4); animation: pulse 1.5s infinite; }
-    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+    /* Chat & Status Area */
+    #ui-container { width: 80%; max-width: 900px; height: 35vh; display: flex; flex-direction: column; gap: 15px; z-index: 10; position: relative; }
+    #chat-stream { flex-grow: 1; overflow-y: auto; border: 1px solid rgba(0, 229, 255, 0.2); padding: 20px; font-size: 14px; line-height: 1.6; background: rgba(3, 5, 8, 0.6); box-shadow: 0 -10px 30px rgba(0,229,255,0.05); scrollbar-width: none; }
+    #chat-stream::-webkit-scrollbar { display: none; }
+    #status-bar { text-align: center; font-size: 12px; letter-spacing: 4px; padding: 10px; border: 1px dashed rgba(0, 229, 255, 0.3); text-transform: uppercase; transition: 0.3s; }
   </style>
 </head>
 <body>
+  <div id="init-overlay" onclick="initializeCore()">
+    <div class="boot-text">INITIALIZE AUDIO MATRIX</div>
+  </div>
+
   <div id="canvas-container"></div>
   
-  <div id="chat-container">
-    <div id="chat-stream"><div>GHOST: Hardware sync established. Holographic interface online.</div><br></div>
-    <div id="input-area">
-      <input type="text" id="text-input" placeholder="Awaiting command..." autocomplete="off">
-      <button onclick="sendText()">SEND</button>
-      <button id="mic-btn" onclick="toggleMic()">🎤 MIC</button>
-    </div>
+  <div id="ui-container">
+    <div id="chat-stream"></div>
+    <div id="status-bar">AWAITING INITIALIZATION</div>
   </div>
 
   <script>
@@ -50,7 +48,6 @@
     const positions = new Float32Array(particleCount * 3);
     const radius = 2.2;
 
-    // Fibonacci sphere distribution for perfect Jarvis look
     for (let i = 0; i < particleCount; i++) {
         const phi = Math.acos(1 - 2 * (i + 0.5) / particleCount);
         const theta = Math.PI * (1 + Math.sqrt(5)) * i;
@@ -60,30 +57,40 @@
     }
 
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const material = new THREE.PointsMaterial({
-        color: 0x00e5ff, size: 0.04, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending
-    });
-
+    const material = new THREE.PointsMaterial({ color: 0x00e5ff, size: 0.04, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
     const sphere = new THREE.Points(geometry, material);
     scene.add(sphere);
     camera.position.z = 5;
-    window.isSpeaking = false;
 
-    // Animation Loop: Reacts to speaking state
+    // --- 2. STATE MANAGEMENT & ANIMATION ---
+    window.ghostState = 'STANDBY'; // STANDBY, LISTENING, PROCESSING, TRANSMITTING
+
+    function setStatus(state, text, colorHex) {
+        window.ghostState = state;
+        const bar = document.getElementById('status-bar');
+        bar.innerText = text;
+        bar.style.color = colorHex;
+        bar.style.borderColor = colorHex;
+        material.color.setHex(colorHex.replace('#', '0x'));
+    }
+
     function animate() {
         requestAnimationFrame(animate);
-        if (window.isSpeaking) {
-            sphere.rotation.y += 0.015; // Spin faster
-            sphere.rotation.x += 0.005;
-            const scale = 1 + Math.sin(Date.now() * 0.01) * 0.08; // Heavy pulse
-            sphere.scale.set(scale, scale, scale);
-            material.opacity = 1.0;
+        if (window.ghostState === 'TRANSMITTING') {
+            sphere.rotation.y += 0.015; sphere.rotation.x += 0.005;
+            const scale = 1 + Math.sin(Date.now() * 0.01) * 0.08;
+            sphere.scale.set(scale, scale, scale); material.opacity = 1.0;
+        } else if (window.ghostState === 'LISTENING') {
+            sphere.rotation.y += 0.005;
+            const scale = 1 + Math.sin(Date.now() * 0.015) * 0.05;
+            sphere.scale.set(scale, scale, scale); material.opacity = 0.8;
+        } else if (window.ghostState === 'PROCESSING') {
+            sphere.rotation.y += 0.02; // Spin fast while thinking
+            sphere.scale.set(1, 1, 1); material.opacity = 0.5;
         } else {
-            sphere.rotation.y += 0.002; // Idle spin
-            sphere.rotation.x += 0.001;
-            const scale = 1 + Math.sin(Date.now() * 0.002) * 0.02; // Gentle pulse
-            sphere.scale.set(scale, scale, scale);
-            material.opacity = 0.5;
+            sphere.rotation.y += 0.002; sphere.rotation.x += 0.001;
+            const scale = 1 + Math.sin(Date.now() * 0.002) * 0.02;
+            sphere.scale.set(scale, scale, scale); material.opacity = 0.4;
         }
         renderer.render(scene, camera);
     }
@@ -95,15 +102,14 @@
         renderer.setSize(container.clientWidth, container.clientHeight);
     });
 
-    // --- 2. GHOST AI LOGIC (Intact) ---
+    // --- 3. AUDIO & VAD LOGIC ---
     let mediaRecorder, audioChunks = [], isRecording = false;
+    let audioContext, analyser, microphone, silenceTimer = null;
     let activeAudioElements = [], currentPlaybackId = 0;
-
-    document.getElementById('text-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendText(); });
 
     function appendLog(text, isUser) {
         const stream = document.getElementById('chat-stream');
-        stream.innerHTML += `<div style="color: ${isUser ? '#fff' : '#00e5ff'}">${isUser ? 'USER: ' : 'GHOST: '}${text}</div><br>`;
+        stream.innerHTML += `<div style="color: ${isUser ? '#fff' : '#00e5ff'}; margin-bottom: 8px;">${isUser ? 'USER: ' : 'GHOST: '}${text}</div>`;
         stream.scrollTop = stream.scrollHeight;
     }
 
@@ -111,72 +117,117 @@
         currentPlaybackId++;
         activeAudioElements.forEach(a => { a.pause(); a.src = ""; a.load(); });
         activeAudioElements = [];
-        window.isSpeaking = false;
+        if(window.ghostState === 'TRANSMITTING') setStatus('STANDBY', 'SYSTEM STANDBY', '#00e5ff');
     }
 
     async function playAudio(chunks) {
-        if (!chunks) return;
+        if (!chunks || chunks.length === 0) return;
+        setStatus('TRANSMITTING', 'TRANSMITTING...', '#00e5ff');
         let playbackId = ++currentPlaybackId;
-        window.isSpeaking = true; // Triggers the sphere to spin rapidly!
         
         for (let chunk of chunks) {
             if (playbackId !== currentPlaybackId) break;
             await new Promise(r => {
                 const a = new Audio("data:audio/mp3;base64," + chunk);
                 activeAudioElements.push(a);
-                a.onended = r; a.play().catch(r);
+                a.onended = r; a.onerror = r; a.play().catch(r);
             });
         }
-        if (playbackId === currentPlaybackId) window.isSpeaking = false;
+        if (playbackId === currentPlaybackId) setStatus('STANDBY', 'SYSTEM STANDBY', '#00e5ff');
     }
 
     async function askGhost(text) {
         killAllAudio();
+        setStatus('PROCESSING', 'PROCESSING DATA...', '#b000ff');
+        
         if (text.toLowerCase().includes("news")) {
             appendLog("Accessing global data streams...", false);
-            const res = await fetch('/scrape', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:'https://worldmonitor.com'})});
-            const data = await res.json();
-            text = "Summarize this: " + data.content;
-        }
-        const res = await fetch('/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:text}) });
-        const data = await res.json();
-        appendLog(data.reply, false);
-        if(data.audio_b64) playAudio(data.audio_b64);
-    }
-
-    function sendText() {
-        const input = document.getElementById('text-input');
-        const text = input.value.trim();
-        if (!text) return;
-        appendLog(text, true);
-        input.value = '';
-        askGhost(text);
-    }
-
-    async function toggleMic() {
-        const btn = document.getElementById('mic-btn');
-        if (!isRecording) {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
-                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                mediaRecorder.onstop = async () => {
-                    const blob = new Blob(audioChunks, {type: 'audio/webm'});
-                    const fd = new FormData(); fd.append('audio', blob);
-                    appendLog("Transcribing...", false);
-                    const res = await fetch('/transcribe', {method:'POST', body:fd});
+                const res = await fetch('/scrape', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:'https://worldmonitor.com'})});
+                const data = await res.json();
+                text = "Summarize this: " + data.content;
+            } catch(e) {}
+        }
+        
+        try {
+            const res = await fetch('/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:text}) });
+            const data = await res.json();
+            appendLog(data.reply, false);
+            if(data.audio_b64) await playAudio(data.audio_b64);
+            else setStatus('STANDBY', 'SYSTEM STANDBY', '#00e5ff');
+        } catch(e) {
+            appendLog("Error connecting to core.", false);
+            setStatus('STANDBY', 'SYSTEM STANDBY', '#00e5ff');
+        }
+    }
+
+    async function initializeCore() {
+        document.getElementById('init-overlay').style.opacity = '0';
+        setTimeout(() => document.getElementById('init-overlay').style.display = 'none', 500);
+        appendLog("Hardware sync established. Awaiting input.", false);
+        setStatus('STANDBY', 'SYSTEM STANDBY', '#00e5ff');
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            microphone = audioContext.createMediaStreamSource(stream);
+            microphone.connect(analyser);
+            analyser.fftSize = 512;
+
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+            
+            mediaRecorder.onstop = async () => {
+                setStatus('PROCESSING', 'UPLINKING AUDIO...', '#b000ff');
+                const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                const fd = new FormData(); fd.append('audio', blob);
+                try {
+                    const res = await fetch('/transcribe', { method: 'POST', body: fd });
                     const data = await res.json();
-                    if(data.text) { appendLog(data.text, true); askGhost(data.text); }
-                };
-                audioChunks = [];
-                mediaRecorder.start();
-                isRecording = true;
-                btn.className = 'active'; btn.innerText = '🔴 RECORDING...';
-            } catch(e) { alert("Microphone access denied."); }
-        } else {
-            mediaRecorder.stop();
-            isRecording = false;
-            btn.className = ''; btn.innerText = '🎤 MIC';
+                    if (data.text && data.text.trim() !== '') {
+                        appendLog(data.text, true);
+                        await askGhost(data.text);
+                    } else {
+                        setStatus('STANDBY', 'SYSTEM STANDBY', '#00e5ff');
+                    }
+                } catch(e) {
+                    setStatus('STANDBY', 'SYSTEM STANDBY', '#00e5ff');
+                }
+            };
+
+            function monitorVAD() {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                let average = sum / dataArray.length;
+
+                // Threshold to detect speaking (adjust 15 if too sensitive)
+                if (average > 15) { 
+                    if (window.ghostState === 'TRANSMITTING') {
+                        killAllAudio(); // Interrupt Ghost immediately
+                    }
+                    if (!isRecording && window.ghostState !== 'PROCESSING') {
+                        audioChunks = [];
+                        mediaRecorder.start();
+                        isRecording = true;
+                        setStatus('LISTENING', 'LISTENING...', '#ff0055');
+                    }
+                    clearTimeout(silenceTimer);
+                    silenceTimer = setTimeout(() => {
+                        if (isRecording) {
+                            mediaRecorder.stop();
+                            isRecording = false;
+                        }
+                    }, 1500); // 1.5 seconds of silence triggers the send
+                }
+                requestAnimationFrame(monitorVAD);
+            }
+            monitorVAD();
+        } catch (err) {
+            appendLog("Audio Matrix Offline. Microphone denied.", false);
+            setStatus('STANDBY', 'MIC ERROR', '#ff0000');
         }
     }
   </script>
