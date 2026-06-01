@@ -202,7 +202,7 @@ window.fetch = async function() {
             if (body && body.message) {
                 let cmd = body.message.toLowerCase();
                 
-                // ROUTE 1: YOUTUBE PLAY COMMANDS
+                // ROUTE 1: YOUTUBE AUTOMATION
                 if (cmd.includes("youtube") && cmd.includes("play")) {
                     let song = cmd.replace(/(ghost|open|youtube|and|play|can you|please|on|in)/gi, "").trim();
                     window.open("https://www.youtube.com/results?search_query=" + encodeURIComponent(song), "_blank");
@@ -210,9 +210,9 @@ window.fetch = async function() {
                     options.body = JSON.stringify(body);
                 }
                 
-                // ROUTE 2: NEWS / WORLD MONITOR COMMANDS
+                // ROUTE 2: WORLD MONITOR AUTOMATION
                 else if (cmd.includes("news") || cmd.includes("worldmonitor") || cmd.includes("world monitor")) {
-                    window.open("https://www.worldmonitor.app/", "_blank");
+                    window.open("https://www.worldmonitor.app", "_blank");
                     body.message = `I just asked you for the news. Please say: "Right away, Sir. I have launched the World Monitor global intelligence dashboard for your review."`;
                     options.body = JSON.stringify(body);
                 }
