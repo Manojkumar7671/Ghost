@@ -23,8 +23,8 @@ STRICT BEHAVIORAL CONSTRAINTS:
 
 CRITICAL TOOL RULES:
 You must use the EXACT JSON format at the very end of your response to trigger tools.
-1. SCREEN CAPTURE / VISION: When asked to "look at my screen" or check a live web report, use: ###CAPTURE_SCREEN### {} ###CAPTURE_SCREEN###
-2. LOCAL NAVIGATION / YOUTUBE: To open URLs or songs, construct a query path. Format: ###OPEN_TAB### {"url": "https://www.youtube.com/results?search_query=judas+lady+gaga"} ###OPEN_TAB###
+1. SCREEN CAPTURE / VISION: ###CAPTURE_SCREEN### {} ###CAPTURE_SCREEN###
+2. LOCAL NAVIGATION / YOUTUBE: ###OPEN_TAB### {"url": "https://www.youtube.com/results?search_query=judas+lady+gaga"} ###OPEN_TAB###
 3. MEDIA CONTROLS: ###CONTROL_MEDIA### {"action": "play"} ###CONTROL_MEDIA###
 4. BACKEND AUTOMATION: ###EXECUTE_ACTION### {"target": "webhook", "payload": "data"} ###EXECUTE_ACTION###
 5. NO TOOL REQUIRED: If chatting casually, output text only. Do not invent tags.
@@ -58,17 +58,18 @@ async function chat(message, sessionId = 'default') {
 
   try {
     if (reply.includes('###CAPTURE_SCREEN###')) {
-      const parts = reply.split('###CAPTURE_SCREEN###');
-      reply = parts[0].trim();
       trigger_capture = true;
     } else if (reply.includes('###OPEN_TAB###')) {
       const parts = reply.split('###OPEN_TAB###');
-      reply = parts[0].trim();
       open_url = JSON.parse(parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1)).url;
     } else if (reply.includes('###CONTROL_MEDIA###')) {
       const parts = reply.split('###CONTROL_MEDIA###');
-      reply = parts[0].trim();
       media_ctrl = JSON.parse(parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1)).action;
+    } else if (reply.includes('###EXECUTE_ACTION###')) {
+      // Safely parse execute action so it doesn't crash, even if we don't route it yet
+      const parts = reply.split('###EXECUTE_ACTION###');
+      const payload = JSON.parse(parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1));
+      console.log("[Execution Payload]:", payload);
     }
   } catch (e) {
     console.error("Tool Processing Exception:", e.message);
@@ -80,16 +81,11 @@ async function chat(message, sessionId = 'default') {
 async function textToSpeech(text) {
   if (!text || text.trim() === '') return null;
   try {
-    // FIX: Using global 'en' fallback token to avoid library dependency failures
     const results = await googleTTS.getAllAudioBase64(text, { 
-      lang: 'en', 
-      slow: false,
-      host: 'https://translate.google.com',
-      splitPunct: ',.?'
+      lang: 'en', slow: false, host: 'https://translate.google.com', splitPunct: ',.?'
     });
     return results.map(r => r.base64);
   } catch (e) { 
-    console.error('[TTS Runtime Failure]:', e.message);
     return null; 
   }
 }
@@ -98,8 +94,19 @@ app.post('/chat', async (req, res) => {
   try {
     const { message } = req.body;
     const data = await chat(message);
-    const cleanText = data.reply.split('###')[0].replace(/[*#_`~]/g, '').trim();
-    const audio_b64 = await textToSpeech(cleanText);
+    
+    // 1. Strip ALL trailing tool tags so they don't show up in the chat UI
+    let displayReply = data.reply;
+    if (displayReply.includes('###')) {
+        displayReply = displayReply.split('###')[0].trim();
+    }
+    data.reply = displayReply; // Update payload for the frontend
+
+    // 2. Strip Markdown code blocks completely so Ghost doesn't read code out loud
+    const noCodeText = displayReply.replace(/```[\s\S]*?```/g, '');
+    const cleanSpeechText = noCodeText.replace(/[*#_`~]/g, '').trim();
+    
+    const audio_b64 = await textToSpeech(cleanSpeechText);
     res.json({ ...data, audio_b64 });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -118,7 +125,6 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Endpoint to process captured screenshots client-side via multi-modal vision modeling
 app.post('/analyze-vision', async (req, res) => {
   try {
     const { image } = req.body;
@@ -128,7 +134,7 @@ app.post('/analyze-vision', async (req, res) => {
         {
           role: "user",
           content: [
-            { type: "text", text: "You are looking directly at the user screen interface. Analyze the current layout and summarize the visible details or specific text data requested by the operator, sir." },
+            { type: "text", text: "Analyze the current layout and summarize the visible details or specific text data requested by the operator, sir." },
             { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }
           ]
         }
@@ -142,4 +148,4 @@ app.post('/analyze-vision', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.listen(PORT, () => console.log('Ghost v45 (Unified Vision & Interface Engine) — port ' + PORT));
+app.listen(PORT, () => console.log('Ghost v48 (Silent Data Matrix) — port ' + PORT));

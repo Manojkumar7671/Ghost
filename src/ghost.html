@@ -105,7 +105,6 @@
     window.isSpeaking = false;
     let isRecording = false;
 
-    // Monitor input field enter keys
     document.getElementById('user-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') handleTextSubmit();
     });
@@ -125,14 +124,14 @@
 
     function initializeGhost() {
       appendLog("Core hardware handshake established. Systems operational.");
-      // Warm up user audio permissions early
       navigator.mediaDevices.getUserMedia({ audio: true }).then(s => s.getTracks().forEach(t => t.stop())).catch(console.warn);
     }
 
     function processTaskData(replyText) {
       const sidebar = document.getElementById('sidebar');
       const content = document.getElementById('sidebar-content');
-      const codeRegex = /```[\s\S]*?```/g;
+      // Safe Regex initialization to avoid browser syntax crashes
+      const codeRegex = new RegExp('```[\\s\\S]*?```', 'g');
       const matches = replyText.match(codeRegex);
       
       if (matches && matches.length > 0) {
@@ -276,15 +275,9 @@
           return;
         }
         
-        if (data.open_url) {
-          window.open(data.open_url, '_blank');
-        }
-        
-        if (data.audio_b64) {
-          await playAudio(data.audio_b64);
-        } else {
-          updateStatus('standby');
-        }
+        if (data.open_url) window.open(data.open_url, '_blank');
+        if (data.audio_b64) await playAudio(data.audio_b64);
+        else updateStatus('standby');
       } catch (err) {
         console.error(err);
         updateStatus('standby');
