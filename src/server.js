@@ -50,7 +50,7 @@ app.post('/chat', async (req, res) => {
         sessions['default'].history.push({ role: 'assistant', content: reply });
         
         // BULLETPROOF FIX: Using RegExp constructor to prevent multi-line breaks on backticks
-        let speechText = reply.replace(new RegExp('```[\\s\\S]*?```', 'g'), " I have compiled the requested code to your data terminal. ").replace(/[*#_`~]/g, '');
+        let speechText = reply.replace(new RegExp('```[\\s\\S]*?```', 'g'), " I have compiled the requested code to you.");
         
         const results = await googleTTS.getAllAudioBase64(speechText, { lang: 'en', slow: false });
         res.json({ reply: reply, audio_b64: results.map(r => r.base64) });
