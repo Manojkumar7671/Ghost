@@ -122,7 +122,7 @@
     let audioContext, analyser, microphone;
     let silenceTimer = null;
     let activeAudioElements = [];
-    let currentPlaybackId = 0; // Tracks active audio generation to prevent overlaps
+    let currentPlaybackId = 0; 
     let currentAudioResolve = null;
 
     document.getElementById('text-input').addEventListener('keydown', async function(e) {
@@ -143,6 +143,8 @@
     function appendLog(text, isUser) {
       const stream = document.getElementById('chat-stream');
       const line = document.createElement('div');
+      
+      // Absolute removal of truncation. Text displays fully.
       line.className = isUser ? 'log-line user-log' : 'log-line ghost-log';
       line.innerText = text;
       stream.appendChild(line);
@@ -171,7 +173,7 @@
        }
        activeAudioElements = [];
        if (currentAudioResolve) {
-           currentAudioResolve(); // Release the promise lock
+           currentAudioResolve(); 
            currentAudioResolve = null;
        }
        window.isSpeaking = false;
@@ -195,7 +197,7 @@
         mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) audioChunks.push(e.data); };
         mediaRecorder.onstop = processAudio;
 
-        let speechFrames = 0; // Debouncer to ignore random static clicks
+        let speechFrames = 0;
 
         function monitor() {
           analyser.getByteFrequencyData(dataArray);
@@ -203,13 +205,12 @@
           for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
           let average = sum / bufferLength;
 
-          // Raised threshold from 15 to 35 to ignore breathing/static
-          if (average > 35) { 
+          if (average > 25) { 
             speechFrames++;
             
-            // Require 5 consecutive loud frames before triggering (approx 80ms)
             if (speechFrames > 5) {
-                if (window.isSpeaking) {
+                // HARD INTERRUPT: Kill audio instantly if Ghost is talking
+                if (window.isSpeaking || document.getElementById('core').classList.contains('speaking')) {
                     stopSpeaking();
                     appendLog("[ SYSTEM INTERRUPTED ]", false);
                 }
@@ -221,16 +222,18 @@
                   setCoreState('listening', 'LISTENING');
                 }
                 clearTimeout(silenceTimer);
+                
+                // INCREASED TIMEOUT: 2.5 seconds so you can breathe
                 silenceTimer = setTimeout(function() {
                   if (isRecording) {
                     mediaRecorder.stop();
                     isRecording = false;
                     setCoreState('processing', 'UPLINKING');
                   }
-                }, 1500); 
+                }, 2500); 
             }
           } else {
-            speechFrames = 0; // Reset debouncer on silence
+            speechFrames = 0; 
           }
           requestAnimationFrame(monitor);
         }
@@ -250,14 +253,13 @@
         const res = await fetch('/transcribe', { method: 'POST', body: formData });
         const data = await res.json();
         
-        // Hallucination Filter: Ignore Whisper static artifacts
         if (data.text) {
             const textLower = data.text.trim().toLowerCase();
-            const hallucinations = ["obrigada.", "thank you.", "dos chavayú", "amém.", "you.", "okay."];
+            const hallucinations = ["obrigada.", "thank you.", "dos chavayú", "amém.", "you.", "okay.", "undefined", "undefined."];
             
             if (hallucinations.includes(textLower) || data.text.trim().length < 3) {
                 setCoreState('', 'SYSTEM STANDBY');
-                return; // Discard phantom input
+                return; 
             }
             
             appendLog(data.text, true);
@@ -309,8 +311,7 @@
       let playbackId = ++currentPlaybackId;
 
       for (let i = 0; i < chunks.length; i++) {
-        // If the playback ID has changed, another track interrupted us. Kill loop.
-        if (playbackId !== currentPlaybackId) break; 
+        if (playbackId !== currentPlaybackId || !window.isSpeaking) break; 
         
         const base64 = chunks[i];
         await new Promise(function(resolve) {
@@ -336,7 +337,6 @@
         });
       }
       
-      // Only set to standby if this wasn't interrupted by a newer generation
       if (playbackId === currentPlaybackId && window.isSpeaking) {
          window.isSpeaking = false;
          setCoreState('', 'SYSTEM STANDBY');
