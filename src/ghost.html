@@ -1,48 +1,67 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <!-- Keep existing styles from v56 -->
+<head><meta charset="UTF-8"><title>GHOST.SYS</title>
+<style>
+  body { background: #030508; color: #00e5ff; font-family: monospace; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
+  #chat-stream { width: 80%; height: 60vh; overflow-y: auto; margin-bottom: 20px; }
+  #controls { padding: 20px; }
+  button { background: #00e5ff; color: #000; border: none; padding: 10px 20px; cursor: pointer; }
+</style>
 </head>
 <body>
-  <!-- Keep body elements from v56 -->
+  <div id="chat-stream"></div>
+  <div id="controls">
+    <button onclick="initializeGhost()">INITIALIZE GHOST</button>
+    <button id="mic-btn" onclick="toggleVoiceRecord()">RECORD</button>
+  </div>
   <script>
-    // ... [Previous variables from v56]
+    let mediaRecorder, audioChunks = [], isRecording = false;
+    
+    async function initializeGhost() {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+      mediaRecorder.onstop = async () => {
+         const blob = new Blob(audioChunks, {type: 'audio/webm'});
+         const fd = new FormData(); fd.append('audio', blob);
+         const res = await fetch('/transcribe', {method:'POST', body:fd});
+         const data = await res.json();
+         await askGhost(data.text);
+      };
+      console.log("Ghost Initialized");
+    }
 
-    // MASSIVELY AGGRESSIVE BARGE-IN
-    function stopSpeaking() {
-       currentPlaybackId++;
-       window.speechSynthesis.cancel(); // Stop browser TTS if used
-       activeAudioElements.forEach(a => { a.pause(); a.currentTime = 0; });
-       activeAudioElements = [];
-       window.isSpeaking = false;
-       setCoreState('', 'SYSTEM STANDBY');
+    async function toggleVoiceRecord() {
+      if(!isRecording) { audioChunks=[]; mediaRecorder.start(); isRecording=true; }
+      else { mediaRecorder.stop(); isRecording=false; }
     }
 
     async function askGhost(text) {
-      setCoreState('processing', 'PROCESSING');
-      
-      // NEW: Intercept "What is the news" / WorldMonitor intent
       if (text.toLowerCase().includes("news") || text.toLowerCase().includes("worldmonitor")) {
-          appendLog("Accessing WorldMonitor...", false);
-          const scrapeRes = await fetch('/scrape', { 
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ url: 'https://worldmonitor.com' })
-          });
-          const scrapeData = await scrapeRes.json();
-          text = "Summarize this news content: " + scrapeData.content;
+          const res = await fetch('/scrape', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:'https://worldmonitor.com'})});
+          const data = await res.json();
+          text = "Summarize this: " + data.content;
       }
-
-      // Proceed with chat
-      const response = await fetch('/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text })
-      });
-      // ... [rest of the askGhost logic]
+      const res = await fetch('/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:text})});
+      const data = await res.json();
+      appendLog(data.reply, false);
+      playAudio(data.audio_b64);
     }
-    
-    // ... [Rest of the script functions]
+
+    function appendLog(text, isUser) {
+        const div = document.createElement('div');
+        div.innerText = (isUser ? "USER: " : "GHOST: ") + text;
+        document.getElementById('chat-stream').appendChild(div);
+    }
+
+    async function playAudio(chunks) {
+        for(let b64 of chunks) {
+            await new Promise(r => {
+                const a = new Audio("data:audio/mp3;base64,"+b64);
+                a.onended = r; a.play();
+            });
+        }
+    }
   </script>
 </body>
 </html>
