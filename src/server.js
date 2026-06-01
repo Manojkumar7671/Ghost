@@ -90,7 +90,7 @@ app.post("/chat", async (req, res) => {
                 .from("ghost_memory")
                 .select("content")
                 .order("created_at", { ascending: false })
-                .limit(8); // Increased memory pull slightly
+                .limit(8); 
             if (memories && memories.length > 0) {
                 conversationContext += "\nSystem Memory:\n" + memories.map(m => m.content).join("\n");
             }
@@ -122,8 +122,7 @@ app.post("/chat", async (req, res) => {
         }
 
         // Google TTS Generation
-        let speechText = responseText.replace(/```[\s\S]*?
-```/g, " I have compiled the requested code to your terminal.");
+        let speechText = responseText.replace(/```[\s\S]*?```/g, " I have compiled the requested code to your terminal.");
         const results = await googleTTS.getAllAudioBase64(speechText, { lang: "en", slow: false });
         
         res.json({ reply: responseText, audio_b64: results.map(r => r.base64) });
