@@ -104,8 +104,7 @@ app.post("/chat", async (req, res) => {
         }
 
         // Google TTS Generation
-        let speechText = responseText.replace(new RegExp("```[\\s\\S]*?
-```", "g"), " I have compiled the requested code to your terminal.");
+        let speechText = responseText.replace(/```[\s\S]*?```/g, " I have compiled the requested code to your terminal.");
         const results = await googleTTS.getAllAudioBase64(speechText, { lang: "en", slow: false });
         
         res.json({ reply: responseText, audio_b64: results.map(r => r.base64) });
