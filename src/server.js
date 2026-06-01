@@ -39,12 +39,26 @@ const PORT = process.env.PORT || 3000;
 const sessions = {};
 
 async function chat(message, sessionId = 'default') {
-  if (!sessions[sessionId]) sessions[sessionId] = { history: [] };
+  if (!sessions[sessionId]) {
+      sessions[sessionId] = { 
+          history: [], 
+          longTermMemory: "User prefers concise, efficient answers. The user is a developer in India." 
+      };
+  }
+  
+  // Real-Time Clock Injection
+  const nowIST = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata", hour12: true });
+
+  const DYNAMIC_PROMPT = `${SYSTEM_PROMPT}
+
+CURRENT TIME: ${nowIST}.
+LOGGED OPERATOR FACTS: ${sessions[sessionId].longTermMemory}`;
+
   sessions[sessionId].history.push({ role: 'user', content: message });
   
   const res = await groq.chat.completions.create({
     model: 'llama-3.1-8b-instant',
-    messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...sessions[sessionId].history],
+    messages: [{ role: 'system', content: DYNAMIC_PROMPT }, ...sessions[sessionId].history],
     max_tokens: 300,
     temperature: 0.0
   });
