@@ -146,9 +146,13 @@
         
         content.innerHTML = sidebarHtml;
         sidebar.classList.add('active');
+        // Strip any remaining tool tags from the UI log
+        if (cleanReply.includes('###')) cleanReply = cleanReply.split('###')[0];
         return cleanReply.trim();
       }
-      return replyText;
+      // If no sidebar data, still ensure tags are stripped from UI
+      if (replyText.includes('###')) replyText = replyText.split('###')[0];
+      return replyText.trim();
     }
 
     async function playAudio(chunks) {
