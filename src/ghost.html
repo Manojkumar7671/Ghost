@@ -15,7 +15,6 @@
       align-items: center; justify-content: center;
     }
     
-    /* Initialization Overlay */
     #init-overlay {
       position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
       background: #000; z-index: 3000; display: flex; flex-direction: column;
@@ -24,7 +23,6 @@
     .boot-text { color: #00e5ff; font-size: 14px; letter-spacing: 4px; border: 1px solid rgba(0,229,255,0.3); padding: 20px 40px; text-transform: uppercase; }
     .boot-text:hover { background: rgba(0,229,255,0.1); box-shadow: 0 0 30px rgba(0,229,255,0.2); }
 
-    /* Floating Chat Log */
     #chat-stream {
       position: absolute; top: 10vh; width: 60%; max-width: 800px; height: 40vh;
       overflow-y: auto; display: flex; flex-direction: column; gap: 15px;
@@ -37,19 +35,17 @@
     .user-log { color: #ffffff; opacity: 0.6; text-align: center; }
     .ghost-log { color: #00e5ff; text-align: center; text-shadow: 0 0 10px rgba(0, 229, 255, 0.3); }
 
-    /* The Core Visualizer */
     #core-container {
       position: absolute; top: 55vh; display: flex; flex-direction: column; align-items: center; gap: 20px;
     }
     #core {
       width: 90px; height: 90px; border-radius: 50%; border: 1px solid rgba(0, 229, 255, 0.3);
-      box-shadow: 0 0 40px rgba(0, 229, 255, 0.05); cursor: pointer; transition: all 0.4s ease;
+      box-shadow: 0 0 40px rgba(0, 229, 255, 0.05); transition: all 0.4s ease;
       display: flex; justify-content: center; align-items: center; position: relative;
     }
     #core::before { content: ''; position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 1px dashed rgba(0, 229, 255, 0.2); animation: spin 10s linear infinite; }
     #core-inner { width: 40px; height: 40px; border-radius: 50%; background: rgba(0, 229, 255, 0.1); backdrop-filter: blur(5px); transition: all 0.3s; }
     
-    /* Core States */
     #core.listening { border-color: #ff0055; box-shadow: 0 0 50px rgba(255, 0, 85, 0.2); }
     #core.listening #core-inner { background: rgba(255, 0, 85, 0.4); animation: heartbeat 1s infinite; }
     #core.listening::before { border-color: #ff0055; animation: spin 3s linear infinite; }
@@ -63,7 +59,6 @@
 
     #status-text { font-size: 11px; letter-spacing: 5px; color: rgba(0, 229, 255, 0.5); text-transform: uppercase; }
 
-    /* Minimal Text Input */
     #manual-override {
       position: absolute; bottom: 5vh; width: 400px;
     }
@@ -75,7 +70,6 @@
     #manual-override input:focus { border-bottom-color: #00e5ff; background: rgba(0, 229, 255, 0.02); }
     #manual-override input::placeholder { color: rgba(255, 255, 255, 0.2); }
 
-    /* Data Terminal Sidebar */
     #sidebar {
       position: fixed; top: 0; right: 0; width: 450px; height: 100vh;
       background: rgba(2, 4, 8, 0.95); border-left: 1px solid rgba(0, 229, 255, 0.15);
@@ -89,7 +83,6 @@
     #sidebar-content { overflow-y: auto; flex-grow: 1; font-size: 12px; line-height: 1.6; color: #a0f0ff;}
     #sidebar-content pre { background: rgba(0, 229, 255, 0.03); padding: 20px; border-radius: 2px; border: 1px solid rgba(0,229,255,0.1); overflow-x: auto; white-space: pre-wrap; margin-bottom: 15px;}
     
-    /* Animations */
     @keyframes slideUp { to { opacity: 1; transform: translateY(0); } }
     @keyframes spin { 100% { transform: rotate(360deg); } }
     @keyframes heartbeat { 0% { transform: scale(0.9); } 50% { transform: scale(1.2); } 100% { transform: scale(0.9); } }
@@ -105,7 +98,7 @@
   <div id="chat-stream"></div>
 
   <div id="core-container">
-    <div id="core" onclick="toggleVoiceRecord()">
+    <div id="core">
       <div id="core-inner"></div>
     </div>
     <div id="status-text">SYSTEM STANDBY</div>
@@ -128,6 +121,8 @@
     let audioChunks = [];
     window.isSpeaking = false;
     let isRecording = false;
+    let audioContext, analyser, microphone;
+    let silenceTimer = null;
 
     // Manual Text Input
     document.getElementById('text-input').addEventListener('keydown', async (e) => {
@@ -154,18 +149,95 @@
       stream.scrollTop = stream.scrollHeight;
     }
 
-    function initializeGhost() {
+    async function initializeGhost() {
       const overlay = document.getElementById('init-overlay');
       overlay.style.opacity = '0';
       setTimeout(() => overlay.style.display = 'none', 500);
       appendLog("Core hardware handshake established.");
-      navigator.mediaDevices.getUserMedia({ audio: true }).then(s => s.getTracks().forEach(t => t.stop())).catch(console.warn);
+      
+      // Ignite the Hands-Free Audio Engine
+      await startVAD();
+    }
+
+    async function startVAD() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+        
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioContext.createAnalyser();
+        microphone = audioContext.createMediaStreamSource(stream);
+        microphone.connect(analyser);
+        analyser.fftSize = 512;
+
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+        mediaRecorder.onstop = processAudio;
+
+        function monitor() {
+          // Hard Software Mute: Don't listen if Ghost is thinking or speaking
+          if (window.isSpeaking || document.getElementById('core').classList.contains('processing')) {
+            requestAnimationFrame(monitor);
+            return;
+          }
+
+          analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+          let average = sum / bufferLength;
+
+          if (average > 15) { // Vocal threshold hit
+            if (!isRecording) {
+              audioChunks = [];
+              mediaRecorder.start();
+              isRecording = true;
+              setCoreState('listening', 'LISTENING');
+            }
+            clearTimeout(silenceTimer);
+            silenceTimer = setTimeout(() => {
+              if (isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                setCoreState('processing', 'UPLINKING');
+              }
+            }, 1500); // Wait 1.5s for operator to finish speaking
+          }
+          requestAnimationFrame(monitor);
+        }
+        monitor();
+      } catch (err) {
+        console.error("Microphone access denied or failed.", err);
+        appendLog("System Error: Audio inputs disconnected.");
+      }
+    }
+
+    async function processAudio() {
+      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'audio.webm');
+      
+      try {
+        const res = await fetch('/transcribe', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.text && data.text.trim() !== '') {
+          appendLog(data.text, true);
+          await askGhost(data.text);
+        } else {
+          setCoreState('', 'SYSTEM STANDBY');
+        }
+      } catch (err) {
+        console.error(err);
+        setCoreState('', 'SYSTEM STANDBY');
+      }
     }
 
     function processTaskData(replyText) {
       const sidebar = document.getElementById('sidebar');
       const content = document.getElementById('sidebar-content');
-      const codeRegex = new RegExp('```[\\s\\S]*?```', 'g');
+      const codeRegex = new RegExp('```[\\s\\S]*?
+```', 'g');
       const matches = replyText.match(codeRegex);
       
       if (matches && matches.length > 0) {
@@ -204,46 +276,6 @@
       }
       window.isSpeaking = false;
       setCoreState('', 'SYSTEM STANDBY');
-    }
-
-    async function toggleVoiceRecord() {
-      if (window.isSpeaking) return;
-      
-      if (isRecording) {
-        mediaRecorder.stop();
-        isRecording = false;
-        setCoreState('processing', 'UPLINKING');
-      } else {
-        audioChunks = [];
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-        
-        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
-        mediaRecorder.onstop = async () => {
-          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-          const formData = new FormData();
-          formData.append('audio', audioBlob, 'audio.webm');
-          
-          try {
-            const res = await fetch('/transcribe', { method: 'POST', body: formData });
-            const data = await res.json();
-            if (data.text && data.text.trim() !== '') {
-              appendLog(data.text, true);
-              await askGhost(data.text);
-            } else {
-              setCoreState('', 'SYSTEM STANDBY');
-            }
-          } catch (err) {
-            console.error(err);
-            setCoreState('', 'SYSTEM STANDBY');
-          }
-          stream.getTracks().forEach(t => t.stop());
-        };
-        
-        mediaRecorder.start();
-        isRecording = true;
-        setCoreState('listening', 'LISTENING');
-      }
     }
 
     async function captureAndAnalyzeScreen() {
