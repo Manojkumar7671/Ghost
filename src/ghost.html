@@ -124,8 +124,7 @@
     let audioContext, analyser, microphone;
     let silenceTimer = null;
 
-    // Manual Text Input
-    document.getElementById('text-input').addEventListener('keydown', async (e) => {
+    document.getElementById('text-input').addEventListener('keydown', async function(e) {
       if (e.key === 'Enter') {
         const text = e.target.value.trim();
         if (!text || window.isSpeaking) return;
@@ -140,7 +139,7 @@
       document.getElementById('status-text').innerText = text;
     }
 
-    function appendLog(text, isUser = false) {
+    function appendLog(text, isUser) {
       const stream = document.getElementById('chat-stream');
       const line = document.createElement('div');
       line.className = isUser ? 'log-line user-log' : 'log-line ghost-log';
@@ -150,13 +149,15 @@
     }
 
     async function initializeGhost() {
-      const overlay = document.getElementById('init-overlay');
-      overlay.style.opacity = '0';
-      setTimeout(() => overlay.style.display = 'none', 500);
-      appendLog("Core hardware handshake established.");
-      
-      // Ignite the Hands-Free Audio Engine
-      await startVAD();
+      try {
+        const overlay = document.getElementById('init-overlay');
+        overlay.style.opacity = '0';
+        setTimeout(function() { overlay.style.display = 'none'; }, 500);
+        appendLog("Core hardware handshake established.", false);
+        await startVAD();
+      } catch(err) {
+        appendLog("Hardware Sync Failed.", false);
+      }
     }
 
     async function startVAD() {
@@ -173,11 +174,10 @@
         const dataArray = new Uint8Array(bufferLength);
 
         mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+        mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) audioChunks.push(e.data); };
         mediaRecorder.onstop = processAudio;
 
         function monitor() {
-          // Hard Software Mute: Don't listen if Ghost is thinking or speaking
           if (window.isSpeaking || document.getElementById('core').classList.contains('processing')) {
             requestAnimationFrame(monitor);
             return;
@@ -188,7 +188,7 @@
           for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
           let average = sum / bufferLength;
 
-          if (average > 15) { // Vocal threshold hit
+          if (average > 15) { 
             if (!isRecording) {
               audioChunks = [];
               mediaRecorder.start();
@@ -196,20 +196,20 @@
               setCoreState('listening', 'LISTENING');
             }
             clearTimeout(silenceTimer);
-            silenceTimer = setTimeout(() => {
+            silenceTimer = setTimeout(function() {
               if (isRecording) {
                 mediaRecorder.stop();
                 isRecording = false;
                 setCoreState('processing', 'UPLINKING');
               }
-            }, 1500); // Wait 1.5s for operator to finish speaking
+            }, 1500); 
           }
           requestAnimationFrame(monitor);
         }
         monitor();
       } catch (err) {
-        console.error("Microphone access denied or failed.", err);
-        appendLog("System Error: Audio inputs disconnected.");
+        console.error("Microphone access denied.", err);
+        appendLog("System Error: Audio inputs disconnected.", false);
       }
     }
 
@@ -236,19 +236,23 @@
     function processTaskData(replyText) {
       const sidebar = document.getElementById('sidebar');
       const content = document.getElementById('sidebar-content');
-      const codeRegex = new RegExp('```[\\s\\S]*?
-```', 'g');
+      
+      const tick = String.fromCharCode(96);
+      const tripleTick = tick + tick + tick;
+      const codeRegex = new RegExp(tripleTick + '[\\s\\S]*?' + tripleTick, 'g');
       const matches = replyText.match(codeRegex);
       
       if (matches && matches.length > 0) {
         let cleanReply = replyText;
         let sidebarHtml = '';
         
-        matches.forEach(match => {
-          cleanReply = cleanReply.replace(match, '\n[ DATA COMPILED TO TERMINAL ]\n');
-          let codeContent = match.replace(/```[a-zA-Z]*/g, '').replace(/```/g, '').trim();
-          sidebarHtml += `<pre><code>${codeContent}</code></pre>`;
-        });
+        for (let i = 0; i < matches.length; i++) {
+            const match = matches[i];
+            cleanReply = cleanReply.replace(match, '\n[ DATA COMPILED TO TERMINAL ]\n');
+            let codeContent = match.replace(new RegExp(tripleTick + '[a-zA-Z]*', 'g'), '');
+            codeContent = codeContent.replace(new RegExp(tripleTick, 'g'), '').trim();
+            sidebarHtml += '<pre><code>' + codeContent + '</code></pre>';
+        }
         
         content.innerHTML = sidebarHtml;
         sidebar.classList.add('active');
@@ -266,8 +270,9 @@
       window.isSpeaking = true;
       setCoreState('speaking', 'TRANSMITTING');
       
-      for (const base64 of chunks) {
-        await new Promise((resolve) => {
+      for (let i = 0; i < chunks.length; i++) {
+        const base64 = chunks[i];
+        await new Promise(function(resolve) {
           const audio = new Audio("data:audio/mp3;base64," + base64);
           audio.onended = resolve;
           audio.onerror = resolve;
