@@ -31,7 +31,7 @@ app.use(express.static(__dirname));
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "ghost.html")));
 
 // ==========================================
-// 2. EXTERNAL COGNITIVE INTEGRATIONS
+// 2. SUPABASE & TOOLS
 // ==========================================
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
@@ -63,25 +63,42 @@ app.post("/chat", async (req, res) => {
     if (!message) return res.status(400).json({ error: "Missing transcript data." });
 
     try {
-        // PERMANENT PERSONA OVERRIDE
-        let conversationContext = "You are Ghost, a highly advanced, fiercely loyal, and strictly professional AI assistant. You exist to serve the user. You must always address the user as \"Sir\". You are polite, obedient, and highly capable. Speak concisely and respectfully, ready to execute any command.";
+        // THE LOYAL PERSONA
+        let conversationContext = "You are Ghost, a highly advanced, fiercely loyal, and strictly professional AI assistant. You exist to serve the user. You must always address the user as \"Sir\". You are polite, obedient, and highly capable. Speak concisely and respectfully.";
         
-        // Pull memories from Supabase
+        let responseText = "";
+        let cmdLower = message.toLowerCase();
+
+        // --- EXPLICIT LEARNING PROTOCOL ---
+        if (cmdLower.includes("learn that") || cmdLower.includes("remember that")) {
+            let fact = message.replace(/.*(learn that|remember that)/i, "").trim();
+            if (supabase) {
+                // Save it with a special high-priority tag
+                await supabase.from("ghost_memory").insert([{ content: `[CORE KNOWLEDGE]: ${fact}` }]);
+            }
+            responseText = `Understood, Sir. I have permanently encoded "${fact}" into my long-term memory banks.`;
+            
+            // Bypass the LLM to guarantee the exact response immediately
+            let speechText = responseText;
+            const results = await googleTTS.getAllAudioBase64(speechText, { lang: "en", slow: false });
+            return res.json({ reply: responseText, audio_b64: results.map(r => r.base64) });
+        }
+
+        // Normal memory pull
         if (supabase) {
             const { data: memories } = await supabase
                 .from("ghost_memory")
                 .select("content")
                 .order("created_at", { ascending: false })
-                .limit(5);
+                .limit(8); // Increased memory pull slightly
             if (memories && memories.length > 0) {
-                conversationContext += "\nRecent Memory Context:\n" + memories.map(m => m.content).join("\n");
+                conversationContext += "\nSystem Memory:\n" + memories.map(m => m.content).join("\n");
             }
         }
 
-        // Autonomous Search Trigger
-        let responseText = "";
+        // Web Search
         const triggerKeywords = ["search", "find out", "news", "current", "weather", "who is", "what is"];
-        if (triggerKeywords.some(keyword => message.toLowerCase().includes(keyword))) {
+        if (triggerKeywords.some(keyword => cmdLower.includes(keyword))) {
             const searchResult = await searchWeb(message);
             conversationContext += `\n[AUTONOMOUS WEB SEARCH RESULT]: ${searchResult}`;
         }
@@ -99,13 +116,14 @@ app.post("/chat", async (req, res) => {
 
         responseText = groqRes.data.choices[0].message.content.trim();
 
-        // Auto-save interactions to long-term memory
+        // Auto-save normal interactions to memory
         if (supabase) {
             await supabase.from("ghost_memory").insert([{ content: `User said: ${message} | Ghost replied: ${responseText}` }]);
         }
 
         // Google TTS Generation
-        let speechText = responseText.replace(/```[\s\S]*?```/g, " I have compiled the requested code to your terminal.");
+        let speechText = responseText.replace(/```[\s\S]*?
+```/g, " I have compiled the requested code to your terminal.");
         const results = await googleTTS.getAllAudioBase64(speechText, { lang: "en", slow: false });
         
         res.json({ reply: responseText, audio_b64: results.map(r => r.base64) });
