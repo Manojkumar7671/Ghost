@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <title>GHOST.SYS // HOLOGRAM CORE</title>
-  <!-- FIX: Clean URL for Three.js, no brackets -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <style>
     body { background: #030508; color: #00e5ff; font-family: monospace; height: 100vh; overflow: hidden; margin: 0; display: flex; flex-direction: column; align-items: center; }
@@ -141,7 +140,7 @@
         setStatus('PROCESSING', 'PROCESSING DATA...', '#b000ff');
         if (text.toLowerCase().includes("news")) {
             try {
-                const res = await fetch('/scrape', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:'https://worldmonitor.com'})});
+                const res = await fetch('/scrape', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:'https://lite.cnn.com'})});
                 const data = await res.json(); text = "Summarize this: " + data.content;
             } catch(e) {}
         }
