@@ -270,6 +270,67 @@
     };
 </script>
 
+
+<script src="/socket.io/socket.io.js"></script>
+<style>
+    #cloud-os-container {
+        display: none; position: fixed; top: 10%; left: 50%; transform: translateX(-50%);
+        width: 1024px; height: 800px; background: #111; border: 2px solid #333; z-index: 9999;
+        box-shadow: 0px 0px 30px rgba(0,255,255,0.2); border-radius: 8px; overflow: hidden;
+    }
+    #cloud-os-header {
+        height: 32px; background: #222; display: flex; justify-content: space-between;
+        align-items: center; padding: 0 10px; color: #0ff; font-family: monospace;
+    }
+    #cloud-os-screen { width: 1024px; height: 768px; cursor: crosshair; }
+</style>
+
+<div id="cloud-os-container">
+    <div id="cloud-os-header">
+        <span>GHOST CLOUD OS :: TERMINAL ACTIVE</span>
+        <button onclick="document.getElementById('cloud-os-container').style.display='none'">[X] Close</button>
+    </div>
+    <img id="cloud-os-screen" src="" alt="Booting Cloud OS..."/>
+    <input type="text" id="cloud-os-keyboard" placeholder="Type here and press Enter to send to Cloud OS" style="width: 100%; background: #000; color: #0ff; border: none; padding: 5px; font-family: monospace;">
+</div>
+
+<button onclick="bootCloudOS()" style="position: fixed; bottom: 20px; left: 20px; z-index: 9998; padding: 10px; background: #000; color: #0ff; border: 1px solid #0ff; cursor: pointer;">
+    [ Boot Cloud OS ]
+</button>
+
+<script>
+    let socket;
+    function bootCloudOS() {
+        document.getElementById('cloud-os-container').style.display = 'block';
+        if (!socket) {
+            socket = io();
+            socket.emit('boot_os', 'https://google.com');
+            
+            socket.on('os_stream', (base64img) => {
+                document.getElementById('cloud-os-screen').src = 'data:image/jpeg;base64,' + base64img;
+            });
+
+            // Capture Clicks
+            document.getElementById('cloud-os-screen').addEventListener('mousedown', (e) => {
+                const rect = e.target.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                socket.emit('os_click', { x, y });
+            });
+
+            // Capture Typing
+            document.getElementById('cloud-os-keyboard').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    socket.emit('os_key', 'Enter');
+                    e.target.value = ''; // clear input
+                } else {
+                    socket.emit('os_type', e.key);
+                }
+            });
+        }
+    }
+</script>
+
 </body>
 </html>
 HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
@@ -543,6 +604,67 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
         }
         return ogFetch(resource, config);
     };
+</script>
+
+
+<script src="/socket.io/socket.io.js"></script>
+<style>
+    #cloud-os-container {
+        display: none; position: fixed; top: 10%; left: 50%; transform: translateX(-50%);
+        width: 1024px; height: 800px; background: #111; border: 2px solid #333; z-index: 9999;
+        box-shadow: 0px 0px 30px rgba(0,255,255,0.2); border-radius: 8px; overflow: hidden;
+    }
+    #cloud-os-header {
+        height: 32px; background: #222; display: flex; justify-content: space-between;
+        align-items: center; padding: 0 10px; color: #0ff; font-family: monospace;
+    }
+    #cloud-os-screen { width: 1024px; height: 768px; cursor: crosshair; }
+</style>
+
+<div id="cloud-os-container">
+    <div id="cloud-os-header">
+        <span>GHOST CLOUD OS :: TERMINAL ACTIVE</span>
+        <button onclick="document.getElementById('cloud-os-container').style.display='none'">[X] Close</button>
+    </div>
+    <img id="cloud-os-screen" src="" alt="Booting Cloud OS..."/>
+    <input type="text" id="cloud-os-keyboard" placeholder="Type here and press Enter to send to Cloud OS" style="width: 100%; background: #000; color: #0ff; border: none; padding: 5px; font-family: monospace;">
+</div>
+
+<button onclick="bootCloudOS()" style="position: fixed; bottom: 20px; left: 20px; z-index: 9998; padding: 10px; background: #000; color: #0ff; border: 1px solid #0ff; cursor: pointer;">
+    [ Boot Cloud OS ]
+</button>
+
+<script>
+    let socket;
+    function bootCloudOS() {
+        document.getElementById('cloud-os-container').style.display = 'block';
+        if (!socket) {
+            socket = io();
+            socket.emit('boot_os', 'https://google.com');
+            
+            socket.on('os_stream', (base64img) => {
+                document.getElementById('cloud-os-screen').src = 'data:image/jpeg;base64,' + base64img;
+            });
+
+            // Capture Clicks
+            document.getElementById('cloud-os-screen').addEventListener('mousedown', (e) => {
+                const rect = e.target.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                socket.emit('os_click', { x, y });
+            });
+
+            // Capture Typing
+            document.getElementById('cloud-os-keyboard').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    socket.emit('os_key', 'Enter');
+                    e.target.value = ''; // clear input
+                } else {
+                    socket.emit('os_type', e.key);
+                }
+            });
+        }
+    }
 </script>
 
 </body>

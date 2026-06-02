@@ -512,4 +512,51 @@ app.post('/environment', express.json(), async (req, res) => {
 });
 // ------------------------------------------------
 
-app.listen(PORT, () => console.log(`GHOST NETWORK ONLINE ON PORT ${PORT}`));
+// --- AUTONOMOUS CLOUD COMPUTER (MANUS AI PROTOCOL) ---
+const http = require('http');
+const { Server } = require('socket.io');
+const { chromium } = require('playwright');
+
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: '*' } });
+
+io.on('connection', (socket) => {
+    console.log('[Cloud OS] User terminal connected.');
+    let browser, page, streamInterval;
+
+    socket.on('boot_os', async (url) => {
+        try {
+            if (browser) await browser.close();
+            console.log('[Cloud OS] Booting headless container...');
+            
+            // Launch invisible browser in the cloud
+            browser = await chromium.launch({ headless: true });
+            page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+            await page.goto(url || 'https://google.com');
+            
+            // Stream the visual feed at 2 FPS
+            streamInterval = setInterval(async () => {
+                if (page.isClosed()) return clearInterval(streamInterval);
+                try {
+                    const screenshot = await page.screenshot({ type: 'jpeg', quality: 50 });
+                    socket.emit('os_stream', screenshot.toString('base64'));
+                } catch(e) {}
+            }, 500);
+        } catch (e) {
+            console.error('[Cloud OS Error]', e);
+        }
+    });
+
+    // Remote Control Relays
+    socket.on('os_click', async ({ x, y }) => { if (page) await page.mouse.click(x, y); });
+    socket.on('os_type', async (text) => { if (page) await page.keyboard.insertText(text); });
+    socket.on('os_key', async (key) => { if (page) await page.keyboard.press(key); });
+
+    socket.on('disconnect', async () => {
+        if (streamInterval) clearInterval(streamInterval);
+        if (browser) await browser.close();
+    });
+});
+
+server.listen(PORT, () => console.log(`GHOST NETWORK & CLOUD OS ONLINE ON PORT ${PORT}`));
+// -----------------------------------------------------
