@@ -233,4 +233,41 @@ app.post('/webhook', express.json(), async (req, res) => {
 });
 // -----------------------------------
 
+
+// --- NATIVE CODE EXECUTION SANDBOX ---
+const { exec } = require('child_process');
+const fs = require('fs');
+
+app.post('/sandbox', express.json(), (req, res) => {
+    const { language, code } = req.body;
+    console.log(`[Ghost Sandbox] Compiling ${language} sub-process...`);
+    
+    let cmd = '';
+    let fileName = '';
+    
+    // Auto-detect language and format execution
+    if (language.includes('python') || language === 'py') {
+        fileName = `temp_${Date.now()}.py`;
+        fs.writeFileSync(fileName, code);
+        cmd = `python3 ${fileName}`;
+    } else if (language.includes('javascript') || language === 'js' || language === 'node') {
+        fileName = `temp_${Date.now()}.js`;
+        fs.writeFileSync(fileName, code);
+        cmd = `node ${fileName}`;
+    } else {
+        return res.json({ output: `Execution for ${language} is not supported in this sandbox.` });
+    }
+    
+    // Execute with a strict 10-second timeout to protect server memory
+    exec(cmd, { timeout: 10000 }, (error, stdout, stderr) => {
+        if (fs.existsSync(fileName)) fs.unlinkSync(fileName); // Purge temp files
+        if (error) {
+            console.error("[Ghost Sandbox] Execution Error.");
+            return res.json({ output: `Exception:\n${stderr || error.message}` });
+        }
+        res.json({ output: stdout || "Execution complete. No terminal output." });
+    });
+});
+// -------------------------------------
+
 app.listen(PORT, () => console.log(`GHOST NETWORK ONLINE ON PORT ${PORT}`));

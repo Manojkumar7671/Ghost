@@ -358,6 +358,83 @@
 })();
 </script>
 
+
+<script>
+// --- AUTONOMOUS CODE RUNNER UI ---
+(function() {
+    console.log("Code Runner UI initialized.");
+    
+    // Delegate click events for dynamic buttons
+    document.addEventListener('click', async (e) => {
+        if (e.target && e.target.classList.contains('ghost-run-btn')) {
+            const btn = e.target;
+            const codeBlock = btn.previousElementSibling; 
+            if (!codeBlock) return;
+            
+            const code = codeBlock.innerText;
+            let lang = 'python'; // Default fallback
+            const blockClass = codeBlock.className.toLowerCase() || (codeBlock.children[0] ? codeBlock.children[0].className.toLowerCase() : "");
+            
+            if (blockClass.includes('js') || blockClass.includes('javascript') || blockClass.includes('node')) {
+                lang = 'node';
+            }
+            
+            btn.innerText = "Executing in Cloud...";
+            btn.style.backgroundColor = "#ffaa00";
+            
+            try {
+                const res = await fetch('/sandbox', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ language: lang, code: code })
+                });
+                const data = await res.json();
+                
+                // Construct terminal output window
+                let outputDiv = btn.nextElementSibling;
+                if (!outputDiv || !outputDiv.classList.contains('ghost-output')) {
+                    outputDiv = document.createElement('div');
+                    outputDiv.className = 'ghost-output';
+                    outputDiv.style = "background: #0a0a0a; color: #00ff00; border: 1px solid #333; padding: 12px; margin-top: 10px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; font-size: 13px;";
+                    btn.parentNode.insertBefore(outputDiv, btn.nextSibling);
+                }
+                outputDiv.innerText = ">_ " + data.output;
+                
+                btn.innerText = "Run Code";
+                btn.style.backgroundColor = "#00cc00";
+            } catch (err) {
+                btn.innerText = "Network Error";
+                btn.style.backgroundColor = "red";
+            }
+        }
+    });
+
+    // Observe chat window for incoming code blocks
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            mutation.addedNodes.forEach((node) => {
+                if (node.nodeType === 1) { 
+                    const pres = node.querySelectorAll ? node.querySelectorAll('pre') : [];
+                    const targets = node.tagName === 'PRE' ? [node] : pres;
+                    
+                    targets.forEach(pre => {
+                        if (!pre.nextElementSibling || !pre.nextElementSibling.classList.contains('ghost-run-btn')) {
+                            const btn = document.createElement('button');
+                            btn.className = 'ghost-run-btn';
+                            btn.innerText = "Execute on Server";
+                            btn.style = "margin-top: 8px; background: #00cc00; color: #111; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px; font-weight: bold; font-size: 12px; transition: 0.2s;";
+                            pre.parentNode.insertBefore(btn, pre.nextSibling);
+                        }
+                    });
+                }
+            });
+        });
+    });
+    
+    observer.observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+
 </body>
 </html>
 <script>
