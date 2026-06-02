@@ -41,7 +41,7 @@ app.get("/", (req, res) => res.sendFile(path.join(__dirname, "ghost.html")));
 // ==========================================
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
-let supabase = null;
+
 if (supabaseUrl && supabaseKey) {
     supabase = createClient(supabaseUrl, supabaseKey);
 }
@@ -70,17 +70,16 @@ async function searchWeb(query) {
 // ==========================================
 
 // --- SUPABASE MEMORY MATRIX ---
-let supabase = null;
+let dbClient = null;
 try {
     const { createClient } = require('@supabase/supabase-js');
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_ANON_KEY;
-    // Fortified check to prevent Invalid URL crashes
     if (supabaseUrl && supabaseUrl.startsWith('http') && supabaseKey) {
-        supabase = createClient(supabaseUrl, supabaseKey);
+        dbClient = createClient(supabaseUrl, supabaseKey);
         console.log("[Ghost Engine] Memory Matrix connected.");
     } else {
-        console.log("[Ghost Engine] Memory Matrix dormant (Invalid URL or missing keys).");
+        console.log("[Ghost Engine] Memory Matrix dormant (Invalid URL/Keys).");
     }
 } catch (e) {
     console.log("[Ghost Engine] Supabase driver missing.");
@@ -88,17 +87,17 @@ try {
 
 // Middleware to passively log all chat traffic to the database
 app.use('/chat', express.json(), (req, res, next) => {
-    if (req.body && req.body.message && supabase) {
-        supabase.from('memory_banks').insert([{ role: 'user', content: req.body.message }])
+    if (req.body && req.body.message && dbClient) {
+        dbClient.from('memory_banks').insert([{ role: 'user', content: req.body.message }])
             .then(() => console.log("[Ghost Memory] User input archived."))
             .catch(e => console.error("[Memory Error]", e.message));
     }
     
     const originalJson = res.json;
     res.json = function(data) {
-        if (data && (data.reply || data.response || data.message) && supabase) {
+        if (data && (data.reply || data.response || data.message) && dbClient) {
             const text = data.reply || data.response || data.message;
-            supabase.from('memory_banks').insert([{ role: 'ghost', content: text }])
+            dbClient.from('memory_banks').insert([{ role: 'ghost', content: text }])
                 .then(() => console.log("[Ghost Memory] Ghost response archived."))
                 .catch(e => console.error("[Memory Error]", e.message));
         }
