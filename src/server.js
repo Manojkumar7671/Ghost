@@ -477,4 +477,39 @@ app.post('/upload', upload.single('document'), async (req, res) => {
 });
 // ---------------------------------------
 
+// --- LIVE ENVIRONMENT MODULE (TIME & WEATHER) ---
+app.post('/environment', express.json(), async (req, res) => {
+    const { location } = req.body;
+    try {
+        const currentTime = new Date().toLocaleString();
+        let weatherInfo = "Location required for weather data.";
+        
+        if (location) {
+            // Utilizes wttr.in for instant, zero-auth meteorological data
+            const response = await fetch(`https://wttr.in/${encodeURIComponent(location)}?format=%C+%t`);
+            if (response.ok) {
+                weatherInfo = await response.text();
+            }
+        }
+        
+        const result = { 
+            time: currentTime, 
+            weather: weatherInfo.trim() 
+        };
+        
+        if (typeof dbClient !== 'undefined' && dbClient) {
+            await dbClient.from('memory_banks').insert([{ 
+                role: 'system', 
+                content: `[ENVIRONMENT SYNC]: ${JSON.stringify(result)}` 
+            }]);
+        }
+        
+        res.json(result);
+    } catch (e) {
+        console.error("[Environment Error]", e.message);
+        res.status(500).json({ error: "Failed to retrieve live environment data." });
+    }
+});
+// ------------------------------------------------
+
 app.listen(PORT, () => console.log(`GHOST NETWORK ONLINE ON PORT ${PORT}`));
