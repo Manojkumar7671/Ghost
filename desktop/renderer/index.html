@@ -219,6 +219,57 @@
 
     loadAgents();
   </script>
+
+<script>
+    // 1. Mute Background Commands in Voice Output
+    if (window.speechSynthesis) {
+        const ogSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
+        window.speechSynthesis.speak = function(utt) {
+            utt.text = utt.text.replace(/\[.*?\\]/g, '').replace(/https?:\/\/\S+/g, '').trim();
+            if(utt.text.length > 0) ogSpeak(utt);
+        };
+    }
+
+    // 2. Inject Real-Time Clock and Weather into LLM Memory
+    window.envContext = "";
+    async function syncEnvironment() {
+        try {
+            const res = await fetch('/environment', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({location: "Mangalagiri, Andhra Pradesh, India"})
+            });
+            const data = await res.json();
+            window.envContext = `[SYSTEM STATUS: Time is ${data.time}. Weather is ${data.weather}]`;
+        } catch(e) {
+            window.envContext = `[SYSTEM STATUS: Time is ${new Date().toLocaleString()}]`;
+        }
+    }
+    syncEnvironment();
+    setInterval(syncEnvironment, 300000);
+
+    // 3. Attach Context Invisibly to User Messages
+    const ogFetch = window.fetch;
+    window.fetch = async function(...args) {
+        let [resource, config] = args;
+        if (resource && (resource.includes('gemini') || resource.includes('/chat'))) {
+            try {
+                if (config && config.body) {
+                    let bodyObj = JSON.parse(config.body);
+                    if (bodyObj.message) {
+                        bodyObj.message = `${window.envContext}\n\n${bodyObj.message}`;
+                        config.body = JSON.stringify(bodyObj);
+                    } else if (bodyObj.contents && bodyObj.contents[0].parts[0].text) {
+                        bodyObj.contents[0].parts[0].text = `${window.envContext}\n\n${bodyObj.contents[0].parts[0].text}`;
+                        config.body = JSON.stringify(bodyObj);
+                    }
+                }
+            } catch(e) {}
+        }
+        return ogFetch(resource, config);
+    };
+</script>
+
 </body>
 </html>
 HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
@@ -443,5 +494,56 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
 
     loadAgents();
   </script>
+
+<script>
+    // 1. Mute Background Commands in Voice Output
+    if (window.speechSynthesis) {
+        const ogSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
+        window.speechSynthesis.speak = function(utt) {
+            utt.text = utt.text.replace(/\[.*?\\]/g, '').replace(/https?:\/\/\S+/g, '').trim();
+            if(utt.text.length > 0) ogSpeak(utt);
+        };
+    }
+
+    // 2. Inject Real-Time Clock and Weather into LLM Memory
+    window.envContext = "";
+    async function syncEnvironment() {
+        try {
+            const res = await fetch('/environment', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({location: "Mangalagiri, Andhra Pradesh, India"})
+            });
+            const data = await res.json();
+            window.envContext = `[SYSTEM STATUS: Time is ${data.time}. Weather is ${data.weather}]`;
+        } catch(e) {
+            window.envContext = `[SYSTEM STATUS: Time is ${new Date().toLocaleString()}]`;
+        }
+    }
+    syncEnvironment();
+    setInterval(syncEnvironment, 300000);
+
+    // 3. Attach Context Invisibly to User Messages
+    const ogFetch = window.fetch;
+    window.fetch = async function(...args) {
+        let [resource, config] = args;
+        if (resource && (resource.includes('gemini') || resource.includes('/chat'))) {
+            try {
+                if (config && config.body) {
+                    let bodyObj = JSON.parse(config.body);
+                    if (bodyObj.message) {
+                        bodyObj.message = `${window.envContext}\n\n${bodyObj.message}`;
+                        config.body = JSON.stringify(bodyObj);
+                    } else if (bodyObj.contents && bodyObj.contents[0].parts[0].text) {
+                        bodyObj.contents[0].parts[0].text = `${window.envContext}\n\n${bodyObj.contents[0].parts[0].text}`;
+                        config.body = JSON.stringify(bodyObj);
+                    }
+                }
+            } catch(e) {}
+        }
+        return ogFetch(resource, config);
+    };
+</script>
+
 </body>
 </html>
