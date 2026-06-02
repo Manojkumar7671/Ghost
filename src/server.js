@@ -202,7 +202,7 @@ app.post('/chat', async (req, res) => {
 // ==========================================
 // 4. WHISPER AUDIO TRANSCRIPTION 
 // ==========================================
-const upload = multer({ storage: multer.memoryStorage() });
+
 app.post("/transcribe", upload.single("audio"), async (req, res) => {
     try {
         const form = new FormData();
@@ -399,38 +399,7 @@ app.post('/scrape', express.json(), async (req, res) => {
 // -------------------------------
 
 
-// --- DOCUMENT MATRIX (RAG INGESTION) ---
-const multer = require('multer');
-const pdf = require('pdf-parse');
-const upload = multer({ storage: multer.memoryStorage() });
 
-app.post('/upload', upload.single('document'), async (req, res) => {
-    if (!req.file) return res.status(400).json({ error: "No document provided." });
-    
-    try {
-        let extractedText = "";
-        if (req.file.mimetype === 'application/pdf') {
-            const data = await pdf(req.file.buffer);
-            extractedText = data.text;
-        } else {
-            extractedText = req.file.buffer.toString('utf8');
-        }
-        
-        if (typeof dbClient !== 'undefined' && dbClient) {
-            await dbClient.from('memory_banks').insert([{ 
-                role: 'system', 
-                content: `[DOCUMENT INGESTED]: ${req.file.originalname}\n\n${extractedText.substring(0, 5000)}` 
-            }]);
-        }
-        
-        console.log(`[Ghost RAG] Ingested ${req.file.originalname}`);
-        res.json({ status: "Document shredded and committed to memory." });
-    } catch (e) {
-        console.error("[Ghost RAG Error]", e.message);
-        res.status(500).json({ error: "Ingestion failed." });
-    }
-});
-// ---------------------------------------
 
 
 // --- COGNITIVE FALLBACK ROUTER ---
@@ -478,5 +447,35 @@ app.post('/swarm-execute', express.json(), async (req, res) => {
         res.status(500).json({ error: "Dynamic swarm routing execution failed." });
     }
 });
+
+// --- DOCUMENT MATRIX (RAG INGESTION) ---
+const multer = require('multer');
+const pdf = require('pdf-parse');
+const upload = multer({ storage: multer.memoryStorage() });
+
+app.post('/upload', upload.single('document'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No document provided." });
+    try {
+        let extractedText = "";
+        if (req.file.mimetype === 'application/pdf') {
+            const data = await pdf(req.file.buffer);
+            extractedText = data.text;
+        } else {
+            extractedText = req.file.buffer.toString('utf8');
+        }
+        if (typeof dbClient !== 'undefined' && dbClient) {
+            await dbClient.from('memory_banks').insert([{ 
+                role: 'system', 
+                content: `[DOCUMENT INGESTED]: ${req.file.originalname}\n\n${extractedText.substring(0, 5000)}` 
+            }]);
+        }
+        console.log(`[Ghost RAG] Ingested ${req.file.originalname}`);
+        res.json({ status: "Document shredded and committed to memory." });
+    } catch (e) {
+        console.error("[Ghost RAG Error]", e.message);
+        res.status(500).json({ error: "Ingestion failed." });
+    }
+});
+// ---------------------------------------
 
 app.listen(PORT, () => console.log(`GHOST NETWORK ONLINE ON PORT ${PORT}`));
