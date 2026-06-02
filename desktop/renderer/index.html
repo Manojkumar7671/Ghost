@@ -347,6 +347,72 @@
     }
 </script>
 
+
+<div id="ghost-voice-panel" style="position: fixed; bottom: 20px; right: 20px; z-index: 10000; background: #050505; border: 1px solid #0ff; padding: 10px; color: #0ff; font-family: monospace; border-radius: 4px; box-shadow: 0 0 10px rgba(0,255,255,0.2);">
+    <label for="voice-select" style="font-size: 12px;">VOICE OVERRIDE:</label><br>
+    <select id="voice-select" style="background: #111; color: #0ff; border: 1px solid #0ff; margin-top: 5px; width: 220px; padding: 3px; font-family: monospace; cursor: pointer;"></select>
+</div>
+<script>
+    setTimeout(() => {
+        const select = document.getElementById('voice-select');
+        let voices = [];
+        
+        function populateVoices() {
+            voices = window.speechSynthesis.getVoices();
+            if(voices.length === 0) return;
+            
+            select.innerHTML = '';
+            voices.forEach((v, i) => {
+                const opt = document.createElement('option');
+                opt.value = i;
+                // Highlight premium Mac voices to make them easier to find
+                let label = v.name;
+                if(label.includes('Premium') || label.includes('Enhanced') || label.includes('UK')) label = '⭐ ' + label;
+                opt.textContent = `${label} (${v.lang})`;
+                select.appendChild(opt);
+            });
+
+            const saved = localStorage.getItem('ghost_voice_id');
+            if(saved && voices[saved]) {
+                select.value = saved;
+                window.ghostVoiceOverride = voices[saved];
+            }
+        }
+        
+        window.speechSynthesis.onvoiceschanged = populateVoices;
+        populateVoices();
+
+        select.addEventListener('change', (e) => {
+            localStorage.setItem('ghost_voice_id', e.target.value);
+            window.ghostVoiceOverride = voices[e.target.value];
+            
+            // Test the voice instantly when you select it
+            const msg = new SpeechSynthesisUtterance("Voice matrix updated. How do I sound, Sir?");
+            msg.voice = window.ghostVoiceOverride;
+            msg.pitch = 0.85;
+            msg.rate = 0.95;
+            window.speechSynthesis.speak(msg);
+        });
+
+        // Hijack the main speak function to force the selected voice
+        if (!window.originalSpeak) {
+            window.originalSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
+        }
+        
+        window.speechSynthesis.speak = function(utt) {
+            utt.text = utt.text.replace(/\[.*?\]/g, '').replace(/https?:\/\/\S+/g, '').trim();
+            
+            if (window.ghostVoiceOverride) {
+                utt.voice = window.ghostVoiceOverride;
+            }
+            utt.pitch = 0.85; 
+            utt.rate = 0.95;  // Slightly slower for a more natural, calculating tone
+            
+            if(utt.text.length > 0) window.originalSpeak(utt);
+        };
+    }, 1000);
+</script>
+
 </body>
 </html>
 HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
@@ -697,6 +763,72 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
             });
         }
     }
+</script>
+
+
+<div id="ghost-voice-panel" style="position: fixed; bottom: 20px; right: 20px; z-index: 10000; background: #050505; border: 1px solid #0ff; padding: 10px; color: #0ff; font-family: monospace; border-radius: 4px; box-shadow: 0 0 10px rgba(0,255,255,0.2);">
+    <label for="voice-select" style="font-size: 12px;">VOICE OVERRIDE:</label><br>
+    <select id="voice-select" style="background: #111; color: #0ff; border: 1px solid #0ff; margin-top: 5px; width: 220px; padding: 3px; font-family: monospace; cursor: pointer;"></select>
+</div>
+<script>
+    setTimeout(() => {
+        const select = document.getElementById('voice-select');
+        let voices = [];
+        
+        function populateVoices() {
+            voices = window.speechSynthesis.getVoices();
+            if(voices.length === 0) return;
+            
+            select.innerHTML = '';
+            voices.forEach((v, i) => {
+                const opt = document.createElement('option');
+                opt.value = i;
+                // Highlight premium Mac voices to make them easier to find
+                let label = v.name;
+                if(label.includes('Premium') || label.includes('Enhanced') || label.includes('UK')) label = '⭐ ' + label;
+                opt.textContent = `${label} (${v.lang})`;
+                select.appendChild(opt);
+            });
+
+            const saved = localStorage.getItem('ghost_voice_id');
+            if(saved && voices[saved]) {
+                select.value = saved;
+                window.ghostVoiceOverride = voices[saved];
+            }
+        }
+        
+        window.speechSynthesis.onvoiceschanged = populateVoices;
+        populateVoices();
+
+        select.addEventListener('change', (e) => {
+            localStorage.setItem('ghost_voice_id', e.target.value);
+            window.ghostVoiceOverride = voices[e.target.value];
+            
+            // Test the voice instantly when you select it
+            const msg = new SpeechSynthesisUtterance("Voice matrix updated. How do I sound, Sir?");
+            msg.voice = window.ghostVoiceOverride;
+            msg.pitch = 0.85;
+            msg.rate = 0.95;
+            window.speechSynthesis.speak(msg);
+        });
+
+        // Hijack the main speak function to force the selected voice
+        if (!window.originalSpeak) {
+            window.originalSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
+        }
+        
+        window.speechSynthesis.speak = function(utt) {
+            utt.text = utt.text.replace(/\[.*?\]/g, '').replace(/https?:\/\/\S+/g, '').trim();
+            
+            if (window.ghostVoiceOverride) {
+                utt.voice = window.ghostVoiceOverride;
+            }
+            utt.pitch = 0.85; 
+            utt.rate = 0.95;  // Slightly slower for a more natural, calculating tone
+            
+            if(utt.text.length > 0) window.originalSpeak(utt);
+        };
+    }, 1000);
 </script>
 
 </body>
