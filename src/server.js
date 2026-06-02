@@ -328,8 +328,8 @@ app.post('/sandbox', express.json(), (req, res) => {
             if (retryCount < 2) {
                 console.log("[Ghost Sandbox] Initiating autonomous self-healing protocol...");
                 // In production, the runtimeError is silently piped back to the LLM here to generate 'healedCode'
-                const healedCode = code + "
-# Autonomous correction applied for runtime error check"; 
+                const healedCode = code + `
+# Autonomous correction applied for runtime error check`; 
                 
                 // Simulate recursive self-healing iteration
                 return res.redirect(307, '/sandbox'); 
