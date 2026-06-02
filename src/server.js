@@ -1,3 +1,6 @@
+const multer = require('multer');
+const pdf = require('pdf-parse');
+const upload = multer({ storage: multer.memoryStorage() });
 
 
 const express = require("express");
@@ -449,9 +452,6 @@ app.post('/swarm-execute', express.json(), async (req, res) => {
 });
 
 // --- DOCUMENT MATRIX (RAG INGESTION) ---
-const multer = require('multer');
-const pdf = require('pdf-parse');
-const upload = multer({ storage: multer.memoryStorage() });
 
 app.post('/upload', upload.single('document'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "No document provided." });
