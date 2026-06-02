@@ -185,4 +185,20 @@ setInterval(async () => {
     }
 }, 60 * 60 * 1000);
 
+
+// --- AUTONOMOUS WEBHOOK PROTOCOL ---
+app.post('/webhook', express.json(), async (req, res) => {
+    try {
+        const payload = req.body;
+        console.log("[GHOST WEBHOOK ALERT]: Received external trigger.", payload);
+        
+        // In the future, Ghost can parse this payload and send you a Telegram message
+        res.status(200).json({ status: "Ghost acknowledges receipt of webhook payload." });
+    } catch (error) {
+        console.error("Webhook processing error:", error);
+        res.status(500).send("Ghost Internal Error");
+    }
+});
+// -----------------------------------
+
 app.listen(PORT, () => console.log(`GHOST NETWORK ONLINE ON PORT ${PORT}`));
