@@ -348,4 +348,22 @@ app.post('/schedule', express.json(), (req, res) => {
 });
 // ----------------------------------------------
 
+
+// --- HEADLESS EXTRACTION API ---
+app.post('/scrape', express.json(), async (req, res) => {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: "No URL provided." });
+    
+    console.log(`[Ghost Scraper API] Frontend requested extraction for: ${url}`);
+    
+    // Call the headless scraper we built earlier
+    try {
+        const text = await runHeadlessScraper(url);
+        res.json({ text: text });
+    } catch (e) {
+        res.json({ text: "Extraction failed due to network security or timeout." });
+    }
+});
+// -------------------------------
+
 app.listen(PORT, () => console.log(`GHOST NETWORK ONLINE ON PORT ${PORT}`));
