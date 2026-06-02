@@ -85,6 +85,27 @@ try {
     console.log("[Ghost Engine] Supabase driver missing.");
 }
 
+
+// --- ACTIVE MEMORY RETRIEVAL ---
+app.use('/chat', express.json(), async (req, res, next) => {
+    if (req.method === 'POST' && req.body && req.body.message && typeof dbClient !== 'undefined' && dbClient) {
+        try {
+            const { data } = await dbClient.from('memory_banks')
+                .select('role, content')
+                .order('created_at', { ascending: false })
+                .limit(10);
+            if (data && data.length > 0) {
+                const recentContext = data.reverse().map(msg => `${msg.role.toUpperCase()}: ${msg.content}`).join("\n");
+                req.body.message = `[PAST MEMORY CONTEXT:\n${recentContext}]\n\nCURRENT COMMAND: ${req.body.message}`;
+            }
+        } catch (e) { 
+            console.error("[Memory Retrieval Error]", e.message); 
+        }
+    }
+    next();
+});
+// -------------------------------
+
 // Middleware to passively log all chat traffic to the database
 app.use('/chat', express.json(), (req, res, next) => {
     if (req.body && req.body.message && dbClient) {
