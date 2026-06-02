@@ -70,10 +70,21 @@ async function searchWeb(query) {
 // ==========================================
 
 // --- SUPABASE MEMORY MATRIX ---
-const { createClient } = require('@supabase/supabase-js');
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
-const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
+let supabase = null;
+try {
+    const { createClient } = require('@supabase/supabase-js');
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_ANON_KEY;
+    // Fortified check to prevent Invalid URL crashes
+    if (supabaseUrl && supabaseUrl.startsWith('http') && supabaseKey) {
+        supabase = createClient(supabaseUrl, supabaseKey);
+        console.log("[Ghost Engine] Memory Matrix connected.");
+    } else {
+        console.log("[Ghost Engine] Memory Matrix dormant (Invalid URL or missing keys).");
+    }
+} catch (e) {
+    console.log("[Ghost Engine] Supabase driver missing.");
+}
 
 // Middleware to passively log all chat traffic to the database
 app.use('/chat', express.json(), (req, res, next) => {
