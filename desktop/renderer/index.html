@@ -221,13 +221,29 @@
   </script>
 
 <script>
-    // 1. Mute Background Commands in Voice Output
+    // 1. Premium Voice Engine
+    let ghostVoice = null;
+    function loadVoices() {
+        const voices = window.speechSynthesis.getVoices();
+        // Prioritize premium UK Male voices for a sophisticated tone
+        ghostVoice = voices.find(v => v.name.includes('Daniel') || v.name.includes('Google UK English Male') || v.name.includes('Arthur')) 
+                     || voices.find(v => v.lang === 'en-GB' && v.name.includes('Male'))
+                     || voices.find(v => v.lang === 'en-GB') 
+                     || voices[0];
+    }
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    loadVoices();
+
     if (window.speechSynthesis) {
-        const ogSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
+        if (!window.rawSpeak) window.rawSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
         window.speechSynthesis.speak = function(utt) {
-            utt.text = utt.text.replace(/\[.*?\\]/g, '').replace(/https?:\/\/\S+/g, '').trim();
-            if(utt.text.length > 0) ogSpeak(utt);
+            utt.text = utt.text.replace(/\[.*?\]/g, '').replace(/https?:\/\/\S+/g, '').trim();
+            if (ghostVoice) utt.voice = ghostVoice;
+            utt.pitch = 0.85; // Slightly lower pitch
+            utt.rate = 0.95;  // Slightly slower, deliberate articulation
+            if(utt.text.length > 0) window.rawSpeak(utt);
         };
+    };
     }
 
     // 2. Inject Real-Time Clock and Weather into LLM Memory
@@ -557,13 +573,29 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
   </script>
 
 <script>
-    // 1. Mute Background Commands in Voice Output
+    // 1. Premium Voice Engine
+    let ghostVoice = null;
+    function loadVoices() {
+        const voices = window.speechSynthesis.getVoices();
+        // Prioritize premium UK Male voices for a sophisticated tone
+        ghostVoice = voices.find(v => v.name.includes('Daniel') || v.name.includes('Google UK English Male') || v.name.includes('Arthur')) 
+                     || voices.find(v => v.lang === 'en-GB' && v.name.includes('Male'))
+                     || voices.find(v => v.lang === 'en-GB') 
+                     || voices[0];
+    }
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    loadVoices();
+
     if (window.speechSynthesis) {
-        const ogSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
+        if (!window.rawSpeak) window.rawSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
         window.speechSynthesis.speak = function(utt) {
-            utt.text = utt.text.replace(/\[.*?\\]/g, '').replace(/https?:\/\/\S+/g, '').trim();
-            if(utt.text.length > 0) ogSpeak(utt);
+            utt.text = utt.text.replace(/\[.*?\]/g, '').replace(/https?:\/\/\S+/g, '').trim();
+            if (ghostVoice) utt.voice = ghostVoice;
+            utt.pitch = 0.85; // Slightly lower pitch
+            utt.rate = 0.95;  // Slightly slower, deliberate articulation
+            if(utt.text.length > 0) window.rawSpeak(utt);
         };
+    };
     }
 
     // 2. Inject Real-Time Clock and Weather into LLM Memory
