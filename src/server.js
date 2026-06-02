@@ -68,7 +68,36 @@ async function searchWeb(query) {
 // ==========================================
 // 3. CORE CHAT AGENT LOGIC
 // ==========================================
-app.post("/chat", async (req, res) => {
+
+// --- SUPABASE MEMORY MATRIX ---
+const { createClient } = require('@supabase/supabase-js');
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
+
+// Middleware to passively log all chat traffic to the database
+app.use('/chat', express.json(), (req, res, next) => {
+    if (req.body && req.body.message && supabase) {
+        supabase.from('memory_banks').insert([{ role: 'user', content: req.body.message }])
+            .then(() => console.log("[Ghost Memory] User input archived."))
+            .catch(e => console.error("[Memory Error]", e.message));
+    }
+    
+    const originalJson = res.json;
+    res.json = function(data) {
+        if (data && (data.reply || data.response || data.message) && supabase) {
+            const text = data.reply || data.response || data.message;
+            supabase.from('memory_banks').insert([{ role: 'ghost', content: text }])
+                .then(() => console.log("[Ghost Memory] Ghost response archived."))
+                .catch(e => console.error("[Memory Error]", e.message));
+        }
+        return originalJson.call(this, data);
+    };
+    next();
+});
+// ------------------------------
+
+app.post('/chat', async (req, res) => {
     const { message } = req.body;
     if (!message) return res.status(400).json({ error: "Missing transcript data." });
 
