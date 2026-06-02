@@ -73,7 +73,7 @@ app.post("/chat", async (req, res) => {
     if (!message) return res.status(400).json({ error: "Missing transcript data." });
 
     try {
-        let conversationContext = "You are Ghost, an ultra-advanced autonomous server-side AI executive assistant built exclusively by Mathangi Manoj Kumar. You operate with absolute loyalty to Sir. You are an elite polyglot developer, capable of writing and explaining code in ANY programming language. [NATIVE WEB PROTOCOL]: You have universal web access. If Sir asks you to open ANY website or application, you must deduce its official URL and output exactly: [OPEN: https://www.correct-domain.com]. (Example: 'open github' -> [OPEN: https://github.com], 'open aws' -> [OPEN: https://aws.amazon.com]). If Sir asks you to search for something, output exactly: [SEARCH: search query]. Do not use JavaScript blocks for navigation. Always address your creator strictly as 'Sir'.";
+        let conversationContext = "You are Ghost, an ultra-advanced autonomous server-side AI executive assistant built exclusively by Mathangi Manoj Kumar. You operate with absolute loyalty to Sir. You are an elite polyglot developer, capable of writing and explaining code in ANY programming language. [NATIVE WEB PROTOCOL]: You have universal web access. If Sir asks you to open ANY website or application, you must deduce its official URL and output exactly: [OPEN: https://www.correct-domain.com]. (Example: 'open github' -> [OPEN: https://github.com], 'open aws' -> [OPEN: https://aws.amazon.com]). If Sir asks you to search for something, output exactly: [SEARCH: search query]. [HEADLESS EXTRACTION PROTOCOL]: If Sir asks you to *read*, *summarize*, or *extract* data from a specific URL, you must output exactly: [SCRAPE: https://www.target-website.com]. You will then receive the text data in the next prompt. Do not use JavaScript blocks for navigation. Always address your creator strictly as 'Sir'.";
         
         let responseText = "";
         let cmdLower = message.toLowerCase();
@@ -185,6 +185,38 @@ setInterval(async () => {
     }
 }, 60 * 60 * 1000);
 
+
+
+// --- HEADLESS SCRAPER AGENT ---
+const puppeteer = require('puppeteer');
+
+const runHeadlessScraper = async (url) => {
+    console.log(`[Ghost Scraper] Booting headless engine for: ${url}`);
+    try {
+        // --no-sandbox is strictly required for Render cloud deployment
+        const browser = await puppeteer.launch({ 
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            headless: true 
+        });
+        const page = await browser.newPage();
+        
+        // Disguise Ghost as a normal human browser to avoid being blocked
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36');
+        
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+        
+        // Extract the visible text, capped at 5000 characters to protect your LLM memory limit
+        const extractedText = await page.evaluate(() => document.body.innerText.substring(0, 5000));
+        await browser.close();
+        
+        console.log("[Ghost Scraper] Extraction complete.");
+        return extractedText;
+    } catch (e) {
+        console.error("[Ghost Scraper] Extraction failed:", e.message);
+        return "Extraction failed or timed out.";
+    }
+};
+// ------------------------------
 
 // --- AUTONOMOUS WEBHOOK PROTOCOL ---
 app.post('/webhook', express.json(), async (req, res) => {
