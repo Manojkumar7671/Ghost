@@ -270,4 +270,42 @@ app.post('/sandbox', express.json(), (req, res) => {
 });
 // -------------------------------------
 
+
+// --- TEMPORAL ENGINE (AUTONOMOUS SCHEDULER) ---
+const cron = require('node-cron');
+
+// A global registry to hold Ghost's active background tasks
+global.activeTasks = {};
+
+app.post('/schedule', express.json(), (req, res) => {
+    const { taskId, cronExpression, command, url } = req.body;
+    
+    if (!cron.validate(cronExpression)) {
+        return res.status(400).json({ error: "Invalid cron expression." });
+    }
+
+    console.log(`[Ghost Temporal Engine] Task '${taskId}' scheduled at [${cronExpression}]`);
+    
+    const task = cron.schedule(cronExpression, async () => {
+        console.log(`[Ghost Temporal Engine] Waking up to execute: ${taskId}`);
+        
+        try {
+            if (command === 'scrape' && url) {
+                // Trigger the headless scraper we built earlier
+                const data = await runHeadlessScraper(url);
+                console.log(`[Ghost Temporal Engine] Task '${taskId}' scrape complete. Length: ${data.length}`);
+                // Future integration: Save this to PostgreSQL or send via Telegram
+            } else {
+                console.log(`[Ghost Temporal Engine] Task '${taskId}' executed standard command.`);
+            }
+        } catch (error) {
+            console.error(`[Ghost Temporal Engine] Task '${taskId}' failed:`, error);
+        }
+    });
+
+    global.activeTasks[taskId] = task;
+    res.json({ status: `Temporal task '${taskId}' locked in.` });
+});
+// ----------------------------------------------
+
 app.listen(PORT, () => console.log(`GHOST NETWORK ONLINE ON PORT ${PORT}`));
