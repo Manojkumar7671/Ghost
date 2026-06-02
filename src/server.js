@@ -9,7 +9,6 @@ const path = require("path");
 const dotenv = require("dotenv");
 const rateLimit = require("express-rate-limit");
 const { createClient } = require("@supabase/supabase-js");
-const multer = require("multer");
 const FormData = require("form-data");
 const axios = require("axios");
 const googleTTS = require("google-tts-api");
