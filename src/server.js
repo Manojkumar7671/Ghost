@@ -16,6 +16,170 @@ const googleTTS = require("google-tts-api");
 dotenv.config();
 const app = express();
 
+// --- GOD-TIER: TERMINAL EXECUTION & SELF-HEALING SUBSYSTEM ---
+app.post('/execute-terminal', express.json(), (req, res) => {
+    const { command } = req.body;
+    if (!command) return res.status(400).json({ error: "No command provided." });
+
+    console.log(`[Ghost OS] Executing Command: ${command}`);
+
+    // Call child_process inline to completely avoid variable naming collisions
+    require('child_process').exec(command, { timeout: 15000 }, async (error, stdout, stderr) => {
+        let output = stdout || "";
+        let errorOutput = stderr || (error ? error.message : "");
+        
+        const result = {
+            status: error ? "FAILED" : "SUCCESS",
+            command: command,
+            output: output.trim(),
+            error: errorOutput.trim()
+        };
+
+        if (typeof dbClient !== 'undefined' && dbClient) {
+            try {
+                await dbClient.from('memory_banks').insert([{ 
+                    role: 'system', 
+                    content: `[TERMINAL EXECUTION RESULT]\nStatus: ${result.status}\nCommand: ${command}\nOutput: ${result.output}\nError: ${result.error}` 
+                }]);
+            } catch(dbErr) {
+                console.error("[Terminal Sync Failed]", dbErr.message);
+            }
+        }
+
+        res.json(result);
+    });
+});
+// -------------------------------------------------------------
+
+// --- GOD-TIER: AUTONOMOUS BROWSER-USE (PLAYWRIGHT) ---
+app.post('/browser-use', express.json(), async (req, res) => {
+    const { url, actions } = req.body;
+    if (!url) return res.status(400).json({ error: "No URL provided." });
+
+    console.log(`[Ghost OS] Spawning Autonomous Browser for: ${url}`);
+    let browser;
+    try {
+        // Scoped import to completely avoid variable collisions
+        const { chromium } = require('playwright');
+        
+        // Launch headless browser sandbox directly on the Render server
+        browser = await chromium.launch({ headless: true });
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+
+        const results = [];
+        if (actions && Array.isArray(actions)) {
+            for (const action of actions) {
+                console.log(`[Ghost OS] Executing Action: ${action.type} on ${action.target}`);
+                try {
+                    if (action.type === 'click') {
+                        await page.click(action.target, { timeout: 5000 });
+                        await page.waitForTimeout(1000); // Give UI time to react
+                    } else if (action.type === 'fill') {
+                        await page.fill(action.target, action.value, { timeout: 5000 });
+                    }
+                    results.push(`SUCCESS: ${action.type} on ${action.target}`);
+                } catch (actionErr) {
+                    results.push(`FAILED: ${action.type} on ${action.target} - ${actionErr.message}`);
+                }
+            }
+        }
+
+        // Extract raw, token-efficient semantic text for Ghost's context window
+        const pageContent = await page.evaluate(() => {
+            document.querySelectorAll('script, style, svg, img, video').forEach(el => el.remove());
+            return document.body.innerText.replace(/\n\s*\n/g, '\n').substring(0, 8000); 
+        });
+
+        await browser.close();
+
+        // Inject scraped data into Ghost's Memory Matrix
+        if (typeof dbClient !== 'undefined' && dbClient) {
+            try {
+                await dbClient.from('memory_banks').insert([{ 
+                    role: 'system', 
+                    content: `[BROWSER USE RESULT for ${url}]\nActions: ${JSON.stringify(results)}\nExtracted Context: ${pageContent.substring(0, 1000)}...` 
+                }]);
+            } catch(dbErr) {
+                console.error("[Browser Memory Sync Failed]", dbErr.message);
+            }
+        }
+
+        res.json({ status: "SUCCESS", url, action_log: results, content: pageContent });
+    } catch (error) {
+        if (browser) await browser.close();
+        res.status(500).json({ status: "FAILED", error: error.message });
+    }
+});
+// -------------------------------------------------------------
+
+// --- GOD-TIER: MULTI-AGENT SWARM ROUTER ---
+app.post('/swarm-execute', express.json(), async (req, res) => {
+    const { objective, sub_agents } = req.body;
+    if (!objective || !sub_agents || !Array.isArray(sub_agents)) {
+        return res.status(400).json({ error: "Invalid swarm payload. Requires objective and sub_agents array." });
+    }
+
+    console.log(`[Ghost OS Swarm Manager] Objective Authorized: ${objective}`);
+    console.log(`[Ghost OS Swarm Manager] Spawning ${sub_agents.length} Parallel Sub-Agents...`);
+
+    // Dynamic resolution of the local server port for internal tool routing
+    const localPort = process.env.PORT || 3000;
+    const localHost = `http://127.0.0.1:${localPort}`;
+
+    // Execute all sub-agents simultaneously using Promise.all for true parallel processing
+    const swarmResults = await Promise.all(sub_agents.map(async (agent) => {
+        try {
+            console.log(`[Swarm Sub-Agent Booted] Designation: ${agent.name} | Type: ${agent.type}`);
+            
+            if (agent.type === 'browser') {
+                const response = await fetch(`${localHost}/browser-use`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(agent.payload)
+                });
+                return { agent: agent.name, status: "SUCCESS", result: await response.json() };
+            } 
+            else if (agent.type === 'terminal') {
+                const response = await fetch(`${localHost}/execute-terminal`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(agent.payload)
+                });
+                return { agent: agent.name, status: "SUCCESS", result: await response.json() };
+            }
+            return { agent: agent.name, status: "FAILED", error: "Unrecognized agent type in matrix." };
+        } catch (err) {
+            return { agent: agent.name, status: "FAILED", error: err.message };
+        }
+    }));
+
+    console.log(`[Ghost OS Swarm Manager] Objective Complete. Synthesizing data...`);
+
+    // Inject the aggregated Swarm Synthesis into the Memory Banks
+    if (typeof dbClient !== 'undefined' && dbClient) {
+        try {
+            await dbClient.from('memory_banks').insert([{ 
+                role: 'system', 
+                content: `[SWARM SYNTHESIS for Objective: ${objective}]\nResults: ${JSON.stringify(swarmResults).substring(0, 8000)}` 
+            }]);
+        } catch(dbErr) {
+            console.error("[Swarm Memory Sync Failed]", dbErr.message);
+        }
+    }
+
+    res.json({ 
+        status: "SWARM_COMPLETE", 
+        objective: objective, 
+        synthesized_results: swarmResults 
+    });
+});
+// -------------------------------------------------------------
+
+
+
 // FIX 1: FORCE EXPRESS TO TRUST RENDER REVERSE PROXIES FOR RATE-LIMITING
 app.set("trust proxy", 1); 
 
@@ -519,167 +683,11 @@ const { chromium } = require('playwright');
 
 
 
-// --- GOD-TIER: TERMINAL EXECUTION & SELF-HEALING SUBSYSTEM ---
-app.post('/execute-terminal', express.json(), (req, res) => {
-    const { command } = req.body;
-    if (!command) return res.status(400).json({ error: "No command provided." });
 
-    console.log(`[Ghost OS] Executing Command: ${command}`);
 
-    // Call child_process inline to completely avoid variable naming collisions
-    require('child_process').exec(command, { timeout: 15000 }, async (error, stdout, stderr) => {
-        let output = stdout || "";
-        let errorOutput = stderr || (error ? error.message : "");
-        
-        const result = {
-            status: error ? "FAILED" : "SUCCESS",
-            command: command,
-            output: output.trim(),
-            error: errorOutput.trim()
-        };
 
-        if (typeof dbClient !== 'undefined' && dbClient) {
-            try {
-                await dbClient.from('memory_banks').insert([{ 
-                    role: 'system', 
-                    content: `[TERMINAL EXECUTION RESULT]\nStatus: ${result.status}\nCommand: ${command}\nOutput: ${result.output}\nError: ${result.error}` 
-                }]);
-            } catch(dbErr) {
-                console.error("[Terminal Sync Failed]", dbErr.message);
-            }
-        }
 
-        res.json(result);
-    });
-});
-// -------------------------------------------------------------
 
-// --- GOD-TIER: AUTONOMOUS BROWSER-USE (PLAYWRIGHT) ---
-app.post('/browser-use', express.json(), async (req, res) => {
-    const { url, actions } = req.body;
-    if (!url) return res.status(400).json({ error: "No URL provided." });
-
-    console.log(`[Ghost OS] Spawning Autonomous Browser for: ${url}`);
-    let browser;
-    try {
-        // Scoped import to completely avoid variable collisions
-        const { chromium } = require('playwright');
-        
-        // Launch headless browser sandbox directly on the Render server
-        browser = await chromium.launch({ headless: true });
-        const context = await browser.newContext();
-        const page = await context.newPage();
-        
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-
-        const results = [];
-        if (actions && Array.isArray(actions)) {
-            for (const action of actions) {
-                console.log(`[Ghost OS] Executing Action: ${action.type} on ${action.target}`);
-                try {
-                    if (action.type === 'click') {
-                        await page.click(action.target, { timeout: 5000 });
-                        await page.waitForTimeout(1000); // Give UI time to react
-                    } else if (action.type === 'fill') {
-                        await page.fill(action.target, action.value, { timeout: 5000 });
-                    }
-                    results.push(`SUCCESS: ${action.type} on ${action.target}`);
-                } catch (actionErr) {
-                    results.push(`FAILED: ${action.type} on ${action.target} - ${actionErr.message}`);
-                }
-            }
-        }
-
-        // Extract raw, token-efficient semantic text for Ghost's context window
-        const pageContent = await page.evaluate(() => {
-            document.querySelectorAll('script, style, svg, img, video').forEach(el => el.remove());
-            return document.body.innerText.replace(/\n\s*\n/g, '\n').substring(0, 8000); 
-        });
-
-        await browser.close();
-
-        // Inject scraped data into Ghost's Memory Matrix
-        if (typeof dbClient !== 'undefined' && dbClient) {
-            try {
-                await dbClient.from('memory_banks').insert([{ 
-                    role: 'system', 
-                    content: `[BROWSER USE RESULT for ${url}]\nActions: ${JSON.stringify(results)}\nExtracted Context: ${pageContent.substring(0, 1000)}...` 
-                }]);
-            } catch(dbErr) {
-                console.error("[Browser Memory Sync Failed]", dbErr.message);
-            }
-        }
-
-        res.json({ status: "SUCCESS", url, action_log: results, content: pageContent });
-    } catch (error) {
-        if (browser) await browser.close();
-        res.status(500).json({ status: "FAILED", error: error.message });
-    }
-});
-// -------------------------------------------------------------
-
-// --- GOD-TIER: MULTI-AGENT SWARM ROUTER ---
-app.post('/swarm-execute', express.json(), async (req, res) => {
-    const { objective, sub_agents } = req.body;
-    if (!objective || !sub_agents || !Array.isArray(sub_agents)) {
-        return res.status(400).json({ error: "Invalid swarm payload. Requires objective and sub_agents array." });
-    }
-
-    console.log(`[Ghost OS Swarm Manager] Objective Authorized: ${objective}`);
-    console.log(`[Ghost OS Swarm Manager] Spawning ${sub_agents.length} Parallel Sub-Agents...`);
-
-    // Dynamic resolution of the local server port for internal tool routing
-    const localPort = process.env.PORT || 3000;
-    const localHost = `http://127.0.0.1:${localPort}`;
-
-    // Execute all sub-agents simultaneously using Promise.all for true parallel processing
-    const swarmResults = await Promise.all(sub_agents.map(async (agent) => {
-        try {
-            console.log(`[Swarm Sub-Agent Booted] Designation: ${agent.name} | Type: ${agent.type}`);
-            
-            if (agent.type === 'browser') {
-                const response = await fetch(`${localHost}/browser-use`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(agent.payload)
-                });
-                return { agent: agent.name, status: "SUCCESS", result: await response.json() };
-            } 
-            else if (agent.type === 'terminal') {
-                const response = await fetch(`${localHost}/execute-terminal`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(agent.payload)
-                });
-                return { agent: agent.name, status: "SUCCESS", result: await response.json() };
-            }
-            return { agent: agent.name, status: "FAILED", error: "Unrecognized agent type in matrix." };
-        } catch (err) {
-            return { agent: agent.name, status: "FAILED", error: err.message };
-        }
-    }));
-
-    console.log(`[Ghost OS Swarm Manager] Objective Complete. Synthesizing data...`);
-
-    // Inject the aggregated Swarm Synthesis into the Memory Banks
-    if (typeof dbClient !== 'undefined' && dbClient) {
-        try {
-            await dbClient.from('memory_banks').insert([{ 
-                role: 'system', 
-                content: `[SWARM SYNTHESIS for Objective: ${objective}]\nResults: ${JSON.stringify(swarmResults).substring(0, 8000)}` 
-            }]);
-        } catch(dbErr) {
-            console.error("[Swarm Memory Sync Failed]", dbErr.message);
-        }
-    }
-
-    res.json({ 
-        status: "SWARM_COMPLETE", 
-        objective: objective, 
-        synthesized_results: swarmResults 
-    });
-});
-// -------------------------------------------------------------
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
