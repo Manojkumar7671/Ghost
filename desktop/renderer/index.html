@@ -413,6 +413,120 @@
     }, 1000);
 </script>
 
+
+<style>
+    /* 1. Hide the default chat transcript to make it a pure voice UI */
+    /* This targets the most common chat container IDs/classes */
+    #chat-container, .chat-box, #messages, #transcript, .transcript-container {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        height: 0 !important;
+        overflow: hidden !important;
+    }
+
+    /* 2. Secret Command Line Chatbox */
+    #ghost-secret-cli {
+        position: fixed;
+        bottom: -100px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 50%;
+        background: rgba(10, 10, 10, 0.85);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(0, 255, 100, 0.3);
+        border-radius: 12px;
+        padding: 15px 25px;
+        box-shadow: 0 10px 30px rgba(0, 255, 100, 0.1);
+        transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+        z-index: 9999;
+        display: flex;
+        gap: 15px;
+        opacity: 0;
+        align-items: center;
+    }
+
+    #ghost-secret-cli.active {
+        bottom: 40px;
+        opacity: 1;
+    }
+
+    #ghost-cli-input {
+        flex-grow: 1;
+        background: transparent;
+        border: none;
+        color: #0f0;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 16px;
+        outline: none;
+    }
+    
+    #ghost-cli-input::placeholder { 
+        color: rgba(0, 255, 0, 0.3); 
+    }
+</style>
+
+<div id="ghost-secret-cli">
+    <span style="color: #0f0; font-family: monospace; font-weight: bold;">[GHOST_OS] ></span>
+    <input type="text" id="ghost-cli-input" placeholder="Awaiting Swarm Command... (Double-Tap Shift to Close)" autocomplete="off">
+</div>
+
+<script>
+    // Double-Shift Shortcut Logic
+    let lastShiftTime = 0;
+    const cli = document.getElementById('ghost-secret-cli');
+    const cliInput = document.getElementById('ghost-cli-input');
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Shift') {
+            const currentTime = new Date().getTime();
+            if (currentTime - lastShiftTime < 400) { // 400ms window for double tap
+                cli.classList.toggle('active');
+                if (cli.classList.contains('active')) {
+                    cliInput.focus();
+                } else {
+                    cliInput.blur();
+                }
+                lastShiftTime = 0; 
+            } else {
+                lastShiftTime = currentTime;
+            }
+        }
+    });
+
+    // Handle Enter Key to automatically forward text to Ghost's brain
+    cliInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && cliInput.value.trim() !== '') {
+            const command = cliInput.value;
+            cliInput.value = ''; 
+            cli.classList.remove('active'); 
+            
+            // Find the original hidden input box and hijack it
+            const existingInput = document.querySelector('input[type="text"]:not(#ghost-cli-input), textarea');
+            const existingSendBtn = document.querySelector('button[type="submit"], #send-btn');
+            
+            if (existingInput) {
+                // Set the value and trigger React/Vue/Vanilla input events
+                const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                if (nativeInputValueSetter) {
+                    nativeInputValueSetter.call(existingInput, command);
+                } else {
+                    existingInput.value = command;
+                }
+                existingInput.dispatchEvent(new Event('input', { bubbles: true }));
+                
+                // Click the original send button, or press Enter
+                if (existingSendBtn) {
+                    existingSendBtn.click();
+                } else {
+                    existingInput.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+                }
+            } else {
+                console.warn("[Ghost OS] Could not locate original chat input to forward command.");
+            }
+        }
+    });
+</script>
+
 </body>
 </html>
 HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
@@ -829,6 +943,120 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
             if(utt.text.length > 0) window.originalSpeak(utt);
         };
     }, 1000);
+</script>
+
+
+<style>
+    /* 1. Hide the default chat transcript to make it a pure voice UI */
+    /* This targets the most common chat container IDs/classes */
+    #chat-container, .chat-box, #messages, #transcript, .transcript-container {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        height: 0 !important;
+        overflow: hidden !important;
+    }
+
+    /* 2. Secret Command Line Chatbox */
+    #ghost-secret-cli {
+        position: fixed;
+        bottom: -100px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 50%;
+        background: rgba(10, 10, 10, 0.85);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(0, 255, 100, 0.3);
+        border-radius: 12px;
+        padding: 15px 25px;
+        box-shadow: 0 10px 30px rgba(0, 255, 100, 0.1);
+        transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+        z-index: 9999;
+        display: flex;
+        gap: 15px;
+        opacity: 0;
+        align-items: center;
+    }
+
+    #ghost-secret-cli.active {
+        bottom: 40px;
+        opacity: 1;
+    }
+
+    #ghost-cli-input {
+        flex-grow: 1;
+        background: transparent;
+        border: none;
+        color: #0f0;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 16px;
+        outline: none;
+    }
+    
+    #ghost-cli-input::placeholder { 
+        color: rgba(0, 255, 0, 0.3); 
+    }
+</style>
+
+<div id="ghost-secret-cli">
+    <span style="color: #0f0; font-family: monospace; font-weight: bold;">[GHOST_OS] ></span>
+    <input type="text" id="ghost-cli-input" placeholder="Awaiting Swarm Command... (Double-Tap Shift to Close)" autocomplete="off">
+</div>
+
+<script>
+    // Double-Shift Shortcut Logic
+    let lastShiftTime = 0;
+    const cli = document.getElementById('ghost-secret-cli');
+    const cliInput = document.getElementById('ghost-cli-input');
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Shift') {
+            const currentTime = new Date().getTime();
+            if (currentTime - lastShiftTime < 400) { // 400ms window for double tap
+                cli.classList.toggle('active');
+                if (cli.classList.contains('active')) {
+                    cliInput.focus();
+                } else {
+                    cliInput.blur();
+                }
+                lastShiftTime = 0; 
+            } else {
+                lastShiftTime = currentTime;
+            }
+        }
+    });
+
+    // Handle Enter Key to automatically forward text to Ghost's brain
+    cliInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && cliInput.value.trim() !== '') {
+            const command = cliInput.value;
+            cliInput.value = ''; 
+            cli.classList.remove('active'); 
+            
+            // Find the original hidden input box and hijack it
+            const existingInput = document.querySelector('input[type="text"]:not(#ghost-cli-input), textarea');
+            const existingSendBtn = document.querySelector('button[type="submit"], #send-btn');
+            
+            if (existingInput) {
+                // Set the value and trigger React/Vue/Vanilla input events
+                const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                if (nativeInputValueSetter) {
+                    nativeInputValueSetter.call(existingInput, command);
+                } else {
+                    existingInput.value = command;
+                }
+                existingInput.dispatchEvent(new Event('input', { bubbles: true }));
+                
+                // Click the original send button, or press Enter
+                if (existingSendBtn) {
+                    existingSendBtn.click();
+                } else {
+                    existingInput.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+                }
+            } else {
+                console.warn("[Ghost OS] Could not locate original chat input to forward command.");
+            }
+        }
+    });
 </script>
 
 </body>
