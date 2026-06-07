@@ -554,6 +554,70 @@ app.post('/execute-terminal', express.json(), (req, res) => {
 });
 // -------------------------------------------------------------
 
+// --- GOD-TIER: AUTONOMOUS BROWSER-USE (PLAYWRIGHT) ---
+app.post('/browser-use', express.json(), async (req, res) => {
+    const { url, actions } = req.body;
+    if (!url) return res.status(400).json({ error: "No URL provided." });
+
+    console.log(`[Ghost OS] Spawning Autonomous Browser for: ${url}`);
+    let browser;
+    try {
+        // Scoped import to completely avoid variable collisions
+        const { chromium } = require('playwright');
+        
+        // Launch headless browser sandbox directly on the Render server
+        browser = await chromium.launch({ headless: true });
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+
+        const results = [];
+        if (actions && Array.isArray(actions)) {
+            for (const action of actions) {
+                console.log(`[Ghost OS] Executing Action: ${action.type} on ${action.target}`);
+                try {
+                    if (action.type === 'click') {
+                        await page.click(action.target, { timeout: 5000 });
+                        await page.waitForTimeout(1000); // Give UI time to react
+                    } else if (action.type === 'fill') {
+                        await page.fill(action.target, action.value, { timeout: 5000 });
+                    }
+                    results.push(`SUCCESS: ${action.type} on ${action.target}`);
+                } catch (actionErr) {
+                    results.push(`FAILED: ${action.type} on ${action.target} - ${actionErr.message}`);
+                }
+            }
+        }
+
+        // Extract raw, token-efficient semantic text for Ghost's context window
+        const pageContent = await page.evaluate(() => {
+            document.querySelectorAll('script, style, svg, img, video').forEach(el => el.remove());
+            return document.body.innerText.replace(/\n\s*\n/g, '\n').substring(0, 8000); 
+        });
+
+        await browser.close();
+
+        // Inject scraped data into Ghost's Memory Matrix
+        if (typeof dbClient !== 'undefined' && dbClient) {
+            try {
+                await dbClient.from('memory_banks').insert([{ 
+                    role: 'system', 
+                    content: `[BROWSER USE RESULT for ${url}]\nActions: ${JSON.stringify(results)}\nExtracted Context: ${pageContent.substring(0, 1000)}...` 
+                }]);
+            } catch(dbErr) {
+                console.error("[Browser Memory Sync Failed]", dbErr.message);
+            }
+        }
+
+        res.json({ status: "SUCCESS", url, action_log: results, content: pageContent });
+    } catch (error) {
+        if (browser) await browser.close();
+        res.status(500).json({ status: "FAILED", error: error.message });
+    }
+});
+// -------------------------------------------------------------
+
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
