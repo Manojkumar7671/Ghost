@@ -297,7 +297,7 @@ app.post('/webhook', express.json(), async (req, res) => {
 
 
 // --- NATIVE CODE EXECUTION SANDBOX (WITH SELF-HEALING LOOP) ---
-const { exec } = require('child_process');
+const { exec: sysExec } = require('child_process');
 const fs = require('fs');
 
 app.post('/sandbox', express.json(), (req, res) => {
@@ -518,7 +518,7 @@ const { Server } = require('socket.io');
 const { chromium } = require('playwright');
 
 // --- GOD-TIER: TERMINAL EXECUTION & SELF-HEALING SUBSYSTEM ---
-const { exec } = require('child_process');
+const { exec: sysExec } = require('child_process');
 
 app.post('/execute-terminal', express.json(), async (req, res) => {
     const { command } = req.body;
@@ -528,7 +528,7 @@ app.post('/execute-terminal', express.json(), async (req, res) => {
 
     // Execute raw terminal command in the Render Linux Sandbox
     // Timeout set to 15 seconds to prevent infinite loops
-    exec(command, { timeout: 15000 }, async (error, stdout, stderr) => {
+    sysExec(command, { timeout: 15000 }, async (error, stdout, stderr) => {
         let output = stdout || "";
         let errorOutput = stderr || (error ? error.message : "");
         
