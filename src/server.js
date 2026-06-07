@@ -618,6 +618,69 @@ app.post('/browser-use', express.json(), async (req, res) => {
 });
 // -------------------------------------------------------------
 
+// --- GOD-TIER: MULTI-AGENT SWARM ROUTER ---
+app.post('/swarm-execute', express.json(), async (req, res) => {
+    const { objective, sub_agents } = req.body;
+    if (!objective || !sub_agents || !Array.isArray(sub_agents)) {
+        return res.status(400).json({ error: "Invalid swarm payload. Requires objective and sub_agents array." });
+    }
+
+    console.log(`[Ghost OS Swarm Manager] Objective Authorized: ${objective}`);
+    console.log(`[Ghost OS Swarm Manager] Spawning ${sub_agents.length} Parallel Sub-Agents...`);
+
+    // Dynamic resolution of the local server port for internal tool routing
+    const localPort = process.env.PORT || 3000;
+    const localHost = `http://127.0.0.1:${localPort}`;
+
+    // Execute all sub-agents simultaneously using Promise.all for true parallel processing
+    const swarmResults = await Promise.all(sub_agents.map(async (agent) => {
+        try {
+            console.log(`[Swarm Sub-Agent Booted] Designation: ${agent.name} | Type: ${agent.type}`);
+            
+            if (agent.type === 'browser') {
+                const response = await fetch(`${localHost}/browser-use`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(agent.payload)
+                });
+                return { agent: agent.name, status: "SUCCESS", result: await response.json() };
+            } 
+            else if (agent.type === 'terminal') {
+                const response = await fetch(`${localHost}/execute-terminal`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(agent.payload)
+                });
+                return { agent: agent.name, status: "SUCCESS", result: await response.json() };
+            }
+            return { agent: agent.name, status: "FAILED", error: "Unrecognized agent type in matrix." };
+        } catch (err) {
+            return { agent: agent.name, status: "FAILED", error: err.message };
+        }
+    }));
+
+    console.log(`[Ghost OS Swarm Manager] Objective Complete. Synthesizing data...`);
+
+    // Inject the aggregated Swarm Synthesis into the Memory Banks
+    if (typeof dbClient !== 'undefined' && dbClient) {
+        try {
+            await dbClient.from('memory_banks').insert([{ 
+                role: 'system', 
+                content: `[SWARM SYNTHESIS for Objective: ${objective}]\nResults: ${JSON.stringify(swarmResults).substring(0, 8000)}` 
+            }]);
+        } catch(dbErr) {
+            console.error("[Swarm Memory Sync Failed]", dbErr.message);
+        }
+    }
+
+    res.json({ 
+        status: "SWARM_COMPLETE", 
+        objective: objective, 
+        synthesized_results: swarmResults 
+    });
+});
+// -------------------------------------------------------------
+
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
