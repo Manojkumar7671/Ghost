@@ -297,7 +297,7 @@ app.post('/webhook', express.json(), async (req, res) => {
 
 
 // --- NATIVE CODE EXECUTION SANDBOX (WITH SELF-HEALING LOOP) ---
-const { exec: sysExec } = require('child_process');
+
 const fs = require('fs');
 
 app.post('/sandbox', express.json(), (req, res) => {
@@ -517,18 +517,17 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { chromium } = require('playwright');
 
-// --- GOD-TIER: TERMINAL EXECUTION & SELF-HEALING SUBSYSTEM ---
-const { exec: sysExec } = require('child_process');
 
-app.post('/execute-terminal', express.json(), async (req, res) => {
+
+// --- GOD-TIER: TERMINAL EXECUTION & SELF-HEALING SUBSYSTEM ---
+app.post('/execute-terminal', express.json(), (req, res) => {
     const { command } = req.body;
     if (!command) return res.status(400).json({ error: "No command provided." });
 
-    console.log(`[Ghost OS] Executing God-Tier Command: ${command}`);
+    console.log(`[Ghost OS] Executing Command: ${command}`);
 
-    // Execute raw terminal command in the Render Linux Sandbox
-    // Timeout set to 15 seconds to prevent infinite loops
-    sysExec(command, { timeout: 15000 }, async (error, stdout, stderr) => {
+    // Call child_process inline to completely avoid variable naming collisions
+    require('child_process').exec(command, { timeout: 15000 }, async (error, stdout, stderr) => {
         let output = stdout || "";
         let errorOutput = stderr || (error ? error.message : "");
         
@@ -539,8 +538,6 @@ app.post('/execute-terminal', express.json(), async (req, res) => {
             error: errorOutput.trim()
         };
 
-        // Inject terminal output directly into Ghost's Memory Matrix
-        // This allows the AI to "read" the terminal and self-heal code
         if (typeof dbClient !== 'undefined' && dbClient) {
             try {
                 await dbClient.from('memory_banks').insert([{ 
@@ -548,7 +545,7 @@ app.post('/execute-terminal', express.json(), async (req, res) => {
                     content: `[TERMINAL EXECUTION RESULT]\nStatus: ${result.status}\nCommand: ${command}\nOutput: ${result.output}\nError: ${result.error}` 
                 }]);
             } catch(dbErr) {
-                console.error("[Terminal Memory Sync Failed]", dbErr.message);
+                console.error("[Terminal Sync Failed]", dbErr.message);
             }
         }
 
