@@ -243,7 +243,6 @@
             utt.rate = 0.95;  // Slightly slower, deliberate articulation
             if(utt.text.length > 0) window.rawSpeak(utt);
         };
-    };
     }
 
     // 2. Inject Real-Time Clock and Weather into LLM Memory
@@ -417,7 +416,7 @@
 <style>
     /* 1. Hide the default chat transcript to make it a pure voice UI */
     /* This targets the most common chat container IDs/classes */
-    #chat-container, .chat-box, #messages, #transcript, .transcript-container {
+    #messages, #input, #sendBtn {
         opacity: 0 !important;
         pointer-events: none !important;
         height: 0 !important;
@@ -775,7 +774,6 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
             utt.rate = 0.95;  // Slightly slower, deliberate articulation
             if(utt.text.length > 0) window.rawSpeak(utt);
         };
-    };
     }
 
     // 2. Inject Real-Time Clock and Weather into LLM Memory
@@ -949,7 +947,7 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
 <style>
     /* 1. Hide the default chat transcript to make it a pure voice UI */
     /* This targets the most common chat container IDs/classes */
-    #chat-container, .chat-box, #messages, #transcript, .transcript-container {
+    #messages, #input, #sendBtn {
         opacity: 0 !important;
         pointer-events: none !important;
         height: 0 !important;
