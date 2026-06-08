@@ -469,7 +469,7 @@
 
 <div id="ghost-secret-cli">
     <span style="color: #0f0; font-family: monospace; font-weight: bold;">[GHOST_OS] ></span>
-    <input type="text" id="ghost-cli-input" placeholder="Awaiting Swarm Command... (Press ` or Esc to Close)" autocomplete="off">
+    <input type="text" id="ghost-cli-input" placeholder="Awaiting Swarm Command... (Double-Click background to close)" autocomplete="off">
 </div>
 
 <script>
@@ -525,6 +525,34 @@
             }
         }
     });
+</script>
+
+
+<script>
+    // 1. Mouse Click Trigger (Double Click Anywhere)
+    document.addEventListener('dblclick', (e) => {
+        const cli = document.getElementById('ghost-secret-cli');
+        const cliInput = document.getElementById('ghost-cli-input');
+        if(cli) {
+            cli.classList.toggle('active');
+            if (cli.classList.contains('active')) {
+                setTimeout(() => cliInput.focus(), 50);
+            } else {
+                cliInput.blur();
+            }
+        }
+    });
+
+    // 2. Active DOM Eradication (Destroys UI elements even if JS generates them)
+    setInterval(() => {
+        const targets = document.querySelectorAll('#messages, #statusText, #typing, .chat-box, .glass-panel, [id*="transcript"], [class*="transcript"]');
+        targets.forEach(el => {
+            el.style.setProperty('display', 'none', 'important');
+            el.style.setProperty('opacity', '0', 'important');
+            el.style.setProperty('visibility', 'hidden', 'important');
+            el.style.setProperty('pointer-events', 'none', 'important');
+        });
+    }, 500);
 </script>
 
 </body>
@@ -1001,7 +1029,7 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
 
 <div id="ghost-secret-cli">
     <span style="color: #0f0; font-family: monospace; font-weight: bold;">[GHOST_OS] ></span>
-    <input type="text" id="ghost-cli-input" placeholder="Awaiting Swarm Command... (Press ` or Esc to Close)" autocomplete="off">
+    <input type="text" id="ghost-cli-input" placeholder="Awaiting Swarm Command... (Double-Click background to close)" autocomplete="off">
 </div>
 
 <script>
@@ -1057,6 +1085,34 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
             }
         }
     });
+</script>
+
+
+<script>
+    // 1. Mouse Click Trigger (Double Click Anywhere)
+    document.addEventListener('dblclick', (e) => {
+        const cli = document.getElementById('ghost-secret-cli');
+        const cliInput = document.getElementById('ghost-cli-input');
+        if(cli) {
+            cli.classList.toggle('active');
+            if (cli.classList.contains('active')) {
+                setTimeout(() => cliInput.focus(), 50);
+            } else {
+                cliInput.blur();
+            }
+        }
+    });
+
+    // 2. Active DOM Eradication (Destroys UI elements even if JS generates them)
+    setInterval(() => {
+        const targets = document.querySelectorAll('#messages, #statusText, #typing, .chat-box, .glass-panel, [id*="transcript"], [class*="transcript"]');
+        targets.forEach(el => {
+            el.style.setProperty('display', 'none', 'important');
+            el.style.setProperty('opacity', '0', 'important');
+            el.style.setProperty('visibility', 'hidden', 'important');
+            el.style.setProperty('pointer-events', 'none', 'important');
+        });
+    }, 500);
 </script>
 
 </body>
