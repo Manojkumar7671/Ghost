@@ -68,6 +68,35 @@
     }
 </style>
 
+
+<style>
+    /* Default State: Invisible */
+    body:not(.show-ui) #messages, 
+    body:not(.show-ui) #statusText, 
+    body:not(.show-ui) #typing, 
+    body:not(.show-ui) .chat-box, 
+    body:not(.show-ui) [id*="transcript"] {
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        transition: all 0.3s ease-in-out;
+    }
+    
+    /* Clicked State: Visible & Sleek */
+    body.show-ui #messages, 
+    body.show-ui #statusText, 
+    body.show-ui .chat-box {
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
+        background: rgba(10, 10, 10, 0.8) !important;
+        border: 1px solid rgba(0, 255, 100, 0.3) !important;
+        border-radius: 8px;
+        transition: all 0.3s ease-in-out;
+    }
+    body { overflow: hidden; background: #000; }
+</style>
+
 </head>
 <body>
   <div class="titlebar">
@@ -564,15 +593,7 @@
     });
 
     // 2. Active DOM Eradication (Destroys UI elements even if JS generates them)
-    setInterval(() => {
-        const targets = document.querySelectorAll('#messages, #statusText, #typing, .chat-box, .glass-panel, [id*="transcript"], [class*="transcript"]');
-        targets.forEach(el => {
-            el.style.setProperty('display', 'none', 'important');
-            el.style.setProperty('opacity', '0', 'important');
-            el.style.setProperty('visibility', 'hidden', 'important');
-            el.style.setProperty('pointer-events', 'none', 'important');
-        });
-    }, 500);
+    
 </script>
 
 <script>
@@ -594,6 +615,32 @@
         });
     }
 </script>
+
+<script>
+    // Toggle Text Boxes on Click
+    document.addEventListener('click', (e) => {
+        if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') {
+            document.body.classList.toggle('show-ui');
+        }
+    });
+
+    // Continuous Always-On Microphone Loop
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const rec = new SpeechRec();
+        rec.continuous = true;
+        rec.interimResults = false;
+        
+        // Auto-restart if the browser tries to cut the mic
+        rec.onend = () => { setTimeout(() => { try { rec.start(); } catch(e) {} }, 100); };
+        
+        // Make sure it starts right when the page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            try { rec.start(); } catch(e) {}
+        });
+    }
+</script>
+
 </body>
 </html>
 HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
@@ -667,6 +714,35 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
     }
 </style>
 
+
+<style>
+    /* Default State: Invisible */
+    body:not(.show-ui) #messages, 
+    body:not(.show-ui) #statusText, 
+    body:not(.show-ui) #typing, 
+    body:not(.show-ui) .chat-box, 
+    body:not(.show-ui) [id*="transcript"] {
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        transition: all 0.3s ease-in-out;
+    }
+    
+    /* Clicked State: Visible & Sleek */
+    body.show-ui #messages, 
+    body.show-ui #statusText, 
+    body.show-ui .chat-box {
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
+        background: rgba(10, 10, 10, 0.8) !important;
+        border: 1px solid rgba(0, 255, 100, 0.3) !important;
+        border-radius: 8px;
+        transition: all 0.3s ease-in-out;
+    }
+    body { overflow: hidden; background: #000; }
+</style>
+
 </head>
 <body>
   <div class="titlebar">
@@ -1163,15 +1239,7 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
     });
 
     // 2. Active DOM Eradication (Destroys UI elements even if JS generates them)
-    setInterval(() => {
-        const targets = document.querySelectorAll('#messages, #statusText, #typing, .chat-box, .glass-panel, [id*="transcript"], [class*="transcript"]');
-        targets.forEach(el => {
-            el.style.setProperty('display', 'none', 'important');
-            el.style.setProperty('opacity', '0', 'important');
-            el.style.setProperty('visibility', 'hidden', 'important');
-            el.style.setProperty('pointer-events', 'none', 'important');
-        });
-    }, 500);
+    
 </script>
 
 <script>
@@ -1193,5 +1261,31 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
         });
     }
 </script>
+
+<script>
+    // Toggle Text Boxes on Click
+    document.addEventListener('click', (e) => {
+        if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') {
+            document.body.classList.toggle('show-ui');
+        }
+    });
+
+    // Continuous Always-On Microphone Loop
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const rec = new SpeechRec();
+        rec.continuous = true;
+        rec.interimResults = false;
+        
+        // Auto-restart if the browser tries to cut the mic
+        rec.onend = () => { setTimeout(() => { try { rec.start(); } catch(e) {} }, 100); };
+        
+        // Make sure it starts right when the page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            try { rec.start(); } catch(e) {}
+        });
+    }
+</script>
+
 </body>
 </html>
