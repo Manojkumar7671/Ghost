@@ -48,6 +48,26 @@
 <style>#messages, #input, #sendBtn, .chat-box, #chat-container { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }</style>
 <style>#statusText, #typing, .transcript, [id*='transcript'] { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }</style>
 <style>#messages, #statusText, #typing, .chat-box, .glass-panel, [id*='transcript'], [class*='transcript'] { display: none !important; opacity: 0 !important; border: none !important; background: transparent !important; color: transparent !important; pointer-events: none !important; }</style>
+
+<style>
+    /* Absolute UI Eradication */
+    #messages, #statusText, #typing, .chat-box, .glass-panel, 
+    input, button, textarea, [class*="container"], [id*="container"],
+    [id*="transcript"], [class*="transcript"], .input-area {
+        display: none !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        pointer-events: none !important;
+    }
+    body, html {
+        background: #000000 !important;
+        overflow: hidden !important;
+    }
+</style>
+
 </head>
 <body>
   <div class="titlebar">
@@ -555,6 +575,25 @@
     }, 500);
 </script>
 
+<script>
+    // Continuous Listening Implementation
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = false;
+        
+        recognition.onend = function() {
+            // Force restart the microphone instantly when it drops
+            try { recognition.start(); } catch(e) {}
+        };
+        
+        // Ensure microphone starts automatically on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            try { recognition.start(); } catch(e) {}
+        });
+    }
+</script>
 </body>
 </html>
 HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
@@ -608,6 +647,26 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
 <style>#messages, #input, #sendBtn, .chat-box, #chat-container { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }</style>
 <style>#statusText, #typing, .transcript, [id*='transcript'] { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }</style>
 <style>#messages, #statusText, #typing, .chat-box, .glass-panel, [id*='transcript'], [class*='transcript'] { display: none !important; opacity: 0 !important; border: none !important; background: transparent !important; color: transparent !important; pointer-events: none !important; }</style>
+
+<style>
+    /* Absolute UI Eradication */
+    #messages, #statusText, #typing, .chat-box, .glass-panel, 
+    input, button, textarea, [class*="container"], [id*="container"],
+    [id*="transcript"], [class*="transcript"], .input-area {
+        display: none !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        pointer-events: none !important;
+    }
+    body, html {
+        background: #000000 !important;
+        overflow: hidden !important;
+    }
+</style>
+
 </head>
 <body>
   <div class="titlebar">
@@ -1115,5 +1174,24 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
     }, 500);
 </script>
 
+<script>
+    // Continuous Listening Implementation
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = false;
+        
+        recognition.onend = function() {
+            // Force restart the microphone instantly when it drops
+            try { recognition.start(); } catch(e) {}
+        };
+        
+        // Ensure microphone starts automatically on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            try { recognition.start(); } catch(e) {}
+        });
+    }
+</script>
 </body>
 </html>
