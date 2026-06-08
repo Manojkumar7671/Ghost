@@ -47,6 +47,7 @@
   </style>
 <style>#messages, #input, #sendBtn, .chat-box, #chat-container { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }</style>
 <style>#statusText, #typing, .transcript, [id*='transcript'] { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }</style>
+<style>#messages, #statusText, #typing, .chat-box, .glass-panel, [id*='transcript'], [class*='transcript'] { display: none !important; opacity: 0 !important; border: none !important; background: transparent !important; color: transparent !important; pointer-events: none !important; }</style>
 </head>
 <body>
   <div class="titlebar">
@@ -239,7 +240,7 @@
     if (window.speechSynthesis) {
         if (!window.rawSpeak) window.rawSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
         window.speechSynthesis.speak = function(utt) {
-            utt.text = utt.text.replace(/\[.*?\]/g, '').replace(/https?:\/\/\S+/g, '').trim();
+            utt.text = utt.text.replace(/\[.*?\]/g, '').replace(/https?:\/\/[^\s]+/ig, '').replace(/www\.[^\s]+/ig, '').replace(/[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/ig, '').replace(/[*_`~]/g, '').trim();
             if (ghostVoice) utt.voice = ghostVoice;
             utt.pitch = 0.85; // Slightly lower pitch
             utt.rate = 0.95;  // Slightly slower, deliberate articulation
@@ -401,7 +402,7 @@
         }
         
         window.speechSynthesis.speak = function(utt) {
-            utt.text = utt.text.replace(/\[.*?\]/g, '').replace(/https?:\/\/\S+/g, '').trim();
+            utt.text = utt.text.replace(/\[.*?\]/g, '').replace(/https?:\/\/[^\s]+/ig, '').replace(/www\.[^\s]+/ig, '').replace(/[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/ig, '').replace(/[*_`~]/g, '').trim();
             
             if (window.ghostVoiceOverride) {
                 utt.voice = window.ghostVoiceOverride;
@@ -578,6 +579,7 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
   </style>
 <style>#messages, #input, #sendBtn, .chat-box, #chat-container { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }</style>
 <style>#statusText, #typing, .transcript, [id*='transcript'] { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }</style>
+<style>#messages, #statusText, #typing, .chat-box, .glass-panel, [id*='transcript'], [class*='transcript'] { display: none !important; opacity: 0 !important; border: none !important; background: transparent !important; color: transparent !important; pointer-events: none !important; }</style>
 </head>
 <body>
   <div class="titlebar">
@@ -770,7 +772,7 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
     if (window.speechSynthesis) {
         if (!window.rawSpeak) window.rawSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
         window.speechSynthesis.speak = function(utt) {
-            utt.text = utt.text.replace(/\[.*?\]/g, '').replace(/https?:\/\/\S+/g, '').trim();
+            utt.text = utt.text.replace(/\[.*?\]/g, '').replace(/https?:\/\/[^\s]+/ig, '').replace(/www\.[^\s]+/ig, '').replace(/[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/ig, '').replace(/[*_`~]/g, '').trim();
             if (ghostVoice) utt.voice = ghostVoice;
             utt.pitch = 0.85; // Slightly lower pitch
             utt.rate = 0.95;  // Slightly slower, deliberate articulation
@@ -932,7 +934,7 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
         }
         
         window.speechSynthesis.speak = function(utt) {
-            utt.text = utt.text.replace(/\[.*?\]/g, '').replace(/https?:\/\/\S+/g, '').trim();
+            utt.text = utt.text.replace(/\[.*?\]/g, '').replace(/https?:\/\/[^\s]+/ig, '').replace(/www\.[^\s]+/ig, '').replace(/[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/ig, '').replace(/[*_`~]/g, '').trim();
             
             if (window.ghostVoiceOverride) {
                 utt.voice = window.ghostVoiceOverride;
