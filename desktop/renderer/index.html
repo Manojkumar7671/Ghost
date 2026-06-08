@@ -468,29 +468,27 @@
 
 <div id="ghost-secret-cli">
     <span style="color: #0f0; font-family: monospace; font-weight: bold;">[GHOST_OS] ></span>
-    <input type="text" id="ghost-cli-input" placeholder="Awaiting Swarm Command... (Double-Tap Shift to Close)" autocomplete="off">
+    <input type="text" id="ghost-cli-input" placeholder="Awaiting Swarm Command... (Press ` or Esc to Close)" autocomplete="off">
 </div>
 
 <script>
-    // Double-Shift Shortcut Logic
-    let lastShiftTime = 0;
+    // Developer Console Shortcut (` / ~ key)
     const cli = document.getElementById('ghost-secret-cli');
     const cliInput = document.getElementById('ghost-cli-input');
 
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Shift') {
-            const currentTime = new Date().getTime();
-            if (currentTime - lastShiftTime < 400) { // 400ms window for double tap
-                cli.classList.toggle('active');
-                if (cli.classList.contains('active')) {
-                    cliInput.focus();
-                } else {
-                    cliInput.blur();
-                }
-                lastShiftTime = 0; 
+        if (e.code === 'Backquote') {
+            e.preventDefault(); // Stop it from typing the ` character
+            cli.classList.toggle('active');
+            if (cli.classList.contains('active')) {
+                setTimeout(() => cliInput.focus(), 50);
             } else {
-                lastShiftTime = currentTime;
+                cliInput.blur();
             }
+        }
+        if (e.code === 'Escape') {
+            cli.classList.remove('active');
+            cliInput.blur();
         }
     });
 
@@ -1001,29 +999,27 @@ HTMLEOFcat > ~/Ghost/desktop/renderer/index.html << 'HTMLEOF'
 
 <div id="ghost-secret-cli">
     <span style="color: #0f0; font-family: monospace; font-weight: bold;">[GHOST_OS] ></span>
-    <input type="text" id="ghost-cli-input" placeholder="Awaiting Swarm Command... (Double-Tap Shift to Close)" autocomplete="off">
+    <input type="text" id="ghost-cli-input" placeholder="Awaiting Swarm Command... (Press ` or Esc to Close)" autocomplete="off">
 </div>
 
 <script>
-    // Double-Shift Shortcut Logic
-    let lastShiftTime = 0;
+    // Developer Console Shortcut (` / ~ key)
     const cli = document.getElementById('ghost-secret-cli');
     const cliInput = document.getElementById('ghost-cli-input');
 
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Shift') {
-            const currentTime = new Date().getTime();
-            if (currentTime - lastShiftTime < 400) { // 400ms window for double tap
-                cli.classList.toggle('active');
-                if (cli.classList.contains('active')) {
-                    cliInput.focus();
-                } else {
-                    cliInput.blur();
-                }
-                lastShiftTime = 0; 
+        if (e.code === 'Backquote') {
+            e.preventDefault(); // Stop it from typing the ` character
+            cli.classList.toggle('active');
+            if (cli.classList.contains('active')) {
+                setTimeout(() => cliInput.focus(), 50);
             } else {
-                lastShiftTime = currentTime;
+                cliInput.blur();
             }
+        }
+        if (e.code === 'Escape') {
+            cli.classList.remove('active');
+            cliInput.blur();
         }
     });
 
