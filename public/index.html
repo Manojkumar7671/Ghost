@@ -2,121 +2,163 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Ghost OS | Hybrid Terminal</title>
+    <title>Ghost OS | Neural Interface</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body { background: #0a0a0a; color: #0df; font-family: 'Courier New', monospace; padding: 20px; display: flex; flex-direction: column; height: 90vh; }
-        #chat-log { flex: 1; overflow-y: auto; border: 1px solid #333; padding: 15px; margin-bottom: 15px; background: #050505; }
-        .msg { margin-bottom: 10px; line-height: 1.4; }
-        .user-msg { color: #fff; }
-        .ghost-msg { color: #0df; }
-        #input-area { display: flex; gap: 10px; }
-        input { flex: 1; background: #000; border: 1px solid #0df; color: #fff; padding: 12px; font-family: inherit; font-size: 16px; outline: none; }
-        input:focus { border-color: #fa0; }
-        button { background: #0df; color: #000; border: none; padding: 12px 20px; cursor: pointer; font-weight: bold; font-family: inherit; transition: 0.2s; }
-        button:hover { opacity: 0.8; }
-        button#mic-btn { background: #444; color: #fff; }
-        button#mic-btn.listening { background: #f00; color: white; animation: pulse 1s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: 'Courier New', monospace; overflow: hidden; }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 30px; box-sizing: border-box; z-index: 10; }
+        .sys-text { text-align: center; letter-spacing: 5px; font-size: 14px; text-transform: uppercase; text-shadow: 0 0 10px rgba(0, 221, 255, 0.5); }
+        #status { color: #888; }
     </style>
 </head>
 <body>
-    <h3>GHOST OS | SECURE TERMINAL LINK</h3>
-    <div id="chat-log">
-        <div class="msg ghost-msg">System Active. Awaiting text or voice input.</div>
-    </div>
-    <div id="input-area">
-        <button id="mic-btn" onclick="toggleMic()">🎤 MIC</button>
-        <input type="text" id="user-input" placeholder="Type a message or click Mic..." onkeypress="if(event.key === 'Enter') sendText()">
-        <button onclick="sendText()">SEND</button>
+    <div id="overlay">
+        <div class="sys-text">GHOST OS | NEURAL INTERFACE</div>
+        <div class="sys-text" id="status">SYSTEM OFFLINE: CLICK ANYWHERE TO INITIALIZE</div>
     </div>
 
     <script>
-        const log = document.getElementById('chat-log');
-        const input = document.getElementById('user-input');
-        const micBtn = document.getElementById('mic-btn');
-        
-        let recognition;
-        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-            recognition = new SpeechRec();
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            
-            recognition.onstart = () => {
-                micBtn.classList.add('listening');
-                micBtn.innerText = '🔴 LISTENING...';
-            };
-            
-            recognition.onend = () => {
-                micBtn.classList.remove('listening');
-                micBtn.innerText = '🎤 MIC';
-            };
-            
-            recognition.onresult = (e) => {
-                const transcript = e.results[0][0].transcript;
-                input.value = transcript;
-                sendText(); // Auto-send when voice is captured
-            };
-            
-            recognition.onerror = (e) => {
-                console.error("Mic error:", e.error);
-                micBtn.classList.remove('listening');
-                micBtn.innerText = '🎤 ERROR (Click again)';
-            };
+        // --- 1. 3D PARTICLE SPHERE SETUP (THREE.JS) ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const geometry = new THREE.BufferGeometry();
+        const particlesCount = 4000;
+        const posArray = new Float32Array(particlesCount * 3);
+
+        // Create a sphere of particles
+        for(let i = 0; i < particlesCount * 3; i+=3) {
+            const r = 2.5;
+            const theta = 2 * Math.PI * Math.random();
+            const phi = Math.acos(2 * Math.random() - 1);
+            posArray[i] = r * Math.sin(phi) * Math.cos(theta);
+            posArray[i+1] = r * Math.sin(phi) * Math.sin(theta);
+            posArray[i+2] = r * Math.cos(phi);
         }
 
-        function toggleMic() {
-            if (!recognition) return alert("Speech recognition not supported in this browser.");
+        geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const material = new THREE.PointsMaterial({ size: 0.02, color: 0x00ddff, transparent: true, opacity: 0.8 });
+        const particlesMesh = new THREE.Points(geometry, material);
+        scene.add(particlesMesh);
+        camera.position.z = 6;
+
+        let orbState = 'idle'; // idle, listening, processing, speaking
+        let clock = new THREE.Clock();
+
+        // Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            const elapsedTime = clock.getElapsedTime();
             
-            // Stop any ongoing Ghost speech if you interrupt him
-            window.speechSynthesis.cancel();
-            
-            if (micBtn.classList.contains('listening')) {
-                recognition.stop();
-            } else {
-                recognition.start();
+            // Default idle rotation
+            particlesMesh.rotation.y += 0.002;
+            particlesMesh.rotation.x += 0.001;
+
+            if (orbState === 'processing') {
+                material.color.setHex(0xffaa00); // Orange
+                particlesMesh.rotation.y += 0.03; // Spin faster
+                particlesMesh.scale.set(1, 1, 1);
+            } else if (orbState === 'speaking') {
+                material.color.setHex(0x00ddff); // Blue
+                const pulse = 1 + Math.sin(elapsedTime * 8) * 0.15; // Voice wave effect
+                particlesMesh.scale.set(pulse, pulse, pulse);
+            } else if (orbState === 'listening') {
+                material.color.setHex(0x00ddff); // Blue
+                particlesMesh.scale.set(1, 1, 1);
             }
+
+            renderer.render(scene, camera);
         }
+        animate();
 
-        async function sendText() {
-            const message = input.value.trim();
-            if (!message) return;
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
 
-            appendLog('user-msg', `> You: ${message}`);
-            input.value = '';
-
-            try {
-                const response = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: message })
-                });
-                const data = await response.json();
-                
-                if (data.success) {
-                    appendLog('ghost-msg', `Ghost: ${data.text}`);
-                    speak(data.text);
-                }
-            } catch (err) {
-                appendLog('ghost-msg', `[SYSTEM ERROR: Connection Failed]`);
-            }
-        }
-
-        function appendLog(className, text) {
-            log.innerHTML += `<div class="msg ${className}">${text}</div>`;
-            log.scrollTop = log.scrollHeight;
-        }
+        // --- 2. GHOST LOGIC & MIC SAFETY ---
+        const statusEl = document.getElementById('status');
+        let isRecognizing = false;
 
         function speak(text) {
-            // Cancel any ongoing speech so he doesn't talk over himself
+            orbState = 'speaking';
             window.speechSynthesis.cancel();
             
-            // Clean out the markdown/code artifacts so he doesn't read them aloud awkwardly
-            const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/```[\s\S]*?```/g, 'I have output the code to the terminal.');
-            
+            // Clean text for speaking
+            const cleanText = text.replace(/<[^>]*>?/gm, '');
             const utterance = new SpeechSynthesisUtterance(cleanText);
+            
+            utterance.onend = () => {
+                orbState = 'listening';
+                statusEl.innerText = 'LISTENING...';
+                safeStartMic();
+            };
             window.speechSynthesis.speak(utterance);
         }
+
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const rec = new SpeechRec();
+        rec.continuous = false; // Set to false to avoid the InvalidStateError loop
+        rec.interimResults = false;
+
+        rec.onstart = () => { 
+            isRecognizing = true; 
+            orbState = 'listening'; 
+            statusEl.innerText = 'LISTENING...'; 
+            statusEl.style.color = '#0df';
+        };
+        
+        rec.onend = () => { 
+            isRecognizing = false; 
+            // Only restart if Ghost isn't busy thinking or talking
+            if(orbState === 'listening') safeStartMic(); 
+        };
+
+        rec.onerror = (e) => {
+            isRecognizing = false;
+        };
+        
+        rec.onresult = async (e) => {
+            const text = e.results[0][0].transcript;
+            orbState = 'processing';
+            statusEl.innerText = 'PROCESSING...';
+            statusEl.style.color = '#fa0';
+            
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ message: text, history: [] })
+                });
+                const data = await res.json();
+                if(data.success) {
+                    speak(data.text);
+                }
+            } catch(err) {
+                statusEl.innerText = 'CONNECTION FAILED';
+                orbState = 'listening';
+                safeStartMic();
+            }
+        };
+
+        // SAFETY LOCK: Prevents the "recognition has already started" error
+        function safeStartMic() {
+            if (!isRecognizing) {
+                try { rec.start(); } catch(e) {}
+            }
+        }
+
+        // Initialize on first click
+        document.body.addEventListener('click', () => {
+            if(orbState === 'idle') {
+                safeStartMic();
+            }
+        }, { once: true });
     </script>
 </body>
 </html>
