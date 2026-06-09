@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Ghost OS | V7 Full Deployment</title>
+    <title>Ghost OS | Native Voice</title>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #020608; color: #0df; font-family: 'Courier New', monospace; overflow: hidden; }
         .hud-grid { position: absolute; width: 100%; height: 100%; background: linear-gradient(rgba(0, 221, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 221, 255, 0.05) 1px, transparent 1px); background-size: 40px 40px; }
@@ -21,7 +21,7 @@
 </head>
 <body>
     <div class="hud-grid"></div>
-    <div class="sys-text" style="top:30px;">GHOST OS v7 | CLOUD LINK ACTIVE</div>
+    <div class="sys-text" style="top:30px;">GHOST OS v7 | NATIVE VOICE LINK</div>
     <div id="ghost-orb"></div>
     <div class="sys-text" id="status">CLICK ORB TO ACTIVATE</div>
     <div id="sidebar"><div id="content"></div></div>
@@ -31,22 +31,12 @@
         const status = document.getElementById('status');
         const sidebar = document.getElementById('sidebar');
         const content = document.getElementById('content');
-        let currentAudio = null;
 
-        async function playAudio(b64Array) {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            if (ctx.state === 'suspended') await ctx.resume();
-            let index = 0;
-            orb.className = 'speaking';
-            status.innerText = 'GHOST IS SPEAKING';
-            function playNext() {
-                if (index >= b64Array.length) { orb.className = 'listening'; status.innerText = 'LISTENING'; return; }
-                currentAudio = new Audio("data:audio/mp3;base64," + b64Array[index]);
-                currentAudio.onended = playNext;
-                currentAudio.play().catch(e => playNext());
-                index++;
-            }
-            playNext();
+        function speak(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.onstart = () => orb.className = 'speaking';
+            utterance.onend = () => { orb.className = 'listening'; window.ghostRec.start(); };
+            window.speechSynthesis.speak(utterance);
         }
 
         function initGhost() {
@@ -55,16 +45,16 @@
             const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
             window.ghostRec = new SpeechRec();
             window.ghostRec.continuous = true;
-            window.ghostRec.interimResults = false;
             window.ghostRec.onresult = async (e) => {
                 const text = e.results[e.results.length-1][0].transcript;
                 orb.className = 'processing';
                 status.innerText = 'PROCESSING...';
+                
                 const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }) });
                 const data = await res.json();
                 if (data.success) {
                     if (data.text.includes('code') || data.isSwarm) { sidebar.classList.add('open'); content.innerText = data.text; }
-                    playAudio(data.audio_b64);
+                    speak(data.text);
                 }
             };
             window.ghostRec.onend = () => window.ghostRec.start();
