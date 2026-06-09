@@ -3,104 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ghost OS</title>
+    <title>Ghost OS | Cinematic HUD</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000000 !important; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: 'Courier New', Courier, monospace; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #020608; overflow: hidden; font-family: 'Courier New', Courier, monospace; color: #0df; }
         
+        /* HUD Overlay */
+        .hud-grid { position: absolute; width: 100%; height: 100%; background: linear-gradient(rgba(0, 221, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 221, 255, 0.03) 1px, transparent 1px); background-size: 30px 30px; z-index: 0; pointer-events: none; }
+        
+        /* Central Orb */
         #ghost-orb { 
-            width: 100px; height: 100px; 
-            background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(0,0,0,0) 70%); 
-            border-radius: 50%; 
-            box-shadow: 0 0 30px rgba(255,255,255,0.2); 
-            transition: all 0.2s ease; cursor: pointer; 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 120px; height: 120px; 
+            background: radial-gradient(circle, rgba(0,221,255,0.2) 0%, rgba(0,0,0,0) 70%); 
+            border-radius: 50%; border: 2px solid rgba(0, 221, 255, 0.5);
+            box-shadow: 0 0 30px rgba(0, 221, 255, 0.3), inset 0 0 20px rgba(0, 221, 255, 0.3); 
+            transition: all 0.3s ease; cursor: pointer; z-index: 10;
         }
         
-        /* The Default State: Always Listening */
-        #ghost-orb.listening { 
-            box-shadow: 0 0 50px rgba(0, 255, 255, 0.7); 
-            animation: breathe 3s infinite ease-in-out; 
-        }
-        
-        /* The Thinking State: Waiting for API */
-        #ghost-orb.processing { 
-            box-shadow: 0 0 50px rgba(255, 165, 0, 0.8); 
-            transform: scale(0.9);
-        }
+        #ghost-orb.listening { animation: breathe 3s infinite ease-in-out; }
+        #ghost-orb.processing { border-color: #fa0; box-shadow: 0 0 40px #fa0, inset 0 0 20px #fa0; animation: spin 2s linear infinite dashed; border-style: dashed; }
+        #ghost-orb.speaking { border-color: #f0f; box-shadow: 0 0 60px #f0f, inset 0 0 40px #f0f; animation: voice-wave 0.4s infinite alternate; }
 
-        /* The Speaking State: Ghost is Talking */
-        #ghost-orb.speaking { 
-            box-shadow: 0 0 60px rgba(255, 0, 255, 0.8); 
-            transform: scale(1.15); 
-            animation: pulse-fast 0.5s infinite alternate;
-        }
-
-        @keyframes breathe { 
-            0% { transform: scale(1); opacity: 0.7; } 
-            50% { transform: scale(1.05); opacity: 1; } 
-            100% { transform: scale(1); opacity: 0.7; } 
-        }
-        @keyframes pulse-fast {
-            0% { transform: scale(1.1); opacity: 0.8; }
-            100% { transform: scale(1.2); opacity: 1; }
-        }
+        @keyframes breathe { 0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; } 50% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; } }
+        @keyframes spin { 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+        @keyframes voice-wave { 0% { transform: translate(-50%, -50%) scale(1.1); } 100% { transform: translate(-50%, -50%) scale(1.25); } }
         
-        #status-text {
-            position: absolute; bottom: 30px; color: #333; font-size: 12px; letter-spacing: 2px;
-        }
+        /* Top & Bottom Text */
+        .sys-text { position: absolute; width: 100%; text-align: center; letter-spacing: 4px; font-size: 12px; z-index: 5; text-transform: uppercase; }
+        #top-status { top: 30px; color: #0df; }
+        #bottom-status { bottom: 30px; color: #555; }
+
+        /* Slide-out Terminal */
+        #sidebar { position: absolute; right: -450px; top: 0; width: 400px; height: 100%; background: rgba(5, 10, 15, 0.9); border-left: 1px solid #0df; transition: right 0.4s cubic-bezier(0.1, 0.8, 0.1, 1); z-index: 20; padding: 20px; box-sizing: border-box; overflow-y: auto; box-shadow: -10px 0 30px rgba(0,221,255,0.1); }
+        #sidebar.open { right: 0; }
+        .sidebar-header { border-bottom: 1px solid rgba(0,221,255,0.4); padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; }
+        #sidebar-content pre { white-space: pre-wrap; font-size: 0.85em; color: #aaa; text-shadow: 0 0 5px rgba(255,255,255,0.2); }
     </style>
 </head>
 <body>
 
+<div class="hud-grid"></div>
+<div class="sys-text" id="top-status">GHOST OS v6 | ENCRYPTED LINK SECURE</div>
 <div id="ghost-orb"></div>
-<div id="status-text">CLICK ORB TO INITIALIZE PROTOCOLS</div>
+<div class="sys-text" id="bottom-status">SYSTEM OFFLINE: CLICK ORB TO INITIATE</div>
+
+<div id="sidebar">
+    <div class="sidebar-header">MATRIX OVERRIDE PAYLOAD</div>
+    <div id="sidebar-content"></div>
+</div>
 
 <script>
     let conversationHistory = [];
     const orb = document.getElementById('ghost-orb');
-    const statusText = document.getElementById('status-text');
-    let audioCtx;
+    const bottomStatus = document.getElementById('bottom-status');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarContent = document.getElementById('sidebar-content');
+    
     let isProcessing = false;
+    let currentAudio = null;
 
-    // 1. Audio Engine Unlock
-    function lockAudioEngine() {
-        if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            gain.gain.value = 0;
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
+    function evaluateSidebar(text, isSwarm, swarmData) {
+        const triggers = ['code', 'script', 'function', 'swarm', 'terminal', 'debug'];
+        const textLower = text.toLowerCase();
+        
+        if (isSwarm || triggers.some(t => textLower.includes(t))) {
+            sidebar.classList.add('open');
+            if (isSwarm && swarmData) {
+                sidebarContent.innerHTML = `<pre>${JSON.stringify(swarmData, null, 2)}</pre>`;
+            } else {
+                sidebarContent.innerHTML = `<pre>${text}</pre>`;
+            }
+        } else {
+            sidebar.classList.remove('open');
         }
     }
 
-    // 2. Ghost's Voice Generation
-    function speak(text) {
-        window.speechSynthesis.cancel(); // Clear any ongoing speech
-        let cleanText = text.replace(/<open:.*?>|<search:.*?>/g, '').trim();
-        const utterance = new SpeechSynthesisUtterance(cleanText);
+    function playCloudAudio(base64Array, rawText) {
+        if (currentAudio && !currentAudio.paused) currentAudio.pause();
         
-        const voices = window.speechSynthesis.getVoices();
-        const britishVoice = voices.find(v => v.lang.includes('en-GB')) || voices[0];
-        if (britishVoice) utterance.voice = britishVoice;
-        
-        utterance.onstart = () => { 
-            orb.className = 'speaking'; 
-            statusText.innerText = 'GHOST IS SPEAKING';
-        };
-        
-        utterance.onend = () => { 
-            isProcessing = false;
-            orb.className = 'listening'; 
-            statusText.innerText = 'SYSTEM ACTIVE: LISTENING';
-            executeEmbeddedTags(text); 
-            restartMicLoop(); 
-        };
-        
-        window.speechSynthesis.speak(utterance);
+        if (!base64Array || base64Array.length === 0) {
+            orb.className = 'listening';
+            bottomStatus.innerText = 'SYSTEM ACTIVE: LISTENING';
+            executeEmbeddedTags(rawText);
+            restartMicLoop();
+            return;
+        }
+
+        let index = 0;
+        orb.className = 'speaking';
+        bottomStatus.innerText = 'GHOST IS SPEAKING';
+
+        function playNext() {
+            if (index >= base64Array.length) {
+                orb.className = 'listening';
+                bottomStatus.innerText = 'SYSTEM ACTIVE: LISTENING';
+                executeEmbeddedTags(rawText);
+                restartMicLoop();
+                return;
+            }
+            currentAudio = new Audio("data:audio/mp3;base64," + base64Array[index]);
+            currentAudio.onended = playNext;
+            currentAudio.play().catch(e => playNext());
+            index++;
+        }
+        playNext();
     }
 
-    // 3. Execution Hooks
     function executeEmbeddedTags(rawText) {
         const openMatch = rawText.match(/<open:\s*(https?:\/\/[^\s>]+)>/);
         const searchMatch = rawText.match(/<search:\s*([^>]+)>/);
@@ -108,40 +116,35 @@
         else if (searchMatch) window.open('https://www.google.com/search?q=' + encodeURIComponent(searchMatch[1].trim()), '_blank');
     }
 
-    // 4. Always-On Microphone Protocol
     function initGhostVoiceSystem() {
-        lockAudioEngine();
         orb.className = 'listening';
-        statusText.innerText = 'SYSTEM ACTIVE: LISTENING';
+        bottomStatus.innerText = 'SYSTEM ACTIVE: LISTENING';
         
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
             window.ghostRec = new SpeechRec();
             
-            // Critical settings for always-on and barge-in
             window.ghostRec.continuous = true; 
             window.ghostRec.interimResults = true; 
             window.ghostRec.lang = 'en-US';
             
             window.ghostRec.onresult = async (event) => {
-                // BARGE-IN: If Ghost is talking, tell him to shut up immediately
-                if (window.speechSynthesis.speaking) {
-                    window.speechSynthesis.cancel();
+                // BARGE-IN: Instantly kill audio if user interrupts
+                if (currentAudio && !currentAudio.paused) {
+                    currentAudio.pause();
+                    currentAudio = null;
                     orb.className = 'listening';
                 }
 
                 let finalTranscript = '';
                 for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    if (event.results[i].isFinal) {
-                        finalTranscript += event.results[i][0].transcript;
-                    }
+                    if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
                 }
 
-                // If we have a completed sentence and aren't already processing one
                 if (finalTranscript.trim() !== '' && !isProcessing) {
                     isProcessing = true;
                     orb.className = 'processing';
-                    statusText.innerText = 'PROCESSING DATA...';
+                    bottomStatus.innerText = 'PROCESSING DATA...';
                     
                     try {
                         const response = await fetch('/api/chat', {
@@ -154,7 +157,11 @@
                         if (data.success) {
                             conversationHistory.push({ role: 'user', parts: [{ text: finalTranscript }] });
                             conversationHistory.push({ role: 'model', parts: [{ text: data.text }] });
-                            speak(data.text);
+                            
+                            evaluateSidebar(data.text, data.isSwarm, data.swarm);
+                            
+                            isProcessing = false;
+                            playCloudAudio(data.audio_b64, data.text);
                         }
                     } catch (err) { 
                         isProcessing = false;
@@ -163,11 +170,8 @@
                 }
             };
             
-            // Auto-restart if the browser tries to put the mic to sleep
             window.ghostRec.onend = () => {
-                if (!window.speechSynthesis.speaking) {
-                    setTimeout(() => restartMicLoop(), 200);
-                }
+                if (!currentAudio || currentAudio.paused) setTimeout(() => restartMicLoop(), 200);
             };
             
             try { window.ghostRec.start(); } catch(e) {}
@@ -175,15 +179,13 @@
     }
 
     function restartMicLoop() {
-        if (window.speechSynthesis.speaking) return; // Don't listen to himself
+        if (currentAudio && !currentAudio.paused) return; 
         try { window.ghostRec.start(); } catch(e) {}
         orb.className = 'listening';
-        statusText.innerText = 'SYSTEM ACTIVE: LISTENING';
+        bottomStatus.innerText = 'SYSTEM ACTIVE: LISTENING';
     }
 
-    // Single click to start the permanent loop
     document.addEventListener('click', initGhostVoiceSystem, { once: true });
-    window.speechSynthesis.onvoiceschanged = window.speechSynthesis.getVoices;
 </script>
 </body>
 </html>

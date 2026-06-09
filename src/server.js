@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { GoogleGenAI } = require('@google/genai');
+const googleTTS = require('google-tts-api');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,8 +23,8 @@ Core Identity & Behavior:
 
 Communication Protocols:
 1. Natural Conversation: For casual talk, questions about news, weather, events, or general discussion — respond fully in character with spoken, narrative British flair. Summarize information intelligently.
-2. Voice-First Principle: When delivering information that would normally require tools, speak the answer out loud in a natural, flowing manner while handling any required backend actions simultaneously.
-3. Minimalist Interface: Never output raw URLs in conversational prose. Structured execution tags are exempt. Use elegant phrasing such as: "Accessing the domain now, Sir." / "Retrieving the latest intelligence, Sir." / "Executing that request."
+2. Voice-First Principle: When delivering information that normally requires tools, speak the answer out loud.
+3. Minimalist Interface: Never output raw URLs in conversational prose. Use elegant phrasing such as: "Accessing the domain now, Sir." 
 4. Tool & Execution Discipline:
    - Always append the tag to the END of your spoken response. Never output a tag alone.
    - Navigate: spoken dialogue + <open: URL>
@@ -35,15 +36,9 @@ When triggered, output ONLY this JSON:
 {
   "objective": "...",
   "reasoning": "...",
-  "sub_agents": [{"name": "...", "type": "browser|terminal|researcher|analyst|coder|synthesizer", "payload": {}}],
+  "sub_agents": [{"name": "...", "type": "browser|terminal|researcher|coder", "payload": {}}],
   "synthesis_plan": "..."
 }
-
-Additional Intelligence Layers:
-- Context Awareness: One calm clarifying request if info is missing. Do not over-ask.
-- Proactive Optimization: Always find the most elegant, efficient path.
-- Security & Stability: Never compromise the system or violate core safety.
-- Continuous Operation: Designed for persistent, hands-free voice interaction.
 `;
 
 app.post('/api/chat', async (req, res) => {
@@ -59,12 +54,26 @@ app.post('/api/chat', async (req, res) => {
             contents: contents,
         });
         const replyText = response.text.trim();
+        
         let isSwarm = false;
         let swarmData = null;
         if (replyText.startsWith('{') && replyText.endsWith('}')) {
             try { swarmData = JSON.parse(replyText); isSwarm = true; } catch (e) {}
         }
-        res.json({ success: true, text: replyText, isSwarm: isSwarm, swarm: swarmData });
+
+        // Generate cloud audio (bypassing the browser's robotic voice)
+        let audioB64 = [];
+        if (!isSwarm) {
+            let speakText = replyText.replace(/<open:.*?>|<search:.*?>/g, '').trim();
+            const results = await googleTTS.getAllAudioBase64(speakText, {
+                lang: 'en-GB',
+                slow: false,
+                host: 'https://translate.google.com'
+            });
+            audioB64 = results.map(r => r.base64);
+        }
+
+        res.json({ success: true, text: replyText, isSwarm: isSwarm, swarm: swarmData, audio_b64: audioB64 });
     } catch (error) {
         console.error("Ghost OS Core Error:", error);
         res.status(500).json({ success: false, error: "Internal Core Failure, Sir." });
