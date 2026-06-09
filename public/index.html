@@ -2,23 +2,47 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Ghost OS | Neural Interface</title>
+    <title>Ghost OS | Ultimate Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: 'Courier New', monospace; overflow: hidden; }
+        
+        /* HUD Layout */
         #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 30px; box-sizing: border-box; z-index: 10; }
         .sys-text { text-align: center; letter-spacing: 5px; font-size: 14px; text-transform: uppercase; text-shadow: 0 0 10px rgba(0, 221, 255, 0.5); }
         #status { color: #888; }
+        
+        /* Slide-out Terminal for Code/Skills */
+        #sidebar { position: absolute; right: -450px; top: 0; width: 400px; height: 100%; background: rgba(0, 0, 0, 0.9); border-left: 1px solid #0df; transition: right 0.4s cubic-bezier(0.1, 0.8, 0.1, 1); z-index: 20; padding: 20px; box-sizing: border-box; overflow-y: auto; box-shadow: -10px 0 30px rgba(0,221,255,0.1); pointer-events: auto; }
+        #sidebar.open { right: 0; }
+        .sidebar-header { border-bottom: 1px solid rgba(0,221,255,0.4); padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; }
+        #sidebar-content pre { white-space: pre-wrap; font-size: 0.85em; color: #aaa; text-shadow: none; }
+        
+        /* Stealth Text Input Box */
+        #text-fallback { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 30; pointer-events: auto; display: flex; gap: 10px; opacity: 0.2; transition: opacity 0.3s ease; }
+        #text-fallback:hover, #text-fallback:focus-within { opacity: 1; }
+        #text-fallback input { background: rgba(0,0,0,0.7); border: 1px solid #0df; color: #0df; padding: 12px; width: 350px; font-family: inherit; outline: none; border-radius: 4px; }
+        #text-fallback button { background: #0df; color: #000; border: none; padding: 12px 20px; cursor: pointer; font-family: inherit; font-weight: bold; border-radius: 4px; }
     </style>
 </head>
 <body>
     <div id="overlay">
-        <div class="sys-text">GHOST OS | NEURAL INTERFACE</div>
+        <div class="sys-text">GHOST OS v8 | COMPLETE NEURAL INTEGRATION</div>
         <div class="sys-text" id="status">SYSTEM OFFLINE: CLICK ANYWHERE TO INITIALIZE</div>
+    </div>
+    
+    <div id="sidebar">
+        <div class="sidebar-header">MATRIX OVERRIDE PAYLOAD</div>
+        <div id="sidebar-content"></div>
+    </div>
+
+    <div id="text-fallback">
+        <input type="text" id="manual-input" placeholder="Manual text override..." onkeypress="if(event.key === 'Enter') sendManual()">
+        <button onclick="sendManual()">SEND</button>
     </div>
 
     <script>
-        // --- 1. 3D PARTICLE SPHERE SETUP (THREE.JS) ---
+        // --- 1. THREE.JS 3D NEURAL SPHERE ---
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -26,10 +50,9 @@
         document.body.appendChild(renderer.domElement);
 
         const geometry = new THREE.BufferGeometry();
-        const particlesCount = 4000;
+        const particlesCount = 4500;
         const posArray = new Float32Array(particlesCount * 3);
 
-        // Create a sphere of particles
         for(let i = 0; i < particlesCount * 3; i+=3) {
             const r = 2.5;
             const theta = 2 * Math.PI * Math.random();
@@ -45,25 +68,23 @@
         scene.add(particlesMesh);
         camera.position.z = 6;
 
-        let orbState = 'idle'; // idle, listening, processing, speaking
+        let orbState = 'idle'; 
         let clock = new THREE.Clock();
 
-        // Animation Loop
         function animate() {
             requestAnimationFrame(animate);
             const elapsedTime = clock.getElapsedTime();
             
-            // Default idle rotation
             particlesMesh.rotation.y += 0.002;
             particlesMesh.rotation.x += 0.001;
 
             if (orbState === 'processing') {
                 material.color.setHex(0xffaa00); // Orange
-                particlesMesh.rotation.y += 0.03; // Spin faster
-                particlesMesh.scale.set(1, 1, 1);
+                particlesMesh.rotation.y += 0.04;
+                particlesMesh.scale.set(1.05, 1.05, 1.05);
             } else if (orbState === 'speaking') {
                 material.color.setHex(0x00ddff); // Blue
-                const pulse = 1 + Math.sin(elapsedTime * 8) * 0.15; // Voice wave effect
+                const pulse = 1 + Math.sin(elapsedTime * 8) * 0.15;
                 particlesMesh.scale.set(pulse, pulse, pulse);
             } else if (orbState === 'listening') {
                 material.color.setHex(0x00ddff); // Blue
@@ -74,28 +95,41 @@
         }
         animate();
 
-        // Handle window resize
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // --- 2. GHOST LOGIC & MIC SAFETY ---
+        // --- 2. GHOST CORE LOGIC & SKILLS ---
         const statusEl = document.getElementById('status');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarContent = document.getElementById('sidebar-content');
         let isRecognizing = false;
+        let conversationHistory = [];
+
+        function evaluateSidebar(text, isSwarm, swarmData) {
+            const triggers = ['code', 'script', 'function', 'swarm', 'terminal', 'debug', 'python'];
+            const textLower = text.toLowerCase();
+            if (isSwarm || triggers.some(t => textLower.includes(t))) {
+                sidebar.classList.add('open');
+                sidebarContent.innerHTML = `<pre>${isSwarm ? JSON.stringify(swarmData, null, 2) : text}</pre>`;
+            } else {
+                sidebar.classList.remove('open');
+            }
+        }
 
         function speak(text) {
             orbState = 'speaking';
-            window.speechSynthesis.cancel();
+            window.speechSynthesis.cancel(); // Stop current speech
             
-            // Clean text for speaking
-            const cleanText = text.replace(/<[^>]*>?/gm, '');
+            // Clean text for Native Voice so he doesn't read code blocks aloud
+            const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/```[\s\S]*?```/g, 'I have sent the requested code to your terminal sidebar.');
             const utterance = new SpeechSynthesisUtterance(cleanText);
             
             utterance.onend = () => {
                 orbState = 'listening';
-                statusEl.innerText = 'LISTENING...';
+                statusEl.innerText = 'SYSTEM ACTIVE: LISTENING';
                 safeStartMic();
             };
             window.speechSynthesis.speak(utterance);
@@ -103,59 +137,77 @@
 
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         const rec = new SpeechRec();
-        rec.continuous = false; // Set to false to avoid the InvalidStateError loop
+        rec.continuous = false; 
         rec.interimResults = false;
 
         rec.onstart = () => { 
             isRecognizing = true; 
             orbState = 'listening'; 
-            statusEl.innerText = 'LISTENING...'; 
+            statusEl.innerText = 'SYSTEM ACTIVE: LISTENING'; 
             statusEl.style.color = '#0df';
         };
         
         rec.onend = () => { 
             isRecognizing = false; 
-            // Only restart if Ghost isn't busy thinking or talking
             if(orbState === 'listening') safeStartMic(); 
         };
 
-        rec.onerror = (e) => {
-            isRecognizing = false;
-        };
+        rec.onerror = (e) => { isRecognizing = false; };
         
         rec.onresult = async (e) => {
             const text = e.results[0][0].transcript;
+            processGhostInput(text);
+        };
+
+        async function processGhostInput(text) {
+            if(!text.trim()) return;
             orbState = 'processing';
-            statusEl.innerText = 'PROCESSING...';
+            statusEl.innerText = 'PROCESSING DATA...';
             statusEl.style.color = '#fa0';
+            window.speechSynthesis.cancel(); // Barge-in protocol
             
             try {
                 const res = await fetch('/api/chat', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ message: text, history: [] })
+                    body: JSON.stringify({ message: text, history: conversationHistory })
                 });
                 const data = await res.json();
                 if(data.success) {
+                    conversationHistory.push({ role: 'user', parts: [{ text: text }] });
+                    conversationHistory.push({ role: 'model', parts: [{ text: data.text }] });
+                    evaluateSidebar(data.text, data.isSwarm, data.swarm);
                     speak(data.text);
                 }
             } catch(err) {
-                statusEl.innerText = 'CONNECTION FAILED';
+                statusEl.innerText = 'CONNECTION FAILED. RETRYING...';
                 orbState = 'listening';
                 safeStartMic();
             }
-        };
+        }
 
-        // SAFETY LOCK: Prevents the "recognition has already started" error
+        function sendManual() {
+            const input = document.getElementById('manual-input');
+            const text = input.value;
+            input.value = '';
+            processGhostInput(text);
+        }
+
         function safeStartMic() {
-            if (!isRecognizing) {
+            if (!isRecognizing && orbState !== 'speaking') {
                 try { rec.start(); } catch(e) {}
             }
         }
 
-        // Initialize on first click
+        // Initialize system on first click
         document.body.addEventListener('click', () => {
             if(orbState === 'idle') {
+                // Unlock browser audio context
+                const unlockAudio = new SpeechSynthesisUtterance("");
+                unlockAudio.volume = 0;
+                window.speechSynthesis.speak(unlockAudio); 
+                
+                orbState = 'listening';
                 safeStartMic();
             }
         }, { once: true });
