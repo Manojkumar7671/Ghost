@@ -3,166 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ghost OS | Cloud Terminal</title>
+    <title>Ghost OS</title>
     <style>
-        :root {
-            --bg-color: #050505;
-            --text-main: #00ffcc;
-            --text-dim: #0088aa;
-            --alert: #ff0055;
-            --sidebar-bg: #0a0a0a;
-            --border: #1a1a1a;
-        }
-        body, html {
-            margin: 0; padding: 0; width: 100%; height: 100%;
-            background-color: var(--bg-color); color: var(--text-main);
-            font-family: 'Courier New', Courier, monospace;
-            overflow: hidden; display: flex;
-        }
-        /* Layout Grid */
-        #os-wrapper {
-            display: flex; width: 100%; height: 100%;
-        }
-        /* Main Terminal Area */
-        #main-terminal {
-            flex-grow: 1; display: flex; flex-direction: column;
-            padding: 20px; transition: width 0.3s ease;
-        }
-        #output-log {
-            flex-grow: 1; overflow-y: auto; padding-bottom: 20px;
-            scroll-behavior: smooth;
-        }
-        .log-entry { margin-bottom: 15px; line-height: 1.4; }
-        .log-user { color: #ffffff; }
-        .log-ghost { color: var(--text-main); }
-        .log-system { color: var(--text-dim); font-size: 0.9em; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000000 !important; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: 'Courier New', Courier, monospace; }
         
-        /* Hybrid Input Area */
-        #input-area {
-            display: flex; align-items: center; border-top: 1px solid var(--border);
-            padding-top: 15px;
+        #ghost-orb { 
+            width: 100px; height: 100px; 
+            background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(0,0,0,0) 70%); 
+            border-radius: 50%; 
+            box-shadow: 0 0 30px rgba(255,255,255,0.2); 
+            transition: all 0.2s ease; cursor: pointer; 
         }
-        #prompt-symbol { margin-right: 10px; color: var(--text-dim); font-weight: bold; }
-        #text-input {
-            flex-grow: 1; background: transparent; border: none;
-            color: #ffffff; font-family: 'Courier New', Courier, monospace;
-            font-size: 16px; outline: none;
+        
+        /* The Default State: Always Listening */
+        #ghost-orb.listening { 
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.7); 
+            animation: breathe 3s infinite ease-in-out; 
         }
-        #mic-btn {
-            background: transparent; border: 1px solid var(--text-dim);
-            color: var(--text-dim); padding: 5px 15px; margin-left: 10px;
-            cursor: pointer; border-radius: 3px; transition: all 0.2s;
+        
+        /* The Thinking State: Waiting for API */
+        #ghost-orb.processing { 
+            box-shadow: 0 0 50px rgba(255, 165, 0, 0.8); 
+            transform: scale(0.9);
         }
-        #mic-btn.listening { background: var(--text-dim); color: #000; box-shadow: 0 0 10px var(--text-dim); }
-        #mic-btn.speaking { background: var(--alert); color: #fff; border-color: var(--alert); }
 
-        /* Dynamic Sidebar */
-        #sidebar {
-            width: 0; background-color: var(--sidebar-bg); border-left: 1px solid var(--border);
-            overflow-x: hidden; transition: 0.3s; display: flex; flex-direction: column;
+        /* The Speaking State: Ghost is Talking */
+        #ghost-orb.speaking { 
+            box-shadow: 0 0 60px rgba(255, 0, 255, 0.8); 
+            transform: scale(1.15); 
+            animation: pulse-fast 0.5s infinite alternate;
         }
-        #sidebar.open { width: 400px; padding: 20px; }
-        .sidebar-header { border-bottom: 1px solid var(--text-dim); padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; }
-        #sidebar-content pre { white-space: pre-wrap; font-size: 0.85em; color: #aaa; }
+
+        @keyframes breathe { 
+            0% { transform: scale(1); opacity: 0.7; } 
+            50% { transform: scale(1.05); opacity: 1; } 
+            100% { transform: scale(1); opacity: 0.7; } 
+        }
+        @keyframes pulse-fast {
+            0% { transform: scale(1.1); opacity: 0.8; }
+            100% { transform: scale(1.2); opacity: 1; }
+        }
+        
+        #status-text {
+            position: absolute; bottom: 30px; color: #333; font-size: 12px; letter-spacing: 2px;
+        }
     </style>
 </head>
 <body>
 
-<div id="os-wrapper">
-    <div id="main-terminal">
-        <div id="output-log">
-            <div class="log-entry log-system">Ghost OS Matrix Online. Audio subsystems standby. Awaiting input, Sir.</div>
-        </div>
-        <div id="input-area">
-            <span id="prompt-symbol">GHOST_OS></span>
-            <input type="text" id="text-input" placeholder="Type a command or activate audio..." autocomplete="off" autofocus>
-            <button id="mic-btn">AUDIO: OFF</button>
-        </div>
-    </div>
-    
-    <div id="sidebar" class="hidden">
-        <div class="sidebar-header">SYSTEM OVERRIDE & CODE MATRIX</div>
-        <div id="sidebar-content">
-            <div class="log-system">No active background processes.</div>
-        </div>
-    </div>
-</div>
+<div id="ghost-orb"></div>
+<div id="status-text">CLICK ORB TO INITIALIZE PROTOCOLS</div>
 
 <script>
     let conversationHistory = [];
+    const orb = document.getElementById('ghost-orb');
+    const statusText = document.getElementById('status-text');
     let audioCtx;
-    const outputLog = document.getElementById('output-log');
-    const textInput = document.getElementById('text-input');
-    const micBtn = document.getElementById('mic-btn');
-    const sidebar = document.getElementById('sidebar');
-    const sidebarContent = document.getElementById('sidebar-content');
+    let isProcessing = false;
 
-    // UI Helper: Append to Terminal
-    function appendLog(sender, text) {
-        const div = document.createElement('div');
-        div.className = `log-entry log-${sender}`;
-        div.innerHTML = `<strong>${sender.toUpperCase()}:</strong> ${text}`;
-        outputLog.appendChild(div);
-        outputLog.scrollTop = outputLog.scrollHeight;
-    }
-
-    // UI Helper: Trigger Sidebar Logic
-    function evaluateSidebar(text, isSwarm, swarmData) {
-        const triggers = ['code', 'script', 'function', 'swarm', 'terminal', 'debug'];
-        const textLower = text.toLowerCase();
-        
-        if (isSwarm || triggers.some(t => textLower.includes(t))) {
-            sidebar.classList.add('open');
-            if (isSwarm && swarmData) {
-                sidebarContent.innerHTML = `<pre>${JSON.stringify(swarmData, null, 2)}</pre>`;
-            } else {
-                sidebarContent.innerHTML = `<div class="log-system">Monitoring technical payload...</div><pre>${text}</pre>`;
-            }
-        } else {
-            sidebar.classList.remove('open');
-        }
-    }
-
-    // Backend Communication
-    async function sendToGhost(message) {
-        appendLog('user', message);
-        textInput.value = '';
-        
-        try {
-            const response = await fetch('/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: message, history: conversationHistory })
-            });
-            const data = await response.json();
-            
-            if (data.success) {
-                conversationHistory.push({ role: 'user', parts: [{ text: message }] });
-                conversationHistory.push({ role: 'model', parts: [{ text: data.text }] });
-                
-                evaluateSidebar(data.text, data.isSwarm, data.swarm);
-                
-                if (data.isSwarm) {
-                    appendLog('system', 'Swarm Engine Engaged. See sidebar for details.');
-                    speak("Swarm protocols initialized, Sir. Processing parallel agent nodes.");
-                } else {
-                    appendLog('ghost', data.text);
-                    speak(data.text);
-                }
-            }
-        } catch (err) {
-            appendLog('system', 'CRITICAL ERROR: Connection to core severed.');
-        }
-    }
-
-    // Text Input Handling
-    textInput.addEventListener('keypress', function (e) {
-        if (e.key === 'Enter' && textInput.value.trim() !== '') {
-            sendToGhost(textInput.value.trim());
-        }
-    });
-
-    // --- AUDIO SUBSYSTEM ---
+    // 1. Audio Engine Unlock
     function lockAudioEngine() {
         if (!audioCtx) {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -175,21 +74,33 @@
         }
     }
 
+    // 2. Ghost's Voice Generation
     function speak(text) {
-        window.speechSynthesis.cancel();
+        window.speechSynthesis.cancel(); // Clear any ongoing speech
         let cleanText = text.replace(/<open:.*?>|<search:.*?>/g, '').trim();
         const utterance = new SpeechSynthesisUtterance(cleanText);
         
-        // Find British Voice
         const voices = window.speechSynthesis.getVoices();
         const britishVoice = voices.find(v => v.lang.includes('en-GB')) || voices[0];
         if (britishVoice) utterance.voice = britishVoice;
         
-        utterance.onstart = () => { micBtn.className = 'speaking'; micBtn.innerText = 'AUDIO: SPEAKING'; if(window.ghostRec) window.ghostRec.abort(); };
-        utterance.onend = () => { micBtn.className = 'listening'; micBtn.innerText = 'AUDIO: LISTENING'; executeEmbeddedTags(text); restartMicLoop(); };
+        utterance.onstart = () => { 
+            orb.className = 'speaking'; 
+            statusText.innerText = 'GHOST IS SPEAKING';
+        };
+        
+        utterance.onend = () => { 
+            isProcessing = false;
+            orb.className = 'listening'; 
+            statusText.innerText = 'SYSTEM ACTIVE: LISTENING';
+            executeEmbeddedTags(text); 
+            restartMicLoop(); 
+        };
+        
         window.speechSynthesis.speak(utterance);
     }
 
+    // 3. Execution Hooks
     function executeEmbeddedTags(rawText) {
         const openMatch = rawText.match(/<open:\s*(https?:\/\/[^\s>]+)>/);
         const searchMatch = rawText.match(/<search:\s*([^>]+)>/);
@@ -197,39 +108,81 @@
         else if (searchMatch) window.open('https://www.google.com/search?q=' + encodeURIComponent(searchMatch[1].trim()), '_blank');
     }
 
-    function initVoiceSystem() {
+    // 4. Always-On Microphone Protocol
+    function initGhostVoiceSystem() {
         lockAudioEngine();
-        micBtn.className = 'listening';
-        micBtn.innerText = 'AUDIO: LISTENING';
+        orb.className = 'listening';
+        statusText.innerText = 'SYSTEM ACTIVE: LISTENING';
         
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
             window.ghostRec = new SpeechRec();
-            window.ghostRec.continuous = false;
-            window.ghostRec.interimResults = false;
+            
+            // Critical settings for always-on and barge-in
+            window.ghostRec.continuous = true; 
+            window.ghostRec.interimResults = true; 
             window.ghostRec.lang = 'en-US';
             
-            window.ghostRec.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
-                micBtn.className = '';
-                micBtn.innerText = 'AUDIO: PROCESSING';
-                sendToGhost(transcript);
+            window.ghostRec.onresult = async (event) => {
+                // BARGE-IN: If Ghost is talking, tell him to shut up immediately
+                if (window.speechSynthesis.speaking) {
+                    window.speechSynthesis.cancel();
+                    orb.className = 'listening';
+                }
+
+                let finalTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    }
+                }
+
+                // If we have a completed sentence and aren't already processing one
+                if (finalTranscript.trim() !== '' && !isProcessing) {
+                    isProcessing = true;
+                    orb.className = 'processing';
+                    statusText.innerText = 'PROCESSING DATA...';
+                    
+                    try {
+                        const response = await fetch('/api/chat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ message: finalTranscript, history: conversationHistory })
+                        });
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            conversationHistory.push({ role: 'user', parts: [{ text: finalTranscript }] });
+                            conversationHistory.push({ role: 'model', parts: [{ text: data.text }] });
+                            speak(data.text);
+                        }
+                    } catch (err) { 
+                        isProcessing = false;
+                        restartMicLoop(); 
+                    }
+                }
             };
             
-            window.ghostRec.onend = () => setTimeout(() => restartMicLoop(), 100);
+            // Auto-restart if the browser tries to put the mic to sleep
+            window.ghostRec.onend = () => {
+                if (!window.speechSynthesis.speaking) {
+                    setTimeout(() => restartMicLoop(), 200);
+                }
+            };
+            
             try { window.ghostRec.start(); } catch(e) {}
-        } else {
-            appendLog('system', 'Voice API not supported in this browser environment.');
         }
     }
 
     function restartMicLoop() {
-        if (window.speechSynthesis.speaking || micBtn.className === '') return;
+        if (window.speechSynthesis.speaking) return; // Don't listen to himself
         try { window.ghostRec.start(); } catch(e) {}
+        orb.className = 'listening';
+        statusText.innerText = 'SYSTEM ACTIVE: LISTENING';
     }
 
-    // Start Audio on Mic Button Click
-    micBtn.addEventListener('click', initVoiceSystem, { once: true });
+    // Single click to start the permanent loop
+    document.addEventListener('click', initGhostVoiceSystem, { once: true });
     window.speechSynthesis.onvoiceschanged = window.speechSynthesis.getVoices;
 </script>
 </body>
