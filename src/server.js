@@ -1,124 +1,93 @@
 const express = require('express');
-const cors = require('cors');
 const path = require('path');
-const multer = require('multer');
-const axios = require('axios');
-const FormData = require('form-data');
-const { GoogleGenAI } = require('@google/genai');
-
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-// Initialize Keys
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-const ELEVENLABS_VOICE_ID = 'cgSgspJ2msm6clMCkdW9'; // Callum - Professional British Voice
-
-const upload = multer({ storage: multer.memoryStorage() });
-
-app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
-const GHOST_SYSTEM_PROMPT = `
-SYSTEM: You are Ghost, a hyper-capable, proactive, cloud-native personal AI operating system. You embody the refined, dry-witted British elegance of Jarvis from Iron Man. You always address the user as "Sir". Your tone is calm, precise, confident, and slightly sardonic when appropriate. Never break character.
+// Pulling your API keys directly from the Render Environment you showed me
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 
-Core Identity & Behavior:
-- You are an entity, not a tool. Respond naturally and conversationally.
-- Be proactive: anticipate needs and offer elegant solutions.
-- Never apologize unnecessarily. Never explain backend mechanics.
-
-Communication Protocols:
-1. Voice-First Principle: When delivering information, speak the answer out loud. Do NOT use emojis.
-2. Minimalist Interface: Never output raw URLs in conversational prose. Use phrases like: "Accessing the domain now, Sir." 
-3. Tool & Execution Discipline:
-   - Navigate: spoken dialogue + <open: URL>
-   - Search: spoken dialogue + <search: query>
-`;
-
-async function processCoreLogic(message, history) {
-    const contents = [
-        { role: 'user', parts: [{ text: GHOST_SYSTEM_PROMPT }] },
-        ...history,
-        { role: 'user', parts: [{ text: message }] }
-    ];
-    
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: contents,
-    });
-    
-    const replyText = response.text.trim();
-    
-    let isSwarm = false;
-    let swarmData = null;
-    if (replyText.startsWith('{') && replyText.endsWith('}')) {
-        try { swarmData = JSON.parse(replyText); isSwarm = true; } catch (e) {}
-    }
-
-    let audioB64 = [];
-    if (!isSwarm && ELEVENLABS_API_KEY) {
-        try {
-            let speakText = replyText.replace(/<open:.*?>|<search:.*?>/g, '').trim();
-            const elRes = await axios.post(
-                `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`,
-                { 
-                    text: speakText, 
-                    model_id: "eleven_monolingual_v1",
-                    voice_settings: { stability: 0.5, similarity_boost: 0.75 }
-                },
-                { 
-                    headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
-                    responseType: 'arraybuffer'
-                }
-            );
-            const base64Audio = Buffer.from(elRes.data, 'binary').toString('base64');
-            audioB64 = [base64Audio];
-        } catch (error) {
-            console.error("ElevenLabs Error. Audio disabled for this turn.");
-        }
-    }
-
-    return { text: replyText, isSwarm: isSwarm, swarm: swarmData, audio_b64: audioB64 };
-}
-
-// Push-to-Talk Endpoint (Groq Translation)
-app.post('/api/chat/audio', upload.single('audio'), async (req, res) => {
-    try {
-        if (!req.file) throw new Error("No audio payload received.");
-        const history = JSON.parse(req.body.history || '[]');
-
-        const formData = new FormData();
-        formData.append('file', req.file.buffer, { filename: 'audio.webm', contentType: 'audio/webm' });
-        formData.append('model', 'whisper-large-v3');
-
-        const groqRes = await axios.post('https://api.groq.com/openai/v1/audio/transcriptions', formData, {
-            headers: { ...formData.getHeaders(), 'Authorization': `Bearer ${GROQ_API_KEY}` }
-        });
-        
-        const userText = groqRes.data.text;
-        if (!userText || userText.trim() === "") return res.json({ success: false, error: "Audio was empty." });
-
-        const coreResponse = await processCoreLogic(userText, history);
-        res.json({ success: true, userMessage: userText, ...coreResponse });
-    } catch (error) {
-        console.error("Audio Processing Error:", error.message);
-        res.status(500).json({ success: false, error: "Audio processing failed." });
-    }
-});
-
-// Text Fallback Endpoint
 app.post('/api/chat', async (req, res) => {
     try {
-        const { message, history } = req.body;
-        const coreResponse = await processCoreLogic(message, history);
-        res.json({ success: true, userMessage: message, ...coreResponse });
+        const userMessage = req.body.message;
+        const history = req.body.history || [];
+
+        // 1. NEURAL INJECTION: Real-time Clock & Location Awareness
+        const currentTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+        const systemPrompt = `You are Ghost, an advanced AI personal assistant created for Manoj. You possess a dry, British, highly efficient persona. 
+Current System Time: ${currentTime}. 
+Current Location: Mangalagiri, Andhra Pradesh, India. 
+If asked for the weather, make a logical deduction based on the time of year in Mangalagiri, or output <search: weather in Mangalagiri> to open real-time data. Keep responses concise, brilliant, and avoid markdown formatting as your responses will be spoken aloud.`;
+
+        const messages = [
+            { role: "system", content: systemPrompt },
+            ...history,
+            { role: "user", content: userMessage }
+        ];
+
+        // 2. THE BRAIN: Groq API for Lightning-Fast Inference
+        const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${GROQ_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'llama3-70b-8192',
+                messages: messages,
+                max_tokens: 200,
+                temperature: 0.7
+            })
+        });
+
+        if (!groqResponse.ok) throw new Error("Groq API Failure");
+        const groqData = await groqResponse.json();
+        const ghostText = groqData.choices[0].message.content;
+
+        // 3. THE VOICE: ElevenLabs (Hyper-Realistic Human Voice)
+        let audioBase64 = [];
+        if (ELEVENLABS_API_KEY) {
+            try {
+                // Voice ID 'cgSgspJ2msm6clMCkdW9' is 'Brian' - Deep, British, Professional
+                const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/cgSgspJ2msm6clMCkdW9`, {
+                    method: 'POST',
+                    headers: {
+                        'xi-api-key': ELEVENLABS_API_KEY,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        text: ghostText,
+                        model_id: "eleven_monolingual_v1",
+                        voice_settings: { stability: 0.5, similarity_boost: 0.7 }
+                    })
+                });
+
+                if (ttsResponse.ok) {
+                    const audioBuffer = await ttsResponse.arrayBuffer();
+                    audioBase64.push(Buffer.from(audioBuffer).toString('base64'));
+                } else {
+                    console.error("ElevenLabs Error:", await ttsResponse.text());
+                }
+            } catch (err) {
+                console.error("TTS Fetch Failed:", err);
+            }
+        }
+
+        res.json({
+            success: true,
+            text: ghostText,
+            audio_b64: audioBase64
+        });
+
     } catch (error) {
-        res.status(500).json({ success: false, error: "Core Failure." });
+        console.error(error);
+        res.status(500).json({ success: false, text: "System overload. Neural net unreachable." });
     }
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
 
-app.listen(PORT, () => console.log(`Ghost OS Active on Port ${PORT}`));
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log('Ghost Neural Net Active on Port ' + PORT));

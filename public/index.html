@@ -190,6 +190,11 @@
                     conversationHistory.push({ role: 'user', parts: [{ text: text }] });
                     conversationHistory.push({ role: 'model', parts: [{ text: data.text }] });
                     evaluateSidebar(data.text, data.isSwarm, data.swarm);
+                    if(data.audio_b64 && data.audio_b64.length > 0) {
+                        playCloudAudio(data.audio_b64);
+                    } else {
+                        speak(data.text);
+                    }
                     speak(data.text);
                 }
             } catch(err) {
