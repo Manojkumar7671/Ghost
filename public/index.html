@@ -2,33 +2,31 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Ghost OS | J.A.R.V.I.S. Protocol</title>
+    <title>Ghost OS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: 'Courier New', monospace; overflow: hidden; user-select: none; }
-        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 30px; box-sizing: border-box; z-index: 10; }
-        .sys-text { text-align: center; letter-spacing: 5px; font-size: 14px; text-transform: uppercase; text-shadow: 0 0 10px rgba(0, 221, 255, 0.5); }
-        #status { color: #888; transition: color 0.3s; }
-        #sidebar { position: absolute; right: -450px; top: 0; width: 400px; height: 100%; background: rgba(0, 0, 0, 0.9); border-left: 1px solid #0df; transition: right 0.4s cubic-bezier(0.1, 0.8, 0.1, 1); z-index: 20; padding: 20px; box-sizing: border-box; overflow-y: auto; pointer-events: auto; }
+        #overlay { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 10; pointer-events: none; }
+        .sys-text { letter-spacing: 8px; font-size: 28px; font-weight: bold; text-transform: uppercase; text-shadow: 0 0 15px rgba(0, 221, 255, 0.6); color: #0df; }
+        #sidebar { position: absolute; right: -450px; top: 0; width: 400px; height: 100%; background: rgba(0, 0, 0, 0.95); border-left: 1px solid #0df; transition: right 0.4s cubic-bezier(0.1, 0.8, 0.1, 1); z-index: 20; padding: 20px; box-sizing: border-box; overflow-y: auto; }
         #sidebar.open { right: 0; }
-        .sidebar-header { border-bottom: 1px solid rgba(0,221,255,0.4); padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; }
-        #sidebar-content pre { white-space: pre-wrap; font-size: 0.85em; color: #aaa; }
-        #text-fallback { position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); z-index: 30; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; display: flex; gap: 10px; }
+        .sidebar-header { border-bottom: 1px solid rgba(0,221,255,0.4); padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; letter-spacing: 2px; }
+        #sidebar-content pre { white-space: pre-wrap; font-size: 0.85em; color: #aaa; font-family: inherit; }
+        #text-fallback { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); z-index: 30; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; display: flex; gap: 10px; }
         #text-fallback.visible { opacity: 1; pointer-events: auto; }
-        #text-fallback input { background: rgba(0,0,0,0.8); border: 1px solid #0df; color: #0df; padding: 12px; width: 400px; font-family: inherit; outline: none; border-radius: 4px; }
-        #text-fallback button { background: #0df; color: #000; border: none; padding: 12px 20px; cursor: pointer; font-weight: bold; border-radius: 4px; }
+        #text-fallback input { background: rgba(0,0,0,0.8); border: 1px solid #0df; color: #0df; padding: 12px; width: 350px; font-family: inherit; outline: none; box-shadow: 0 0 10px rgba(0,221,255,0.2); }
+        #text-fallback button { background: #0df; color: #000; border: none; padding: 12px 20px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
     <div id="overlay">
-        <div class="sys-text">GHOST OS v10 | DEEP RESEARCH ACTIVE</div>
-        <div class="sys-text" id="status">SINGLE TAP TO WAKE | DOUBLE TAP FOR TEXT</div>
+        <div class="sys-text">GHOST</div>
     </div>
     <div id="sidebar"><div class="sidebar-header">MATRIX PAYLOAD</div><div id="sidebar-content"></div></div>
-    <div id="text-fallback"><input type="text" id="manual-input" placeholder="Enter manual command..." onkeypress="if(event.key === 'Enter') sendManual()"><button onclick="sendManual()">SEND</button></div>
+    <div id="text-fallback"><input type="text" id="manual-input" placeholder="Execute command..." onkeypress="if(event.key === 'Enter') sendManual()"><button onclick="sendManual()">RUN</button></div>
 
     <script>
-        // --- THREE.JS SPHERE ---
+        // --- 3D ORB ---
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -36,10 +34,10 @@
         document.body.appendChild(renderer.domElement);
 
         const geometry = new THREE.BufferGeometry();
-        const particlesCount = 4500;
+        const particlesCount = 4000;
         const posArray = new Float32Array(particlesCount * 3);
         for(let i = 0; i < particlesCount * 3; i+=3) {
-            const r = 2.5, theta = 2 * Math.PI * Math.random(), phi = Math.acos(2 * Math.random() - 1);
+            const r = 2.3, theta = 2 * Math.PI * Math.random(), phi = Math.acos(2 * Math.random() - 1);
             posArray[i] = r * Math.sin(phi) * Math.cos(theta);
             posArray[i+1] = r * Math.sin(phi) * Math.sin(theta);
             posArray[i+2] = r * Math.cos(phi);
@@ -48,7 +46,7 @@
         const material = new THREE.PointsMaterial({ size: 0.02, color: 0x00ddff, transparent: true, opacity: 0.8 });
         const particlesMesh = new THREE.Points(geometry, material);
         scene.add(particlesMesh);
-        camera.position.z = 6;
+        camera.position.z = 5.5;
 
         let orbState = 'idle'; 
         let clock = new THREE.Clock();
@@ -59,13 +57,12 @@
             particlesMesh.rotation.x += 0.001;
             if (orbState === 'processing') {
                 material.color.setHex(0xffaa00);
-                particlesMesh.rotation.y += 0.04;
-                particlesMesh.scale.set(1.05, 1.05, 1.05);
+                particlesMesh.rotation.y += 0.03;
             } else if (orbState === 'speaking') {
                 material.color.setHex(0x00ddff);
-                const pulse = 1 + Math.sin(clock.getElapsedTime() * 8) * 0.15;
+                const pulse = 1 + Math.sin(clock.getElapsedTime() * 10) * 0.12;
                 particlesMesh.scale.set(pulse, pulse, pulse);
-            } else if (orbState === 'listening') {
+            } else {
                 material.color.setHex(0x00ddff);
                 particlesMesh.scale.set(1, 1, 1);
             }
@@ -79,24 +76,21 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // --- GHOST LOGIC ---
-        const statusEl = document.getElementById('status');
+        // --- CORE LOGIC ---
         const sidebar = document.getElementById('sidebar');
         const sidebarContent = document.getElementById('sidebar-content');
         const textFallback = document.getElementById('text-fallback');
-        
         let isRecognizing = false;
         let conversationHistory = [];
         let currentAudio = null;
 
-        function executeEmbeddedTags(rawText) {
-            const openMatch = rawText.match(/<open:\s*(https?:\/\/[^\s>]+)>/);
+        function handleSpokenCommands(text) {
+            const openMatch = text.match(/<open:\s*(https?:\/\/[^\s>]+)>/);
             if (openMatch) window.open(openMatch[1], '_blank');
         }
 
         function evaluateSidebar(text) {
-            const triggers = ['code', 'script', 'function', 'python', '```'];
-            if (triggers.some(t => text.toLowerCase().includes(t))) {
+            if (['code', 'script', 'function', 'python', '```'].some(t => text.toLowerCase().includes(t))) {
                 sidebar.classList.add('open');
                 sidebarContent.innerHTML = `<pre>${text}</pre>`;
             } else {
@@ -106,29 +100,24 @@
 
         async function playVoice(text, audioB64) {
             orbState = 'speaking';
-            executeEmbeddedTags(text);
+            handleSpokenCommands(text);
             
-            // 1. Try ElevenLabs Human Voice First
             if (audioB64 && audioB64.length > 0) {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
                 if (ctx.state === 'suspended') await ctx.resume();
                 currentAudio = new Audio("data:audio/mp3;base64," + audioB64[0]);
-                currentAudio.onended = () => { orbState = 'listening'; statusEl.innerText = 'LISTENING'; safeStartMic(); };
-                currentAudio.play().catch(e => {
-                    console.error("ElevenLabs Playback Blocked. Falling back.");
-                    playAppleVoice(text);
-                });
+                currentAudio.onended = () => { orbState = 'listening'; safeStartMic(); };
+                currentAudio.play().catch(() => playNativeVoice(text));
             } else {
-                // 2. Fallback to Apple Native Voice
-                playAppleVoice(text);
+                playNativeVoice(text);
             }
         }
 
-        function playAppleVoice(text) {
-            window.speechSynthesis.cancel(); 
-            const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/```[\s\S]*?```/g, 'I have deployed the code to your sidebar.');
+        function playNativeVoice(text) {
+            window.speechSynthesis.cancel();
+            const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/```[\s\S]*?```/g, 'System matrix updated.');
             const utterance = new SpeechSynthesisUtterance(cleanText);
-            utterance.onend = () => { orbState = 'listening'; statusEl.innerText = 'LISTENING'; safeStartMic(); };
+            utterance.onend = () => { orbState = 'listening'; safeStartMic(); };
             window.speechSynthesis.speak(utterance);
         }
 
@@ -136,18 +125,17 @@
         let rec = null;
         if (SpeechRec) {
             rec = new SpeechRec();
-            rec.continuous = false; 
-            rec.onstart = () => { isRecognizing = true; orbState = 'listening'; statusEl.innerText = 'LISTENING...'; };
+            rec.continuous = false;
+            rec.onstart = () => { isRecognizing = true; orbState = 'listening'; };
             rec.onend = () => { isRecognizing = false; if(orbState === 'listening') safeStartMic(); };
             rec.onerror = () => { isRecognizing = false; };
-            rec.onresult = async (e) => processGhostInput(e.results[0][0].transcript);
+            rec.onresult = async (e) => processInput(e.results[0][0].transcript);
         }
 
-        async function processGhostInput(text) {
+        async function processInput(text) {
             if(!text.trim()) return;
             orbState = 'processing';
-            statusEl.innerText = 'PROCESSING DATA...';
-            window.speechSynthesis.cancel(); 
+            window.speechSynthesis.cancel();
             if(currentAudio) currentAudio.pause();
             
             try {
@@ -164,17 +152,15 @@
                     playVoice(data.text, data.audio_b64);
                 }
             } catch(err) {
-                statusEl.innerText = 'CONNECTION FAILED.';
-                orbState = 'listening';
-                safeStartMic();
+                orbState = 'idle';
             }
         }
 
         function sendManual() {
             const input = document.getElementById('manual-input');
-            const text = input.value;
+            if(!input.value.trim()) return;
+            processInput(input.value);
             input.value = '';
-            processGhostInput(text);
         }
 
         function safeStartMic() {
@@ -186,18 +172,17 @@
         let lastTap = 0;
         document.body.addEventListener('click', (e) => {
             if(e.target.closest('#sidebar') || e.target.closest('#text-fallback')) return;
-            const currentTime = new Date().getTime();
-            if (currentTime - lastTap < 300) {
+            const now = new Date().getTime();
+            if (now - lastTap < 300) {
                 textFallback.classList.toggle('visible');
                 if(textFallback.classList.contains('visible')) document.getElementById('manual-input').focus();
             } else {
                 if(orbState === 'idle') {
-                    const unlockAudio = new SpeechSynthesisUtterance("");
-                    unlockAudio.volume = 0; window.speechSynthesis.speak(unlockAudio); 
+                    const u = new SpeechSynthesisUtterance(""); window.speechSynthesis.speak(u);
                     orbState = 'listening'; safeStartMic();
                 }
             }
-            lastTap = currentTime;
+            lastTap = now;
         });
     </script>
 </body>
