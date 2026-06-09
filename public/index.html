@@ -2,81 +2,241 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Ghost OS | Developer Console</title>
+    <title>Ghost OS | J.A.R.V.I.S. Protocol</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body { background: #050505; color: #0df; font-family: 'Courier New', monospace; display: flex; height: 100vh; margin: 0; overflow: hidden; }
-        #main { flex: 1; display: flex; flex-direction: column; padding: 20px; }
-        #chat-log { flex: 1; overflow-y: auto; border: 1px solid #333; padding: 15px; background: #000; font-size: 15px; line-height: 1.6; }
-        .msg { margin-bottom: 15px; }
-        .user-msg { color: #fff; }
-        .ghost-msg { color: #0df; }
-        #input-area { display: flex; margin-top: 10px; gap: 10px; }
-        input { flex: 1; background: #111; border: 1px solid #0df; color: #fff; padding: 15px; font-family: inherit; font-size: 16px; outline: none; }
-        button { background: #0df; color: #000; border: none; padding: 15px 30px; cursor: pointer; font-weight: bold; font-family: inherit; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: 'Courier New', monospace; overflow: hidden; user-select: none; }
         
-        /* The Skills Sidebar */
-        #sidebar { width: 0; background: #111; border-left: 1px solid #0df; transition: 0.3s; overflow-y: auto; }
-        #sidebar.open { width: 450px; padding: 20px; }
-        pre { color: #aaa; white-space: pre-wrap; font-size: 13px; font-family: inherit; }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 30px; box-sizing: border-box; z-index: 10; }
+        .sys-text { text-align: center; letter-spacing: 5px; font-size: 14px; text-transform: uppercase; text-shadow: 0 0 10px rgba(0, 221, 255, 0.5); }
+        #status { color: #888; transition: color 0.3s; }
+        
+        #sidebar { position: absolute; right: -450px; top: 0; width: 400px; height: 100%; background: rgba(0, 0, 0, 0.9); border-left: 1px solid #0df; transition: right 0.4s cubic-bezier(0.1, 0.8, 0.1, 1); z-index: 20; padding: 20px; box-sizing: border-box; overflow-y: auto; box-shadow: -10px 0 30px rgba(0,221,255,0.1); pointer-events: auto; }
+        #sidebar.open { right: 0; }
+        .sidebar-header { border-bottom: 1px solid rgba(0,221,255,0.4); padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; }
+        #sidebar-content pre { white-space: pre-wrap; font-size: 0.85em; color: #aaa; }
+        
+        /* Hidden Text Box (Revealed on Double Tap) */
+        #text-fallback { position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); z-index: 30; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; display: flex; gap: 10px; }
+        #text-fallback.visible { opacity: 1; pointer-events: auto; }
+        #text-fallback input { background: rgba(0,0,0,0.8); border: 1px solid #0df; color: #0df; padding: 12px; width: 400px; font-family: inherit; outline: none; border-radius: 4px; box-shadow: 0 0 15px rgba(0,221,255,0.2); }
+        #text-fallback button { background: #0df; color: #000; border: none; padding: 12px 20px; cursor: pointer; font-family: inherit; font-weight: bold; border-radius: 4px; }
     </style>
 </head>
 <body>
-    <div id="main">
-        <h3>GHOST OS | DEVELOPER TEST CONSOLE (TEXT ONLY)</h3>
-        <div id="chat-log"><div class="msg ghost-msg">Ghost: Voice disabled. Text-only secure link established. Awaiting commands.</div></div>
-        <div id="input-area">
-            <input type="text" id="user-input" placeholder="Type command to test skills..." onkeypress="if(event.key === 'Enter') sendText()">
-            <button onclick="sendText()">EXECUTE</button>
-        </div>
+    <div id="overlay">
+        <div class="sys-text">GHOST OS v9 | NEURAL INTERFACE SECURE</div>
+        <div class="sys-text" id="status">SYSTEM OFFLINE: SINGLE TAP TO WAKE | DOUBLE TAP FOR TEXT</div>
     </div>
+    
     <div id="sidebar">
-        <h4 style="margin-top:0;">MATRIX / CODE PAYLOAD</h4>
+        <div class="sidebar-header">MATRIX OVERRIDE PAYLOAD</div>
         <div id="sidebar-content"></div>
     </div>
 
+    <div id="text-fallback">
+        <input type="text" id="manual-input" placeholder="Enter manual command..." onkeypress="if(event.key === 'Enter') sendManual()">
+        <button onclick="sendManual()">SEND</button>
+    </div>
+
     <script>
-        const log = document.getElementById('chat-log');
-        const input = document.getElementById('user-input');
+        // --- 1. 3D PARTICLE SPHERE ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const geometry = new THREE.BufferGeometry();
+        const particlesCount = 4500;
+        const posArray = new Float32Array(particlesCount * 3);
+
+        for(let i = 0; i < particlesCount * 3; i+=3) {
+            const r = 2.5;
+            const theta = 2 * Math.PI * Math.random();
+            const phi = Math.acos(2 * Math.random() - 1);
+            posArray[i] = r * Math.sin(phi) * Math.cos(theta);
+            posArray[i+1] = r * Math.sin(phi) * Math.sin(theta);
+            posArray[i+2] = r * Math.cos(phi);
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const material = new THREE.PointsMaterial({ size: 0.02, color: 0x00ddff, transparent: true, opacity: 0.8 });
+        const particlesMesh = new THREE.Points(geometry, material);
+        scene.add(particlesMesh);
+        camera.position.z = 6;
+
+        let orbState = 'idle'; 
+        let clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const elapsedTime = clock.getElapsedTime();
+            
+            particlesMesh.rotation.y += 0.002;
+            particlesMesh.rotation.x += 0.001;
+
+            if (orbState === 'processing') {
+                material.color.setHex(0xffaa00);
+                particlesMesh.rotation.y += 0.04;
+                particlesMesh.scale.set(1.05, 1.05, 1.05);
+            } else if (orbState === 'speaking') {
+                material.color.setHex(0x00ddff);
+                const pulse = 1 + Math.sin(elapsedTime * 8) * 0.15;
+                particlesMesh.scale.set(pulse, pulse, pulse);
+            } else if (orbState === 'listening') {
+                material.color.setHex(0x00ddff);
+                particlesMesh.scale.set(1, 1, 1);
+            }
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- 2. GHOST CORE LOGIC & SKILLS ---
+        const statusEl = document.getElementById('status');
         const sidebar = document.getElementById('sidebar');
         const sidebarContent = document.getElementById('sidebar-content');
-        let history = [];
+        const textFallback = document.getElementById('text-fallback');
+        
+        let isRecognizing = false;
+        let conversationHistory = [];
 
-        async function sendText() {
-            const text = input.value.trim();
-            if (!text) return;
+        function executeEmbeddedTags(rawText) {
+            const openMatch = rawText.match(/<open:\s*(https?:\/\/[^\s>]+)>/);
+            const searchMatch = rawText.match(/<search:\s*([^>]+)>/);
+            if (openMatch) window.open(openMatch[1], '_blank');
+            else if (searchMatch) window.open('https://www.google.com/search?q=' + encodeURIComponent(searchMatch[1].trim()), '_blank');
+        }
+
+        function evaluateSidebar(text, isSwarm, swarmData) {
+            const triggers = ['code', 'script', 'function', 'swarm', 'terminal', 'debug', 'python', '```'];
+            const textLower = text.toLowerCase();
+            if (isSwarm || triggers.some(t => textLower.includes(t))) {
+                sidebar.classList.add('open');
+                sidebarContent.innerHTML = `<pre>${isSwarm ? JSON.stringify(swarmData, null, 2) : text}</pre>`;
+            } else {
+                sidebar.classList.remove('open');
+            }
+        }
+
+        function speak(text) {
+            orbState = 'speaking';
+            window.speechSynthesis.cancel(); 
             
-            log.innerHTML += `<div class="msg user-msg">> You: ${text}</div>`;
-            input.value = '';
-            log.scrollTop = log.scrollHeight;
+            // Execute automation tags
+            executeEmbeddedTags(text);
 
+            // Clean text so Ghost doesn't read HTML/Code aloud
+            const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/```[\s\S]*?```/g, 'I have deployed the requested data to your sidebar, Sir.');
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            
+            utterance.onend = () => {
+                orbState = 'listening';
+                statusEl.innerText = 'SYSTEM ACTIVE: LISTENING';
+                safeStartMic();
+            };
+            window.speechSynthesis.speak(utterance);
+        }
+
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let rec = null;
+        if (SpeechRec) {
+            rec = new SpeechRec();
+            rec.continuous = false; 
+            rec.interimResults = false;
+
+            rec.onstart = () => { 
+                isRecognizing = true; 
+                orbState = 'listening'; 
+                statusEl.innerText = 'SYSTEM ACTIVE: LISTENING'; 
+                statusEl.style.color = '#0df';
+            };
+            
+            rec.onend = () => { 
+                isRecognizing = false; 
+                if(orbState === 'listening') safeStartMic(); 
+            };
+
+            rec.onerror = (e) => { isRecognizing = false; };
+            
+            rec.onresult = async (e) => {
+                const text = e.results[0][0].transcript;
+                processGhostInput(text);
+            };
+        }
+
+        async function processGhostInput(text) {
+            if(!text.trim()) return;
+            orbState = 'processing';
+            statusEl.innerText = 'PROCESSING DATA...';
+            statusEl.style.color = '#fa0';
+            window.speechSynthesis.cancel(); // Barge-in protocol
+            
             try {
                 const res = await fetch('/api/chat', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ message: text, history: history })
+                    body: JSON.stringify({ message: text, history: conversationHistory })
                 });
                 const data = await res.json();
-                
                 if(data.success) {
-                    history.push({ role: 'user', parts: [{ text: text }] });
-                    history.push({ role: 'model', parts: [{ text: data.text }] });
-                    
-                    log.innerHTML += `<div class="msg ghost-msg">Ghost: ${data.text}</div>`;
-                    log.scrollTop = log.scrollHeight;
-
-                    // Trigger Sidebar Skill for Code/Swarm
-                    const triggers = ['code', 'script', 'function', 'swarm', 'python'];
-                    if (data.isSwarm || triggers.some(t => data.text.toLowerCase().includes(t))) {
-                        sidebar.classList.add('open');
-                        sidebarContent.innerHTML = `<pre>${data.isSwarm ? JSON.stringify(data.swarm, null, 2) : data.text}</pre>`;
-                    } else {
-                        sidebar.classList.remove('open');
-                    }
+                    conversationHistory.push({ role: 'user', parts: [{ text: text }] });
+                    conversationHistory.push({ role: 'model', parts: [{ text: data.text }] });
+                    evaluateSidebar(data.text, data.isSwarm, data.swarm);
+                    speak(data.text);
                 }
-            } catch(e) {
-                log.innerHTML += `<div class="msg ghost-msg" style="color:red;">[ERROR: CONNECTION FAILED]</div>`;
+            } catch(err) {
+                statusEl.innerText = 'CONNECTION FAILED. RETRYING...';
+                orbState = 'listening';
+                safeStartMic();
             }
         }
+
+        function sendManual() {
+            const input = document.getElementById('manual-input');
+            const text = input.value;
+            input.value = '';
+            processGhostInput(text);
+        }
+
+        function safeStartMic() {
+            if (rec && !isRecognizing && orbState !== 'speaking') {
+                try { rec.start(); } catch(e) {}
+            }
+        }
+
+        // --- 3. GESTURE CONTROLS (Single & Double Tap) ---
+        let lastTap = 0;
+        document.body.addEventListener('click', (e) => {
+            // Ignore clicks on the sidebar or text box
+            if(e.target.closest('#sidebar') || e.target.closest('#text-fallback')) return;
+
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTap;
+            
+            if (tapLength < 300 && tapLength > 0) {
+                // DOUBLE TAP: Toggle Text Box
+                textFallback.classList.toggle('visible');
+                if(textFallback.classList.contains('visible')) document.getElementById('manual-input').focus();
+            } else {
+                // SINGLE TAP: Wake Up System
+                if(orbState === 'idle') {
+                    const unlockAudio = new SpeechSynthesisUtterance("");
+                    unlockAudio.volume = 0;
+                    window.speechSynthesis.speak(unlockAudio); 
+                    orbState = 'listening';
+                    safeStartMic();
+                }
+            }
+            lastTap = currentTime;
+        });
     </script>
 </body>
 </html>
