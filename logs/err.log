@@ -1,0 +1,240 @@
+2026-06-09 19:15:21: /Users/manojkumarmathangi/Ghost/server.js:1
+2026-06-09 19:15:21: 404: Not Found
+2026-06-09 19:15:21:    ^
+2026-06-09 19:15:21: 
+2026-06-09 19:15:21: SyntaxError: Unexpected token ':'
+2026-06-09 19:15:21:     at wrapSafe (node:internal/modules/cjs/loader:1637:18)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1679:20)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21:     at Object.<anonymous> (/opt/homebrew/lib/node_modules/pm2/lib/ProcessContainerFork.js:32:23)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1705:14)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21: /Users/manojkumarmathangi/Ghost/server.js:1
+2026-06-09 19:15:21: 404: Not Found
+2026-06-09 19:15:21:    ^
+2026-06-09 19:15:21: 
+2026-06-09 19:15:21: SyntaxError: Unexpected token ':'
+2026-06-09 19:15:21:     at wrapSafe (node:internal/modules/cjs/loader:1637:18)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1679:20)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21:     at Object.<anonymous> (/opt/homebrew/lib/node_modules/pm2/lib/ProcessContainerFork.js:32:23)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1705:14)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21: /Users/manojkumarmathangi/Ghost/server.js:1
+2026-06-09 19:15:21: 404: Not Found
+2026-06-09 19:15:21:    ^
+2026-06-09 19:15:21: 
+2026-06-09 19:15:21: SyntaxError: Unexpected token ':'
+2026-06-09 19:15:21:     at wrapSafe (node:internal/modules/cjs/loader:1637:18)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1679:20)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21:     at Object.<anonymous> (/opt/homebrew/lib/node_modules/pm2/lib/ProcessContainerFork.js:32:23)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1705:14)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21: /Users/manojkumarmathangi/Ghost/server.js:1
+2026-06-09 19:15:21: 404: Not Found
+2026-06-09 19:15:21:    ^
+2026-06-09 19:15:21: 
+2026-06-09 19:15:21: SyntaxError: Unexpected token ':'
+2026-06-09 19:15:21:     at wrapSafe (node:internal/modules/cjs/loader:1637:18)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1679:20)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21:     at Object.<anonymous> (/opt/homebrew/lib/node_modules/pm2/lib/ProcessContainerFork.js:32:23)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1705:14)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21: /Users/manojkumarmathangi/Ghost/server.js:1
+2026-06-09 19:15:21: 404: Not Found
+2026-06-09 19:15:21:    ^
+2026-06-09 19:15:21: 
+2026-06-09 19:15:21: SyntaxError: Unexpected token ':'
+2026-06-09 19:15:21:     at wrapSafe (node:internal/modules/cjs/loader:1637:18)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1679:20)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21:     at Object.<anonymous> (/opt/homebrew/lib/node_modules/pm2/lib/ProcessContainerFork.js:32:23)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1705:14)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21: /Users/manojkumarmathangi/Ghost/server.js:1
+2026-06-09 19:15:21: 404: Not Found
+2026-06-09 19:15:21:    ^
+2026-06-09 19:15:21: 
+2026-06-09 19:15:21: SyntaxError: Unexpected token ':'
+2026-06-09 19:15:21:     at wrapSafe (node:internal/modules/cjs/loader:1637:18)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1679:20)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21:     at Object.<anonymous> (/opt/homebrew/lib/node_modules/pm2/lib/ProcessContainerFork.js:32:23)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1705:14)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21: /Users/manojkumarmathangi/Ghost/server.js:1
+2026-06-09 19:15:21: 404: Not Found
+2026-06-09 19:15:21:    ^
+2026-06-09 19:15:21: 
+2026-06-09 19:15:21: SyntaxError: Unexpected token ':'
+2026-06-09 19:15:21:     at wrapSafe (node:internal/modules/cjs/loader:1637:18)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1679:20)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21:     at Object.<anonymous> (/opt/homebrew/lib/node_modules/pm2/lib/ProcessContainerFork.js:32:23)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1705:14)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21: /Users/manojkumarmathangi/Ghost/server.js:1
+2026-06-09 19:15:21: 404: Not Found
+2026-06-09 19:15:21:    ^
+2026-06-09 19:15:21: 
+2026-06-09 19:15:21: SyntaxError: Unexpected token ':'
+2026-06-09 19:15:21:     at wrapSafe (node:internal/modules/cjs/loader:1637:18)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1679:20)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21:     at Object.<anonymous> (/opt/homebrew/lib/node_modules/pm2/lib/ProcessContainerFork.js:32:23)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1705:14)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21: /Users/manojkumarmathangi/Ghost/server.js:1
+2026-06-09 19:15:21: 404: Not Found
+2026-06-09 19:15:21:    ^
+2026-06-09 19:15:21: 
+2026-06-09 19:15:21: SyntaxError: Unexpected token ':'
+2026-06-09 19:15:21:     at wrapSafe (node:internal/modules/cjs/loader:1637:18)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1679:20)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21:     at Object.<anonymous> (/opt/homebrew/lib/node_modules/pm2/lib/ProcessContainerFork.js:32:23)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1705:14)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21: /Users/manojkumarmathangi/Ghost/server.js:1
+2026-06-09 19:15:21: 404: Not Found
+2026-06-09 19:15:21:    ^
+2026-06-09 19:15:21: 
+2026-06-09 19:15:21: SyntaxError: Unexpected token ':'
+2026-06-09 19:15:21:     at wrapSafe (node:internal/modules/cjs/loader:1637:18)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1679:20)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21:     at Object.<anonymous> (/opt/homebrew/lib/node_modules/pm2/lib/ProcessContainerFork.js:32:23)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1705:14)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21: /Users/manojkumarmathangi/Ghost/server.js:1
+2026-06-09 19:15:21: 404: Not Found
+2026-06-09 19:15:21:    ^
+2026-06-09 19:15:21: 
+2026-06-09 19:15:21: SyntaxError: Unexpected token ':'
+2026-06-09 19:15:21:     at wrapSafe (node:internal/modules/cjs/loader:1637:18)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1679:20)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:21:     at Object.<anonymous> (/opt/homebrew/lib/node_modules/pm2/lib/ProcessContainerFork.js:32:23)
+2026-06-09 19:15:21:     at Module._compile (node:internal/modules/cjs/loader:1705:14)
+2026-06-09 19:15:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:21:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:21:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:22: /Users/manojkumarmathangi/Ghost/server.js:1
+2026-06-09 19:15:22: 404: Not Found
+2026-06-09 19:15:22:    ^
+2026-06-09 19:15:22: 
+2026-06-09 19:15:22: SyntaxError: Unexpected token ':'
+2026-06-09 19:15:22:     at wrapSafe (node:internal/modules/cjs/loader:1637:18)
+2026-06-09 19:15:22:     at Module._compile (node:internal/modules/cjs/loader:1679:20)
+2026-06-09 19:15:22:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:22:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:22:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:22:     at Object.<anonymous> (/opt/homebrew/lib/node_modules/pm2/lib/ProcessContainerFork.js:32:23)
+2026-06-09 19:15:22:     at Module._compile (node:internal/modules/cjs/loader:1705:14)
+2026-06-09 19:15:22:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:22:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:22:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:22: /Users/manojkumarmathangi/Ghost/server.js:1
+2026-06-09 19:15:22: 404: Not Found
+2026-06-09 19:15:22:    ^
+2026-06-09 19:15:22: 
+2026-06-09 19:15:22: SyntaxError: Unexpected token ':'
+2026-06-09 19:15:22:     at wrapSafe (node:internal/modules/cjs/loader:1637:18)
+2026-06-09 19:15:22:     at Module._compile (node:internal/modules/cjs/loader:1679:20)
+2026-06-09 19:15:22:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:22:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:22:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:22:     at Object.<anonymous> (/opt/homebrew/lib/node_modules/pm2/lib/ProcessContainerFork.js:32:23)
+2026-06-09 19:15:22:     at Module._compile (node:internal/modules/cjs/loader:1705:14)
+2026-06-09 19:15:22:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:22:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:22:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:22: /Users/manojkumarmathangi/Ghost/server.js:1
+2026-06-09 19:15:22: 404: Not Found
+2026-06-09 19:15:22:    ^
+2026-06-09 19:15:22: 
+2026-06-09 19:15:22: SyntaxError: Unexpected token ':'
+2026-06-09 19:15:22:     at wrapSafe (node:internal/modules/cjs/loader:1637:18)
+2026-06-09 19:15:22:     at Module._compile (node:internal/modules/cjs/loader:1679:20)
+2026-06-09 19:15:22:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:22:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:22:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:22:     at Object.<anonymous> (/opt/homebrew/lib/node_modules/pm2/lib/ProcessContainerFork.js:32:23)
+2026-06-09 19:15:22:     at Module._compile (node:internal/modules/cjs/loader:1705:14)
+2026-06-09 19:15:22:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:22:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:22:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:22: /Users/manojkumarmathangi/Ghost/server.js:1
+2026-06-09 19:15:22: 404: Not Found
+2026-06-09 19:15:22:    ^
+2026-06-09 19:15:22: 
+2026-06-09 19:15:22: SyntaxError: Unexpected token ':'
+2026-06-09 19:15:22:     at wrapSafe (node:internal/modules/cjs/loader:1637:18)
+2026-06-09 19:15:22:     at Module._compile (node:internal/modules/cjs/loader:1679:20)
+2026-06-09 19:15:22:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:22:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:22:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:22:     at Object.<anonymous> (/opt/homebrew/lib/node_modules/pm2/lib/ProcessContainerFork.js:32:23)
+2026-06-09 19:15:22:     at Module._compile (node:internal/modules/cjs/loader:1705:14)
+2026-06-09 19:15:22:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:22:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:22:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:22: /Users/manojkumarmathangi/Ghost/server.js:1
+2026-06-09 19:15:22: 404: Not Found
+2026-06-09 19:15:22:    ^
+2026-06-09 19:15:22: 
+2026-06-09 19:15:22: SyntaxError: Unexpected token ':'
+2026-06-09 19:15:22:     at wrapSafe (node:internal/modules/cjs/loader:1637:18)
+2026-06-09 19:15:22:     at Module._compile (node:internal/modules/cjs/loader:1679:20)
+2026-06-09 19:15:22:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:22:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:22:     at Module._load (node:internal/modules/cjs/loader:1263:12)
+2026-06-09 19:15:22:     at Object.<anonymous> (/opt/homebrew/lib/node_modules/pm2/lib/ProcessContainerFork.js:32:23)
+2026-06-09 19:15:22:     at Module._compile (node:internal/modules/cjs/loader:1705:14)
+2026-06-09 19:15:22:     at Module._extensions..js (node:internal/modules/cjs/loader:1838:10)
+2026-06-09 19:15:22:     at Module.load (node:internal/modules/cjs/loader:1441:32)
+2026-06-09 19:15:22:     at Module._load (node:internal/modules/cjs/loader:1263:12)
