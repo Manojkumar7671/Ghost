@@ -2,215 +2,81 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Ghost OS | Ultimate Edition</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <title>Ghost OS | Developer Console</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: 'Courier New', monospace; overflow: hidden; }
+        body { background: #050505; color: #0df; font-family: 'Courier New', monospace; display: flex; height: 100vh; margin: 0; overflow: hidden; }
+        #main { flex: 1; display: flex; flex-direction: column; padding: 20px; }
+        #chat-log { flex: 1; overflow-y: auto; border: 1px solid #333; padding: 15px; background: #000; font-size: 15px; line-height: 1.6; }
+        .msg { margin-bottom: 15px; }
+        .user-msg { color: #fff; }
+        .ghost-msg { color: #0df; }
+        #input-area { display: flex; margin-top: 10px; gap: 10px; }
+        input { flex: 1; background: #111; border: 1px solid #0df; color: #fff; padding: 15px; font-family: inherit; font-size: 16px; outline: none; }
+        button { background: #0df; color: #000; border: none; padding: 15px 30px; cursor: pointer; font-weight: bold; font-family: inherit; }
         
-        /* HUD Layout */
-        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 30px; box-sizing: border-box; z-index: 10; }
-        .sys-text { text-align: center; letter-spacing: 5px; font-size: 14px; text-transform: uppercase; text-shadow: 0 0 10px rgba(0, 221, 255, 0.5); }
-        #status { color: #888; }
-        
-        /* Slide-out Terminal for Code/Skills */
-        #sidebar { position: absolute; right: -450px; top: 0; width: 400px; height: 100%; background: rgba(0, 0, 0, 0.9); border-left: 1px solid #0df; transition: right 0.4s cubic-bezier(0.1, 0.8, 0.1, 1); z-index: 20; padding: 20px; box-sizing: border-box; overflow-y: auto; box-shadow: -10px 0 30px rgba(0,221,255,0.1); pointer-events: auto; }
-        #sidebar.open { right: 0; }
-        .sidebar-header { border-bottom: 1px solid rgba(0,221,255,0.4); padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; }
-        #sidebar-content pre { white-space: pre-wrap; font-size: 0.85em; color: #aaa; text-shadow: none; }
-        
-        /* Stealth Text Input Box */
-        #text-fallback { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 30; pointer-events: auto; display: flex; gap: 10px; opacity: 0.2; transition: opacity 0.3s ease; }
-        #text-fallback:hover, #text-fallback:focus-within { opacity: 1; }
-        #text-fallback input { background: rgba(0,0,0,0.7); border: 1px solid #0df; color: #0df; padding: 12px; width: 350px; font-family: inherit; outline: none; border-radius: 4px; }
-        #text-fallback button { background: #0df; color: #000; border: none; padding: 12px 20px; cursor: pointer; font-family: inherit; font-weight: bold; border-radius: 4px; }
+        /* The Skills Sidebar */
+        #sidebar { width: 0; background: #111; border-left: 1px solid #0df; transition: 0.3s; overflow-y: auto; }
+        #sidebar.open { width: 450px; padding: 20px; }
+        pre { color: #aaa; white-space: pre-wrap; font-size: 13px; font-family: inherit; }
     </style>
 </head>
 <body>
-    <div id="overlay">
-        <div class="sys-text">GHOST OS v8 | COMPLETE NEURAL INTEGRATION</div>
-        <div class="sys-text" id="status">SYSTEM OFFLINE: CLICK ANYWHERE TO INITIALIZE</div>
+    <div id="main">
+        <h3>GHOST OS | DEVELOPER TEST CONSOLE (TEXT ONLY)</h3>
+        <div id="chat-log"><div class="msg ghost-msg">Ghost: Voice disabled. Text-only secure link established. Awaiting commands.</div></div>
+        <div id="input-area">
+            <input type="text" id="user-input" placeholder="Type command to test skills..." onkeypress="if(event.key === 'Enter') sendText()">
+            <button onclick="sendText()">EXECUTE</button>
+        </div>
     </div>
-    
     <div id="sidebar">
-        <div class="sidebar-header">MATRIX OVERRIDE PAYLOAD</div>
+        <h4 style="margin-top:0;">MATRIX / CODE PAYLOAD</h4>
         <div id="sidebar-content"></div>
     </div>
 
-    <div id="text-fallback">
-        <input type="text" id="manual-input" placeholder="Manual text override..." onkeypress="if(event.key === 'Enter') sendManual()">
-        <button onclick="sendManual()">SEND</button>
-    </div>
-
     <script>
-        // --- 1. THREE.JS 3D NEURAL SPHERE ---
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
-
-        const geometry = new THREE.BufferGeometry();
-        const particlesCount = 4500;
-        const posArray = new Float32Array(particlesCount * 3);
-
-        for(let i = 0; i < particlesCount * 3; i+=3) {
-            const r = 2.5;
-            const theta = 2 * Math.PI * Math.random();
-            const phi = Math.acos(2 * Math.random() - 1);
-            posArray[i] = r * Math.sin(phi) * Math.cos(theta);
-            posArray[i+1] = r * Math.sin(phi) * Math.sin(theta);
-            posArray[i+2] = r * Math.cos(phi);
-        }
-
-        geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-        const material = new THREE.PointsMaterial({ size: 0.02, color: 0x00ddff, transparent: true, opacity: 0.8 });
-        const particlesMesh = new THREE.Points(geometry, material);
-        scene.add(particlesMesh);
-        camera.position.z = 6;
-
-        let orbState = 'idle'; 
-        let clock = new THREE.Clock();
-
-        function animate() {
-            requestAnimationFrame(animate);
-            const elapsedTime = clock.getElapsedTime();
-            
-            particlesMesh.rotation.y += 0.002;
-            particlesMesh.rotation.x += 0.001;
-
-            if (orbState === 'processing') {
-                material.color.setHex(0xffaa00); // Orange
-                particlesMesh.rotation.y += 0.04;
-                particlesMesh.scale.set(1.05, 1.05, 1.05);
-            } else if (orbState === 'speaking') {
-                material.color.setHex(0x00ddff); // Blue
-                const pulse = 1 + Math.sin(elapsedTime * 8) * 0.15;
-                particlesMesh.scale.set(pulse, pulse, pulse);
-            } else if (orbState === 'listening') {
-                material.color.setHex(0x00ddff); // Blue
-                particlesMesh.scale.set(1, 1, 1);
-            }
-
-            renderer.render(scene, camera);
-        }
-        animate();
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        // --- 2. GHOST CORE LOGIC & SKILLS ---
-        const statusEl = document.getElementById('status');
+        const log = document.getElementById('chat-log');
+        const input = document.getElementById('user-input');
         const sidebar = document.getElementById('sidebar');
         const sidebarContent = document.getElementById('sidebar-content');
-        let isRecognizing = false;
-        let conversationHistory = [];
+        let history = [];
 
-        function evaluateSidebar(text, isSwarm, swarmData) {
-            const triggers = ['code', 'script', 'function', 'swarm', 'terminal', 'debug', 'python'];
-            const textLower = text.toLowerCase();
-            if (isSwarm || triggers.some(t => textLower.includes(t))) {
-                sidebar.classList.add('open');
-                sidebarContent.innerHTML = `<pre>${isSwarm ? JSON.stringify(swarmData, null, 2) : text}</pre>`;
-            } else {
-                sidebar.classList.remove('open');
-            }
-        }
-
-        function speak(text) {
-            orbState = 'speaking';
-            window.speechSynthesis.cancel(); // Stop current speech
+        async function sendText() {
+            const text = input.value.trim();
+            if (!text) return;
             
-            // Clean text for Native Voice so he doesn't read code blocks aloud
-            const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/```[\s\S]*?```/g, 'I have sent the requested code to your terminal sidebar.');
-            const utterance = new SpeechSynthesisUtterance(cleanText);
-            
-            utterance.onend = () => {
-                orbState = 'listening';
-                statusEl.innerText = 'SYSTEM ACTIVE: LISTENING';
-                safeStartMic();
-            };
-            window.speechSynthesis.speak(utterance);
-        }
+            log.innerHTML += `<div class="msg user-msg">> You: ${text}</div>`;
+            input.value = '';
+            log.scrollTop = log.scrollHeight;
 
-        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const rec = new SpeechRec();
-        rec.continuous = false; 
-        rec.interimResults = false;
-
-        rec.onstart = () => { 
-            isRecognizing = true; 
-            orbState = 'listening'; 
-            statusEl.innerText = 'SYSTEM ACTIVE: LISTENING'; 
-            statusEl.style.color = '#0df';
-        };
-        
-        rec.onend = () => { 
-            isRecognizing = false; 
-            if(orbState === 'listening') safeStartMic(); 
-        };
-
-        rec.onerror = (e) => { isRecognizing = false; };
-        
-        rec.onresult = async (e) => {
-            const text = e.results[0][0].transcript;
-            processGhostInput(text);
-        };
-
-        async function processGhostInput(text) {
-            if(!text.trim()) return;
-            orbState = 'processing';
-            statusEl.innerText = 'PROCESSING DATA...';
-            statusEl.style.color = '#fa0';
-            window.speechSynthesis.cancel(); // Barge-in protocol
-            
             try {
                 const res = await fetch('/api/chat', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ message: text, history: conversationHistory })
+                    body: JSON.stringify({ message: text, history: history })
                 });
                 const data = await res.json();
-                if(data.success) {
-                    conversationHistory.push({ role: 'user', parts: [{ text: text }] });
-                    conversationHistory.push({ role: 'model', parts: [{ text: data.text }] });
-                    evaluateSidebar(data.text, data.isSwarm, data.swarm);
-                    speak(data.text);
-                }
-            } catch(err) {
-                statusEl.innerText = 'CONNECTION FAILED. RETRYING...';
-                orbState = 'listening';
-                safeStartMic();
-            }
-        }
-
-        function sendManual() {
-            const input = document.getElementById('manual-input');
-            const text = input.value;
-            input.value = '';
-            processGhostInput(text);
-        }
-
-        function safeStartMic() {
-            if (!isRecognizing && orbState !== 'speaking') {
-                try { rec.start(); } catch(e) {}
-            }
-        }
-
-        // Initialize system on first click
-        document.body.addEventListener('click', () => {
-            if(orbState === 'idle') {
-                // Unlock browser audio context
-                const unlockAudio = new SpeechSynthesisUtterance("");
-                unlockAudio.volume = 0;
-                window.speechSynthesis.speak(unlockAudio); 
                 
-                orbState = 'listening';
-                safeStartMic();
+                if(data.success) {
+                    history.push({ role: 'user', parts: [{ text: text }] });
+                    history.push({ role: 'model', parts: [{ text: data.text }] });
+                    
+                    log.innerHTML += `<div class="msg ghost-msg">Ghost: ${data.text}</div>`;
+                    log.scrollTop = log.scrollHeight;
+
+                    // Trigger Sidebar Skill for Code/Swarm
+                    const triggers = ['code', 'script', 'function', 'swarm', 'python'];
+                    if (data.isSwarm || triggers.some(t => data.text.toLowerCase().includes(t))) {
+                        sidebar.classList.add('open');
+                        sidebarContent.innerHTML = `<pre>${data.isSwarm ? JSON.stringify(data.swarm, null, 2) : data.text}</pre>`;
+                    } else {
+                        sidebar.classList.remove('open');
+                    }
+                }
+            } catch(e) {
+                log.innerHTML += `<div class="msg ghost-msg" style="color:red;">[ERROR: CONNECTION FAILED]</div>`;
             }
-        }, { once: true });
+        }
     </script>
 </body>
 </html>
