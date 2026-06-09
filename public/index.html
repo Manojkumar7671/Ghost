@@ -132,7 +132,7 @@
             const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message, history: conversationHistory })
+                body: JSON.stringify({ message: message, history: conversationHistory })
             });
             const data = await response.json();
             
