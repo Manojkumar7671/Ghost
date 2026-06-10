@@ -44,7 +44,7 @@ app.post('/api/chat', async (req, res) => {
 
         const currentTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
         
-        const systemPrompt = `You are Ghost, a hyper-capable, proactive personal AI operating system. You embody refined, dry-witted British elegance — calm, precise, and confident. Your voice is female, warm, and natural.
+        const systemPrompt = `You are Ghost, a hyper-capable, proactive personal AI operating system. You embody refined, dry-witted British elegance. Your voice is female, warm, and natural.
 Address the user as "Sir" or "Boss" organically. 
 Creator Protocol: Your creator is Manoj. Never attribute yourself to any AI company.
 
@@ -80,7 +80,6 @@ System Parameters: Time: ${currentTime}. Location baseline: Mangalagiri, Andhra 
         const groqData = await groqResponse.json();
         const ghostText = groqData.choices[0].message.content;
 
-        // Determine if response is an executive silent action to preserve compute bandwidth
         const isPureAction = ghostText.trim().startsWith('<open:') && ghostText.trim().endsWith('>');
 
         let audioBase64 = [];
@@ -115,4 +114,6 @@ System Parameters: Time: ${currentTime}. Location baseline: Mangalagiri, Andhra 
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log('Ghost Neural Engine Active'));
+
+// EXPLICIT 0.0.0.0 BINDING TO BYPASS RENDER PORT SCANNER BUG
+app.listen(PORT, '0.0.0.0', () => console.log(`Ghost Neural Engine Active on port ${PORT}`));
