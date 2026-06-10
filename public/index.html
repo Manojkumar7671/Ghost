@@ -6,7 +6,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: 'Courier New', monospace; overflow: hidden; user-select: none; }
-        #overlay { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 10; pointer-events: none; }
+        #overlay { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 10; pointer-events: none; width: 100%; }
         .sys-text { letter-spacing: 8px; font-size: 28px; font-weight: bold; text-transform: uppercase; text-shadow: 0 0 15px rgba(0, 221, 255, 0.6); color: #0df; transition: color 0.3s; }
         #sidebar { position: absolute; right: -450px; top: 0; width: 400px; height: 100%; background: rgba(0, 0, 0, 0.95); border-left: 1px solid #0df; transition: right 0.4s cubic-bezier(0.1, 0.8, 0.1, 1); z-index: 20; padding: 20px; box-sizing: border-box; overflow-y: auto; }
         #sidebar.open { right: 0; }
@@ -26,6 +26,9 @@
     <div id="text-fallback"><input type="text" id="manual-input" placeholder="Execute command..." onkeypress="if(event.key === 'Enter') sendManual()"><button onclick="sendManual()">RUN</button></div>
 
     <script>
+        // --- PREVENT RENDER FROM SLEEPING ---
+        setInterval(() => { fetch('/ping').catch(() => {}); }, 300000); // Ping every 5 minutes
+
         // --- 3D ORB ---
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -134,10 +137,8 @@
             rec.onend = () => { isRecognizing = false; if(orbState === 'listening') safeStartMic(); };
             rec.onerror = (e) => { 
                 isRecognizing = false; 
-                if(e.error === 'not-allowed') {
-                    statusEl.innerText = 'MIC BLOCKED';
-                    statusEl.style.color = '#f00';
-                }
+                statusEl.innerText = `MIC ERROR: ${e.error.toUpperCase()}`;
+                statusEl.style.color = '#f00';
             };
             rec.onresult = async (e) => processInput(e.results[0][0].transcript);
         }
@@ -152,28 +153,40 @@
             // RENDER COLD START WARNING
             const slowWarning = setTimeout(() => {
                 if (orbState === 'processing') {
-                    statusEl.innerText = 'GHOST [WAKING SERVER...]';
+                    statusEl.innerText = 'GHOST [WAKING SERVER]';
                     statusEl.style.color = '#fa0';
                 }
             }, 3000);
             
             try {
+                // 90-SECOND KILLSWITCH (Prevents 30-minute hangs)
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 90000);
+
                 const res = await fetch('/api/chat', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ message: text, history: conversationHistory })
+                    body: JSON.stringify({ message: text, history: conversationHistory }),
+                    signal: controller.signal
                 });
+                
                 clearTimeout(slowWarning);
+                clearTimeout(timeoutId);
+                
+                if (!res.ok) throw new Error("Server Request Failed");
                 const data = await res.json();
+                
                 if(data.success) {
                     conversationHistory.push({ role: 'user', content: text });
                     conversationHistory.push({ role: 'system', content: data.text });
                     evaluateSidebar(data.text);
                     playVoice(data.text, data.audio_b64);
+                } else {
+                    throw new Error("Logic Error");
                 }
             } catch(err) {
                 clearTimeout(slowWarning);
-                statusEl.innerText = 'GHOST [OFFLINE]';
+                statusEl.innerText = 'GHOST [OFFLINE - PLEASE REFRESH]';
                 statusEl.style.color = '#f00';
                 orbState = 'idle';
             }
@@ -193,7 +206,6 @@
         }
 
         // --- AGGRESSIVE MAC WATCHDOG ---
-        // Pings every 1 second to force the orange dot to stay alive
         setInterval(() => {
             if (orbState === 'listening' && !isRecognizing) {
                 safeStartMic();
@@ -208,7 +220,7 @@
                 textFallback.classList.toggle('visible');
                 if(textFallback.classList.contains('visible')) document.getElementById('manual-input').focus();
             } else {
-                if(orbState === 'idle') {
+                if(orbState === 'idle' || statusEl.innerText.includes('ERROR')) {
                     const u = new SpeechSynthesisUtterance(""); window.speechSynthesis.speak(u);
                     orbState = 'listening'; safeStartMic();
                 }

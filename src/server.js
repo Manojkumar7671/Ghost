@@ -9,10 +9,13 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
+// ANTI-SLEEP ENDPOINT
+app.get('/ping', (req, res) => res.send('pong'));
+
 async function performDeepResearch(query) {
     if (!TAVILY_API_KEY) return null;
     try {
-        const res = await fetch('[https://api.tavily.com/search](https://api.tavily.com/search)', {
+        const res = await fetch('https://api.tavily.com/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ api_key: TAVILY_API_KEY, query: query, search_depth: "basic", max_results: 2 })
@@ -40,12 +43,11 @@ app.post('/api/chat', async (req, res) => {
         }
 
         const currentTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-        const systemPrompt = `You are Ghost, an elite British AI assistant. Time: ${currentTime}. Location: Mangalagiri, India. Open websites via <open: URL>. Keep speech concise. No markdown asterisks.${injectedContext}`;
+        const systemPrompt = `You are Ghost, an elite British AI assistant created for Manoj. Time: ${currentTime}. Open websites via <open: URL>. Keep speech concise. No markdown asterisks.${injectedContext}`;
 
         const messages = [{ role: "system", content: systemPrompt }, ...history, { role: "user", content: userMessage }];
 
-        // 1. Get Text Instantly via Groq
-        const groqResponse = await fetch('[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)', {
+        const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ model: 'llama3-70b-8192', messages: messages, max_tokens: 250, temperature: 0.5 })
@@ -53,7 +55,6 @@ app.post('/api/chat', async (req, res) => {
         const groqData = await groqResponse.json();
         const ghostText = groqData.choices[0].message.content;
 
-        // 2. Race ElevenLabs against a tight 1.5-second timeout
         let audioBase64 = [];
         if (ELEVENLABS_API_KEY) {
             try {
@@ -76,9 +77,7 @@ app.post('/api/chat', async (req, res) => {
                     const audioBuffer = await ttsResponse.arrayBuffer();
                     audioBase64.push(Buffer.from(audioBuffer).toString('base64'));
                 }
-            } catch (err) {
-                // If it times out or errors, fail silently and let frontend native voice speak instantly
-            }
+            } catch (err) { }
         }
 
         res.json({ success: true, text: ghostText, audio_b64: audioBase64 });
