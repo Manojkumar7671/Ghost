@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Ghost OS v13</title>
+    <title>Ghost OS v14</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: 'Courier New', monospace; overflow: hidden; user-select: none; }
@@ -20,7 +20,7 @@
 </head>
 <body>
     <div id="overlay">
-        <div class="sys-text" id="status">GHOST V13</div>
+        <div class="sys-text" id="status">GHOST V14</div>
     </div>
     <div id="sidebar"><div class="sidebar-header">MATRIX PAYLOAD</div><div id="sidebar-content"></div></div>
     <div id="text-fallback"><input type="text" id="manual-input" placeholder="Execute command..." onkeypress="if(event.key === 'Enter') sendManual()"><button onclick="sendManual()">RUN</button></div>
@@ -74,13 +74,6 @@
         let currentAudio = null;
         let conversationHistory = []; 
 
-        function handleSpokenCommands(text) {
-            const openMatch = text.match(/<open:\s*(https?:\/\/[^\s>]+)>/);
-            const searchMatch = text.match(/<search:\s*([^>]+)>/);
-            if (openMatch) window.open(openMatch[1], '_blank');
-            else if (searchMatch) window.open('https://www.google.com/search?q=' + encodeURIComponent(searchMatch[1].trim()), '_blank');
-        }
-
         function evaluateSidebar(text) {
             if (['code', 'script', 'function', 'python', '```', 'json'].some(t => text.toLowerCase().includes(t))) {
                 sidebar.classList.add('open');
@@ -92,9 +85,10 @@
 
         async function playVoice(text, audioB64) {
             orbState = 'speaking';
-            statusEl.innerText = 'GHOST V13';
-            statusEl.style.color = '#0df';
-            handleSpokenCommands(text);
+            if (!statusEl.innerText.includes('ERR')) {
+                statusEl.innerText = 'GHOST V14';
+                statusEl.style.color = '#0df';
+            }
             
             if (audioB64 && audioB64.length > 0) {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -112,16 +106,14 @@
             const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/```[\s\S]*?```/g, 'I have sent the data to your console.');
             const utterance = new SpeechSynthesisUtterance(cleanText);
             
-            // Force a female British voice for fallback
             const voices = window.speechSynthesis.getVoices();
-            const ukFemale = voices.find(v => v.lang.includes('en-GB') && (v.name.includes('Serena') || v.name.includes('Martha') || v.name.includes('Google UK English Female')));
+            const ukFemale = voices.find(v => v.lang.includes('en-GB') && (v.name.includes('Serena') || v.name.includes('Martha') || v.name.includes('Female')));
             if(ukFemale) utterance.voice = ukFemale;
 
             utterance.onend = () => { orbState = 'listening'; safeStartMic(); };
             window.speechSynthesis.speak(utterance);
         }
 
-        // Pre-load voices on Mac
         window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
 
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -129,12 +121,12 @@
         if (SpeechRec) {
             rec = new SpeechRec();
             rec.continuous = false;
-            rec.onstart = () => { isRecognizing = true; orbState = 'listening'; statusEl.innerText = 'GHOST V13'; statusEl.style.color = '#0df'; };
+            rec.onstart = () => { isRecognizing = true; orbState = 'listening'; statusEl.innerText = 'GHOST V14'; statusEl.style.color = '#0df'; };
             rec.onend = () => { isRecognizing = false; if(orbState === 'listening') safeStartMic(); };
             rec.onerror = (e) => { 
                 isRecognizing = false; 
                 if(e.error !== 'no-speech') {
-                    statusEl.innerText = `[MIC BLOCK: ${e.error.toUpperCase()}]`;
+                    statusEl.innerText = `[MIC BLOCK: BROWSER NOT SUPPORTED]`;
                     statusEl.style.color = '#f00';
                     orbState = 'error';
                 }
@@ -167,18 +159,24 @@
                     conversationHistory.push({ role: 'user', content: text });
                     conversationHistory.push({ role: 'assistant', content: data.text });
                     evaluateSidebar(data.text);
+                    
+                    if (data.audio_b64.length === 0 && data.voice_diagnostic) {
+                        statusEl.innerText = `[11LABS ERR: CHECK CREDITS]`;
+                        statusEl.style.color = '#fa0';
+                    }
+                    
                     playVoice(data.text, data.audio_b64);
                 } else {
                     statusEl.innerText = `[API ERROR]: ${data.text.toUpperCase()}`;
                     statusEl.style.color = '#f00';
                     orbState = 'error';
-                    setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST V13'; statusEl.style.color = '#0df'; safeStartMic(); }, 6000);
+                    setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST V14'; statusEl.style.color = '#0df'; safeStartMic(); }, 6000);
                 }
             } catch(err) {
-                statusEl.innerText = `[SERVER WAKING UP - RETRY IN 5 SECONDS]`;
+                statusEl.innerText = `[SERVER WAKING UP - RETRY]`;
                 statusEl.style.color = '#fa0';
                 orbState = 'error';
-                setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST V13'; statusEl.style.color = '#0df'; safeStartMic(); }, 6000);
+                setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST V14'; statusEl.style.color = '#0df'; safeStartMic(); }, 4000);
             }
         }
 
