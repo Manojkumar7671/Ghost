@@ -2,16 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Ghost OS</title>
+    <title>Ghost OS v11</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: 'Courier New', monospace; overflow: hidden; user-select: none; }
         #overlay { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 10; pointer-events: none; width: 90%; }
         .sys-text { letter-spacing: 5px; font-size: 24px; font-weight: bold; text-transform: uppercase; text-shadow: 0 0 15px rgba(0, 221, 255, 0.6); color: #0df; transition: color 0.3s; word-wrap: break-word; }
-        #sidebar { position: absolute; right: -450px; top: 0; width: 400px; height: 100%; background: rgba(0, 0, 0, 0.95); border-left: 1px solid #0df; transition: right 0.4s cubic-bezier(0.1, 0.8, 0.1, 1); z-index: 20; padding: 20px; box-sizing: border-box; overflow-y: auto; }
-        #sidebar.open { right: 0; }
-        .sidebar-header { border-bottom: 1px solid rgba(0,221,255,0.4); padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; letter-spacing: 2px; }
-        #sidebar-content pre { white-space: pre-wrap; font-size: 0.85em; color: #aaa; font-family: inherit; }
         #text-fallback { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); z-index: 30; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; display: flex; gap: 10px; }
         #text-fallback.visible { opacity: 1; pointer-events: auto; }
         #text-fallback input { background: rgba(0,0,0,0.8); border: 1px solid #0df; color: #0df; padding: 12px; width: 350px; font-family: inherit; outline: none; box-shadow: 0 0 10px rgba(0,221,255,0.2); }
@@ -20,9 +16,8 @@
 </head>
 <body>
     <div id="overlay">
-        <div class="sys-text" id="status">GHOST</div>
+        <div class="sys-text" id="status">GHOST V11</div>
     </div>
-    <div id="sidebar"><div class="sidebar-header">MATRIX PAYLOAD</div><div id="sidebar-content"></div></div>
     <div id="text-fallback"><input type="text" id="manual-input" placeholder="Execute command..." onkeypress="if(event.key === 'Enter') sendManual()"><button onclick="sendManual()">RUN</button></div>
 
     <script>
@@ -56,51 +51,24 @@
             requestAnimationFrame(animate);
             particlesMesh.rotation.y += 0.002;
             particlesMesh.rotation.x += 0.001;
-            if (orbState === 'processing') {
-                material.color.setHex(0xffaa00);
-                particlesMesh.rotation.y += 0.04;
-            } else if (orbState === 'speaking') {
-                material.color.setHex(0x00ddff);
-                const pulse = 1 + Math.sin(clock.getElapsedTime() * 10) * 0.12;
-                particlesMesh.scale.set(pulse, pulse, pulse);
-            } else if (orbState === 'error') {
-                material.color.setHex(0xff0000);
-                particlesMesh.scale.set(1, 1, 1);
-            } else {
-                material.color.setHex(0x00ddff);
-                particlesMesh.scale.set(1, 1, 1);
-            }
+            if (orbState === 'processing') { material.color.setHex(0xffaa00); particlesMesh.rotation.y += 0.04; } 
+            else if (orbState === 'speaking') { material.color.setHex(0x00ddff); const p = 1 + Math.sin(clock.getElapsedTime() * 10) * 0.12; particlesMesh.scale.set(p, p, p); } 
+            else if (orbState === 'error') { material.color.setHex(0xff0000); particlesMesh.scale.set(1, 1, 1); } 
+            else { material.color.setHex(0x00ddff); particlesMesh.scale.set(1, 1, 1); }
             renderer.render(scene, camera);
         }
         animate();
 
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
 
         const statusEl = document.getElementById('status');
-        const sidebar = document.getElementById('sidebar');
-        const sidebarContent = document.getElementById('sidebar-content');
         const textFallback = document.getElementById('text-fallback');
-        
         let isRecognizing = false;
-        let conversationHistory = [];
         let currentAudio = null;
-
-        function evaluateSidebar(text) {
-            if (['code', 'script', 'function', 'python', '```'].some(t => text.toLowerCase().includes(t))) {
-                sidebar.classList.add('open');
-                sidebarContent.innerHTML = `<pre>${text}</pre>`;
-            } else {
-                sidebar.classList.remove('open');
-            }
-        }
 
         async function playVoice(text, audioB64) {
             orbState = 'speaking';
-            statusEl.innerText = 'GHOST';
+            statusEl.innerText = 'GHOST V11';
             statusEl.style.color = '#0df';
             
             if (audioB64 && audioB64.length > 0) {
@@ -116,8 +84,7 @@
 
         function playNativeVoice(text) {
             window.speechSynthesis.cancel();
-            const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/```[\s\S]*?```/g, 'System matrix updated.');
-            const utterance = new SpeechSynthesisUtterance(cleanText);
+            const utterance = new SpeechSynthesisUtterance(text.replace(/<[^>]*>?/gm, ''));
             utterance.onend = () => { orbState = 'listening'; safeStartMic(); };
             window.speechSynthesis.speak(utterance);
         }
@@ -127,12 +94,12 @@
         if (SpeechRec) {
             rec = new SpeechRec();
             rec.continuous = false;
-            rec.onstart = () => { isRecognizing = true; orbState = 'listening'; statusEl.innerText = 'GHOST'; statusEl.style.color = '#0df'; };
+            rec.onstart = () => { isRecognizing = true; orbState = 'listening'; statusEl.innerText = 'GHOST V11'; statusEl.style.color = '#0df'; };
             rec.onend = () => { isRecognizing = false; if(orbState === 'listening') safeStartMic(); };
             rec.onerror = (e) => { 
                 isRecognizing = false; 
                 if(e.error !== 'no-speech') {
-                    statusEl.innerText = `MIC BLOCKED. PLEASE ALLOW IN URL BAR.`;
+                    statusEl.innerText = `[MIC BLOCK: ${e.error.toUpperCase()}]`;
                     statusEl.style.color = '#f00';
                     orbState = 'error';
                 }
@@ -148,14 +115,13 @@
             if(currentAudio) currentAudio.pause();
             
             try {
-                // 30 Second hard limit for Render to wake up
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 30000);
 
                 const res = await fetch('/api/chat', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ message: text, history: conversationHistory }),
+                    body: JSON.stringify({ message: text }),
                     signal: controller.signal
                 });
                 
@@ -163,23 +129,18 @@
                 const data = await res.json();
                 
                 if (data.success) {
-                    conversationHistory.push({ role: 'user', content: text });
-                    conversationHistory.push({ role: 'assistant', content: data.text });
-                    evaluateSidebar(data.text);
                     playVoice(data.text, data.audio_b64);
                 } else {
-                    // SERVER CAUGHT AN ERROR AND SENT IT BACK
-                    statusEl.innerText = `[BACKEND ERROR]: ${data.text.toUpperCase()}`;
+                    statusEl.innerText = `[API ERROR]: ${data.text.toUpperCase()}`;
                     statusEl.style.color = '#f00';
                     orbState = 'error';
-                    setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST'; statusEl.style.color = '#0df'; safeStartMic(); }, 6000);
+                    setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST V11'; statusEl.style.color = '#0df'; safeStartMic(); }, 6000);
                 }
             } catch(err) {
-                // NETWORK FAILURE (Render is completely asleep or dead)
-                statusEl.innerText = `[NETWORK TIMEOUT - WAKING RENDER SERVER]`;
+                statusEl.innerText = `[SERVER WAKING UP - RETRY IN 5 SECONDS]`;
                 statusEl.style.color = '#fa0';
                 orbState = 'error';
-                setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST'; statusEl.style.color = '#0df'; safeStartMic(); }, 6000);
+                setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST V11'; statusEl.style.color = '#0df'; safeStartMic(); }, 6000);
             }
         }
 
@@ -203,7 +164,7 @@
 
         let lastTap = 0;
         document.body.addEventListener('click', (e) => {
-            if(e.target.closest('#sidebar') || e.target.closest('#text-fallback')) return;
+            if(e.target.closest('#text-fallback')) return;
             const now = new Date().getTime();
             if (now - lastTap < 300) {
                 textFallback.classList.toggle('visible');
