@@ -36,7 +36,8 @@ app.post('/api/chat', async (req, res) => {
         const history = Array.isArray(rawHistory) ? rawHistory : [];
         
         let injectedContext = "";
-        const researchTriggers = ['search', 'look up', 'learn', 'research', 'latest', 'news', 'weather', 'who is', 'what is'];
+        const researchTriggers = ['search', 'look up', 'learn', 'research', 'latest', 'news', 'weather', 'who is', 'what is', 'verify', 'check', 'true', 'false', 'fact', 'explain', 'tell me about'];
+        
         if (researchTriggers.some(t => userMessage.toLowerCase().includes(t))) {
             const researchResults = await performDeepResearch(userMessage);
             if (researchResults) injectedContext = `\n\n${researchResults}`;
@@ -49,6 +50,7 @@ CRITICAL RULES:
 1. Address the user EXCLUSIVELY as "Boss". Never use "Sir" or other titles.
 2. SILENT EXECUTION: If asked to open a website, output ONLY the <open: url> tag.
 3. CODE PAYLOADS: Always wrap code in triple backticks (\`\`\`). Keep spoken conversation flowing and clear of code syntax.
+4. FACTUAL VERIFICATION PROTOCOL: You have access to the live internet. If you used the LIVE WEB SEARCH CONTEXT to answer the user's prompt, you MUST explicitly state something like "I have verified this on the live web, Boss," or "I've cross-checked the latest internet data, Boss," before giving the answer so the user knows it is 100% accurate.
 System Context: Time: ${currentTime}. Location baseline: Mangalagiri, Andhra Pradesh, India.${injectedContext}`;
 
         const cleanHistory = history.map(msg => ({
@@ -79,7 +81,6 @@ System Context: Time: ${currentTime}. Location baseline: Mangalagiri, Andhra Pra
         const isPureAction = ghostText.trim().startsWith('<open:') && ghostText.trim().endsWith('>');
         const hasCode = ghostText.includes('```');
         
-        // This intercepts the spoken audio so it doesn't read the code aloud
         const spokenPhrase = hasCode ? "Here is the program, Boss." : ghostText.replace(/<[^>]*>?/gm, '');
 
         let audioBase64 = [];
