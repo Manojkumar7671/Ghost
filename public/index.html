@@ -2,17 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Ghost OS v15</title>
+    <title>Ghost OS v16</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: 'Courier New', monospace; overflow: hidden; user-select: none; }
         #overlay { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 10; pointer-events: none; width: 90%; }
-        .sys-text { letter-spacing: 5px; font-size: 24px; font-weight: bold; text-transform: uppercase; text-shadow: 0 0 15px rgba(0, 221, 255, 0.6); color: #0df; transition: color 0.3s; word-wrap: break-word; }
-        
-        /* NEW: Holographic Subtitles */
-        #subtitle { position: absolute; bottom: 130px; left: 50%; transform: translateX(-50%); width: 80%; text-align: center; color: #0df; font-size: 18px; font-weight: bold; text-shadow: 0 0 10px rgba(0,221,255,0.8); pointer-events: none; min-height: 50px; letter-spacing: 1px; }
-        
-        #sidebar { position: absolute; right: -450px; top: 0; width: 400px; height: 100%; background: rgba(0, 0, 0, 0.95); border-left: 1px solid #0df; transition: right 0.4s cubic-bezier(0.1, 0.8, 0.1, 1); z-index: 20; padding: 20px; box-sizing: border-box; overflow-y: auto; }
+        .sys-text { letter-spacing: 5px; font-size: 24px; font-weight: bold; text-transform: uppercase; text-shadow: 0 0 15px rgba(0, 221, 255, 0.6); color: #0df; transition: color 0.3s; }
+        #subtitle { position: absolute; bottom: 140px; left: 50%; transform: translateX(-50%); width: 80%; text-align: center; color: #0df; font-size: 18px; font-weight: bold; text-shadow: 0 0 10px rgba(0,221,255,0.8); pointer-events: none; min-height: 50px; line-height: 1.5; }
+        #sidebar { position: absolute; right: -450px; top: 0; width: 400px; height: 100%; background: rgba(0, 0, 0, 0.95); border-left: 1px solid #0df; transition: right 0.4s cubic-bezier(0.1, 0.8, 0.1, 1); z-index: 20; padding: 20px; box-sizing: border-box; overflow-y: auto; pointer-events: auto; }
         #sidebar.open { right: 0; }
         .sidebar-header { border-bottom: 1px solid rgba(0,221,255,0.4); padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; letter-spacing: 2px; }
         #sidebar-content pre { white-space: pre-wrap; font-size: 0.85em; color: #aaa; font-family: inherit; }
@@ -23,18 +20,15 @@
     </style>
 </head>
 <body>
-    <div id="overlay">
-        <div class="sys-text" id="status">GHOST V15</div>
-    </div>
-    
+    <div id="overlay"><div class="sys-text" id="status">GHOST</div></div>
     <div id="subtitle"></div>
-    
-    <div id="sidebar"><div class="sidebar-header">MATRIX PAYLOAD</div><div id="sidebar-content"></div></div>
+    <div id="sidebar"><div class="sidebar-header">MATRIX OVERRIDE</div><div id="sidebar-content"></div></div>
     <div id="text-fallback"><input type="text" id="manual-input" placeholder="Execute command..." onkeypress="if(event.key === 'Enter') sendManual()"><button onclick="sendManual()">RUN</button></div>
 
     <script>
-        setInterval(() => { fetch('/ping').catch(() => {}); }, 150000); 
+        setInterval(() => { fetch('/ping').catch(() => {}); }, 120000);
 
+        // --- THREE.JS HYPER-SPHERE ---
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -42,7 +36,7 @@
         document.body.appendChild(renderer.domElement);
 
         const geometry = new THREE.BufferGeometry();
-        const particlesCount = 4000;
+        const particlesCount = 4500;
         const posArray = new Float32Array(particlesCount * 3);
         for(let i = 0; i < particlesCount * 3; i+=3) {
             const r = 2.3, theta = 2 * Math.PI * Math.random(), phi = Math.acos(2 * Math.random() - 1);
@@ -56,16 +50,16 @@
         scene.add(particlesMesh);
         camera.position.z = 5.5;
 
-        let orbState = 'idle'; 
+        let orbState = 'idle';
         let clock = new THREE.Clock();
 
         function animate() {
             requestAnimationFrame(animate);
             particlesMesh.rotation.y += 0.002;
             particlesMesh.rotation.x += 0.001;
-            if (orbState === 'processing') { material.color.setHex(0xffaa00); particlesMesh.rotation.y += 0.04; } 
-            else if (orbState === 'speaking') { material.color.setHex(0x00ddff); const p = 1 + Math.sin(clock.getElapsedTime() * 10) * 0.12; particlesMesh.scale.set(p, p, p); } 
-            else if (orbState === 'error') { material.color.setHex(0xff0000); particlesMesh.scale.set(1, 1, 1); } 
+            if (orbState === 'processing') { material.color.setHex(0xffaa00); particlesMesh.rotation.y += 0.04; }
+            else if (orbState === 'speaking') { material.color.setHex(0x00ddff); const p = 1 + Math.sin(clock.getElapsedTime() * 10) * 0.12; particlesMesh.scale.set(p, p, p); }
+            else if (orbState === 'error') { material.color.setHex(0xff0000); particlesMesh.scale.set(1, 1, 1); }
             else { material.color.setHex(0x00ddff); particlesMesh.scale.set(1, 1, 1); }
             renderer.render(scene, camera);
         }
@@ -73,6 +67,7 @@
 
         window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
 
+        // --- SYSTEM ENGINE CONNECTIONS ---
         const statusEl = document.getElementById('status');
         const textFallback = document.getElementById('text-fallback');
         const sidebar = document.getElementById('sidebar');
@@ -81,10 +76,32 @@
         
         let isRecognizing = false;
         let currentAudio = null;
-        let conversationHistory = []; 
+        let conversationHistory = [];
+        let systemVoices = [];
+
+        function loadSystemVoices() {
+            systemVoices = window.speechSynthesis.getVoices();
+        }
+        loadSystemVoices();
+        if (window.speechSynthesis.onvoiceschanged !== undefined) {
+            window.speechSynthesis.onvoiceschanged = loadSystemVoices;
+        }
+
+        function handleAutomationTags(text) {
+            const openMatches = [...text.matchAll(/<open:\s*([^>]+)>/g)];
+            openMatches.forEach(m => {
+                let url = m[1].trim();
+                if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+                window.open(url, '_blank');
+            });
+            const searchMatches = [...text.matchAll(/<search:\s*([^>]+)>/g)];
+            searchMatches.forEach(m => {
+                window.open('https://www.google.com/search?q=' + encodeURIComponent(m[1].trim()), '_blank');
+            });
+        }
 
         function evaluateSidebar(text) {
-            if (['code', 'script', 'function', 'python', '```', 'json'].some(t => text.toLowerCase().includes(t))) {
+            if (['code', 'script', 'function', 'python', '```', 'json', '{'].some(t => text.toLowerCase().includes(t))) {
                 sidebar.classList.add('open');
                 sidebarContent.innerHTML = `<pre>${text}</pre>`;
             } else {
@@ -92,17 +109,13 @@
             }
         }
 
-        function displaySubtitle(text) {
-            const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/```[\s\S]*?```/g, '[CODE DEPLOYED TO SIDEBAR]');
-            subtitle.innerText = cleanText;
-        }
-
         async function playVoice(text, audioB64) {
             orbState = 'speaking';
-            displaySubtitle(text);
+            handleAutomationTags(text);
+            subtitle.innerText = text.replace(/<[^>]*>?/gm, '');
             
             if (!statusEl.innerText.includes('ERR')) {
-                statusEl.innerText = 'GHOST V15';
+                statusEl.innerText = 'GHOST';
                 statusEl.style.color = '#0df';
             }
             
@@ -110,7 +123,7 @@
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
                 if (ctx.state === 'suspended') await ctx.resume();
                 currentAudio = new Audio("data:audio/mp3;base64," + audioB64[0]);
-                currentAudio.onended = () => { orbState = 'listening'; setTimeout(() => subtitle.innerText = '', 3000); safeStartMic(); };
+                currentAudio.onended = () => { orbState = 'listening'; safeStartMic(); };
                 currentAudio.play().catch(() => playNativeVoice(text));
             } else {
                 playNativeVoice(text);
@@ -119,57 +132,53 @@
 
         function playNativeVoice(text) {
             window.speechSynthesis.cancel();
-            const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/```[\s\S]*?```/g, 'I have sent the data to your console.');
+            const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/```[\s\S]*?```/g, 'Payload processed.');
             const utterance = new SpeechSynthesisUtterance(cleanText);
             
-            const voices = window.speechSynthesis.getVoices();
-            const ukFemale = voices.find(v => v.lang.includes('en-GB') && (v.name.includes('Serena') || v.name.includes('Martha') || v.name.includes('Female')));
-            if(ukFemale) utterance.voice = ukFemale;
-
-            utterance.onend = () => { orbState = 'listening'; setTimeout(() => subtitle.innerText = '', 3000); safeStartMic(); };
+            // RELENTLESS FEMALE BRITISH AUDIO INJECTION
+            const femaleUK = systemVoices.find(v => v.lang.includes('en') && 
+                ['serena', 'martha', 'samantha', 'victoria', 'hazel', 'female', 'google uk english female']
+                .some(name => v.name.toLowerCase().includes(name)));
+            
+            if (femaleUK) utterance.voice = femaleUK;
+            utterance.onend = () => { orbState = 'listening'; safeStartMic(); };
             window.speechSynthesis.speak(utterance);
         }
-
-        window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
 
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         let rec = null;
         if (SpeechRec) {
             rec = new SpeechRec();
-            rec.continuous = false;
-            rec.onstart = () => { isRecognizing = true; orbState = 'listening'; statusEl.innerText = 'GHOST V15'; statusEl.style.color = '#0df'; };
+            // Upgraded to continuous execution architecture to force cross-tab memory channels
+            rec.continuous = true;
+            rec.interimResults = false;
+
+            rec.onstart = () => { isRecognizing = true; orbState = 'listening'; statusEl.innerText = 'GHOST'; statusEl.style.color = '#0df'; };
             rec.onend = () => { isRecognizing = false; if(orbState === 'listening') safeStartMic(); };
-            rec.onerror = (e) => { 
-                isRecognizing = false; 
-                if(e.error !== 'no-speech') {
-                    statusEl.innerText = `[MIC BLOCK: SWITCH TO CHROME]`;
-                    statusEl.style.color = '#f00';
-                    orbState = 'error';
+            rec.onerror = (e) => {
+                if (e.error !== 'no-speech') {
+                    console.log("Rec handler exception:", e.error);
                 }
             };
-            rec.onresult = async (e) => processInput(e.results[0][0].transcript);
+            rec.onresult = async (e) => {
+                const resultText = e.results[e.results.length - 1][0].transcript;
+                processInput(resultText);
+            };
         }
 
         async function processInput(text) {
             if(!text.trim()) return;
             orbState = 'processing';
             statusEl.innerText = 'GHOST [THINKING]';
-            subtitle.innerText = '';
             window.speechSynthesis.cancel();
             if(currentAudio) currentAudio.pause();
             
             try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 30000);
-
                 const res = await fetch('/api/chat', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ message: text, history: conversationHistory }),
-                    signal: controller.signal
+                    body: JSON.stringify({ message: text, history: conversationHistory })
                 });
-                
-                clearTimeout(timeoutId);
                 const data = await res.json();
                 
                 if (data.success) {
@@ -181,19 +190,18 @@
                         statusEl.innerText = `[11LABS ERR: CHECK CREDITS]`;
                         statusEl.style.color = '#fa0';
                     }
-                    
                     playVoice(data.text, data.audio_b64);
                 } else {
                     statusEl.innerText = `[API ERROR]: ${data.text.toUpperCase()}`;
                     statusEl.style.color = '#f00';
                     orbState = 'error';
-                    setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST V15'; statusEl.style.color = '#0df'; safeStartMic(); }, 6000);
+                    setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST'; statusEl.style.color = '#0df'; safeStartMic(); }, 4000);
                 }
             } catch(err) {
-                statusEl.innerText = `[SERVER TIMEOUT]`;
+                statusEl.innerText = `[SERVER LATENCY STALL]`;
                 statusEl.style.color = '#fa0';
                 orbState = 'error';
-                setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST V15'; statusEl.style.color = '#0df'; safeStartMic(); }, 4000);
+                setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST'; statusEl.style.color = '#0df'; safeStartMic(); }, 4000);
             }
         }
 
