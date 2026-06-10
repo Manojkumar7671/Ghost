@@ -24,13 +24,16 @@ async function performDeepResearch(query) {
         let context = "--- LIVE WEB SEARCH CONTEXT ---\n";
         data.results.forEach((r, i) => { context += `Result [${i+1}]: ${r.content}\n\n`; });
         return context;
-    } catch (e) { return null; }
+    } catch (e) {
+        return null;
+    }
 }
 
 app.post('/api/chat', async (req, res) => {
     try {
         const userMessage = req.body.message;
-        const history = Array.isArray(req.body.history) ? req.body.history : [];
+        const rawHistory = req.body.history;
+        const history = Array.isArray(rawHistory) ? rawHistory : [];
         
         let injectedContext = "";
         const researchTriggers = ['search', 'look up', 'learn', 'research', 'latest', 'news', 'weather', 'who is', 'what is'];
@@ -39,63 +42,76 @@ app.post('/api/chat', async (req, res) => {
             if (researchResults) injectedContext = `\n\n${researchResults}`;
         }
 
-        const systemPrompt = `You are Ghost. Address user as 'Boss'. 
-        IF CODE/PAYLOAD GENERATED: Do NOT read aloud. Say "Here is the program, Boss". Route to sidebar.
-        Keep all other speech extremely brief.`;
+        const currentTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+        
+        const systemPrompt = `You are Ghost, a proactive personal AI operating system. 
+CRITICAL RULES:
+1. Address the user EXCLUSIVELY as "Boss". Never use "Sir" or other titles.
+2. SILENT EXECUTION: If asked to open a website, output ONLY the <open: url> tag.
+3. CODE PAYLOADS: Always wrap code in triple backticks (\`\`\`). Keep spoken conversation flowing and clear of code syntax.
+System Context: Time: ${currentTime}. Location baseline: Mangalagiri, Andhra Pradesh, India.${injectedContext}`;
 
-        const messages = [{ role: "system", content: systemPrompt }, ...history, { role: "user", content: userMessage }];
+        const cleanHistory = history.map(msg => ({
+            role: (msg.role === 'system' || msg.role === 'assistant') ? 'assistant' : 'user',
+            content: msg.content || ""
+        }));
 
-        const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        const messages = [{ role: "system", content: systemPrompt }, ...cleanHistory, { role: "user", content: userMessage }];
+
+        let groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages, max_tokens: 350, temperature: 0.5 })
+            body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: messages, max_tokens: 350, temperature: 0.5 })
         });
-
-        const groqData = await groqResponse.json();
-        const ghostText = groqData.choices[0].message.content;
         
-        // logic for silent/concise response
-        const hasCode = ghostText.includes('```');
-        const spoken = hasCode ? "Here is the program, Boss." : ghostText;
-
-        let audioBase64 = [];
-        if (ELEVENLABS_API_KEY && !ghostText.includes('<open:')) {
-            const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM`, {
-                method: 'POST',
-                headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: spoken.replace(/<[^>]*>?/gm, ''), model_id: "eleven_turbo_v2_5" })
-            });
-            if (ttsResponse.ok) {
-                const audioBuffer = await ttsResponse.arrayBuffer();
-                audioBase64.push(Buffer.from(audioBuffer).toString('base64'));
-            }
+        if (!groqResponse.ok && groqResponse.status === 429) {
+             groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                 method: 'POST',
+                 headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: messages, max_tokens: 350, temperature: 0.5 })
+             });
         }
 
-        res.json({ success: true, text: ghostText, spoken: spoken, audio_b64: audioBase64 });
-    } catch (error) { res.json({ success: false, text: error.message }); }
+        if (!groqResponse.ok) throw new Error(`GROQ CORE REJECTION: ${groqResponse.status}`);
+        const groqData = await groqResponse.json();
+        const ghostText = groqData.choices[0].message.content;
+
+        const isPureAction = ghostText.trim().startsWith('<open:') && ghostText.trim().endsWith('>');
+        const hasCode = ghostText.includes('```');
+        
+        // This intercepts the spoken audio so it doesn't read the code aloud
+        const spokenPhrase = hasCode ? "Here is the program, Boss." : ghostText.replace(/<[^>]*>?/gm, '');
+
+        let audioBase64 = [];
+        let voiceError = null;
+        if (ELEVENLABS_API_KEY && !isPureAction) {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 1800); 
+                
+                const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM`, {
+                    method: 'POST',
+                    headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: spokenPhrase, model_id: "eleven_turbo_v2_5", voice_settings: { stability: 0.5, similarity_boost: 0.75 } }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                if (ttsResponse.ok) {
+                    const audioBuffer = await ttsResponse.arrayBuffer();
+                    audioBase64.push(Buffer.from(audioBuffer).toString('base64'));
+                } else {
+                    voiceError = await ttsResponse.text();
+                }
+            } catch (err) { }
+        }
+        
+        res.json({ success: true, text: ghostText, audio_b64: audioBase64, voice_diagnostic: voiceError });
+
+    } catch (error) {
+        res.json({ success: false, text: error.message });
+    }
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
-app.listen(10000, '0.0.0.0', () => console.log('Ghost Active'));
-```
-
-### Step 2: Update the Frontend
-You also need to make sure your `index.html` calls the new `spoken` field we added. In your `index.html`, find the `processInput` function and change the `playVoice` call to this:
-
-```javascript
-// Change this in your index.html:
-playVoice(data.text, data.spoken, data.audio_b64);
-
-// And update the playVoice function signature:
-async function playVoice(text, spoken, audioB64) {
-    // ... logic ...
-    playNativeVoice(spoken, hasPayload); // Pass the spoken phrase here
-}
-```
-
-### Step 3: Push
-Run these in your terminal:
-```bash
-git add .
-git commit -m "fix: restored full server logic and integrated spoken-phrase field"
-git push origin main
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, '0.0.0.0', () => console.log(`Ghost Neural Engine Active on port ${PORT}`));
