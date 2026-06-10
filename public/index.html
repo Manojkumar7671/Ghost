@@ -6,8 +6,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: 'Courier New', monospace; overflow: hidden; user-select: none; }
-        #overlay { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 10; pointer-events: none; width: 90%; }
-        .sys-text { letter-spacing: 5px; font-size: 24px; font-weight: bold; text-transform: uppercase; text-shadow: 0 0 15px rgba(0, 221, 255, 0.6); color: #0df; transition: color 0.3s; word-wrap: break-word; }
+        #overlay { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 10; pointer-events: none; width: 100%; }
+        .sys-text { letter-spacing: 8px; font-size: 28px; font-weight: bold; text-transform: uppercase; text-shadow: 0 0 15px rgba(0, 221, 255, 0.6); color: #0df; transition: color 0.3s; }
         #sidebar { position: absolute; right: -450px; top: 0; width: 400px; height: 100%; background: rgba(0, 0, 0, 0.95); border-left: 1px solid #0df; transition: right 0.4s cubic-bezier(0.1, 0.8, 0.1, 1); z-index: 20; padding: 20px; box-sizing: border-box; overflow-y: auto; }
         #sidebar.open { right: 0; }
         .sidebar-header { border-bottom: 1px solid rgba(0,221,255,0.4); padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; letter-spacing: 2px; }
@@ -28,6 +28,7 @@
     <script>
         setInterval(() => { fetch('/ping').catch(() => {}); }, 300000); 
 
+        // --- 3D ORB ---
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -63,9 +64,6 @@
                 material.color.setHex(0x00ddff);
                 const pulse = 1 + Math.sin(clock.getElapsedTime() * 10) * 0.12;
                 particlesMesh.scale.set(pulse, pulse, pulse);
-            } else if (orbState === 'error') {
-                material.color.setHex(0xff0000); // Turns RED on error
-                particlesMesh.scale.set(1, 1, 1);
             } else {
                 material.color.setHex(0x00ddff);
                 particlesMesh.scale.set(1, 1, 1);
@@ -80,6 +78,7 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
+        // --- CORE LOGIC ---
         const statusEl = document.getElementById('status');
         const sidebar = document.getElementById('sidebar');
         const sidebarContent = document.getElementById('sidebar-content');
@@ -88,6 +87,11 @@
         let isRecognizing = false;
         let conversationHistory = [];
         let currentAudio = null;
+
+        function handleSpokenCommands(text) {
+            const openMatch = text.match(/<open:\s*(https?:\/\/[^\s>]+)>/);
+            if (openMatch) window.open(openMatch[1], '_blank');
+        }
 
         function evaluateSidebar(text) {
             if (['code', 'script', 'function', 'python', '```'].some(t => text.toLowerCase().includes(t))) {
@@ -102,6 +106,7 @@
             orbState = 'speaking';
             statusEl.innerText = 'GHOST';
             statusEl.style.color = '#0df';
+            handleSpokenCommands(text);
             
             if (audioB64 && audioB64.length > 0) {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -131,11 +136,8 @@
             rec.onend = () => { isRecognizing = false; if(orbState === 'listening') safeStartMic(); };
             rec.onerror = (e) => { 
                 isRecognizing = false; 
-                if(e.error !== 'no-speech') {
-                    statusEl.innerText = `MIC ERROR: ${e.error.toUpperCase()}`;
-                    statusEl.style.color = '#f00';
-                    orbState = 'error';
-                }
+                statusEl.innerText = `MIC ERROR: ${e.error.toUpperCase()}`;
+                statusEl.style.color = '#f00';
             };
             rec.onresult = async (e) => processInput(e.results[0][0].transcript);
         }
@@ -146,6 +148,13 @@
             statusEl.innerText = 'GHOST [THINKING]';
             window.speechSynthesis.cancel();
             if(currentAudio) currentAudio.pause();
+
+            const slowWarning = setTimeout(() => {
+                if (orbState === 'processing') {
+                    statusEl.innerText = 'GHOST [WAKING SERVER]';
+                    statusEl.style.color = '#fa0';
+                }
+            }, 3000);
             
             try {
                 const controller = new AbortController();
@@ -158,31 +167,32 @@
                     signal: controller.signal
                 });
                 
+                clearTimeout(slowWarning);
                 clearTimeout(timeoutId);
+                
+                if (!res.ok) throw new Error("Server Request Failed");
                 const data = await res.json();
                 
-                if (!res.ok || !data.success) {
-                    throw new Error(data.text || "Unknown Server Error");
+                if(data.success) {
+                    conversationHistory.push({ role: 'user', content: text });
+                    // FIXED BUG: 'assistant' role instead of 'system'
+                    conversationHistory.push({ role: 'assistant', content: data.text });
+                    evaluateSidebar(data.text);
+                    playVoice(data.text, data.audio_b64);
+                } else {
+                    throw new Error("Logic Error");
                 }
-                
-                conversationHistory.push({ role: 'user', content: text });
-                conversationHistory.push({ role: 'assistant', content: data.text });
-                evaluateSidebar(data.text);
-                playVoice(data.text, data.audio_b64);
-                
             } catch(err) {
-                // THE DIAGNOSTIC HUD: PRINTS THE EXACT ERROR TO THE SCREEN
-                statusEl.innerText = `[SYS FAIL]: ${err.message.toUpperCase()}`;
-                statusEl.style.color = '#f00';
-                orbState = 'error';
-                
-                // Auto-recover after 8 seconds so you can read the error
+                clearTimeout(slowWarning);
+                statusEl.innerText = 'GHOST [RECONNECTING]';
+                statusEl.style.color = '#fa0';
+                // Auto-recover after 3 seconds instead of dying permanently
                 setTimeout(() => {
                     orbState = 'listening';
                     statusEl.innerText = 'GHOST';
                     statusEl.style.color = '#0df';
                     safeStartMic();
-                }, 8000);
+                }, 3000);
             }
         }
 
@@ -194,13 +204,15 @@
         }
 
         function safeStartMic() {
-            if (rec && !isRecognizing && orbState !== 'speaking' && orbState !== 'processing' && orbState !== 'error') {
+            if (rec && !isRecognizing && orbState !== 'speaking' && orbState !== 'processing') {
                 try { rec.start(); } catch(e) {}
             }
         }
 
         setInterval(() => {
-            if (orbState === 'listening' && !isRecognizing) safeStartMic();
+            if (orbState === 'listening' && !isRecognizing) {
+                safeStartMic();
+            }
         }, 1000);
 
         let lastTap = 0;
@@ -211,7 +223,7 @@
                 textFallback.classList.toggle('visible');
                 if(textFallback.classList.contains('visible')) document.getElementById('manual-input').focus();
             } else {
-                if(orbState === 'idle' || orbState === 'error') {
+                if(orbState === 'idle' || statusEl.innerText.includes('ERROR')) {
                     const u = new SpeechSynthesisUtterance(""); window.speechSynthesis.speak(u);
                     orbState = 'listening'; safeStartMic();
                 }
