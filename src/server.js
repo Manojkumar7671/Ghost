@@ -14,21 +14,33 @@ app.get('/ping', (req, res) => res.send('pong'));
 app.post('/api/chat', async (req, res) => {
     try {
         const userMessage = req.body.message;
+        const history = req.body.history || [];
         
         const currentTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-        const systemPrompt = `You are Ghost, an elite AI assistant. Time: ${currentTime}. Location: Mangalagiri, India. Keep speech highly concise.`;
+        const systemPrompt = `You are Ghost, an elite AI assistant created for Manoj. Time: ${currentTime}. Location: Mangalagiri, India. Keep speech highly concise.`;
 
-        // BYPASSING CORRUPTED HISTORY. SENDING ONLY CURRENT PROMPT.
+        // Restoring Ghost's Memory
+        const cleanHistory = history.map(msg => ({
+            role: (msg.role === 'system' || msg.role === 'assistant') ? 'assistant' : 'user',
+            content: msg.content || ""
+        }));
+
         const messages = [
             { role: "system", content: systemPrompt },
+            ...cleanHistory,
             { role: "user", content: userMessage }
         ];
 
-        // 1. GROQ INFERENCE
+        // 1. GROQ INFERENCE (UPDATED TO NEWEST SUPPORTED MODEL)
         const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'llama3-70b-8192', messages: messages, max_tokens: 250, temperature: 0.5 })
+            body: JSON.stringify({ 
+                model: 'llama-3.3-70b-versatile', 
+                messages: messages, 
+                max_tokens: 250, 
+                temperature: 0.5 
+            })
         });
         
         if (!groqResponse.ok) {
