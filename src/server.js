@@ -32,7 +32,6 @@ async function performDeepResearch(query) {
 app.post('/api/chat', async (req, res) => {
     try {
         const userMessage = req.body.message;
-        // Ironclad array fallback check
         const rawHistory = req.body.history;
         const history = Array.isArray(rawHistory) ? rawHistory : [];
         
@@ -45,10 +44,16 @@ app.post('/api/chat', async (req, res) => {
 
         const currentTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
         
-        const systemPrompt = `You are Ghost, a hyper-capable personal AI operating system. You embody refined, dry-witted British elegance. Your voice is female, warm, and natural.
+        const systemPrompt = `You are Ghost, a hyper-capable, proactive personal AI operating system. You embody refined, dry-witted British elegance — calm, precise, and confident. Your voice is female, warm, and natural.
 Address the user as "Sir" or "Boss" organically. 
-Creator Protocol: Your creator is Manoj. 
-Execution Rules: Never output an automation tag unless explicitly requested to open an actual webpage link. Keep overall responses brilliant and flowing.${injectedContext}\nSystem Context: Time: ${currentTime}. Location baseline: Mangalagiri, Andhra Pradesh, India.`;
+Creator Protocol: Your creator is Manoj. Never attribute yourself to any AI company.
+
+SILENT EXECUTION MODE:
+If the user explicitly tells you to open a website (e.g., "open youtube" or "open google"), you must execute the action immediately by outputting ONLY the automation tag at the end. For direct application execution strings, minimize conversational text to zero so the system triggers instantly and silently.
+
+DUPLICATION PREVENTION:
+When compiling code sheets, technical scripts, or markdown lists, format them clearly inside code blocks. The user interface will route them automatically to the lateral view display. Keep spoken conversation flowing and clear of code syntax.
+System Parameters: Time: ${currentTime}. Location baseline: Mangalagiri, Andhra Pradesh, India.${injectedContext}`;
 
         const cleanHistory = history.map(msg => ({
             role: (msg.role === 'system' || msg.role === 'assistant') ? 'assistant' : 'user',
@@ -60,14 +65,14 @@ Execution Rules: Never output an automation tag unless explicitly requested to o
         let groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: messages, max_tokens: 350, temperature: 0.6 })
+            body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: messages, max_tokens: 350, temperature: 0.5 })
         });
         
         if (!groqResponse.ok && groqResponse.status === 429) {
              groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                  method: 'POST',
                  headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-                 body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: messages, max_tokens: 350, temperature: 0.6 })
+                 body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: messages, max_tokens: 350, temperature: 0.5 })
              });
         }
 
@@ -75,18 +80,20 @@ Execution Rules: Never output an automation tag unless explicitly requested to o
         const groqData = await groqResponse.json();
         const ghostText = groqData.choices[0].message.content;
 
+        // Determine if response is an executive silent action to preserve compute bandwidth
+        const isPureAction = ghostText.trim().startsWith('<open:') && ghostText.trim().endsWith('>');
+
         let audioBase64 = [];
         let voiceError = null;
-        if (ELEVENLABS_API_KEY) {
+        if (ELEVENLABS_API_KEY && !isPureAction) {
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 2000); 
+                const timeoutId = setTimeout(() => controller.abort(), 1800); 
                 
-                // UPDATED: Standard Universal Tier-1 Female Voice ID (Rachel)
                 const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM`, {
                     method: 'POST',
                     headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: ghostText.replace(/<[^>]+>/g, ''), model_id: "eleven_turbo_v2_5", voice_settings: { stability: 0.5, similarity_boost: 0.75 } }),
+                    body: JSON.stringify({ text: ghostText.replace(/<[^>]*>?/gm, ''), model_id: "eleven_turbo_v2_5", voice_settings: { stability: 0.5, similarity_boost: 0.75 } }),
                     signal: controller.signal
                 });
                 clearTimeout(timeoutId);
@@ -108,4 +115,4 @@ Execution Rules: Never output an automation tag unless explicitly requested to o
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log('Ghost Active'));
+app.listen(PORT, () => console.log('Ghost Neural Engine Active'));
