@@ -9,7 +9,6 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
-// ANTI-SLEEP ENDPOINT
 app.get('/ping', (req, res) => res.send('pong'));
 
 async function performDeepResearch(query) {
@@ -26,8 +25,7 @@ async function performDeepResearch(query) {
         data.results.forEach((r, i) => { researchData += `[${i+1}] ${r.content}\n`; });
         return researchData;
     } catch (e) {
-        console.error("Tavily Error:", e);
-        return null;
+        return null; // Fail silently so it doesn't crash the server
     }
 }
 
@@ -44,17 +42,17 @@ app.post('/api/chat', async (req, res) => {
         }
 
         const currentTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-        const systemPrompt = `You are Ghost, an elite British AI assistant created for Manoj. Time: ${currentTime}. Location: Mangalagiri, India. Open websites via <open: URL>. Keep speech concise. No markdown asterisks.${injectedContext}`;
+        const systemPrompt = `You are Ghost, an elite AI assistant. Time: ${currentTime}. Location: Mangalagiri, India. Keep speech concise.${injectedContext}`;
 
-        // Ensure history only contains 'user' or 'assistant'
+        // SAFELY clean history to prevent API rejection
         const cleanHistory = history.map(msg => ({
-            role: msg.role === 'system' ? 'assistant' : msg.role, // Fallback safety
-            content: msg.content
+            role: (msg.role === 'system' || msg.role === 'assistant') ? 'assistant' : 'user',
+            content: msg.content || "Empty message"
         }));
 
         const messages = [{ role: "system", content: systemPrompt }, ...cleanHistory, { role: "user", content: userMessage }];
 
-        // 1. GROQ FETCH WITH ERROR CATCHING
+        // 1. GROQ INFERENCE
         const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
@@ -63,19 +61,19 @@ app.post('/api/chat', async (req, res) => {
         
         if (!groqResponse.ok) {
             const errText = await groqResponse.text();
-            console.error("GROQ CRITICAL ERROR:", errText);
-            throw new Error(`Groq API Failed: ${groqResponse.status}`);
+            throw new Error(`GROQ FAILURE: ${groqResponse.status}`);
         }
 
         const groqData = await groqResponse.json();
+        if (!groqData.choices || !groqData.choices[0]) throw new Error("GROQ RETURNED EMPTY BRAIN");
         const ghostText = groqData.choices[0].message.content;
 
-        // 2. ELEVENLABS FETCH
+        // 2. ELEVENLABS (With absolute safe catch)
         let audioBase64 = [];
         if (ELEVENLABS_API_KEY) {
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 1500);
+                const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second max wait
 
                 const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/pNInz6obpgDQGcFmaJcg`, {
                     method: 'POST',
@@ -94,15 +92,17 @@ app.post('/api/chat', async (req, res) => {
                     audioBase64.push(Buffer.from(audioBuffer).toString('base64'));
                 }
             } catch (err) {
-                console.error("ElevenLabs timeout. Falling back to native voice.");
+                // Ignore audio failure, we will use Apple Voice
             }
         }
 
+        // Send 200 OK SUCCESS
         res.json({ success: true, text: ghostText, audio_b64: audioBase64 });
 
     } catch (error) {
-        console.error("Server Crash:", error.message);
-        res.status(500).json({ success: false, text: "System offline. Check Render logs." });
+        console.error("SERVER CAUGHT FATAL ERROR:", error.message);
+        // Send 200 OK but with success: false so the UI knows it's a controlled failure, not a crash
+        res.json({ success: false, text: error.message });
     }
 });
 
