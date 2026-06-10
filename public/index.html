@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Ghost OS v17</title>
+    <title>Ghost OS v18</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: 'Courier New', monospace; overflow: hidden; user-select: none; }
@@ -20,7 +20,7 @@
     </style>
 </head>
 <body>
-    <div id="overlay"><div class="sys-text" id="status">GHOST V17</div></div>
+    <div id="overlay"><div class="sys-text" id="status">GHOST V18</div></div>
     <div id="subtitle"></div>
     <div id="sidebar"><div class="sidebar-header">MATRIX OVERRIDE</div><div id="sidebar-content"></div></div>
     <div id="text-fallback"><input type="text" id="manual-input" placeholder="Execute command..." onkeypress="if(event.key === 'Enter') sendManual()"><button onclick="sendManual()">RUN</button></div>
@@ -28,7 +28,6 @@
     <script>
         setInterval(() => { fetch('/ping').catch(() => {}); }, 120000);
 
-        // --- CORE GRAPHICS LOGIC ---
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -67,7 +66,6 @@
 
         window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
 
-        // --- CHANNELS & AUTOMATION ---
         const statusEl = document.getElementById('status');
         const textFallback = document.getElementById('text-fallback');
         const sidebar = document.getElementById('sidebar');
@@ -87,7 +85,6 @@
             window.speechSynthesis.onvoiceschanged = loadSystemVoices;
         }
 
-        // CONTROL PROTOCOL: Disables raw web opening for research tags, locks it down strictly to explicit url open requests
         function handleAutomationTags(text) {
             const openMatches = [...text.matchAll(/<open:\s*([^>]+)>/g)];
             openMatches.forEach(m => {
@@ -97,7 +94,6 @@
             });
         }
 
-        // SIDEBAR DESK MONITORING: Dynamically opens for lists, script sheets, and markdown modules
         function evaluateSidebar(text) {
             const cleanProse = text.replace(/<[^>]*>?/gm, '');
             if (['code', 'script', 'function', 'python', '```', 'json', '{', '1.', '2.', '*', '-', '##'].some(t => text.toLowerCase().includes(t))) {
@@ -111,13 +107,10 @@
         async function playVoice(text, audioB64) {
             orbState = 'speaking';
             handleAutomationTags(text);
-            
-            // Format subtitles smoothly by pulling out structural markdown wrappers
-            const displayFiltered = text.replace(/<[^>]*>?/gm, '').replace(/[\*\#]/g, '');
-            subtitle.innerText = displayFiltered;
+            subtitle.innerText = text.replace(/<[^>]*>?/gm, '').replace(/[\*\#]/g, '');
             
             if (!statusEl.innerText.includes('ERR')) {
-                statusEl.innerText = 'GHOST V17';
+                statusEl.innerText = 'GHOST V18';
                 statusEl.style.color = '#0df';
             }
             
@@ -134,27 +127,17 @@
 
         function playNativeVoice(text) {
             window.speechSynthesis.cancel();
-            
-            // Deep scrub text to prevent engine from pronouncing internal markdown design characters aloud
-            let explicitSpokenPhrase = text.replace(/<[^>]*>?/gm, '')
-                                           .replace(/\*\*+/g, '')
-                                           .replace(/\#+/g, '')
-                                           .replace(/```[\s\S]*?```/g, 'Displaying execution summary on your data display matrix, Boss.');
-            
+            let explicitSpokenPhrase = text.replace(/<[^>]*>?/gm, '').replace(/```[\s\S]*?```/g, 'Displaying matrix payload, Boss.');
             const utterance = new SpeechSynthesisUtterance(explicitSpokenPhrase);
             
-            // TITANIUM FALLBACK SELECTION MATRIX: Scans and locks browser onto high-tier native female profiles
             let humanFemaleVoice = systemVoices.find(v => v.lang.includes('en-GB') && /serena|martha|hazel|female/i.test(v.name.toLowerCase()));
-            if (!humanFemaleVoice) humanFemaleVoice = systemVoices.find(v => v.lang.includes('en-US') && /zira|samantha|jessa|monica|female/i.test(v.name.toLowerCase()));
-            if (!humanFemaleVoice) humanFemaleVoice = systemVoices.find(v => v.lang.toLowerCase().includes('en') && /female|girl|lady/i.test(v.name.toLowerCase()));
-            if (!humanFemaleVoice) humanFemaleVoice = systemVoices.find(v => v.lang.toLowerCase().includes('en'));
+            if (!humanFemaleVoice) humanFemaleVoice = systemVoices.find(v => v.lang.includes('en-US') && /zira|samantha|jessa/i.test(v.name.toLowerCase()));
             
             if (humanFemaleVoice) {
                 utterance.voice = humanFemaleVoice;
-                utterance.rate = 1.05; // Tightens vocal pauses
-                utterance.pitch = 1.12; // Modulates natural frequency curve to break robotic flatline
+                utterance.rate = 1.05;
+                utterance.pitch = 1.15; // Shift pitch upward slightly to guarantee feminine inflection
             }
-
             utterance.onend = () => { orbState = 'listening'; safeStartMic(); };
             window.speechSynthesis.speak(utterance);
         }
@@ -166,17 +149,18 @@
             rec.continuous = true;
             rec.interimResults = false;
 
-            rec.onstart = () => { isRecognizing = true; orbState = 'listening'; statusEl.innerText = 'GHOST'; statusEl.style.color = '#0df'; };
+            rec.onstart = () => { isRecognizing = true; if(orbState === 'idle') orbState = 'listening'; statusEl.innerText = 'GHOST V18'; statusEl.style.color = '#0df'; };
             rec.onend = () => { isRecognizing = false; if(orbState === 'listening') safeStartMic(); };
-            rec.onerror = () => { isRecognizing = false; };
             rec.onresult = async (e) => {
+                // HARDWARE FENCE: Rejects background input while thinking or speaking
+                if (orbState === 'processing' || orbState === 'speaking') return;
                 const resultText = e.results[e.results.length - 1][0].transcript;
                 processInput(resultText);
             };
         }
 
         async function processInput(text) {
-            if(!text.trim()) return;
+            if(!text.trim() || orbState === 'processing') return;
             orbState = 'processing';
             statusEl.innerText = 'GHOST [THINKING]';
             window.speechSynthesis.cancel();
@@ -196,7 +180,7 @@
                     evaluateSidebar(data.text);
                     
                     if (data.audio_b64.length === 0 && data.voice_diagnostic) {
-                        statusEl.innerText = `[11LABS ERR: CHECK CREDITS]`;
+                        statusEl.innerText = `[11LABS ERR: USING FALLBACK]`;
                         statusEl.style.color = '#fa0';
                     }
                     playVoice(data.text, data.audio_b64);
@@ -204,17 +188,18 @@
                     statusEl.innerText = `[CORE FAILURE]`;
                     statusEl.style.color = '#f00';
                     orbState = 'error';
-                    setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST'; statusEl.style.color = '#0df'; safeStartMic(); }, 4000);
+                    setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST V18'; statusEl.style.color = '#0df'; safeStartMic(); }, 4000);
                 }
             } catch(err) {
                 statusEl.innerText = `[LATENCY TIMEOUT]`;
                 statusEl.style.color = '#fa0';
                 orbState = 'error';
-                setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST'; statusEl.style.color = '#0df'; safeStartMic(); }, 4000);
+                setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST V18'; statusEl.style.color = '#0df'; safeStartMic(); }, 4000);
             }
         }
 
         function sendManual() {
+            if (orbState === 'processing') return;
             const input = document.getElementById('manual-input');
             if(!input.value.trim()) return;
             processInput(input.value);
