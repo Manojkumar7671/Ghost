@@ -5,16 +5,19 @@
     <title>Ghost OS v19</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: monospace; overflow: hidden; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: monospace; overflow: hidden; user-select: none; }
         #overlay { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 10; }
         .sys-text { letter-spacing: 5px; font-size: 24px; font-weight: bold; text-transform: uppercase; text-shadow: 0 0 10px #0df; }
-        #subtitle { position: absolute; bottom: 140px; left: 50%; transform: translateX(-50%); width: 80%; text-align: center; font-size: 1.2em; line-height: 1.5; color: #0df; z-index: 10; text-shadow: 0 0 5px #0df; pointer-events: none; }
+        #subtitle { position: absolute; bottom: 160px; left: 50%; transform: translateX(-50%); width: 80%; text-align: center; font-size: 1.2em; line-height: 1.5; color: #0df; z-index: 10; text-shadow: 0 0 5px #0df; pointer-events: none; }
         #sidebar { position: absolute; right: -450px; top: 0; width: 400px; height: 100%; background: rgba(0, 0, 0, 0.9); border-left: 2px solid rgba(0,221,255,0.3); padding: 20px; box-sizing: border-box; transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1); z-index: 20; overflow-y: auto; }
         #sidebar.open { right: 0; }
         .sidebar-header { border-bottom: 1px solid rgba(0,221,255,0.4); padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; letter-spacing: 2px; }
         #sidebar-content { font-size: 0.9em; color: #aaa; line-height: 1.5; white-space: pre-wrap; }
         
-        #text-fallback { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; gap: 10px; align-items: center; }
+        /* HIDDEN BY DEFAULT: Text box area only drops down on double tap */
+        #text-fallback { position: absolute; bottom: -100px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; gap: 10px; align-items: center; transition: bottom 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        #text-fallback.visible { bottom: 50px; }
+        
         #text-fallback input[type="text"] { background: rgba(0,0,0,0.8); border: 1px solid #0df; color: #0df; padding: 12px; width: 300px; font-family: monospace; outline: none; }
         #text-fallback input[type="file"] { display: none; }
         .upload-btn { background: rgba(0,0,0,0.8); color: #0df; border: 1px solid #0df; padding: 12px 15px; cursor: pointer; font-family: monospace; text-transform: uppercase; transition: all 0.2s; }
@@ -75,6 +78,15 @@
         
         window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
         
+        // --- HANDS-FREE DOUBLE TAP INTERACTION GESTURE ---
+        window.addEventListener('dblclick', () => {
+            const entryPanel = document.getElementById('text-fallback');
+            entryPanel.classList.toggle('visible');
+            if(entryPanel.classList.contains('visible')) {
+                document.getElementById('manual-input').focus();
+            }
+        });
+
         const statusEl = document.getElementById('status');
         const sidebar = document.getElementById('sidebar');
         const sidebarContent = document.getElementById('sidebar-content');
@@ -98,8 +110,9 @@
             });
         }
         
+        // Separates structural code layers from primary speech voice layers
         function evaluateSidebar(text) {
-            if (['```', 'json', '{', 'sub_agents', 'plan'].some(t => text.toLowerCase().includes(t))) {
+            if (['```', 'json', '{', 'sub_agents', 'plan', 'matrix layer', 'matrix data', 'matrix:', 'current weather:'].some(t => text.toLowerCase().includes(t))) {
                 sidebar.classList.add('open');
                 sidebarContent.innerHTML = `<pre>${text.replace(/<[^>]*>?/gm, '')}</pre>`; 
             } else {
@@ -115,10 +128,21 @@
             }
         }     
 
+        // Continuous automatic ear listening loops for real hands-free execution
+        function safeStartMic() {
+            if (rec && !isRecognizing && orbState !== 'speaking' && orbState !== 'processing') {
+                try { rec.start(); } catch(e) {}
+            }
+        }
+
         async function playVoice(text, audioB64) {
             orbState = 'speaking';
             handleAutomationTags(text);
-            subtitle.innerText = text.replace(/<[^>]*>?/gm, '').replace(/[\*\#]/g, '');
+            
+            // UI Split: Only display clean vocal lines on the main orb interface screen
+            let spokenClean = text.split(/
+```|matrix/i)[0].replace(/<[^>]*>?/gm, '').replace(/[\*\#]/g, '').trim();
+            subtitle.innerText = spokenClean;
         
             if (!statusEl.innerText.includes('ERR')) {
                 statusEl.innerText = 'GHOST';
@@ -129,17 +153,16 @@
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();   
                 if (ctx.state === 'suspended') await ctx.resume();
                 currentAudio = new Audio("data:audio/mp3;base64," + audioB64[0]);
-                currentAudio.onended = () => { if(orbState === 'speaking') orbState = 'idle'; };
-                currentAudio.play().catch(() => playNativeVoice(text));
+                currentAudio.onended = () => { orbState = 'idle'; safeStartMic(); };
+                currentAudio.play().catch(() => playNativeVoice(spokenClean));
             } else {
-                playNativeVoice(text);
+                playNativeVoice(spokenClean);
             }
         }
                 
-        function playNativeVoice(text) {
+        function playNativeVoice(cleanText) {
             window.speechSynthesis.cancel();
-            let explicitSpokenPhrase = text.replace(/<[^>]*>?/gm, '').replace(/```[\s\S]*?```/g, 'Displaying execution details on screen.');
-            const utterance = new SpeechSynthesisUtterance(explicitSpokenPhrase);     
+            const utterance = new SpeechSynthesisUtterance(cleanText);     
             let humanFemaleVoice = systemVoices.find(v => v.lang.includes('en-GB') && /serena|martha|hazel|female/i.test(v.name));
             if (!humanFemaleVoice) humanFemaleVoice = systemVoices.find(v => v.lang.includes('en-US') && /zira|samantha|female/i.test(v.name));
                 
@@ -148,26 +171,29 @@
                 utterance.rate = 1.05;
                 utterance.pitch = 1.15;
             }   
-            utterance.onend = () => { if(orbState === 'speaking') orbState = 'idle'; };
+            utterance.onend = () => { orbState = 'idle'; safeStartMic(); };
             window.speechSynthesis.speak(utterance);
         } 
 
-        function handleFileUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition || window.msSpeechRecognition;
+        let rec = null;
+        if (SpeechRec) {
+            rec = new SpeechRec(); 
+            rec.continuous = false;
+            rec.interimResults = false;
             
-            statusEl.innerText = `[READING FILE...]`;
-            orbState = 'processing';
+            rec.onstart = () => { isRecognizing = true; if(orbState === 'idle') orbState = 'listening'; statusEl.innerText = 'GHOST [LISTENING]'; };
+            rec.onend = () => { isRecognizing = false; if(orbState === 'listening' || orbState === 'idle') safeStartMic(); };
             
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const base64Data = e.target.result;
-                const fileMessage = `[User Uploaded Document: ${file.name}]\n\nData Payload:\n${base64Data}`;
-                processInput(fileMessage);
+            rec.onresult = async (e) => {
+                let index = e.results.length - 1;
+                let resultText = e.results[index][0].transcript;
+                if (e.results[index].isFinal) {
+                    processInput(resultText);
+                }
             };
-            reader.readAsDataURL(file);
         }
-
+                
         async function processInput(text) {
             if(!text.trim()) return;
             orbState = 'processing'; 
@@ -203,22 +229,38 @@
                     statusEl.innerText = `[CORE FAILURE]`;
                     statusEl.style.color = '#f00';
                     orbState = 'error';
-                    setTimeout(() => { orbState = 'idle'; statusEl.innerText = 'GHOST'; statusEl.style.color = '#0df'; }, 3000);
+                    setTimeout(() => { orbState = 'idle'; statusEl.innerText = 'GHOST'; statusEl.style.color = '#0df'; safeStartMic(); }, 3000);
                 }
             } catch(err) {
                 statusEl.innerText = `[SERVER WAKING UP]`;
                 statusEl.style.color = '#fa0';
                 orbState = 'error';
-                setTimeout(() => { orbState = 'idle'; statusEl.innerText = 'GHOST'; statusEl.style.color = '#0df'; }, 4000);
+                setTimeout(() => { orbState = 'idle'; statusEl.innerText = 'GHOST'; statusEl.style.color = '#0df'; safeStartMic(); }, 4000);
             }
         }
                 
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            statusEl.innerText = `[READING FILE...]`;
+            orbState = 'processing';
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                processInput(`[User Uploaded Document: ${file.name}]\n\nData Payload:\n${e.target.result}`);
+            };
+            reader.readAsDataURL(file);
+        }
+
         function sendManual() {
             const input = document.getElementById('manual-input');
             if(!input.value.trim()) return;
             processInput(input.value);
             input.value = '';
+            document.getElementById('text-fallback').classList.remove('visible');
         }
+
+        // Auto-initialize ear listening loop on startup
+        window.onload = () => { setTimeout(safeStartMic, 1000); };
     </script>
 </body>
 </html>
