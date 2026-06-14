@@ -79,7 +79,7 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// --- 2. UI INTERACTION & SAFARI INTERRUPTION LOGIC ---
+// --- 2. UI INTERACTION, FILE PARSING & INTERRUPTION LOGIC ---
 const inputLayer = document.getElementById('input-layer');
 const commandInput = document.getElementById('command-input');
 const codeSidebar = document.getElementById('code-sidebar');
@@ -87,6 +87,7 @@ const codeContent = document.getElementById('code-content');
 const closeSidebarBtn = document.getElementById('close-sidebar');
 const statusIndicator = document.getElementById('status-indicator');
 const subtitleDisplay = document.getElementById('subtitle-display');
+const fileUpload = document.getElementById('file-upload');
 
 let lastTap = 0;
 document.addEventListener('dblclick', toggleInput);
@@ -110,6 +111,28 @@ commandInput.addEventListener('keydown', () => {
         subtitleDisplay.classList.remove('visible');
     }
 });
+
+// FILE UPLOAD LOGIC
+let attachedFileContent = "";
+let attachedFileName = "";
+
+fileUpload.addEventListener('change', (e) => {
+    if(e.target.files.length > 0) {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        
+        reader.onload = function(event) {
+            attachedFileContent = event.target.result;
+            attachedFileName = file.name;
+            statusIndicator.innerText = `GHOST // FILE LOADED: ${file.name}`;
+            speakText(`I have loaded ${file.name} into my matrix, Boss. Awaiting your instructions.`);
+        };
+        
+        // Read the file as raw text (.txt, .py, .js, .csv)
+        reader.readAsText(file);
+    }
+});
+
 
 // --- 3. HANDS-FREE VOICE (SAFARI OPTIMIZED) ---
 let availableVoices = [];
@@ -143,7 +166,7 @@ if (recognition) {
 
 // Safari Manual Override: Click anywhere to kill audio and open mic
 document.addEventListener('click', (e) => {
-    if (e.target.closest('#input-layer') || e.target.closest('#code-sidebar')) return;
+    if (e.target.closest('#input-layer') || e.target.closest('#code-sidebar') || e.target.closest('.icon-btn')) return;
     
     // If he is talking, shut him up.
     if (window.speechSynthesis.speaking) {
@@ -171,11 +194,20 @@ async function sendToCore(message) {
     if (handsFreeActive && recognition) recognition.stop(); 
     subtitleDisplay.classList.remove('visible'); 
 
+    // Inject the uploaded file into the message if one exists
+    let finalPayload = message;
+    if (attachedFileContent !== "") {
+        finalPayload += `\n\n[SYSTEM NOTE: Boss has attached the following file named ${attachedFileName}]\n\`\`\`\n${attachedFileContent}\n\`\`\``;
+        attachedFileContent = ""; // Wipe memory after sending
+        attachedFileName = "";
+        fileUpload.value = ""; // Reset the HTML input
+    }
+
     try {
         const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message, history: [] }) 
+            body: JSON.stringify({ message: finalPayload, history: [] }) 
         });
         const data = await response.json();
         
@@ -223,7 +255,6 @@ function speakText(text) {
     if (!cleanText) return;
 
     isTalking = true;
-    // Updated Status to guide the Safari interaction
     statusIndicator.innerText = "GHOST // RESPONDING (Tap anywhere to interrupt)";
     subtitleDisplay.innerText = cleanText;
     subtitleDisplay.classList.add('visible');
