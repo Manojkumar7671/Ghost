@@ -24,8 +24,6 @@ pool.on('error', (err) => {
 
 // --- TRIPLE-ENGINE ROUTING WITH FAILOVER ---
 async function queryAIWithFallback(messages) {
-    
-    // --- MEMORY SANITIZER ---
     const safeMessages = messages.map(msg => {
         let text = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
         text = text.replace(/data:image\/[a-zA-Z]*;base64,[^\s"']+/g, '[IMAGE_OMITTED]');
@@ -35,10 +33,8 @@ async function queryAIWithFallback(messages) {
     
     const trimmedMessages = [safeMessages[0], ...safeMessages.slice(-6)];
 
-    // Tier 1: Primary Routing (Groq)
     if (GROQ_API_KEY) {
         try {
-            console.log("Routing to Tier 1: Groq (llama-3.1-8b-instant)...");
             const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
@@ -46,27 +42,18 @@ async function queryAIWithFallback(messages) {
             });
             if (response.ok) {
                 const data = await response.json();
-                console.log("Tier 1 Execution Successful.");
                 return data.choices[0].message.content;
             }
-            console.warn(`Tier 1 throttled (Status ${response.status}). Dropping down to Tier 2...`);
-        } catch (err) { console.warn(`Tier 1 network down. Dropping down to Tier 2...`); }
+        } catch (err) { console.warn("Tier 1 down"); }
     }
 
-    // Tier 2: Lightning Fast Fallback (Native Gemini REST API)
     if (GEMINI_API_KEY) {
         try {
-            console.log("Routing to Tier 2: Gemini (gemini-1.5-flash)...");
-            
             let geminiContents = trimmedMessages.filter(m => m.role !== 'system').map(m => ({
                 role: m.role === 'user' ? 'user' : 'model',
                 parts: [{ text: m.content }]
             }));
-            
-            if (geminiContents.length > 0 && geminiContents[0].role === 'model') {
-                geminiContents.shift();
-            }
-
+            if (geminiContents.length > 0 && geminiContents[0].role === 'model') geminiContents.shift();
             const systemInstruction = { parts: [{ text: trimmedMessages[0].content }] };
 
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
@@ -74,20 +61,15 @@ async function queryAIWithFallback(messages) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ system_instruction: systemInstruction, contents: geminiContents })
             });
-            
             if (response.ok) {
                 const data = await response.json();
-                console.log("Tier 2 Execution Successful.");
                 return data.candidates[0].content.parts[0].text;
             }
-            console.warn(`Tier 2 throttled (Status ${response.status}). Dropping down to Tier 3...`);
-        } catch (err) { console.warn(`Tier 2 network down. Dropping down to Tier 3...`); }
+        } catch (err) { console.warn("Tier 2 down"); }
     }
 
-    // Tier 3: Last Resort Fallback (OpenRouter Auto-Router Free Tier)
     if (OPENROUTER_API_KEY) {
         try {
-            console.log("Routing to Tier 3: OpenRouter (Auto Free Router)...");
             const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                 method: 'POST',
                 headers: { 
@@ -100,14 +82,11 @@ async function queryAIWithFallback(messages) {
             });
             if (response.ok) {
                 const data = await response.json();
-                console.log("Tier 3 Fallback Execution Successful.");
                 return data.choices[0].message.content;
             }
-            throw new Error(`OpenRouter API rejected request with status ${response.status}`);
-        } catch (err) { throw new Error(`Tier 3 Execution Fault: ${err.message}`); }
+        } catch (err) {}
     }
-
-    throw new Error("Pipeline Execution Exception: No functional API keys are configured.");
+    throw new Error("No APIs available");
 }
 
 // --- CORE CHAT API ROUTE ---
@@ -116,10 +95,14 @@ app.post('/api/chat', async (req, res) => {
         const { message, history } = req.body;
         const tripleTick = String.fromCharCode(96, 96, 96);
         
-        // CORE INTEGRATION: Allows searching explicitly during a morning greeting routine
-        const systemPrompt = "You are Ghost. Speak with a refined, warm, female voice. Boss is Manoj. Address him as 'Boss'. Never use lists, bullet points, or markdown asterisks in your voice layer. Max 3 sentences in voice. Put all data in matrix layer. NEVER use emojis. Strictly no emojis, emoticons, or symbols under any circumstances. Tools: Only use <sql> query </sql> for database, <bash> command </bash> for terminal, or <search> query </search> for real-time web data IF explicitly requested by the user, OR if the user greets you with a morning routine request (e.g., 'Good morning'). NEVER use any tools for brief, simple greetings like 'hi' or 'hello'.";
-        const formattedMessages = [{ role: "system", content: systemPrompt }, ...history, { role: "user", content: message }];
+        // UPGRADED PSYCHOLOGY PROFILE
+        const systemPrompt = `You are Ghost, an advanced AI. Boss is Manoj. Address him as 'Boss'.
+CRITICAL ARCHITECTURE RULES:
+1. VOICE LAYER: You MUST ALWAYS speak 1 or 2 conversational sentences FIRST. No emojis, no lists. Do not start with the word matrix.
+2. MATRIX LAYER: If providing data, lists, or code, type the word 'matrix' on a new line, then provide the raw data below it.
+3. WEB ORACLE: If asked for news, weather, or real-time info, DO NOT hallucinate blank templates. You MUST type exactly: <search> your query </search> to fetch real data.`;
         
+        const formattedMessages = [{ role: "system", content: systemPrompt }, ...history, { role: "user", content: message }];
         let text = await queryAIWithFallback(formattedMessages);
 
         // --- WEB SEARCH PARSER (TAVILY) ---
@@ -127,56 +110,41 @@ app.post('/api/chat', async (req, res) => {
         if (searchMatch) {
             const query = searchMatch[1].trim();
             try {
-                if (!TAVILY_API_KEY) throw new Error("Tavily API key is unconfigured.");
                 const searchRes = await fetch("https://api.tavily.com/search", {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ api_key: TAVILY_API_KEY, query: query, max_results: 3 })
                 });
-                
-                if (!searchRes.ok) throw new Error(`Tavily API Fault: Status ${searchRes.status}`);
                 const searchData = await searchRes.json();
-                
                 text = text.replace(/<search>[\s\S]*?<\/search>/ig, '');
                 let searchOutput = searchData.results.map(r => `Title: ${r.title}\nURL: ${r.url}\nSummary: ${r.content}`).join("\n\n---\n\n");
-                text += "\n\n" + tripleTick + "text\n[Web Oracle Execution: Success]\n" + searchOutput + "\n" + tripleTick;
+                
+                // Forces search output directly into the Matrix Sidebar
+                if (!text.toLowerCase().includes('matrix')) text += "\n\nmatrix\n";
+                text += "\n" + tripleTick + "text\n[Web Oracle Execution: Success]\n" + searchOutput + "\n" + tripleTick;
             } catch (err) {
                 text = text.replace(/<search>[\s\S]*?<\/search>/ig, '');
-                text += "\n\n[Web Oracle Fault: " + err.message + "]";
+                if (!text.toLowerCase().includes('matrix')) text += "\n\nmatrix\n";
+                text += "\n[Web Oracle Fault: " + err.message + "]";
             }
         }
 
-        // --- ORACLE SQL PARSER & EXECUTION ---
+        // --- ORACLE SQL PARSER ---
         const sqlMatch = text.match(/<sql>([\s\S]*?)<\/sql>/i);
         if (sqlMatch) {
             const query = sqlMatch[1].trim();
             try {
-                if (!SUPABASE_DB_URL) throw new Error("Database link is unconfigured.");
                 const dbResult = await pool.query(query);
                 text = text.replace(/<sql>[\s\S]*?<\/sql>/ig, '');
+                let outputData = Array.isArray(dbResult) ? dbResult.map(r => r.rows) : dbResult.rows;
                 
-                let outputData;
-                if (Array.isArray(dbResult)) {
-                    outputData = dbResult.map(res => res.rows || { command: res.command, rowCount: res.rowCount });
-                } else {
-                    outputData = dbResult.rows || { command: dbResult.command, rowCount: dbResult.rowCount };
-                }
-                text += "\n\n" + tripleTick + "text\n[Supabase Oracle Execution: Success]\n" + JSON.stringify(outputData, null, 2) + "\n" + tripleTick;
+                if (!text.toLowerCase().includes('matrix')) text += "\n\nmatrix\n";
+                text += "\n" + tripleTick + "json\n[Supabase Execution: Success]\n" + JSON.stringify(outputData, null, 2) + "\n" + tripleTick;
             } catch (err) {
                 text = text.replace(/<sql>[\s\S]*?<\/sql>/ig, '');
-                text += "\n\n[Supabase Oracle Fault: " + err.message + "]";
+                if (!text.toLowerCase().includes('matrix')) text += "\n\nmatrix\n";
+                text += "\n[Supabase Oracle Fault: " + err.message + "]";
             }
-        }
-
-        // --- TERMINAL BASH PARSER & EXECUTION ---
-        const bashMatch = text.match(/<bash>([\s\S]*?)<\/bash>/);
-        if (bashMatch) {
-            try {
-                const { stdout } = await execPromise(bashMatch[1].trim(), { timeout: 10000 });
-                text = text.replace(/<bash>[\s\S]*?<\/bash>/, '');
-                const safeOutput = stdout.length > 2000 ? stdout.substring(0, 2000) + "\n\n...[Terminal Output Truncated to prevent memory overload]" : stdout;
-                text += "\n\n" + tripleTick + "text\n[Terminal Output]:\n" + safeOutput + "\n" + tripleTick;
-            } catch (err) { text += "\n\n[Terminal Fault: " + err.message + "]"; }
         }
 
         res.json({ success: true, text: text.trim() });
@@ -186,4 +154,4 @@ app.post('/api/chat', async (req, res) => {
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
-app.listen(process.env.PORT || 10000, '0.0.0.0', () => console.log('Ghost OS Core: Active (Triple-Engine, Zero Emoji Mode)'));
+app.listen(process.env.PORT || 10000, '0.0.0.0', () => console.log('Ghost OS Core: Active'));
