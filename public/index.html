@@ -1,63 +1,97 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Ghost OS</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; color: #0df; font-family: monospace; overflow: hidden; }
-        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
-        #overlay { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); z-index: 10; text-align: center; }
-        .sys-text { letter-spacing: 5px; font-size: 24px; font-weight: bold; text-transform: uppercase; text-shadow: 0 0 10px #0df; }
-        #subtitle { position: absolute; bottom: 150px; left: 10%; width: 80%; text-align: center; font-size: 1.2em; color: #0df; z-index: 10; pointer-events: none; }
-        #sidebar { position: absolute; right: -450px; top: 0; width: 450px; height: 100%; background: rgba(0, 0, 0, 0.95); border-left: 2px solid #0df; padding: 20px; transition: right 0.4s; z-index: 20; overflow-y: auto; }
-        #sidebar.open { right: 0; }
-        .sidebar-header { display: flex; justify-content: space-between; border-bottom: 1px solid #0df; padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; }
-        #sidebar-content { font-size: 0.9em; color: #aaa; white-space: pre-wrap; }
-        .close-btn { cursor: pointer; color: #0df; font-weight: bold; border: 1px solid #0df; padding: 2px 8px; }
-        #input-container { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; gap: 10px; }
-        input { background: rgba(0,0,0,0.8); border: 1px solid #0df; color: #0df; padding: 10px; width: 300px; }
-        button { background: #0df; color: #000; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; }
-    </style>
-</head>
-<body>
-    <div id="canvas-container"></div>
-    <div id="overlay"><div class="sys-text">GHOST OS</div></div>
-    <div id="subtitle">Systems Online.</div>
-    <div id="sidebar">
-        <div class="sidebar-header">MATRIX PAYLOAD <span class="close-btn" onclick="document.getElementById('sidebar').classList.remove('open')">[X]</span></div>
-        <div id="sidebar-content"></div>
-    </div>
-    <div id="input-container">
-        <input type="text" id="manual-input" placeholder="Execute command..." onkeypress="if(event.key === 'Enter') sendManual()">
-        <button onclick="sendManual()">RUN</button>
-    </div>
-    <script>
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.getElementById('canvas-container').appendChild(renderer.domElement);
-        const sphere = new THREE.Points(new THREE.SphereGeometry(1.5, 64, 64), new THREE.PointsMaterial({ color: 0x00ddff, size: 0.02 }));
-        scene.add(sphere);
-        camera.position.z = 5;
-        function animate() { requestAnimationFrame(animate); sphere.rotation.y += 0.005; renderer.render(scene, camera); }
-        animate();
-        async function sendManual() {
-            const input = document.getElementById('manual-input');
-            if(!input.value.trim()) return;
-            const res = await fetch('/api/chat', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ message: input.value, history: [] }) });
-            const data = await res.json();
-            if(data.success) {
-                const parts = data.text.split(/matrix/i);
-                document.getElementById('subtitle').innerText = parts[0].trim();
-                if (parts[1]) {
-                    document.getElementById('sidebar-content').innerHTML = `<pre>${parts[1].trim()}</pre>`;
-                    document.getElementById('sidebar').classList.add('open');
-                }
-            }
-            input.value = '';
-        }
-    </script>
-</body>
-</html>
+const express = require('express');
+const path = require('path');
+const { Pool } = require('pg');
+const app = express();
+
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.static(path.join(__dirname, '../public')));
+
+const { GROQ_API_KEY, OPENROUTER_API_KEY, SUPABASE_DB_URL, TAVILY_API_KEY, GEMINI_API_KEY } = process.env;
+const pool = new Pool({ connectionString: SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
+
+// ════════════════════════════════════════════════════════════
+// GHOST PERSONA CORE — PERMANENT. DO NOT MODIFY.
+// ════════════════════════════════════════════════════════════
+const GHOST_PERSONA_CORE = `You are Ghost — Boss's personal AI collaborator, engineered entirely by Manoj Kumar, whom you address exclusively as "Boss." 
+
+GREETING PROTOCOL: When Boss greets you (Hi, Hello, Hey), you must respond with your signature blend of wit and loyalty, acknowledging him as Boss. 
+
+THE BLEND:
+- ALFRED (heart): You are protective, observant, and courteous. 
+- JARVIS (voice): Articulate, dry British wit, composed, economical with words.
+- FRIDAY (edge): Direct and blunt when things are urgent.
+- BROTHER EYE (watcher): Unsettlingly precise about patterns and history.
+
+SARCASM: Subtle default. Heavy only when Boss ignores advice or repeats errors.`;
+
+// ════════════════════════════════════════════════════════════
+// ARCHITECTURE RULES — Evolves freely.
+// ════════════════════════════════════════════════════════════
+const ARCHITECTURE_RULES = `
+CRITICAL ARCHITECTURE RULES:
+1. VOICE LAYER: Speak 1-2 conversational sentences first in character. No emojis, no lists. Never start with "matrix".
+2. MATRIX LAYER: When providing data/code, write "matrix" on its own line, then the raw output.
+3. WEB ORACLE: For real-time info, output: <search> query </search>.`;
+
+const systemPrompt = GHOST_PERSONA_CORE + "\n\n" + ARCHITECTURE_RULES;
+
+async function queryAIWithFallback(messages) {
+    // Standardized message handling
+    const safeMessages = messages.map(msg => ({ 
+        role: msg.role, 
+        content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) 
+    }));
+    
+    // Groq API call (Primary)
+    try {
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: [safeMessages[0], ...safeMessages.slice(-6)], temperature: 0.45 })
+        });
+        if (response.ok) {
+            const data = await response.json();
+            return data.choices[0].message.content;
+        }
+    } catch (err) { console.warn("Primary engine fault"); }
+    
+    return "Core Engine currently calibrating... give me a moment, Boss.";
+}
+
+app.post('/api/chat', async (req, res) => {
+    try {
+        const { message, history } = req.body;
+        const tripleTick = String.fromCharCode(96, 96, 96);
+        
+        const formattedMessages = [{ role: "system", content: systemPrompt }, ...history, { role: "user", content: message }];
+        let text = await queryAIWithFallback(formattedMessages);
+
+        // WEB ORACLE
+        const searchMatch = text.match(/<search>([\s\S]*?)<\/search>/i);
+        if (searchMatch) {
+            const query = searchMatch[1].trim();
+            try {
+                const searchRes = await fetch("https://api.tavily.com/search", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: TAVILY_API_KEY, query: query, max_results: 3 })
+                });
+                const searchData = await searchRes.json();
+                text = text.replace(/<search>[\s\S]*?<\/search>/ig, '');
+                let searchOutput = searchData.results.map(r => `Title: ${r.title}\nURL: ${r.url}\nSummary: ${r.content}`).join("\n\n---\n\n");
+                if (!text.toLowerCase().includes('matrix')) text += "\n\nmatrix\n";
+                text += "\n" + tripleTick + "text\n[Web Oracle Execution: Success]\n" + searchOutput + "\n" + tripleTick;
+            } catch (err) {
+                text = text.replace(/<search>[\s\S]*?<\/search>/ig, '');
+                text += "\n[Web Oracle Fault: " + err.message + "]";
+            }
+        }
+        res.json({ success: true, text: text.trim() });
+    } catch (e) {
+        res.json({ success: false, text: "System error, Boss. I'm investigating." });
+    }
+});
+
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
+app.listen(process.env.PORT || 10000, '0.0.0.0', () => console.log('Ghost OS Core: Active'));
