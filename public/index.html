@@ -8,14 +8,36 @@
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #020202; /* Even darker black */
+            background-color: #020202;
             font-family: 'Courier New', Courier, monospace;
-            color: #00d4ff; /* Arc Reactor Neon Blue */
+            color: #00d4ff;
         }
         
         #webgl-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
 
-        /* The hidden input layer */
+        /* Subtitle Display Layer */
+        #subtitle-display {
+            position: absolute;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5;
+            width: 80%;
+            max-width: 800px;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(0, 212, 255, 0.8);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            pointer-events: none;
+            letter-spacing: 1px;
+        }
+
+        #subtitle-display.visible {
+            opacity: 1;
+        }
+
         #input-layer {
             position: absolute;
             bottom: 40px;
@@ -25,15 +47,12 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            opacity: 0; /* Hidden by default */
+            opacity: 0; 
             transition: opacity 0.3s ease;
-            pointer-events: none; /* Disabled when hidden */
+            pointer-events: none; 
         }
 
-        #input-layer.active {
-            opacity: 1;
-            pointer-events: auto;
-        }
+        #input-layer.active { opacity: 1; pointer-events: auto; }
 
         #command-input {
             width: 400px;
@@ -50,7 +69,6 @@
 
         #command-input:focus { border-color: #00d4ff; box-shadow: 0 0 15px rgba(0, 212, 255, 0.4); }
 
-        /* File Upload Button */
         .icon-btn {
             background: rgba(0, 212, 255, 0.1);
             border: 1px solid rgba(0, 212, 255, 0.3);
@@ -67,11 +85,10 @@
         }
         .icon-btn:hover { background: rgba(0, 212, 255, 0.3); }
 
-        /* Code Sidebar */
         #code-sidebar {
             position: absolute;
             top: 0;
-            right: -500px; /* Hidden off-screen */
+            right: -500px; 
             width: 450px;
             height: 100vh;
             background: rgba(2, 2, 2, 0.85);
@@ -121,8 +138,8 @@
     </style>
 </head>
 <body>
-
     <div id="status-indicator">SYSTEM STANDBY (Tap to enable mic)</div>
+    <div id="subtitle-display"></div>
     <div id="webgl-container"></div>
 
     <div id="input-layer">
