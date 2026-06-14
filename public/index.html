@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Ghost OS v19</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="[https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js](https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js)"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: monospace; overflow: hidden; user-select: none; }
         #overlay { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 10; }
@@ -112,7 +112,8 @@
         
         // Separates structural code layers from primary speech voice layers
         function evaluateSidebar(text) {
-            if (['```', 'json', '{', 'sub_agents', 'plan', 'matrix layer', 'matrix data', 'matrix:', 'current weather:'].some(t => text.toLowerCase().includes(t))) {
+            const tripleTick = String.fromCharCode(96, 96, 96);
+            if ([tripleTick, 'json', '{', 'sub_agents', 'plan', 'matrix layer', 'matrix data', 'matrix:', 'current weather:'].some(t => text.toLowerCase().includes(t))) {
                 sidebar.classList.add('open');
                 sidebarContent.innerHTML = `<pre>${text.replace(/<[^>]*>?/gm, '')}</pre>`; 
             } else {
@@ -140,8 +141,7 @@
             handleAutomationTags(text);
             
             // UI Split: Only display clean vocal lines on the main orb interface screen
-            let spokenClean = text.split(/
-```|matrix/i)[0].replace(/<[^>]*>?/gm, '').replace(/[\*\#]/g, '').trim();
+            let spokenClean = text.split(/`{3}|matrix/i)[0].replace(/<[^>]*>?/gm, '').replace(/[\*\#]/g, '').trim();
             subtitle.innerText = spokenClean;
         
             if (!statusEl.innerText.includes('ERR')) {
@@ -162,7 +162,8 @@
                 
         function playNativeVoice(cleanText) {
             window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(cleanText);     
+            let explicitSpokenPhrase = cleanText.replace(/`{3}[\s\S]*?`{3}/g, 'Displaying execution details on screen.');
+            const utterance = new SpeechSynthesisUtterance(explicitSpokenPhrase);     
             let humanFemaleVoice = systemVoices.find(v => v.lang.includes('en-GB') && /serena|martha|hazel|female/i.test(v.name));
             if (!humanFemaleVoice) humanFemaleVoice = systemVoices.find(v => v.lang.includes('en-US') && /zira|samantha|female/i.test(v.name));
                 
