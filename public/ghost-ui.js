@@ -112,13 +112,22 @@ commandInput.addEventListener('keydown', () => {
     }
 });
 
-// FILE UPLOAD LOGIC
+// FILE UPLOAD LOGIC & GUARDRAIL
 let attachedFileContent = "";
 let attachedFileName = "";
 
 fileUpload.addEventListener('change', (e) => {
     if(e.target.files.length > 0) {
         const file = e.target.files[0];
+        
+        // Block unsupported binary files from crashing the LLM context
+        if (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.docx')) {
+            statusIndicator.innerText = `GHOST // ERROR: UNSUPPORTED FORMAT`;
+            speakText("I apologize, Boss, but my current optical parsers cannot read PDF or Word documents. Please provide a plain text file.");
+            fileUpload.value = ""; 
+            return;
+        }
+
         const reader = new FileReader();
         
         reader.onload = function(event) {
@@ -128,11 +137,9 @@ fileUpload.addEventListener('change', (e) => {
             speakText(`I have loaded ${file.name} into my matrix, Boss. Awaiting your instructions.`);
         };
         
-        // Read the file as raw text (.txt, .py, .js, .csv)
         reader.readAsText(file);
     }
 });
-
 
 // --- 3. HANDS-FREE VOICE (SAFARI OPTIMIZED) ---
 let availableVoices = [];
@@ -145,8 +152,6 @@ let handsFreeActive = false;
 if (recognition) {
     recognition.continuous = false; 
     recognition.interimResults = false;
-    
-    // Explicitly set language to improve Apple Dictation accuracy
     recognition.lang = 'en-US'; 
     
     recognition.onstart = () => { 
@@ -164,18 +169,16 @@ if (recognition) {
     recognition.onerror = () => { isListening = false; statusIndicator.innerText = "GHOST // STANDBY"; };
 }
 
-// Safari Manual Override: Click anywhere to kill audio and open mic
+// Safari Manual Override
 document.addEventListener('click', (e) => {
     if (e.target.closest('#input-layer') || e.target.closest('#code-sidebar') || e.target.closest('.icon-btn')) return;
     
-    // If he is talking, shut him up.
     if (window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel(); 
         isTalking = false;
         subtitleDisplay.classList.remove('visible');
     }
 
-    // Start listening
     if (recognition && !isProcessing) {
         handsFreeActive = true;
         try { recognition.start(); } catch(err) {} 
@@ -194,13 +197,12 @@ async function sendToCore(message) {
     if (handsFreeActive && recognition) recognition.stop(); 
     subtitleDisplay.classList.remove('visible'); 
 
-    // Inject the uploaded file into the message if one exists
     let finalPayload = message;
     if (attachedFileContent !== "") {
         finalPayload += `\n\n[SYSTEM NOTE: Boss has attached the following file named ${attachedFileName}]\n\`\`\`\n${attachedFileContent}\n\`\`\``;
-        attachedFileContent = ""; // Wipe memory after sending
+        attachedFileContent = ""; 
         attachedFileName = "";
-        fileUpload.value = ""; // Reset the HTML input
+        fileUpload.value = ""; 
     }
 
     try {
@@ -285,7 +287,6 @@ function speakText(text) {
         subtitleDisplay.classList.remove('visible');
         if (handsFreeActive && recognition) {
             statusIndicator.innerText = "GHOST // STANDBY";
-            // Safari needs a longer pause before restarting mic
             setTimeout(() => { try { recognition.start(); } catch(e){} }, 800);
         } else {
             statusIndicator.innerText = "GHOST // STANDBY";
