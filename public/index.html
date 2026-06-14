@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>Ghost OS v19</title>
-    <script src="[https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js](https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js)"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: monospace; overflow: hidden; user-select: none; }
         #overlay { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 10; }
@@ -14,7 +14,6 @@
         .sidebar-header { border-bottom: 1px solid rgba(0,221,255,0.4); padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; letter-spacing: 2px; }
         #sidebar-content { font-size: 0.9em; color: #aaa; line-height: 1.5; white-space: pre-wrap; }
         
-        /* HIDDEN BY DEFAULT: Text box area only drops down on double tap */
         #text-fallback { position: absolute; bottom: -100px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; gap: 10px; align-items: center; transition: bottom 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
         #text-fallback.visible { bottom: 50px; }
         
@@ -78,7 +77,6 @@
         
         window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
         
-        // --- HANDS-FREE DOUBLE TAP INTERACTION GESTURE ---
         window.addEventListener('dblclick', () => {
             const entryPanel = document.getElementById('text-fallback');
             entryPanel.classList.toggle('visible');
@@ -110,7 +108,6 @@
             });
         }
         
-        // Separates structural code layers from primary speech voice layers
         function evaluateSidebar(text) {
             const tripleTick = String.fromCharCode(96, 96, 96);
             if ([tripleTick, 'json', '{', 'sub_agents', 'plan', 'matrix layer', 'matrix data', 'matrix:', 'current weather:'].some(t => text.toLowerCase().includes(t))) {
@@ -129,7 +126,6 @@
             }
         }     
 
-        // Continuous automatic ear listening loops for real hands-free execution
         function safeStartMic() {
             if (rec && !isRecognizing && orbState !== 'speaking' && orbState !== 'processing') {
                 try { rec.start(); } catch(e) {}
@@ -140,7 +136,6 @@
             orbState = 'speaking';
             handleAutomationTags(text);
             
-            // UI Split: Only display clean vocal lines on the main orb interface screen
             let spokenClean = text.split(/`{3}|matrix/i)[0].replace(/<[^>]*>?/gm, '').replace(/[\*\#]/g, '').trim();
             subtitle.innerText = spokenClean;
         
@@ -260,7 +255,6 @@
             document.getElementById('text-fallback').classList.remove('visible');
         }
 
-        // Auto-initialize ear listening loop on startup
         window.onload = () => { setTimeout(safeStartMic, 1000); };
     </script>
 </body>
