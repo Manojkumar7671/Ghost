@@ -192,14 +192,12 @@ function handleGhostResponse(rawText) {
     let spokenText = rawText;
     let sidebarData = "";
 
-    // 1. Strict splitting logic: divide speech from data using "matrix"
     const matrixSplit = rawText.split(/(?:^|\n)matrix(?:\n|$)/i);
     
     if (matrixSplit.length > 1) {
         spokenText = matrixSplit[0];
         sidebarData = matrixSplit.slice(1).join('\n').trim();
     } else {
-        // 2. Fallback: Rip out markdown code blocks if he forgot the keyword
         const codeBlockRegex = /```[\s\S]*?```/g;
         let codeBlocks = rawText.match(codeBlockRegex);
         if (codeBlocks) {
@@ -227,11 +225,25 @@ function speakText(text) {
     subtitleDisplay.classList.add('visible');
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    const britishVoice = availableVoices.find(v => v.lang === 'en-GB' && v.name.includes('Male')) 
-                      || availableVoices.find(v => v.lang === 'en-GB');
-    if (britishVoice) utterance.voice = britishVoice;
     
-    // Pitch restored to 1.0 (Normal)
+    // Force the utterance language engine to UK English immediately
+    utterance.lang = 'en-GB';
+
+    let voices = window.speechSynthesis.getVoices();
+    if (voices.length === 0) voices = availableVoices;
+
+    // Aggressive British targeting: looks for specific OS native UK voices first
+    const preferredVoices = ['Google UK English Male', 'Daniel', 'Microsoft George', 'Microsoft Ryan'];
+    
+    const britishVoice = voices.find(v => preferredVoices.some(name => v.name.includes(name)))
+                      || voices.find(v => v.lang === 'en-GB' && v.name.includes('Male'))
+                      || voices.find(v => v.lang === 'en-GB' || v.lang === 'en-UK')
+                      || voices.find(v => v.lang.startsWith('en-')); // Final fallback to any English
+                      
+    if (britishVoice) {
+        utterance.voice = britishVoice;
+    }
+    
     utterance.pitch = 1.0; 
     utterance.rate = 1.0; 
 
@@ -244,6 +256,13 @@ function speakText(text) {
         } else {
             statusIndicator.innerText = "GHOST // STANDBY";
         }
+    };
+
+    utterance.onerror = (event) => {
+        console.error("SpeechSynthesis Error:", event.error);
+        isTalking = false;
+        subtitleDisplay.classList.remove('visible');
+        statusIndicator.innerText = "GHOST // AUDIO BLOCKED";
     };
 
     window.speechSynthesis.speak(utterance);

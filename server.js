@@ -82,7 +82,6 @@ app.post('/api/chat', async (req, res) => {
                 const searchData = await searchRes.json();
                 let searchOutput = searchData.results.map(r => `Title: ${r.title}\nURL: ${r.url}\nSummary: ${r.content}`).join("\n\n");
                 
-                // Forces the search data below the matrix keyword so the frontend catches it
                 text = text.replace(/<search>([\s\S]*?)<\/search>/ig, `\nmatrix\n\`\`\`\n[Web Oracle Execution: Success]\n\n${searchOutput}\n\`\`\`\n`);
             } catch (err) {
                 text = text.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Web Oracle Fault: ${err.message}]\n`);
