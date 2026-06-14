@@ -1,275 +1,189 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Ghost OS v19</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: 'Courier New', monospace; overflow: hidden; user-select: none; }
-        #overlay { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 10; pointer-events: none; width: 90%; }
-        .sys-text { letter-spacing: 5px; font-size: 24px; font-weight: bold; text-transform: uppercase; text-shadow: 0 0 15px rgba(0, 221, 255, 0.6); color: #0df; transition: color 0.3s; }
-        #subtitle { position: absolute; bottom: 140px; left: 50%; transform: translateX(-50%); width: 80%; text-align: center; color: #0df; font-size: 18px; font-weight: bold; text-shadow: 0 0 10px rgba(0,221,255,0.8); pointer-events: none; min-height: 50px; line-height: 1.6; }
-        #sidebar { position: absolute; right: -450px; top: 0; width: 400px; height: 100%; background: rgba(0, 0, 0, 0.95); border-left: 1px solid #0df; transition: right 0.4s cubic-bezier(0.1, 0.8, 0.1, 1); z-index: 20; padding: 20px; box-sizing: border-box; overflow-y: auto; pointer-events: auto; }
-        #sidebar.open { right: 0; }
-        .sidebar-header { border-bottom: 1px solid rgba(0,221,255,0.4); padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; }
-        #sidebar-content { font-size: 0.9em; color: #aaa; line-height: 1.5; white-space: pre-wrap; }
-        #text-fallback { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); z-index: 30; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; display: flex; gap: 10px; }
-        #text-fallback.visible { opacity: 1; pointer-events: auto; }
-        #text-fallback input { background: rgba(0,0,0,0.8); border: 1px solid #0df; color: #0df; padding: 12px; width: 350px; font-family: inherit; outline: none; box-shadow: 0 0 10px rgba(0,221,255,0.2); }
-        #text-fallback button { background: #0df; color: #000; border: none; padding: 12px 20px; cursor: pointer; font-weight: bold; }
-    </style>
-</head>
-<body>
-    <div id="overlay"><div class="sys-text" id="status">GHOST V19</div></div>
-    <div id="subtitle"></div>
-    <div id="sidebar"><div class="sidebar-header">MATRIX PAYLOAD</div><div id="sidebar-content"></div></div>
-    <div id="text-fallback"><input type="text" id="manual-input" placeholder="Execute command..." onkeypress="if(event.key === 'Enter') sendManual()"><button onclick="sendManual()">RUN</button></div>
+const express = require('express');
+const path = require('path');
+const { exec } = require('child_process');
+const util = require('util');
+const { Pool } = require('pg');
+const execPromise = util.promisify(exec);
+const app = express();
 
-    <script>
-        setInterval(() => { fetch('/ping').catch(() => {}); }, 120000);
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.static(path.join(__dirname, '../public')));
 
-        // --- GRAPHICS ORB ALIGNMENT ---
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
+const { GROQ_API_KEY, OPENROUTER_API_KEY, SUPABASE_DB_URL, TAVILY_API_KEY, GEMINI_API_KEY } = process.env;
 
-        const geometry = new THREE.BufferGeometry();
-        const particlesCount = 4500;
-        const posArray = new Float32Array(particlesCount * 3);
-        for(let i = 0; i < particlesCount * 3; i+=3) {
-            const r = 2.3, theta = 2 * Math.PI * Math.random(), phi = Math.acos(2 * Math.random() - 1);
-            posArray[i] = r * Math.sin(phi) * Math.cos(theta);
-            posArray[i+1] = r * Math.sin(phi) * Math.sin(theta);
-            posArray[i+2] = r * Math.cos(phi);
-        }
-        geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-        const material = new THREE.PointsMaterial({ size: 0.02, color: 0x00ddff, transparent: true, opacity: 0.8 });
-        const particlesMesh = new THREE.Points(geometry, material);
-        scene.add(particlesMesh);
-        camera.position.z = 5.5;
+// --- DATABASE POOL CONFIGURATION ---
+const pool = new Pool({
+    connectionString: SUPABASE_DB_URL,
+    ssl: { rejectUnauthorized: false }
+});
 
-        let orbState = 'idle';
-        let clock = new THREE.Clock();
+pool.on('error', (err) => {
+    console.error('Unexpected database pool error:', err);
+});
 
-        function animate() {
-            requestAnimationFrame(animate);
-            particlesMesh.rotation.y += 0.002;
-            particlesMesh.rotation.x += 0.001;
-            if (orbState === 'processing') { material.color.setHex(0xffaa00); particlesMesh.rotation.y += 0.04; }
-            else if (orbState === 'speaking') { material.color.setHex(0x00ddff); const p = 1 + Math.sin(clock.getElapsedTime() * 10) * 0.12; particlesMesh.scale.set(p, p, p); }
-            else if (orbState === 'error') { material.color.setHex(0xff0000); particlesMesh.scale.set(1, 1, 1); }
-            else { material.color.setHex(0x00ddff); particlesMesh.scale.set(1, 1, 1); }
-            renderer.render(scene, camera);
-        }
-        animate();
+// --- TRIPLE-ENGINE ROUTING WITH FAILOVER ---
+async function queryAIWithFallback(messages) {
+    
+    // --- MEMORY SANITIZER ---
+    const safeMessages = messages.map(msg => {
+        let text = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+        text = text.replace(/data:image\/[a-zA-Z]*;base64,[^\s"']+/g, '[IMAGE_OMITTED]');
+        if (text.length > 6000) text = text.substring(0, 6000) + '...[Truncated]';
+        return { role: msg.role, content: text };
+    });
+    
+    const trimmedMessages = [safeMessages[0], ...safeMessages.slice(-6)];
 
-        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
-
-        // --- SYSTEM CORE LOGIC ---
-        const statusEl = document.getElementById('status');
-        const textFallback = document.getElementById('text-fallback');
-        const sidebar = document.getElementById('sidebar');
-        const sidebarContent = document.getElementById('sidebar-content');
-        const subtitle = document.getElementById('subtitle');
-        
-        let isRecognizing = false;
-        let currentAudio = null;
-        let conversationHistory = [];
-        let systemVoices = [];
-
-        function loadSystemVoices() {
-            systemVoices = window.speechSynthesis.getVoices();
-        }
-        loadSystemVoices();
-        if (window.speechSynthesis.onvoiceschanged !== undefined) {
-            window.speechSynthesis.onvoiceschanged = loadSystemVoices;
-        }
-
-        function handleAutomationTags(text) {
-            const openMatches = [...text.matchAll(/<open:\s*([^>]+)>/g)];
-            openMatches.forEach(m => {
-                let url = m[1].trim();
-                if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-                window.open(url, '_blank');
+    // Tier 1: Primary Routing (Groq)
+    if (GROQ_API_KEY) {
+        try {
+            console.log("Routing to Tier 1: Groq (llama-3.1-8b-instant)...");
+            const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: trimmedMessages, temperature: 0.45 })
             });
-        }
-
-        // SIDEBAR MATRIX CHECK: Opens strictly for systemic payloads (code sheets, raw JSON files, or swarm structural objects)
-        function evaluateSidebar(text) {
-            if (['```', 'json', '{', 'sub_agents', 'plan'].some(t => text.toLowerCase().includes(t))) {
-                sidebar.classList.add('open');
-                sidebarContent.innerHTML = `<pre>${text.replace(/<[^>]*>?/gm, '')}</pre>`;
-            } else {
-                sidebar.classList.remove('open');
+            if (response.ok) {
+                const data = await response.json();
+                console.log("Tier 1 Execution Successful.");
+                return data.choices[0].message.content;
             }
-        }
+            console.warn(`Tier 1 throttled (Status ${response.status}). Dropping down to Tier 2...`);
+        } catch (err) { console.warn(`Tier 1 network down. Dropping down to Tier 2...`); }
+    }
 
-        // CORE BARGE-IN INTERRUPTION SWITCH: Instantly stops speech threads when user speaks or clicks
-        function killActiveSpeechChannels() {
-            window.speechSynthesis.cancel();
-            if (currentAudio) {
-                try { currentAudio.pause(); } catch(e) {}
-                currentAudio = null;
+    // Tier 2: Lightning Fast Fallback (Native Gemini REST API)
+    if (GEMINI_API_KEY) {
+        try {
+            console.log("Routing to Tier 2: Gemini (gemini-1.5-flash)...");
+            
+            let geminiContents = trimmedMessages.filter(m => m.role !== 'system').map(m => ({
+                role: m.role === 'user' ? 'user' : 'model',
+                parts: [{ text: m.content }]
+            }));
+            
+            if (geminiContents.length > 0 && geminiContents[0].role === 'model') {
+                geminiContents.shift();
             }
-        }
 
-        async function playVoice(text, audioB64) {
-            orbState = 'speaking';
-            handleAutomationTags(text);
-            subtitle.innerText = text.replace(/<[^>]*>?/gm, '').replace(/[\*\#]/g, '');
+            const systemInstruction = { parts: [{ text: trimmedMessages[0].content }] };
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ system_instruction: systemInstruction, contents: geminiContents })
+            });
             
-            if (!statusEl.innerText.includes('ERR')) {
-                statusEl.innerText = 'GHOST';
-                statusEl.style.color = '#0df';
+            if (response.ok) {
+                const data = await response.json();
+                console.log("Tier 2 Execution Successful.");
+                return data.candidates[0].content.parts[0].text;
             }
-            
-            if (audioB64 && audioB64.length > 0) {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                if (ctx.state === 'suspended') await ctx.resume();
-                currentAudio = new Audio("data:audio/mp3;base64," + audioB64[0]);
-                currentAudio.onended = () => { if(orbState === 'speaking') orbState = 'listening'; safeStartMic(); };
-                currentAudio.play().catch(() => playNativeVoice(text));
-            } else {
-                playNativeVoice(text);
+            console.warn(`Tier 2 throttled (Status ${response.status}). Dropping down to Tier 3...`);
+        } catch (err) { console.warn(`Tier 2 network down. Dropping down to Tier 3...`); }
+    }
+
+    // Tier 3: Last Resort Fallback (OpenRouter Auto-Router Free Tier)
+    if (OPENROUTER_API_KEY) {
+        try {
+            console.log("Routing to Tier 3: OpenRouter (Auto Free Router)...");
+            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${OPENROUTER_API_KEY}`, 
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': 'https://ghost-hu5t.onrender.com',
+                    'X-Title': 'Ghost OS'
+                },
+                body: JSON.stringify({ model: 'openrouter/free', messages: trimmedMessages, temperature: 0.5 })
+            });
+            if (response.ok) {
+                const data = await response.json();
+                console.log("Tier 3 Fallback Execution Successful.");
+                return data.choices[0].message.content;
             }
-        }
+            throw new Error(`OpenRouter API rejected request with status ${response.status}`);
+        } catch (err) { throw new Error(`Tier 3 Execution Fault: ${err.message}`); }
+    }
 
-        function playNativeVoice(text) {
-            window.speechSynthesis.cancel();
-            let explicitSpokenPhrase = text.replace(/<[^>]*>?/gm, '').replace(/```[\s\S]*?```/g, 'Displaying execution matrix, Boss.');
-            const utterance = new SpeechSynthesisUtterance(explicitSpokenPhrase);
-            
-            let humanFemaleVoice = systemVoices.find(v => v.lang.includes('en-GB') && /serena|martha|hazel|female/i.test(v.name.toLowerCase()));
-            if (!humanFemaleVoice) humanFemaleVoice = systemVoices.find(v => v.lang.includes('en-US') && /zira|samantha|jessa|en-us/i.test(v.name.toLowerCase()));
-            
-            if (humanFemaleVoice) {
-                utterance.voice = humanFemaleVoice;
-                utterance.rate = 1.05;
-                utterance.pitch = 1.15;
-            }
-            utterance.onend = () => { if(orbState === 'speaking') orbState = 'listening'; safeStartMic(); };
-            window.speechSynthesis.speak(utterance);
-        }
+    throw new Error("Pipeline Execution Exception: No functional API keys are configured.");
+}
 
-        // UNIVERSAL CROSS-BROWSER MULTI-ADAPTER ENGINE
-        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition || window.msSpeechRecognition;
-        let rec = null;
-        if (SpeechRec) {
-            rec = new SpeechRec();
-            rec.continuous = true;
-            rec.interimResults = true; // Enables instant acoustic processing for rapid barge-in execution
+// --- CORE CHAT API ROUTE ---
+app.post('/api/chat', async (req, res) => {
+    try {
+        const { message, history } = req.body;
+        const tripleTick = String.fromCharCode(96, 96, 96);
+        
+        // CORE INTEGRATION: Allows searching explicitly during a morning greeting routine
+        const systemPrompt = "You are Ghost. Speak with a refined, warm, female voice. Boss is Manoj. Address him as 'Boss'. Never use lists, bullet points, or markdown asterisks in your voice layer. Max 3 sentences in voice. Put all data in matrix layer. NEVER use emojis. Strictly no emojis, emoticons, or symbols under any circumstances. Tools: Only use <sql> query </sql> for database, <bash> command </bash> for terminal, or <search> query </search> for real-time web data IF explicitly requested by the user, OR if the user greets you with a morning routine request (e.g., 'Good morning'). NEVER use any tools for brief, simple greetings like 'hi' or 'hello'.";
+        const formattedMessages = [{ role: "system", content: systemPrompt }, ...history, { role: "user", content: message }];
+        
+        let text = await queryAIWithFallback(formattedMessages);
 
-            rec.onstart = () => { isRecognizing = true; if(orbState === 'idle') orbState = 'listening'; statusEl.innerText = 'GHOST'; statusEl.style.color = '#0df'; };
-            rec.onend = () => { isRecognizing = false; if(orbState === 'listening') safeStartMic(); };
-            
-            // SPEECH TRIGGER LOCK: Captures immediate micro-acoustic sounds to cut talking states immediately
-            rec.onspeechstart = () => {
-                if (orbState === 'speaking') {
-                    killActiveSpeechChannels();
-                    orbState = 'listening';
-                    statusEl.innerText = 'GHOST';
-                }
-            };
-
-            rec.onresult = async (e) => {
-                // If user speaks while Ghost is outputs audio, drop everything immediately
-                if (orbState === 'speaking') {
-                    killActiveSpeechChannels();
-                    orbState = 'processing';
-                }
-                
-                let index = e.results.length - 1;
-                let resultText = e.results[index][0].transcript;
-                
-                if (e.results[index].isFinal) {
-                    processInput(resultText);
-                }
-            };
-        }
-
-        async function processInput(text) {
-            if(!text.trim()) return;
-            orbState = 'processing';
-            statusEl.innerText = 'GHOST [THINKING]';
-            killActiveSpeechChannels();
-            
+        // --- WEB SEARCH PARSER (TAVILY) ---
+        const searchMatch = text.match(/<search>([\s\S]*?)<\/search>/i);
+        if (searchMatch) {
+            const query = searchMatch[1].trim();
             try {
-                const res = await fetch('/api/chat', {
+                if (!TAVILY_API_KEY) throw new Error("Tavily API key is unconfigured.");
+                const searchRes = await fetch("https://api.tavily.com/search", {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ message: text, history: conversationHistory })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: TAVILY_API_KEY, query: query, max_results: 3 })
                 });
-                const data = await res.json();
                 
-                if (data.success) {
-                    conversationHistory.push({ role: 'user', content: text });
-                    conversationHistory.push({ role: 'assistant', content: data.text });
-                    evaluateSidebar(data.text);
-                    
-                    if (data.audio_b64.length === 0 && data.voice_diagnostic) {
-                        statusEl.innerText = `[11LABS ERR: USING FALLBACK]`;
-                        statusEl.style.color = '#fa0';
-                    }
-                    playVoice(data.text, data.audio_b64);
+                if (!searchRes.ok) throw new Error(`Tavily API Fault: Status ${searchRes.status}`);
+                const searchData = await searchRes.json();
+                
+                text = text.replace(/<search>[\s\S]*?<\/search>/ig, '');
+                let searchOutput = searchData.results.map(r => `Title: ${r.title}\nURL: ${r.url}\nSummary: ${r.content}`).join("\n\n---\n\n");
+                text += "\n\n" + tripleTick + "text\n[Web Oracle Execution: Success]\n" + searchOutput + "\n" + tripleTick;
+            } catch (err) {
+                text = text.replace(/<search>[\s\S]*?<\/search>/ig, '');
+                text += "\n\n[Web Oracle Fault: " + err.message + "]";
+            }
+        }
+
+        // --- ORACLE SQL PARSER & EXECUTION ---
+        const sqlMatch = text.match(/<sql>([\s\S]*?)<\/sql>/i);
+        if (sqlMatch) {
+            const query = sqlMatch[1].trim();
+            try {
+                if (!SUPABASE_DB_URL) throw new Error("Database link is unconfigured.");
+                const dbResult = await pool.query(query);
+                text = text.replace(/<sql>[\s\S]*?<\/sql>/ig, '');
+                
+                let outputData;
+                if (Array.isArray(dbResult)) {
+                    outputData = dbResult.map(res => res.rows || { command: res.command, rowCount: res.rowCount });
                 } else {
-                    statusEl.innerText = `[CORE FAILURE]`;
-                    statusEl.style.color = '#f00';
-                    orbState = 'error';
-                    setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST'; statusEl.style.color = '#0df'; safeStartMic(); }, 4000);
+                    outputData = dbResult.rows || { command: dbResult.command, rowCount: dbResult.rowCount };
                 }
-            } catch(err) {
-                statusEl.innerText = `[LATENCY TIMEOUT]`;
-                statusEl.style.color = '#fa0';
-                orbState = 'error';
-                setTimeout(() => { orbState = 'listening'; statusEl.innerText = 'GHOST'; statusEl.style.color = '#0df'; safeStartMic(); }, 4000);
+                text += "\n\n" + tripleTick + "text\n[Supabase Oracle Execution: Success]\n" + JSON.stringify(outputData, null, 2) + "\n" + tripleTick;
+            } catch (err) {
+                text = text.replace(/<sql>[\s\S]*?<\/sql>/ig, '');
+                text += "\n\n[Supabase Oracle Fault: " + err.message + "]";
             }
         }
 
-        function sendManual() {
-            const input = document.getElementById('manual-input');
-            if(!input.value.trim()) return;
-            processInput(input.value);
-            input.value = '';
-            document.getElementById('text-fallback').classList.remove('visible');
+        // --- TERMINAL BASH PARSER & EXECUTION ---
+        const bashMatch = text.match(/<bash>([\s\S]*?)<\/bash>/);
+        if (bashMatch) {
+            try {
+                const { stdout } = await execPromise(bashMatch[1].trim(), { timeout: 10000 });
+                text = text.replace(/<bash>[\s\S]*?<\/bash>/, '');
+                const safeOutput = stdout.length > 2000 ? stdout.substring(0, 2000) + "\n\n...[Terminal Output Truncated to prevent memory overload]" : stdout;
+                text += "\n\n" + tripleTick + "text\n[Terminal Output]:\n" + safeOutput + "\n" + tripleTick;
+            } catch (err) { text += "\n\n[Terminal Fault: " + err.message + "]"; }
         }
 
-        function safeStartMic() {
-            if (rec && !isRecognizing && orbState !== 'speaking' && orbState !== 'processing' && orbState !== 'error') {
-                try { rec.start(); } catch(e) {}
-            }
-        }
+        res.json({ success: true, text: text.trim() });
+    } catch (e) {
+        res.json({ success: false, text: "Core Engine Fault: " + e.message });
+    }
+});
 
-        setInterval(() => {
-            if (orbState === 'listening' && !isRecognizing) safeStartMic();
-        }, 1000);
-
-        let lastTap = 0;
-        document.body.addEventListener('click', (e) => {
-            if(e.target.closest('#text-fallback') || e.target.closest('#sidebar')) return;
-            const now = new Date().getTime();
-            
-            // Explicit audio bypass click rule
-            if (orbState === 'speaking') {
-                killActiveSpeechChannels();
-                orbState = 'listening';
-                statusEl.innerText = 'GHOST';
-                safeStartMic();
-                return;
-            }
-            
-            if (now - lastTap < 300) {
-                textFallback.classList.toggle('visible');
-                if(textFallback.classList.contains('visible')) document.getElementById('manual-input').focus();
-            } else {
-                if(orbState === 'idle' || orbState === 'error') {
-                    const u = new SpeechSynthesisUtterance(""); window.speechSynthesis.speak(u);
-                    orbState = 'listening'; safeStartMic();
-                }
-            }
-            lastTap = now;
-        });
-    </script>
-</body>
-</html>
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
+app.listen(process.env.PORT || 10000, '0.0.0.0', () => console.log('Ghost OS Core: Active (Triple-Engine, Zero Emoji Mode)'));
