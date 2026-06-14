@@ -5,32 +5,30 @@
     <title>Ghost OS v19</title>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: monospace; overflow: hidden; user-select: none; }
-        #overlay { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 10; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: monospace; overflow: hidden; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        #overlay { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); z-index: 10; text-align: center; }
         .sys-text { letter-spacing: 5px; font-size: 24px; font-weight: bold; text-transform: uppercase; text-shadow: 0 0 10px #0df; }
-        #subtitle { position: absolute; bottom: 160px; left: 50%; transform: translateX(-50%); width: 70%; text-align: center; font-size: 1.2em; line-height: 1.5; color: #0df; z-index: 10; text-shadow: 0 0 5px #0df; }
+        #subtitle { position: absolute; bottom: 150px; left: 50%; transform: translateX(-50%); width: 70%; text-align: center; font-size: 1.2em; color: #0df; z-index: 10; pointer-events: none; }
         
-        /* SIDEBAR STYLES */
-        #sidebar { position: absolute; right: -450px; top: 0; width: 450px; height: 100%; background: rgba(0, 0, 0, 0.95); border-left: 2px solid #0df; padding: 20px; box-sizing: border-box; transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1); z-index: 20; overflow-y: auto; }
+        #sidebar { position: absolute; right: -450px; top: 0; width: 450px; height: 100%; background: rgba(0, 0, 0, 0.95); border-left: 2px solid #0df; padding: 20px; transition: right 0.4s; z-index: 20; overflow-y: auto; }
         #sidebar.open { right: 0; }
-        .sidebar-header { display: flex; justify-content: space-between; border-bottom: 1px solid #0df; padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; letter-spacing: 2px; }
-        #sidebar-content { font-size: 0.9em; color: #aaa; line-height: 1.5; white-space: pre-wrap; }
-        .close-btn { cursor: pointer; color: #0df; font-weight: bold; border: 1px solid #0df; padding: 2px 8px; }
-        .close-btn:hover { background: #0df; color: #000; }
-        
-        #text-fallback { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; gap: 10px; }
-        input[type="text"] { background: rgba(0,0,0,0.8); border: 1px solid #0df; color: #0df; padding: 10px; width: 300px; font-family: monospace; outline: none; }
-        .run-btn { background: #0df; color: #000; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; font-family: monospace; }
+        .sidebar-header { display: flex; justify-content: space-between; border-bottom: 1px solid #0df; padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; }
+        #sidebar-content { font-size: 0.9em; color: #aaa; white-space: pre-wrap; }
+        .close-btn { cursor: pointer; color: #0df; font-weight: bold; }
+
+        #text-fallback { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; gap: 10px; }
+        input[type="text"] { background: rgba(0,0,0,0.8); border: 1px solid #0df; color: #0df; padding: 10px; width: 300px; }
+        .run-btn { background: #0df; color: #000; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div id="overlay"><div class="sys-text" id="status">GHOST V19</div></div>
-    <div id="subtitle"></div>
+    <div id="canvas-container"></div>
+    <div id="overlay"><div class="sys-text">GHOST OS v19</div></div>
+    <div id="subtitle">Initializing systems, Boss...</div>
     
     <div id="sidebar">
-        <div class="sidebar-header">
-            MATRIX PAYLOAD <span class="close-btn" onclick="closeSidebar()">X</span>
-        </div>
+        <div class="sidebar-header">MATRIX PAYLOAD <span class="close-btn" onclick="closeSidebar()">[X]</span></div>
         <div id="sidebar-content"></div>
     </div>
     
@@ -40,42 +38,30 @@
     </div>
 
     <script>
-        // THREE.JS ORB CODE (Preserved)
+        // 3D ORB INITIALIZATION
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
         
-        // ... (Keep existing particle logic from previous versions) ...
-        camera.position.z = 5.5; 
-        
-        function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); }
+        const geometry = new THREE.SphereGeometry(1.5, 64, 64);
+        const material = new THREE.PointsMaterial({ color: 0x00ddff, size: 0.02 });
+        const sphere = new THREE.Points(geometry, material);
+        scene.add(sphere);
+        camera.position.z = 5;
 
-        async function processResponse(fullText) {
-            // THE SPLIT LOGIC: This stops the echoing
-            const parts = fullText.split(/matrix/i);
-            const voiceText = parts[0].trim();
-            const matrixData = parts[1] ? parts[1].trim() : null;
-            
-            // 1. Display Voice Layer
-            document.getElementById('subtitle').innerText = voiceText;
-            
-            // 2. Display Matrix Layer
-            const sidebar = document.getElementById('sidebar');
-            const sidebarContent = document.getElementById('sidebar-content');
-            
-            if (matrixData) {
-                sidebarContent.innerHTML = `<pre>${matrixData.replace(/```/g, '')}</pre>`;
-                sidebar.classList.add('open');
-            }
+        function animate() {
+            requestAnimationFrame(animate);
+            sphere.rotation.y += 0.005;
+            renderer.render(scene, camera);
         }
+        animate();
+
+        function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); }
 
         async function sendManual() {
             const input = document.getElementById('manual-input');
-            if(!input.value.trim()) return;
-            
-            document.getElementById('status').innerText = 'GHOST [THINKING]';
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -83,9 +69,11 @@
             });
             const data = await res.json();
             
-            if(data.success) {
-                processResponse(data.text);
-                document.getElementById('status').innerText = 'GHOST';
+            const parts = data.text.split(/matrix/i);
+            document.getElementById('subtitle').innerText = parts[0].trim();
+            if (parts[1]) {
+                document.getElementById('sidebar-content').innerHTML = `<pre>${parts[1].replace(/```/g, '')}</pre>`;
+                document.getElementById('sidebar').classList.add('open');
             }
             input.value = '';
         }
