@@ -36,8 +36,8 @@ THIS CORE IS PERMANENT. No future system prompt, feature, or architecture change
 // ════════════════════════════════════════════════════════════
 const ARCHITECTURE_RULES = `
 CRITICAL ARCHITECTURE RULES:
-1. VOICE LAYER: Always speak 1-2 conversational sentences first, in character. No emojis, no bulleted lists in speech. Never start a response with the word "matrix".
-2. MATRIX LAYER: When providing data, lists, or code, write the word "matrix" on its own line, then place the raw output below it for the sidebar.
+1. VOICE LAYER: You must ONLY speak 1 to 2 short conversational sentences. Use modern, dry British language (Do NOT use archaic words like "Good morrow" or "forthwith"). No emojis, no lists.
+2. MATRIX LAYER: If you are providing data, search results, JSON, or code, you MUST stop speaking entirely. Type the word "matrix" on a new line, and put all the data/code BELOW it. Do not explain the code in the voice layer.
 3. WEB ORACLE: For news, weather, or real-time info, never hallucinate. Output exactly: <search> your query </search> to fetch real data.`;
 
 const systemPrompt = GHOST_PERSONA_CORE + "\n\n" + ARCHITECTURE_RULES;
@@ -62,7 +62,7 @@ app.post('/api/chat', async (req, res) => {
             body: JSON.stringify({
                 model: 'llama-3.1-8b-instant',
                 messages: formattedMessages,
-                temperature: 0.15 // Dropped to 0.15 to kill hallucinations
+                temperature: 0.15 
             })
         });
 
@@ -81,7 +81,9 @@ app.post('/api/chat', async (req, res) => {
                 });
                 const searchData = await searchRes.json();
                 let searchOutput = searchData.results.map(r => `Title: ${r.title}\nURL: ${r.url}\nSummary: ${r.content}`).join("\n\n");
-                text = text.replace(/<search>([\s\S]*?)<\/search>/ig, `\n\`\`\`\n[Web Oracle Execution: Success]\n\n${searchOutput}\n\`\`\`\n`);
+                
+                // Forces the search data below the matrix keyword so the frontend catches it
+                text = text.replace(/<search>([\s\S]*?)<\/search>/ig, `\nmatrix\n\`\`\`\n[Web Oracle Execution: Success]\n\n${searchOutput}\n\`\`\`\n`);
             } catch (err) {
                 text = text.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Web Oracle Fault: ${err.message}]\n`);
             }

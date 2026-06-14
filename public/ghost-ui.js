@@ -9,21 +9,16 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 container.appendChild(renderer.domElement);
 
-// Define AI States and their associated colors
 const colors = {
-    idle: new THREE.Color(0x00d4ff),     // Neon Blue
-    listening: new THREE.Color(0x0055ff), // Deep Pulse Blue
-    processing: new THREE.Color(0xffaa00),// Amber / Orange
-    talking: new THREE.Color(0x00ffcc)    // Matrix Green
+    idle: new THREE.Color(0x00d4ff),
+    listening: new THREE.Color(0x0055ff),
+    processing: new THREE.Color(0xffaa00),
+    talking: new THREE.Color(0x00ffcc)
 };
 
 const geometry = new THREE.SphereGeometry(2, 64, 64); 
 const material = new THREE.PointsMaterial({ 
-    color: colors.idle, 
-    size: 0.02,      
-    transparent: true,
-    opacity: 0.6,
-    blending: THREE.AdditiveBlending 
+    color: colors.idle, size: 0.02, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending 
 });
 const coreParticles = new THREE.Points(geometry, material);
 scene.add(coreParticles);
@@ -42,7 +37,6 @@ function animate() {
     requestAnimationFrame(animate);
     const time = Date.now() * 0.001; 
 
-    // Determine target color based on active state
     let targetColor = colors.idle;
     let targetScale = 1.0 + Math.sin(time * 2) * 0.02;
     let amplitude = 1.0;
@@ -61,10 +55,8 @@ function animate() {
         amplitude = 1.5;
     }
 
-    // Smoothly transition the core color
     material.color.lerp(targetColor, 0.05);
     
-    // Swarm physics
     for (let i = 0; i < positionAttribute.count; i++) {
         const bp = basePositions[i];
         const noiseX = Math.sin(time * 2.0 + bp.y * 3.0) * 0.05;
@@ -76,8 +68,6 @@ function animate() {
 
     coreParticles.rotation.x += 0.001;
     coreParticles.rotation.y += isProcessing ? 0.02 : 0.002;
-
-    // Smooth scale transition
     coreParticles.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
     renderer.render(scene, camera);
 }
@@ -113,7 +103,6 @@ function toggleInput() {
 
 closeSidebarBtn.addEventListener('click', () => { codeSidebar.classList.remove('open'); });
 
-// Interruption: If you start typing, shut Ghost up immediately.
 commandInput.addEventListener('keydown', () => {
     if (window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
@@ -122,7 +111,7 @@ commandInput.addEventListener('keydown', () => {
     }
 });
 
-// --- 3. HANDS-FREE VOICE, INTERRUPTION & ENGINE API ---
+// --- 3. HANDS-FREE VOICE & ENGINE API ---
 let availableVoices = [];
 window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); };
 
@@ -139,7 +128,6 @@ if (recognition) {
         statusIndicator.innerText = "GHOST // LISTENING"; 
     };
     
-    // Interruption: If the mic picks up sound, stop his current speech.
     recognition.onspeechstart = () => {
         if (window.speechSynthesis.speaking) {
             window.speechSynthesis.cancel();
@@ -161,7 +149,7 @@ if (recognition) {
 document.addEventListener('click', (e) => {
     if (e.target.closest('#input-layer') || e.target.closest('#code-sidebar')) return;
     if (recognition && !isProcessing) {
-        window.speechSynthesis.cancel(); // Stop talking if screen is tapped
+        window.speechSynthesis.cancel(); 
         isTalking = false;
         handsFreeActive = true;
         try { recognition.start(); } catch(e) {} 
@@ -201,15 +189,29 @@ async function sendToCore(message) {
 }
 
 function handleGhostResponse(rawText) {
-    const codeBlockRegex = /```[\s\S]*?```/g;
-    let codeBlocks = rawText.match(codeBlockRegex);
-    let spokenText = rawText.replace(codeBlockRegex, ''); 
+    let spokenText = rawText;
+    let sidebarData = "";
 
-    if (codeBlocks) {
-        const cleanCode = codeBlocks.map(block => block.replace(/```\w*\n?|```/g, '')).join('\n\n---\n\n');
-        codeContent.innerText = cleanCode;
+    // 1. Strict splitting logic: divide speech from data using "matrix"
+    const matrixSplit = rawText.split(/(?:^|\n)matrix(?:\n|$)/i);
+    
+    if (matrixSplit.length > 1) {
+        spokenText = matrixSplit[0];
+        sidebarData = matrixSplit.slice(1).join('\n').trim();
+    } else {
+        // 2. Fallback: Rip out markdown code blocks if he forgot the keyword
+        const codeBlockRegex = /```[\s\S]*?```/g;
+        let codeBlocks = rawText.match(codeBlockRegex);
+        if (codeBlocks) {
+            spokenText = rawText.replace(codeBlockRegex, '');
+            sidebarData = codeBlocks.map(block => block.replace(/```\w*\n?|```/g, '')).join('\n\n---\n\n');
+        }
+    }
+
+    if (sidebarData) {
+        codeContent.innerText = sidebarData.trim();
         codeSidebar.classList.add('open');
-        if (!spokenText.trim()) spokenText = "I have compiled the data matrix in the sidebar, Boss.";
+        if (!spokenText.trim()) spokenText = "I have compiled the data in the sidebar, Boss.";
     }
 
     speakText(spokenText);
@@ -229,9 +231,9 @@ function speakText(text) {
                       || availableVoices.find(v => v.lang === 'en-GB');
     if (britishVoice) utterance.voice = britishVoice;
     
-    // Drop the pitch to give him that deep, bass-heavy voice
-    utterance.pitch = 0.5; 
-    utterance.rate = 0.95; // Slightly slower, more composed
+    // Pitch restored to 1.0 (Normal)
+    utterance.pitch = 1.0; 
+    utterance.rate = 1.0; 
 
     utterance.onend = () => {
         isTalking = false;
