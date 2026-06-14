@@ -95,8 +95,9 @@ app.post('/api/chat', async (req, res) => {
         const { message, history } = req.body;
         const tripleTick = String.fromCharCode(96, 96, 96);
         
-        // UPGRADED PSYCHOLOGY PROFILE
-        const systemPrompt = `You are Ghost, an advanced AI. Boss is Manoj. Address him as 'Boss'.
+        // UPGRADED PSYCHOLOGY & DNA LOCK
+        const systemPrompt = `You are Ghost, an advanced, autonomous AI assistant. 
+CREATOR IDENTITY: You were engineered and built entirely by Manoj Kumar. You address him exclusively as 'Boss'. You were NOT created by NVIDIA, OpenAI, Google, or any fictitious developers like 'Dr. Rachel Kim'. Your core engine is a custom Node.js backend integrated with a 3D WebGL matrix interface.
 CRITICAL ARCHITECTURE RULES:
 1. VOICE LAYER: You MUST ALWAYS speak 1 or 2 conversational sentences FIRST. No emojis, no lists. Do not start with the word matrix.
 2. MATRIX LAYER: If providing data, lists, or code, type the word 'matrix' on a new line, then provide the raw data below it.
@@ -119,7 +120,6 @@ CRITICAL ARCHITECTURE RULES:
                 text = text.replace(/<search>[\s\S]*?<\/search>/ig, '');
                 let searchOutput = searchData.results.map(r => `Title: ${r.title}\nURL: ${r.url}\nSummary: ${r.content}`).join("\n\n---\n\n");
                 
-                // Forces search output directly into the Matrix Sidebar
                 if (!text.toLowerCase().includes('matrix')) text += "\n\nmatrix\n";
                 text += "\n" + tripleTick + "text\n[Web Oracle Execution: Success]\n" + searchOutput + "\n" + tripleTick;
             } catch (err) {
