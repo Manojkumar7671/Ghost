@@ -3,20 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <title>Ghost OS v19</title>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: monospace; overflow: hidden; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; color: #0df; font-family: 'Courier New', monospace; overflow: hidden; }
         #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        /* UI Layers */
         #overlay { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); z-index: 10; text-align: center; }
         .sys-text { letter-spacing: 5px; font-size: 24px; font-weight: bold; text-transform: uppercase; text-shadow: 0 0 10px #0df; }
         #subtitle { position: absolute; bottom: 150px; left: 50%; transform: translateX(-50%); width: 70%; text-align: center; font-size: 1.2em; color: #0df; z-index: 10; pointer-events: none; }
         
-        #sidebar { position: absolute; right: -450px; top: 0; width: 450px; height: 100%; background: rgba(0, 0, 0, 0.95); border-left: 2px solid #0df; padding: 20px; transition: right 0.4s; z-index: 20; overflow-y: auto; }
+        /* Sidebar */
+        #sidebar { position: absolute; right: -450px; top: 0; width: 450px; height: 100%; background: rgba(0, 0, 0, 0.9); border-left: 2px solid #0df; padding: 20px; transition: right 0.4s; z-index: 20; overflow-y: auto; }
         #sidebar.open { right: 0; }
         .sidebar-header { display: flex; justify-content: space-between; border-bottom: 1px solid #0df; padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; }
         #sidebar-content { font-size: 0.9em; color: #aaa; white-space: pre-wrap; }
-        .close-btn { cursor: pointer; color: #0df; font-weight: bold; }
+        .close-btn { cursor: pointer; color: #0df; font-weight: bold; border: 1px solid #0df; padding: 2px 8px; }
 
+        /* Input Area */
         #text-fallback { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; gap: 10px; }
         input[type="text"] { background: rgba(0,0,0,0.8); border: 1px solid #0df; color: #0df; padding: 10px; width: 300px; }
         .run-btn { background: #0df; color: #000; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; }
@@ -38,12 +42,13 @@
     </div>
 
     <script>
-        // 3D ORB INITIALIZATION
+        // --- ORB RENDERER ---
+        const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        document.getElementById('canvas-container').appendChild(renderer.domElement);
+        container.appendChild(renderer.domElement);
         
         const geometry = new THREE.SphereGeometry(1.5, 64, 64);
         const material = new THREE.PointsMaterial({ color: 0x00ddff, size: 0.02 });
@@ -58,22 +63,32 @@
         }
         animate();
 
+        // --- UI LOGIC ---
         function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); }
 
         async function sendManual() {
             const input = document.getElementById('manual-input');
+            const msg = input.value;
+            if(!msg) return;
+            
+            document.getElementById('subtitle').innerText = "Processing...";
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ message: input.value, history: [] })
+                body: JSON.stringify({ message: msg, history: [] })
             });
             const data = await res.json();
             
-            const parts = data.text.split(/matrix/i);
-            document.getElementById('subtitle').innerText = parts[0].trim();
-            if (parts[1]) {
-                document.getElementById('sidebar-content').innerHTML = `<pre>${parts[1].replace(/```/g, '')}</pre>`;
-                document.getElementById('sidebar').classList.add('open');
+            if(data.success) {
+                const parts = data.text.split(/matrix/i);
+                document.getElementById('subtitle').innerText = parts[0].trim();
+                
+                if (parts[1]) {
+                    document.getElementById('sidebar-content').innerHTML = `<pre>${parts[1].trim()}</pre>`;
+                    document.getElementById('sidebar').classList.add('open');
+                } else {
+                    document.getElementById('sidebar').classList.remove('open');
+                }
             }
             input.value = '';
         }
