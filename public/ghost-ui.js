@@ -1,4 +1,4 @@
-// --- 1. NON-STOP PARTICLE SWARM SPHERE ---
+// --- 1. NON-STOP PARTICLE SWARM & COLOR MORPHING ---
 const container = document.getElementById('webgl-container');
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -9,9 +9,17 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 container.appendChild(renderer.domElement);
 
+// Define AI States and their associated colors
+const colors = {
+    idle: new THREE.Color(0x00d4ff),     // Neon Blue
+    listening: new THREE.Color(0x0055ff), // Deep Pulse Blue
+    processing: new THREE.Color(0xffaa00),// Amber / Orange
+    talking: new THREE.Color(0x00ffcc)    // Matrix Green
+};
+
 const geometry = new THREE.SphereGeometry(2, 64, 64); 
 const material = new THREE.PointsMaterial({ 
-    color: 0x00d4ff, 
+    color: colors.idle, 
     size: 0.02,      
     transparent: true,
     opacity: 0.6,
@@ -26,39 +34,51 @@ for (let i = 0; i < positionAttribute.count; i++) {
     basePositions.push(new THREE.Vector3().fromBufferAttribute(positionAttribute, i));
 }
 
-let targetScale = 1;
-let currentScale = 1;
 let isProcessing = false;
+let isListening = false;
+let isTalking = false;
 
 function animate() {
     requestAnimationFrame(animate);
     const time = Date.now() * 0.001; 
 
+    // Determine target color based on active state
+    let targetColor = colors.idle;
+    let targetScale = 1.0 + Math.sin(time * 2) * 0.02;
+    let amplitude = 1.0;
+
+    if (isTalking) {
+        targetColor = colors.talking;
+        targetScale = 1.05 + Math.sin(time * 5) * 0.03;
+        amplitude = 2.0;
+    } else if (isProcessing) {
+        targetColor = colors.processing;
+        targetScale = 1.08 + Math.sin(time * 10) * 0.04;
+        amplitude = 3.5;
+    } else if (isListening) {
+        targetColor = colors.listening;
+        targetScale = 0.98 + Math.sin(time * 8) * 0.02;
+        amplitude = 1.5;
+    }
+
+    // Smoothly transition the core color
+    material.color.lerp(targetColor, 0.05);
+    
+    // Swarm physics
     for (let i = 0; i < positionAttribute.count; i++) {
         const bp = basePositions[i];
         const noiseX = Math.sin(time * 2.0 + bp.y * 3.0) * 0.05;
         const noiseY = Math.cos(time * 2.5 + bp.z * 3.0) * 0.05;
         const noiseZ = Math.sin(time * 3.0 + bp.x * 3.0) * 0.05;
-        const amplitude = isProcessing ? 3.5 : 1.0;
-
         positionAttribute.setXYZ(i, bp.x + noiseX * amplitude, bp.y + noiseY * amplitude, bp.z + noiseZ * amplitude);
     }
     positionAttribute.needsUpdate = true; 
 
     coreParticles.rotation.x += 0.001;
-    coreParticles.rotation.y += 0.002;
+    coreParticles.rotation.y += isProcessing ? 0.02 : 0.002;
 
-    if (isProcessing) {
-        targetScale = 1.08 + Math.sin(time * 10) * 0.04;
-        material.opacity = 1.0;
-        coreParticles.rotation.y += 0.02; 
-    } else {
-        targetScale = 1.0 + Math.sin(time * 2) * 0.02; 
-        material.opacity = 0.6;
-    }
-
-    currentScale += (targetScale - currentScale) * 0.1;
-    coreParticles.scale.set(currentScale, currentScale, currentScale);
+    // Smooth scale transition
+    coreParticles.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
     renderer.render(scene, camera);
 }
 animate();
@@ -69,13 +89,12 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// --- 2. UI INTERACTION (DOUBLE TAP, SIDEBAR & SUBTITLES) ---
+// --- 2. UI INTERACTION & INTERRUPTION LOGIC ---
 const inputLayer = document.getElementById('input-layer');
 const commandInput = document.getElementById('command-input');
 const codeSidebar = document.getElementById('code-sidebar');
 const codeContent = document.getElementById('code-content');
 const closeSidebarBtn = document.getElementById('close-sidebar');
-const fileUpload = document.getElementById('file-upload');
 const statusIndicator = document.getElementById('status-indicator');
 const subtitleDisplay = document.getElementById('subtitle-display');
 
@@ -83,8 +102,7 @@ let lastTap = 0;
 document.addEventListener('dblclick', toggleInput);
 document.addEventListener('touchend', (e) => {
     const currentTime = new Date().getTime();
-    const tapLength = currentTime - lastTap;
-    if (tapLength < 500 && tapLength > 0) { toggleInput(); e.preventDefault(); }
+    if (currentTime - lastTap < 500 && currentTime - lastTap > 0) { toggleInput(); e.preventDefault(); }
     lastTap = currentTime;
 });
 
@@ -95,13 +113,16 @@ function toggleInput() {
 
 closeSidebarBtn.addEventListener('click', () => { codeSidebar.classList.remove('open'); });
 
-fileUpload.addEventListener('change', (e) => {
-    if(e.target.files.length > 0) {
-        statusIndicator.innerText = `FILE LOADED: ${e.target.files[0].name}`;
+// Interruption: If you start typing, shut Ghost up immediately.
+commandInput.addEventListener('keydown', () => {
+    if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        isTalking = false;
+        subtitleDisplay.classList.remove('visible');
     }
 });
 
-// --- 3. HANDS-FREE VOICE & ENGINE API ---
+// --- 3. HANDS-FREE VOICE, INTERRUPTION & ENGINE API ---
 let availableVoices = [];
 window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); };
 
@@ -112,18 +133,36 @@ let handsFreeActive = false;
 if (recognition) {
     recognition.continuous = false; 
     recognition.interimResults = false;
-    recognition.onstart = () => { statusIndicator.innerText = "LISTENING..."; };
+    
+    recognition.onstart = () => { 
+        isListening = true;
+        statusIndicator.innerText = "GHOST // LISTENING"; 
+    };
+    
+    // Interruption: If the mic picks up sound, stop his current speech.
+    recognition.onspeechstart = () => {
+        if (window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+            isTalking = false;
+            subtitleDisplay.classList.remove('visible');
+        }
+    };
+
     recognition.onresult = (event) => {
+        isListening = false;
         const transcript = event.results[0][0].transcript;
-        statusIndicator.innerText = `PROCESSING: "${transcript}"`;
+        statusIndicator.innerText = `GHOST // PROCESSING`;
         sendToCore(transcript);
     };
-    recognition.onerror = () => { statusIndicator.innerText = "MIC ERROR / SILENCE"; };
+    recognition.onend = () => { isListening = false; }
+    recognition.onerror = () => { isListening = false; statusIndicator.innerText = "GHOST // STANDBY"; };
 }
 
 document.addEventListener('click', (e) => {
     if (e.target.closest('#input-layer') || e.target.closest('#code-sidebar')) return;
-    if (recognition && !isProcessing && !window.speechSynthesis.speaking) {
+    if (recognition && !isProcessing) {
+        window.speechSynthesis.cancel(); // Stop talking if screen is tapped
+        isTalking = false;
         handsFreeActive = true;
         try { recognition.start(); } catch(e) {} 
     }
@@ -145,7 +184,7 @@ async function sendToCore(message) {
         const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message, history: [] }) // Empty history prevents backend crash
+            body: JSON.stringify({ message: message, history: [] }) 
         });
         const data = await response.json();
         
@@ -164,21 +203,24 @@ async function sendToCore(message) {
 function handleGhostResponse(rawText) {
     const codeBlockRegex = /```[\s\S]*?```/g;
     let codeBlocks = rawText.match(codeBlockRegex);
-    let spokenText = rawText.replace(codeBlockRegex, 'I have sent the data to your sidebar, Boss.'); 
+    let spokenText = rawText.replace(codeBlockRegex, ''); 
 
     if (codeBlocks) {
         const cleanCode = codeBlocks.map(block => block.replace(/```\w*\n?|```/g, '')).join('\n\n---\n\n');
         codeContent.innerText = cleanCode;
         codeSidebar.classList.add('open');
+        if (!spokenText.trim()) spokenText = "I have compiled the data matrix in the sidebar, Boss.";
     }
 
     speakText(spokenText);
 }
 
 function speakText(text) {
-    const cleanText = text.replace(/<[^>]*>?/gm, '').trim(); 
+    const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/matrix/gi, '').trim(); 
     if (!cleanText) return;
 
+    isTalking = true;
+    statusIndicator.innerText = "GHOST // RESPONDING";
     subtitleDisplay.innerText = cleanText;
     subtitleDisplay.classList.add('visible');
 
@@ -186,16 +228,19 @@ function speakText(text) {
     const britishVoice = availableVoices.find(v => v.lang === 'en-GB' && v.name.includes('Male')) 
                       || availableVoices.find(v => v.lang === 'en-GB');
     if (britishVoice) utterance.voice = britishVoice;
-    utterance.rate = 1.0;
-    utterance.pitch = 0.9;
+    
+    // Drop the pitch to give him that deep, bass-heavy voice
+    utterance.pitch = 0.5; 
+    utterance.rate = 0.95; // Slightly slower, more composed
 
     utterance.onend = () => {
+        isTalking = false;
         subtitleDisplay.classList.remove('visible');
         if (handsFreeActive && recognition) {
-            statusIndicator.innerText = "AWAITING AUDIO...";
+            statusIndicator.innerText = "GHOST // STANDBY";
             setTimeout(() => { try { recognition.start(); } catch(e){} }, 500);
         } else {
-            statusIndicator.innerText = "SYSTEM STANDBY";
+            statusIndicator.innerText = "GHOST // STANDBY";
         }
     };
 
