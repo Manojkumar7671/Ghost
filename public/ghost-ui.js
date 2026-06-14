@@ -20,7 +20,6 @@ const material = new THREE.PointsMaterial({
 const coreParticles = new THREE.Points(geometry, material);
 scene.add(coreParticles);
 
-// Extract base positions for the swarm algorithm
 const positionAttribute = geometry.attributes.position;
 const basePositions = [];
 for (let i = 0; i < positionAttribute.count; i++) {
@@ -33,28 +32,18 @@ let isProcessing = false;
 
 function animate() {
     requestAnimationFrame(animate);
-    const time = Date.now() * 0.001; // Current time in seconds
+    const time = Date.now() * 0.001; 
 
-    // Swarm physics logic: mutate individual particle positions
     for (let i = 0; i < positionAttribute.count; i++) {
         const bp = basePositions[i];
-        
-        // Calculate organic wave movement based on time and original position
         const noiseX = Math.sin(time * 2.0 + bp.y * 3.0) * 0.05;
         const noiseY = Math.cos(time * 2.5 + bp.z * 3.0) * 0.05;
         const noiseZ = Math.sin(time * 3.0 + bp.x * 3.0) * 0.05;
-
-        // Make particles agitate aggressively when processing
         const amplitude = isProcessing ? 3.5 : 1.0;
 
-        positionAttribute.setXYZ(
-            i,
-            bp.x + noiseX * amplitude,
-            bp.y + noiseY * amplitude,
-            bp.z + noiseZ * amplitude
-        );
+        positionAttribute.setXYZ(i, bp.x + noiseX * amplitude, bp.y + noiseY * amplitude, bp.z + noiseZ * amplitude);
     }
-    positionAttribute.needsUpdate = true; // Tell Three.js to render the mutations
+    positionAttribute.needsUpdate = true; 
 
     coreParticles.rotation.x += 0.001;
     coreParticles.rotation.y += 0.002;
@@ -79,7 +68,6 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
-
 
 // --- 2. UI INTERACTION (DOUBLE TAP, SIDEBAR & SUBTITLES) ---
 const inputLayer = document.getElementById('input-layer');
@@ -112,7 +100,6 @@ fileUpload.addEventListener('change', (e) => {
         statusIndicator.innerText = `FILE LOADED: ${e.target.files[0].name}`;
     }
 });
-
 
 // --- 3. HANDS-FREE VOICE & ENGINE API ---
 let availableVoices = [];
@@ -152,13 +139,13 @@ commandInput.addEventListener('keypress', (e) => {
 async function sendToCore(message) {
     isProcessing = true;
     if (handsFreeActive && recognition) recognition.stop(); 
-    subtitleDisplay.classList.remove('visible'); // Clear old subtitle
+    subtitleDisplay.classList.remove('visible'); 
 
     try {
         const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message })
+            body: JSON.stringify({ message: message, history: [] }) // Empty history prevents backend crash
         });
         const data = await response.json();
         
@@ -192,7 +179,6 @@ function speakText(text) {
     const cleanText = text.replace(/<[^>]*>?/gm, '').trim(); 
     if (!cleanText) return;
 
-    // Display the Subtitle
     subtitleDisplay.innerText = cleanText;
     subtitleDisplay.classList.add('visible');
 
@@ -204,9 +190,7 @@ function speakText(text) {
     utterance.pitch = 0.9;
 
     utterance.onend = () => {
-        // Hide Subtitle
         subtitleDisplay.classList.remove('visible');
-
         if (handsFreeActive && recognition) {
             statusIndicator.innerText = "AWAITING AUDIO...";
             setTimeout(() => { try { recognition.start(); } catch(e){} }, 500);
