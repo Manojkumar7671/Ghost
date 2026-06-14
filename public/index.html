@@ -3,87 +3,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ghost OS Terminal</title>
+    <title>Ghost OS Core</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #050505; /* Deep space black */
-            color: #00ffcc; /* Ghost's matrix/hacker green-blue */
+            background-color: #020202; /* Even darker black */
             font-family: 'Courier New', Courier, monospace;
+            color: #00d4ff; /* Arc Reactor Neon Blue */
         }
         
-        #webgl-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 1;
-        }
+        #webgl-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
 
-        #ui-layer {
+        /* The hidden input layer */
+        #input-layer {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 10;
             display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            pointer-events: none; /* Let clicks pass through to the 3D scene if needed */
+            align-items: center;
+            gap: 10px;
+            opacity: 0; /* Hidden by default */
+            transition: opacity 0.3s ease;
+            pointer-events: none; /* Disabled when hidden */
         }
 
-        #chat-log {
-            padding: 2rem;
-            max-height: 70vh;
-            overflow-y: auto;
+        #input-layer.active {
+            opacity: 1;
             pointer-events: auto;
-            text-shadow: 0 0 5px rgba(0, 255, 204, 0.5);
-        }
-
-        .message { margin-bottom: 1rem; line-height: 1.4; }
-        .boss-msg { color: #ffffff; opacity: 0.8; }
-        .ghost-msg { color: #00ffcc; font-weight: bold; }
-
-        #input-container {
-            padding: 2rem;
-            pointer-events: auto;
-            background: linear-gradient(to top, rgba(5,5,5,1) 50%, rgba(5,5,5,0));
         }
 
         #command-input {
-            width: 100%;
-            max-width: 600px;
-            background: transparent;
-            border: none;
-            border-bottom: 1px solid rgba(0, 255, 204, 0.3);
-            color: #00ffcc;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 1.2rem;
-            padding: 10px 5px;
+            width: 400px;
+            background: rgba(0, 212, 255, 0.05);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 20px;
+            color: #00d4ff;
+            font-family: inherit;
+            font-size: 1.1rem;
+            padding: 12px 20px;
             outline: none;
-            transition: border-color 0.3s;
+            backdrop-filter: blur(5px);
         }
 
-        #command-input:focus {
-            border-bottom: 1px solid #00ffcc;
-            box-shadow: 0 10px 10px -10px rgba(0, 255, 204, 0.5);
+        #command-input:focus { border-color: #00d4ff; box-shadow: 0 0 15px rgba(0, 212, 255, 0.4); }
+
+        /* File Upload Button */
+        .icon-btn {
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            color: #00d4ff;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.2s;
+        }
+        .icon-btn:hover { background: rgba(0, 212, 255, 0.3); }
+
+        /* Code Sidebar */
+        #code-sidebar {
+            position: absolute;
+            top: 0;
+            right: -500px; /* Hidden off-screen */
+            width: 450px;
+            height: 100vh;
+            background: rgba(2, 2, 2, 0.85);
+            border-left: 1px solid rgba(0, 212, 255, 0.3);
+            backdrop-filter: blur(10px);
+            z-index: 20;
+            transition: right 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            flex-direction: column;
+        }
+
+        #code-sidebar.open { right: 0; }
+
+        #sidebar-header {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+        }
+
+        #close-sidebar {
+            background: transparent;
+            border: none;
+            color: #00d4ff;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        #code-content {
+            padding: 20px;
+            overflow-y: auto;
+            flex-grow: 1;
+            white-space: pre-wrap;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        #status-indicator {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            font-size: 0.8rem;
+            opacity: 0.5;
         }
     </style>
 </head>
 <body>
 
+    <div id="status-indicator">SYSTEM STANDBY (Tap to enable mic)</div>
     <div id="webgl-container"></div>
 
-    <div id="ui-layer">
-        <div id="chat-log">
-            <div class="message ghost-msg">System initialized. Awaiting input.</div>
+    <div id="input-layer">
+        <label for="file-upload" class="icon-btn">📎</label>
+        <input type="file" id="file-upload" style="display: none;">
+        <input type="text" id="command-input" placeholder="Double-tap screen to hide..." autocomplete="off">
+    </div>
+
+    <div id="code-sidebar">
+        <div id="sidebar-header">
+            <strong>DATA / CODE VIEW</strong>
+            <button id="close-sidebar">✕</button>
         </div>
-        <div id="input-container">
-            <input type="text" id="command-input" placeholder="Type command..." autocomplete="off" autofocus>
-        </div>
+        <div id="code-content"></div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
