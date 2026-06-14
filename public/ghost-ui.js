@@ -79,7 +79,7 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// --- 2. UI INTERACTION & INTERRUPTION LOGIC ---
+// --- 2. UI INTERACTION & SAFARI INTERRUPTION LOGIC ---
 const inputLayer = document.getElementById('input-layer');
 const commandInput = document.getElementById('command-input');
 const codeSidebar = document.getElementById('code-sidebar');
@@ -111,7 +111,7 @@ commandInput.addEventListener('keydown', () => {
     }
 });
 
-// --- 3. HANDS-FREE VOICE & ENGINE API ---
+// --- 3. HANDS-FREE VOICE (SAFARI OPTIMIZED) ---
 let availableVoices = [];
 window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); };
 
@@ -123,17 +123,12 @@ if (recognition) {
     recognition.continuous = false; 
     recognition.interimResults = false;
     
+    // Explicitly set language to improve Apple Dictation accuracy
+    recognition.lang = 'en-US'; 
+    
     recognition.onstart = () => { 
         isListening = true;
         statusIndicator.innerText = "GHOST // LISTENING"; 
-    };
-    
-    recognition.onspeechstart = () => {
-        if (window.speechSynthesis.speaking) {
-            window.speechSynthesis.cancel();
-            isTalking = false;
-            subtitleDisplay.classList.remove('visible');
-        }
     };
 
     recognition.onresult = (event) => {
@@ -146,13 +141,21 @@ if (recognition) {
     recognition.onerror = () => { isListening = false; statusIndicator.innerText = "GHOST // STANDBY"; };
 }
 
+// Safari Manual Override: Click anywhere to kill audio and open mic
 document.addEventListener('click', (e) => {
     if (e.target.closest('#input-layer') || e.target.closest('#code-sidebar')) return;
-    if (recognition && !isProcessing) {
+    
+    // If he is talking, shut him up.
+    if (window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel(); 
         isTalking = false;
+        subtitleDisplay.classList.remove('visible');
+    }
+
+    // Start listening
+    if (recognition && !isProcessing) {
         handsFreeActive = true;
-        try { recognition.start(); } catch(e) {} 
+        try { recognition.start(); } catch(err) {} 
     }
 });
 
@@ -220,21 +223,18 @@ function speakText(text) {
     if (!cleanText) return;
 
     isTalking = true;
-    statusIndicator.innerText = "GHOST // RESPONDING";
+    // Updated Status to guide the Safari interaction
+    statusIndicator.innerText = "GHOST // RESPONDING (Tap anywhere to interrupt)";
     subtitleDisplay.innerText = cleanText;
     subtitleDisplay.classList.add('visible');
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    
     utterance.lang = 'en-GB';
-
-    // MAX OUT GHOST'S VOLUME
     utterance.volume = 1.0; 
 
     let voices = window.speechSynthesis.getVoices();
     if (voices.length === 0) voices = availableVoices;
 
-    // Target the highest quality built-in Mac/Chrome voices
     const premiumVoices = ['Google UK English Male', 'Daniel', 'Oliver', 'Arthur'];
     
     const britishVoice = voices.find(v => premiumVoices.some(name => v.name.includes(name)))
@@ -247,8 +247,6 @@ function speakText(text) {
     }
     
     utterance.pitch = 1.0; 
-    
-    // SLOW RATE TO REDUCE ROBOTIC STUTTER
     utterance.rate = 0.92; 
 
     utterance.onend = () => {
@@ -256,7 +254,8 @@ function speakText(text) {
         subtitleDisplay.classList.remove('visible');
         if (handsFreeActive && recognition) {
             statusIndicator.innerText = "GHOST // STANDBY";
-            setTimeout(() => { try { recognition.start(); } catch(e){} }, 500);
+            // Safari needs a longer pause before restarting mic
+            setTimeout(() => { try { recognition.start(); } catch(e){} }, 800);
         } else {
             statusIndicator.innerText = "GHOST // STANDBY";
         }
