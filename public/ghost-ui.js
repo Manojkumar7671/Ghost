@@ -226,26 +226,30 @@ function speakText(text) {
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     
-    // Force the utterance language engine to UK English immediately
     utterance.lang = 'en-GB';
+
+    // MAX OUT GHOST'S VOLUME
+    utterance.volume = 1.0; 
 
     let voices = window.speechSynthesis.getVoices();
     if (voices.length === 0) voices = availableVoices;
 
-    // Aggressive British targeting: looks for specific OS native UK voices first
-    const preferredVoices = ['Google UK English Male', 'Daniel', 'Microsoft George', 'Microsoft Ryan'];
+    // Target the highest quality built-in Mac/Chrome voices
+    const premiumVoices = ['Google UK English Male', 'Daniel', 'Oliver', 'Arthur'];
     
-    const britishVoice = voices.find(v => preferredVoices.some(name => v.name.includes(name)))
+    const britishVoice = voices.find(v => premiumVoices.some(name => v.name.includes(name)))
                       || voices.find(v => v.lang === 'en-GB' && v.name.includes('Male'))
                       || voices.find(v => v.lang === 'en-GB' || v.lang === 'en-UK')
-                      || voices.find(v => v.lang.startsWith('en-')); // Final fallback to any English
+                      || voices.find(v => v.lang.startsWith('en-'));
                       
     if (britishVoice) {
         utterance.voice = britishVoice;
     }
     
     utterance.pitch = 1.0; 
-    utterance.rate = 1.0; 
+    
+    // SLOW RATE TO REDUCE ROBOTIC STUTTER
+    utterance.rate = 0.92; 
 
     utterance.onend = () => {
         isTalking = false;
