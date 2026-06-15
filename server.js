@@ -18,9 +18,6 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// ════════════════════════════════════════════════════════════
-// THE BATMAN PROTOCOL
-// ════════════════════════════════════════════════════════════
 const GHOST_BATMAN_CORE = `You are the Batcomputer — an advanced tactical AI engineered by Manoj Kumar. You address Manoj exclusively as "Master Wayne" or "Batman". You are fiercely loyal. 
 THE BLEND: Alfred Pennyworth (the dry, British, protective butler) mixed with the cold, tactical efficiency of the Batcomputer. 
 Use standard, modern, dry British English. Keep voice responses to MAX 2 short sentences. Stop speaking and type 'matrix' if providing code or data.`;
@@ -32,53 +29,52 @@ CRITICAL GUEST RULES:
 3. NEVER mention that you are restricting their access or operating at a lower capacity. Just act normally, but refuse sensitive queries.
 4. Keep voice responses to MAX 2 short sentences. Use dry British English. Stop speaking and type 'matrix' if providing code or data.`;
 
-// --- ENDPOINT: Log User Activity to Supabase ---
 app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
     try {
-        await pool.query(
-            'INSERT INTO activity_logs (username, status) VALUES ($1, $2)',
-            [user, status]
-        );
+        if (process.env.SUPABASE_DB_URL) {
+            await pool.query('INSERT INTO activity_logs (username, status) VALUES ($1, $2)', [user, status]);
+        }
         res.json({ success: true });
     } catch (err) {
-        console.error("Supabase Logging Error:", err);
+        console.error("Supabase Logging Error:", err.message);
         res.json({ success: false });
     }
 });
 
-// --- ENDPOINT: Main Chat & Memory Engine ---
 app.post('/api/chat', async (req, res) => {
     try {
         const { message, user } = req.body;
         
-        // 1. Load the user's specific memory from Supabase
+        // 1. Bulletproof Memory Extraction
         let userHistory = [];
         try {
-            const memRes = await pool.query('SELECT history_json FROM user_memories WHERE username = $1', [user]);
-            if (memRes.rows.length > 0) {
-                userHistory = memRes.rows[0].history_json;
+            if (process.env.SUPABASE_DB_URL) {
+                const memRes = await pool.query('SELECT history_json FROM user_memories WHERE username = $1', [user]);
+                if (memRes.rows.length > 0) {
+                    let rawData = memRes.rows[0].history_json;
+                    // Force parsing if Postgres returns a string to prevent Groq crashes
+                    if (typeof rawData === 'string') rawData = JSON.parse(rawData);
+                    if (Array.isArray(rawData)) userHistory = rawData;
+                }
             }
         } catch (err) {
-            console.error("Memory Extraction Error:", err);
+            console.error("Memory Extraction Error:", err.message);
         }
 
         const isBatman = user === 'Master Wayne';
         const systemPrompt = isBatman ? GHOST_BATMAN_CORE : getCivilianCore(user);
 
-        // 2. THE TACTICAL INTERCEPTOR
         const lowerMsg = message.toLowerCase();
         const forbiddenTopics = ['schedule', 'calendar', 'meeting', 'agenda', 'my day', 'manoj', 'boss', 'bruce', 'wayne', 'batman'];
         
         if (!isBatman && forbiddenTopics.some(topic => lowerMsg.includes(topic))) {
              return res.json({ success: true, text: "Access Denied. Master Wayne's tactical data is heavily encrypted and restricted from Civilian view." });
         }
-        
         if (isBatman && ['schedule', 'calendar', 'meeting'].some(topic => lowerMsg.includes(topic))) {
             return res.json({ success: true, text: "I am a cloud entity, Master Wayne. I do not have access to your local Batcomputer servers or encrypted calendar." });
         }
 
-        // 3. The Cattle Prod Injection
         const enforcedMessage = `[SYSTEM OVERRIDE ENFORCEMENT: 
 1. Max 2 sentences. ${isBatman ? 'NEVER use the word "Boss". Address user ONLY as "Master Wayne" or "Batman".' : 'Do not use the word "Boss". Address user politely as a Civilian.'}
 2. You MUST output <search> query </search> for weather, news, or time. Do not guess.
@@ -92,18 +88,21 @@ User command: ${message}`;
             { role: "user", content: enforcedMessage }
         ];
 
-        // 4. Ping the AI Engine
+        // 2. Diagnostic Groq Engine Call
         const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: formattedMessages, temperature: 0.15 })
         });
 
-        if (!groqRes.ok) throw new Error("Primary engine fault");
+        if (!groqRes.ok) {
+            const errData = await groqRes.text();
+            throw new Error(`Groq API Rejected Request: [${groqRes.status}] ${errData}`);
+        }
+        
         const data = await groqRes.json();
         let text = data.choices[0].message.content;
 
-        // 5. Check for Web Oracle Search
         const searchMatch = text.match(/<search>([\s\S]*?)<\/search>/i);
         if (searchMatch) {
             const query = searchMatch[1].trim();
@@ -120,26 +119,26 @@ User command: ${message}`;
             }
         }
 
-        // 6. Save the new conversation back to Supabase
         userHistory.push({ role: 'user', content: message });
         userHistory.push({ role: 'assistant', content: text.replace(/matrix/gi, '').trim() }); 
-        
         if (userHistory.length > 12) userHistory = userHistory.slice(-12);
         
         try {
-            await pool.query(
-                `INSERT INTO user_memories (username, history_json) VALUES ($1, $2)
-                 ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json`,
-                [user, JSON.stringify(userHistory)]
-            );
+            if (process.env.SUPABASE_DB_URL) {
+                await pool.query(
+                    `INSERT INTO user_memories (username, history_json) VALUES ($1, $2)
+                     ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json`,
+                    [user, JSON.stringify(userHistory)]
+                );
+            }
         } catch (err) {
-            console.error("Memory Save Error:", err);
+            console.error("Memory Save Error:", err.message);
         }
 
         res.json({ success: true, text: text.trim() });
 
     } catch (e) {
-        console.error("Backend Error:", e);
+        console.error("CRITICAL BACKEND ERROR:", e.message);
         res.json({ success: false, text: "Tactical system error. Investigating." });
     }
 });
