@@ -1,4 +1,4 @@
-klet currentUser = "Guest";
+let currentUser = "Guest";
 let isBatman = false;
 
 const MASTER_PASSCODE = "knightfall"; 
@@ -9,18 +9,24 @@ const authBtn = document.getElementById('auth-btn');
 const disconnectBtn = document.getElementById('disconnect-btn');
 const sidebarHeader = document.getElementById('sidebar-header');
 
+// --- THE ABSOLUTE AUDIO WAKE-LOCK ---
+function forceUnlockAudio() {
+    let silent = new SpeechSynthesisUtterance('');
+    silent.volume = 0;
+    window.speechSynthesis.speak(silent);
+    if (window.speechSynthesis.resume) window.speechSynthesis.resume();
+}
+// Triggers the exact second you touch the screen or hit a key
+document.body.addEventListener('click', forceUnlockAudio, { once: true });
+document.body.addEventListener('touchstart', forceUnlockAudio, { once: true });
+document.body.addEventListener('keydown', forceUnlockAudio, { once: true });
+
 authBtn.addEventListener('click', initializeGhost);
 authInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') initializeGhost(); });
 
 function initializeGhost() {
     const inputVal = authInput.value.trim();
     if (!inputVal) return;
-
-    // 🛑 THE AUDIO HAMMER: Wakes up the browser's speech engine on direct user interaction 🛑
-    window.speechSynthesis.cancel();
-    if (window.speechSynthesis.resume) {
-        window.speechSynthesis.resume();
-    }
 
     if (inputVal === MASTER_PASSCODE) {
         currentUser = "Master Wayne";
@@ -36,7 +42,6 @@ function initializeGhost() {
         speakText(`Initialization complete. Welcome, ${currentUser}. I am Ghost, an AI architecture engineered by Manoj Kumar. How may I assist you today?`);
     }
 
-    // Graceful fetch that won't crash the UI if the backend isn't ready
     fetch('/api/auth', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
@@ -221,7 +226,7 @@ function speakText(text) {
     const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/matrix/gi, '').trim(); 
     if (!cleanText) return;
 
-    window.speechSynthesis.cancel(); // Ensures no conflicting audio
+    window.speechSynthesis.cancel(); 
 
     isTalking = true;
     statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // RESPONDING`;
@@ -254,9 +259,5 @@ function speakText(text) {
     };
 
     window.speechSynthesis.speak(utterance);
-    
-    // Force wake Safari/Opera engines
-    if (window.speechSynthesis.resume) {
-        window.speechSynthesis.resume();
-    }
+    if (window.speechSynthesis.resume) window.speechSynthesis.resume();
 }

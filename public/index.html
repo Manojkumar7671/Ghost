@@ -42,6 +42,16 @@
         #sidebar-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0, 212, 255, 0.2); }
         #close-sidebar { background: transparent; border: none; color: #00d4ff; font-size: 1.5rem; cursor: pointer; }
         #code-content { padding: 20px; overflow-y: auto; flex-grow: 1; white-space: pre-wrap; font-size: 0.9rem; line-height: 1.5; }
+
+        /* MOBILE RESPONSIVENESS */
+        @media (max-width: 600px) {
+            #subtitle-display { font-size: 1rem; bottom: 100px; width: 95%; }
+            .auth-box { width: 80%; padding: 20px; }
+            .auth-input { width: 100%; font-size: 1rem; }
+            #command-input { width: 220px; font-size: 0.9rem; }
+            #code-sidebar { width: 100%; right: -100%; border-left: none; border-top: 1px solid rgba(0, 212, 255, 0.3); }
+            #top-bar { top: 10px; left: 10px; gap: 10px; flex-direction: column; align-items: flex-start; }
+        }
     </style>
 </head>
 <body>
