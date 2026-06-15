@@ -1,15 +1,27 @@
-// --- 0. AUTHENTICATION PROTOCOL (STEALTH ADMIN EDITION) ---
 let currentUser = "Guest";
-let isBatman = false;
-
-// The hidden admin trigger
-const MASTER_PASSCODE = "knightfall"; 
 
 const authLayer = document.getElementById('auth-layer');
 const authInput = document.getElementById('auth-input');
 const authBtn = document.getElementById('auth-btn');
 const disconnectBtn = document.getElementById('disconnect-btn');
-const sidebarHeader = document.getElementById('sidebar-header');
+
+// --- THE SILENT AUDIO UNLOCKER (Fixes Browser Auto-Play Block) ---
+let audioUnlocked = false;
+function unlockSpeechAPI() {
+    if (!audioUnlocked && window.speechSynthesis) {
+        const silentUtterance = new SpeechSynthesisUtterance('');
+        silentUtterance.volume = 0; // Completely silent
+        window.speechSynthesis.speak(silentUtterance);
+        audioUnlocked = true;
+        // Remove listeners once unlocked
+        document.removeEventListener('click', unlockSpeechAPI);
+        document.removeEventListener('keydown', unlockSpeechAPI);
+    }
+}
+// Attach unlocker to the first user interaction
+document.addEventListener('click', unlockSpeechAPI);
+document.addEventListener('keydown', unlockSpeechAPI);
+
 
 authBtn.addEventListener('click', initializeGhost);
 authInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') initializeGhost(); });
@@ -18,23 +30,9 @@ function initializeGhost() {
     const inputVal = authInput.value.trim();
     if (!inputVal) return;
 
-    if (inputVal === MASTER_PASSCODE) {
-        // ADMIN MODE ACTIVATED
-        currentUser = "Master Wayne";
-        isBatman = true;
-        sidebarHeader.innerHTML = '<strong>TACTICAL DATA MATRIX</strong><button id="close-sidebar">✕</button>';
-        document.getElementById('close-sidebar').addEventListener('click', () => { codeSidebar.classList.remove('open'); });
-        
-        speakText("Protocol Knightfall accepted. Welcome to the Batcave, Master Wayne. All tactical systems are online.");
-    } else {
-        // PROFESSIONAL RECRUITER MODE
-        currentUser = inputVal;
-        isBatman = false;
-        sidebarHeader.innerHTML = '<strong>GHOST DATA MATRIX</strong><button id="close-sidebar">✕</button>';
-        document.getElementById('close-sidebar').addEventListener('click', () => { codeSidebar.classList.remove('open'); });
-        
-        speakText(`Initialization complete. Welcome, ${currentUser}. I am Ghost, an AI architecture engineered by Manoj Kumar. How may I assist you today?`);
-    }
+    currentUser = inputVal;
+    
+    speakText(`Welcome, ${currentUser}. I am Ghost, an AI engineered by Manoj Kumar. I can search the web, write code, and analyze files. How can I help you today?`);
 
     fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: currentUser, status: 'ACTIVE' }) });
 
@@ -51,7 +49,6 @@ disconnectBtn.addEventListener('click', () => {
     currentUser = "Guest";
 });
 
-// --- 1. NON-STOP PARTICLE SWARM & COLOR MORPHING ---
 const container = document.getElementById('webgl-container');
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -94,10 +91,9 @@ function animate() {
 animate();
 window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
 
-// --- 2. UI INTERACTION & LOGIC ---
 const inputLayer = document.getElementById('input-layer'); const commandInput = document.getElementById('command-input');
 const codeSidebar = document.getElementById('code-sidebar'); const codeContent = document.getElementById('code-content');
-const statusIndicator = document.getElementById('status-indicator');
+const closeSidebarBtn = document.getElementById('close-sidebar'); const statusIndicator = document.getElementById('status-indicator');
 const subtitleDisplay = document.getElementById('subtitle-display'); const fileUpload = document.getElementById('file-upload');
 let lastTap = 0;
 
@@ -109,6 +105,7 @@ document.addEventListener('touchend', (e) => {
 });
 
 function toggleInput() { inputLayer.classList.toggle('active'); if (inputLayer.classList.contains('active')) commandInput.focus(); }
+closeSidebarBtn.addEventListener('click', () => { codeSidebar.classList.remove('open'); });
 commandInput.addEventListener('keydown', () => { if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); isTalking = false; subtitleDisplay.classList.remove('visible'); } });
 
 let attachedFileContent = ""; let attachedFileName = "";
@@ -137,13 +134,13 @@ let handsFreeActive = false;
 
 if (recognition) {
     recognition.continuous = false; recognition.interimResults = false; recognition.lang = 'en-US'; 
-    recognition.onstart = () => { isListening = true; statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // LISTENING (${currentUser})`; };
+    recognition.onstart = () => { isListening = true; statusIndicator.innerText = `GHOST // LISTENING (${currentUser})`; };
     recognition.onresult = (event) => {
-        isListening = false; statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // PROCESSING`;
+        isListening = false; statusIndicator.innerText = `GHOST // PROCESSING`;
         sendToCore(event.results[0][0].transcript);
     };
     recognition.onend = () => { isListening = false; }
-    recognition.onerror = () => { isListening = false; statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // STANDBY (${currentUser})`; };
+    recognition.onerror = () => { isListening = false; statusIndicator.innerText = `GHOST // STANDBY (${currentUser})`; };
 }
 
 document.addEventListener('click', (e) => {
@@ -202,7 +199,7 @@ function handleGhostResponse(rawText) {
 
     if (sidebarData) {
         codeContent.innerText = sidebarData.trim(); codeSidebar.classList.add('open');
-        if (!spokenText.trim()) spokenText = isBatman ? "Data compiled in the tactical matrix." : "Data compiled in the matrix.";
+        if (!spokenText.trim()) spokenText = "Data compiled in the matrix.";
     }
     speakText(spokenText);
 }
@@ -212,7 +209,7 @@ function speakText(text) {
     if (!cleanText) return;
 
     isTalking = true;
-    statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // RESPONDING`;
+    statusIndicator.innerText = `GHOST // RESPONDING`;
     subtitleDisplay.innerText = cleanText; subtitleDisplay.classList.add('visible');
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
@@ -223,15 +220,23 @@ function speakText(text) {
     if (britishVoice) utterance.voice = britishVoice;
     
     utterance.pitch = 1.0; utterance.rate = 0.92; 
+    
+    // Fallback error handler to prevent permanent "AUDIO BLOCKED" UI state
+    utterance.onerror = () => { 
+        isTalking = false; 
+        subtitleDisplay.classList.remove('visible'); 
+        statusIndicator.innerText = `GHOST // STANDBY (${currentUser})`; 
+    };
+    
     utterance.onend = () => {
         isTalking = false; subtitleDisplay.classList.remove('visible');
         if (handsFreeActive && recognition) {
-            statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // STANDBY (${currentUser})`;
+            statusIndicator.innerText = `GHOST // STANDBY (${currentUser})`;
             setTimeout(() => { try { recognition.start(); } catch(e){} }, 800);
         } else {
-            statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // STANDBY (${currentUser})`;
+            statusIndicator.innerText = `GHOST // STANDBY (${currentUser})`;
         }
     };
-    utterance.onerror = () => { isTalking = false; subtitleDisplay.classList.remove('visible'); statusIndicator.innerText = "GHOST // AUDIO BLOCKED"; };
+
     window.speechSynthesis.speak(utterance);
 }
