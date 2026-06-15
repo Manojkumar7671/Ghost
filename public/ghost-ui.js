@@ -1,4 +1,4 @@
-// --- 0. AUTHENTICATION PROTOCOL (BATMAN EDITION) ---
+kkk// --- 0. AUTHENTICATION PROTOCOL (BATMAN EDITION) ---
 let currentUser = "Civilian";
 let isBatman = false;
 
@@ -8,6 +8,7 @@ const MASTER_PASSCODE = "knightfall";
 const authLayer = document.getElementById('auth-layer');
 const authInput = document.getElementById('auth-input');
 const authBtn = document.getElementById('auth-btn');
+const disconnectBtn = document.getElementById('disconnect-btn');
 
 authBtn.addEventListener('click', initializeGhost);
 authInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') initializeGhost(); });
@@ -21,14 +22,29 @@ function initializeGhost() {
         isBatman = true;
         speakText("Protocol Knightfall accepted. Welcome to the Batcave, Master Wayne. All tactical systems are online.");
     } else {
-        // Normal civilian greeting with no mention of throttled memory
         currentUser = inputVal;
         isBatman = false;
         speakText(`Civilian identity recognized. Welcome, ${currentUser}. I am the Batcomputer. Secure terminal activated.`);
     }
 
+    // Ping the server to log the user as ACTIVE in the Excel sheet
+    fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: currentUser, status: 'ACTIVE' }) });
+
     authLayer.classList.add('hidden');
+    disconnectBtn.classList.add('visible');
+    authInput.value = "";
 }
+
+// LOGOUT FUNCTION
+disconnectBtn.addEventListener('click', () => {
+    // Ping the server to log the user as INACTIVE
+    fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: currentUser, status: 'INACTIVE' }) });
+    
+    speakText("Logging off. Securing terminal.");
+    authLayer.classList.remove('hidden');
+    disconnectBtn.classList.remove('visible');
+    currentUser = "Civilian";
+});
 
 // --- 1. NON-STOP PARTICLE SWARM & COLOR MORPHING ---
 const container = document.getElementById('webgl-container');
@@ -129,7 +145,7 @@ if (recognition) {
 }
 
 document.addEventListener('click', (e) => {
-    if (e.target.closest('#input-layer') || e.target.closest('#code-sidebar') || e.target.closest('.icon-btn') || e.target.closest('#auth-layer')) return;
+    if (e.target.closest('#input-layer') || e.target.closest('#code-sidebar') || e.target.closest('.icon-btn') || e.target.closest('#auth-layer') || e.target.closest('#disconnect-btn')) return;
     if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); isTalking = false; subtitleDisplay.classList.remove('visible'); }
     if (recognition && !isProcessing) { handsFreeActive = true; try { recognition.start(); } catch(err) {} }
 });
@@ -139,9 +155,6 @@ commandInput.addEventListener('keypress', (e) => {
         sendToCore(commandInput.value.trim()); commandInput.value = '';
     }
 });
-
-// --- SEND DATA TO BACKEND WITH USER IDENTITY ---
-let chatMemory = []; // Keep memory separate per session
 
 async function sendToCore(message) {
     isProcessing = true;
@@ -158,20 +171,11 @@ async function sendToCore(message) {
         const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            // Attach the current user identity and history to the request
-            body: JSON.stringify({ message: finalPayload, history: chatMemory, user: currentUser }) 
+            body: JSON.stringify({ message: finalPayload, user: currentUser }) 
         });
         const data = await response.json();
-        
-        if (data.success) {
-            // Save the conversation to local memory so Ghost remembers context during this session
-            chatMemory.push({ role: "user", content: message });
-            chatMemory.push({ role: "assistant", content: data.text });
-            
-            handleGhostResponse(data.text);
-        } else {
-            speakText("System error. Investigating.");
-        }
+        if (data.success) handleGhostResponse(data.text);
+        else speakText("System error. Investigating.");
     } catch (error) {
         speakText("Critical fault. Unable to reach core engine.");
     } finally {
