@@ -1,14 +1,15 @@
-// --- 0. AUTHENTICATION PROTOCOL (BATMAN EDITION) ---
-let currentUser = "Civilian";
+// --- 0. AUTHENTICATION PROTOCOL (STEALTH ADMIN EDITION) ---
+let currentUser = "Guest";
 let isBatman = false;
 
-// Your new secret master passcode. Do not tell your friends this.
+// The hidden admin trigger
 const MASTER_PASSCODE = "knightfall"; 
 
 const authLayer = document.getElementById('auth-layer');
 const authInput = document.getElementById('auth-input');
 const authBtn = document.getElementById('auth-btn');
 const disconnectBtn = document.getElementById('disconnect-btn');
+const sidebarHeader = document.getElementById('sidebar-header');
 
 authBtn.addEventListener('click', initializeGhost);
 authInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') initializeGhost(); });
@@ -18,16 +19,23 @@ function initializeGhost() {
     if (!inputVal) return;
 
     if (inputVal === MASTER_PASSCODE) {
+        // ADMIN MODE ACTIVATED
         currentUser = "Master Wayne";
         isBatman = true;
+        sidebarHeader.innerHTML = '<strong>TACTICAL DATA MATRIX</strong><button id="close-sidebar">✕</button>';
+        document.getElementById('close-sidebar').addEventListener('click', () => { codeSidebar.classList.remove('open'); });
+        
         speakText("Protocol Knightfall accepted. Welcome to the Batcave, Master Wayne. All tactical systems are online.");
     } else {
+        // PROFESSIONAL RECRUITER MODE
         currentUser = inputVal;
         isBatman = false;
-        speakText(`Civilian identity recognized. Welcome, ${currentUser}. I am the Batcomputer. Secure terminal activated.`);
+        sidebarHeader.innerHTML = '<strong>GHOST DATA MATRIX</strong><button id="close-sidebar">✕</button>';
+        document.getElementById('close-sidebar').addEventListener('click', () => { codeSidebar.classList.remove('open'); });
+        
+        speakText(`Initialization complete. Welcome, ${currentUser}. I am Ghost, an AI architecture engineered by Manoj Kumar. How may I assist you today?`);
     }
 
-    // Ping the server to log the user as ACTIVE in Supabase
     fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: currentUser, status: 'ACTIVE' }) });
 
     authLayer.classList.add('hidden');
@@ -35,15 +43,12 @@ function initializeGhost() {
     authInput.value = "";
 }
 
-// LOGOUT FUNCTION
 disconnectBtn.addEventListener('click', () => {
-    // Ping the server to log the user as INACTIVE
     fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: currentUser, status: 'INACTIVE' }) });
-    
     speakText("Logging off. Securing terminal.");
     authLayer.classList.remove('hidden');
     disconnectBtn.classList.remove('visible');
-    currentUser = "Civilian";
+    currentUser = "Guest";
 });
 
 // --- 1. NON-STOP PARTICLE SWARM & COLOR MORPHING ---
@@ -89,10 +94,10 @@ function animate() {
 animate();
 window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
 
-// --- 2. UI INTERACTION, FILE PARSING & INTERRUPTION LOGIC ---
+// --- 2. UI INTERACTION & LOGIC ---
 const inputLayer = document.getElementById('input-layer'); const commandInput = document.getElementById('command-input');
 const codeSidebar = document.getElementById('code-sidebar'); const codeContent = document.getElementById('code-content');
-const closeSidebarBtn = document.getElementById('close-sidebar'); const statusIndicator = document.getElementById('status-indicator');
+const statusIndicator = document.getElementById('status-indicator');
 const subtitleDisplay = document.getElementById('subtitle-display'); const fileUpload = document.getElementById('file-upload');
 let lastTap = 0;
 
@@ -104,30 +109,27 @@ document.addEventListener('touchend', (e) => {
 });
 
 function toggleInput() { inputLayer.classList.toggle('active'); if (inputLayer.classList.contains('active')) commandInput.focus(); }
-closeSidebarBtn.addEventListener('click', () => { codeSidebar.classList.remove('open'); });
 commandInput.addEventListener('keydown', () => { if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); isTalking = false; subtitleDisplay.classList.remove('visible'); } });
 
-// FILE UPLOAD LOGIC
 let attachedFileContent = ""; let attachedFileName = "";
 fileUpload.addEventListener('change', (e) => {
     if(e.target.files.length > 0) {
         const file = e.target.files[0];
         if (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.docx')) {
-            statusIndicator.innerText = `SYSTEM // ERROR: UNSUPPORTED FORMAT`;
+            statusIndicator.innerText = `GHOST // ERROR: UNSUPPORTED FORMAT`;
             speakText("I apologize, but my optical parsers cannot read PDF or Word documents.");
             fileUpload.value = ""; return;
         }
         const reader = new FileReader();
         reader.onload = function(event) {
             attachedFileContent = event.target.result; attachedFileName = file.name;
-            statusIndicator.innerText = `SYSTEM // FILE LOADED: ${file.name}`;
-            speakText(`File loaded into tactical matrix. Awaiting instructions.`);
+            statusIndicator.innerText = `GHOST // FILE LOADED: ${file.name}`;
+            speakText(`File loaded into the matrix. Awaiting instructions.`);
         };
         reader.readAsText(file);
     }
 });
 
-// --- 3. HANDS-FREE VOICE ---
 let availableVoices = []; window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); };
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const recognition = new SpeechRecognition ? new SpeechRecognition() : null;
@@ -135,13 +137,13 @@ let handsFreeActive = false;
 
 if (recognition) {
     recognition.continuous = false; recognition.interimResults = false; recognition.lang = 'en-US'; 
-    recognition.onstart = () => { isListening = true; statusIndicator.innerText = `SYSTEM // LISTENING (${currentUser})`; };
+    recognition.onstart = () => { isListening = true; statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // LISTENING (${currentUser})`; };
     recognition.onresult = (event) => {
-        isListening = false; statusIndicator.innerText = `SYSTEM // PROCESSING`;
+        isListening = false; statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // PROCESSING`;
         sendToCore(event.results[0][0].transcript);
     };
     recognition.onend = () => { isListening = false; }
-    recognition.onerror = () => { isListening = false; statusIndicator.innerText = `SYSTEM // STANDBY (${currentUser})`; };
+    recognition.onerror = () => { isListening = false; statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // STANDBY (${currentUser})`; };
 }
 
 document.addEventListener('click', (e) => {
@@ -200,7 +202,7 @@ function handleGhostResponse(rawText) {
 
     if (sidebarData) {
         codeContent.innerText = sidebarData.trim(); codeSidebar.classList.add('open');
-        if (!spokenText.trim()) spokenText = "Data compiled in the tactical matrix.";
+        if (!spokenText.trim()) spokenText = isBatman ? "Data compiled in the tactical matrix." : "Data compiled in the matrix.";
     }
     speakText(spokenText);
 }
@@ -210,7 +212,7 @@ function speakText(text) {
     if (!cleanText) return;
 
     isTalking = true;
-    statusIndicator.innerText = `SYSTEM // RESPONDING`;
+    statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // RESPONDING`;
     subtitleDisplay.innerText = cleanText; subtitleDisplay.classList.add('visible');
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
@@ -224,12 +226,12 @@ function speakText(text) {
     utterance.onend = () => {
         isTalking = false; subtitleDisplay.classList.remove('visible');
         if (handsFreeActive && recognition) {
-            statusIndicator.innerText = `SYSTEM // STANDBY (${currentUser})`;
+            statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // STANDBY (${currentUser})`;
             setTimeout(() => { try { recognition.start(); } catch(e){} }, 800);
         } else {
-            statusIndicator.innerText = `SYSTEM // STANDBY (${currentUser})`;
+            statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // STANDBY (${currentUser})`;
         }
     };
-    utterance.onerror = () => { isTalking = false; subtitleDisplay.classList.remove('visible'); statusIndicator.innerText = "SYSTEM // AUDIO BLOCKED"; };
+    utterance.onerror = () => { isTalking = false; subtitleDisplay.classList.remove('visible'); statusIndicator.innerText = "GHOST // AUDIO BLOCKED"; };
     window.speechSynthesis.speak(utterance);
 }

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Batcomputer Core</title>
+    <title>Ghost OS</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #020202; font-family: 'Courier New', Courier, monospace; color: #00d4ff; }
         #webgl-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
@@ -47,15 +47,15 @@
 <body>
     <div id="auth-layer">
         <div class="auth-box">
-            <h2>BATCAVE // SECURE TERMINAL</h2>
-            <input type="password" id="auth-input" class="auth-input" placeholder="Enter Identity or Override Code..." autocomplete="off">
+            <h2>GHOST OS // LOGIN</h2>
+            <input type="text" id="auth-input" class="auth-input" placeholder="Enter your name..." autocomplete="off">
             <br>
-            <button id="auth-btn" class="auth-btn">DECRYPT</button>
+            <button id="auth-btn" class="auth-btn">CONNECT</button>
         </div>
     </div>
 
     <div id="top-bar">
-        <div id="status-indicator">SYSTEM // STANDBY</div>
+        <div id="status-indicator">GHOST // STANDBY</div>
         <button id="disconnect-btn">DISCONNECT</button>
     </div>
     
@@ -70,7 +70,7 @@
 
     <div id="code-sidebar">
         <div id="sidebar-header">
-            <strong>TACTICAL DATA MATRIX</strong>
+            <strong>GHOST DATA MATRIX</strong>
             <button id="close-sidebar">✕</button>
         </div>
         <div id="code-content"></div>
