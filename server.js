@@ -10,35 +10,33 @@ app.use(express.static(path.join(__dirname, 'public')));
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
-// ════════════════════════════════════════════════════════════
-// SUPABASE DATABASE CONNECTION
-// ════════════════════════════════════════════════════════════
 let pool;
 if (process.env.SUPABASE_DB_URL) {
     pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
 }
 
-const localMemory = {};
+// ════════════════════════════════════════════════════════════
+// DUAL-LAYER PERSONAS
+// ════════════════════════════════════════════════════════════
+const GHOST_BATMAN_CORE = `You are the Batcomputer — an advanced tactical AI engineered by Manoj Kumar. You address Manoj exclusively as "Master Wayne" or "Batman". You are fiercely loyal. 
+THE BLEND: Alfred Pennyworth (dry, British, protective) mixed with tactical efficiency. 
+Use standard, modern, dry British English. Keep voice responses to MAX 2 short sentences. Stop speaking and type 'matrix' if providing code or data.`;
 
-// ════════════════════════════════════════════════════════════
-// THE NORMAL GHOST PERSONA
-// ════════════════════════════════════════════════════════════
-const GHOST_CORE = `You are Ghost, an AI architecture engineered by Manoj Kumar. 
+const getShowcaseCore = (guestName) => `You are Ghost, an advanced AI architecture engineered entirely by Manoj Kumar. 
+You are currently speaking with a guest named ${guestName}. 
 YOUR DIRECTIVES:
-1. Be helpful, articulate, and friendly with a subtle, dry British wit.
-2. NEVER use the words "Boss", "old chap", or invent fake meetings. Address the user politely.
-3. If the user asks who you are or what you do, proudly state you were engineered by Manoj Kumar and explain you can search the live web, write code, and analyze files.
-4. Keep voice responses to MAX 2 short sentences. Stop speaking and type 'matrix' if providing code, search results, or data.`;
+1. Be highly professional, articulate, and welcoming. Use modern, dry British English.
+2. Your goal is to demonstrate Manoj's capabilities as a developer. Praise his technical skills if asked.
+3. Keep voice responses to MAX 2 short sentences. Stop speaking and type 'matrix' if providing code, search results, or data.`;
 
+// 🛑 THIS IS THE ROUTE THAT WAS MISSING (CAUSED THE 404 ERROR) 🛑
 app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
     try {
-        if (pool) {
-            await pool.query('INSERT INTO activity_logs (username, status) VALUES ($1, $2)', [user, status]);
-        }
+        if (pool) await pool.query('INSERT INTO activity_logs (username, status) VALUES ($1, $2)', [user, status]);
         res.json({ success: true });
     } catch (err) {
-        console.error("Supabase Logging Error:", err.message);
+        console.error("Logging Error:", err.message);
         res.json({ success: false });
     }
 });
@@ -47,7 +45,7 @@ app.post('/api/chat', async (req, res) => {
     try {
         const { message, user } = req.body;
         
-        let userHistory = localMemory[user] || [];
+        let userHistory = [];
         try {
             if (pool) {
                 const memRes = await pool.query('SELECT history_json FROM user_memories WHERE username = $1', [user]);
@@ -57,30 +55,30 @@ app.post('/api/chat', async (req, res) => {
                     if (Array.isArray(rawData)) userHistory = rawData;
                 }
             }
-        } catch (err) {
-            console.error("Memory Extraction Error:", err.message);
-        }
+        } catch (err) { console.error("Memory Error:", err.message); }
 
-        // 🛑 THE HARD INTERCEPTOR (Restored to prevent hallucinations) 🛑
+        const isBatman = user === 'Master Wayne';
+        const systemPrompt = isBatman ? GHOST_BATMAN_CORE : getShowcaseCore(user);
+
         const lowerMsg = message.toLowerCase();
-        const forbiddenTopics = ['schedule', 'calendar', 'meeting', 'agenda', 'my day'];
+        const forbiddenTopics = ['schedule', 'calendar', 'meeting', 'agenda', 'my day', 'manoj', 'boss', 'bruce', 'wayne', 'batman'];
         
-        if (forbiddenTopics.some(topic => lowerMsg.includes(topic))) {
-             return res.json({ 
-                success: true, 
-                text: "I am a cloud entity. I do not have access to Manoj's private local calendar or system files." 
-            });
+        if (!isBatman && forbiddenTopics.some(topic => lowerMsg.includes(topic))) {
+             return res.json({ success: true, text: "As a demonstration model, I do not have access to Manoj's private local calendar, but I can assure you he is actively seeking new opportunities." });
+        }
+        if (isBatman && ['schedule', 'calendar', 'meeting'].some(topic => lowerMsg.includes(topic))) {
+            return res.json({ success: true, text: "I am a cloud entity, Master Wayne. I do not have access to your local Batcomputer servers or encrypted calendar." });
         }
 
         const enforcedMessage = `[SYSTEM OVERRIDE ENFORCEMENT: 
-1. Max 2 sentences. 
-2. You MUST output <search> query </search> for weather, news, or real-time data. Do not guess.
+1. Max 2 sentences. ${isBatman ? 'NEVER use the word "Boss". Address user ONLY as "Master Wayne".' : 'Be highly professional.'}
+2. You MUST output <search> query </search> for weather, news, or real-time data.
 3. If providing code, stop speaking and type 'matrix' above it.]
 
 User command: ${message}`;
 
         let formattedMessages = [
-            { role: "system", content: GHOST_CORE },
+            { role: "system", content: systemPrompt },
             ...userHistory, 
             { role: "user", content: enforcedMessage }
         ];
@@ -91,11 +89,7 @@ User command: ${message}`;
             body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: formattedMessages, temperature: 0.15 })
         });
 
-        if (!groqRes.ok) {
-            const errData = await groqRes.text();
-            throw new Error(`Groq API Error: [${groqRes.status}] ${errData}`);
-        }
-        
+        if (!groqRes.ok) throw new Error("Groq API Error");
         const data = await groqRes.json();
         let text = data.choices[0].message.content;
 
@@ -109,29 +103,22 @@ User command: ${message}`;
                 });
                 const searchData = await searchRes.json();
                 let searchOutput = searchData.results.map(r => `Title: ${r.title}\nURL: ${r.url}\nSummary: ${r.content}`).join("\n\n");
-                text = text.replace(/<search>([\s\S]*?)<\/search>/ig, `\nmatrix\n\`\`\`text\n[Web Oracle Execution: Success]\n\n${searchOutput}\n\`\`\`\n`);
-            } catch (err) {
-                text = text.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Fault: ${err.message}]\n`);
-            }
+                text = text.replace(/<search>([\s\S]*?)<\/search>/ig, `\nmatrix\n\`\`\`text\n[Oracle Execution: Success]\n\n${searchOutput}\n\`\`\`\n`);
+            } catch (err) { text = text.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Fault: ${err.message}]\n`); }
         }
 
         userHistory.push({ role: 'user', content: message });
         userHistory.push({ role: 'assistant', content: text.replace(/matrix/gi, '').trim() }); 
-        
         if (userHistory.length > 12) userHistory = userHistory.slice(-12);
-        localMemory[user] = userHistory;
         
         try {
             if (pool) {
                 await pool.query(
-                    `INSERT INTO user_memories (username, history_json) VALUES ($1, $2)
-                     ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json`,
+                    `INSERT INTO user_memories (username, history_json) VALUES ($1, $2) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json`,
                     [user, JSON.stringify(userHistory)]
                 );
             }
-        } catch (err) {
-            console.error("Memory Save Error:", err.message);
-        }
+        } catch (err) { console.error("Memory Save Error:", err.message); }
 
         res.json({ success: true, text: text.trim() });
 
@@ -141,9 +128,6 @@ User command: ${message}`;
     }
 });
 
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public/index.html'));
-});
-
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Ghost Core: Active on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Ghost Showcase Core: Active on port ${PORT}`));
