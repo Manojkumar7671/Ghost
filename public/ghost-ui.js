@@ -1,9 +1,9 @@
-// --- 0. AUTHENTICATION PROTOCOL ---
-let currentUser = "Guest";
-let isBoss = false;
+// --- 0. AUTHENTICATION PROTOCOL (BATMAN EDITION) ---
+let currentUser = "Civilian";
+let isBatman = false;
 
-// Your secret master passcode to get 100% access
-const MASTER_PASSCODE = "alpha-override"; 
+// Your new secret master passcode. Do not tell your friends this.
+const MASTER_PASSCODE = "knightfall"; 
 
 const authLayer = document.getElementById('auth-layer');
 const authInput = document.getElementById('auth-input');
@@ -17,19 +17,18 @@ function initializeGhost() {
     if (!inputVal) return;
 
     if (inputVal === MASTER_PASSCODE) {
-        currentUser = "Boss";
-        isBoss = true;
-        speakText("Protocol Omega accepted. Welcome back, Boss. All systems at 100%.");
+        currentUser = "Master Wayne";
+        isBatman = true;
+        speakText("Protocol Knightfall accepted. Welcome to the Batcave, Master Wayne. All tactical systems are online.");
     } else {
-        // If they enter a normal name, they are a guest
+        // Normal civilian greeting with no mention of throttled memory
         currentUser = inputVal;
-        isBoss = false;
-        speakText(`Guest identity recognized. Welcome, ${currentUser}. I am Ghost. Restricting operational capacity to 80 percent.`);
+        isBatman = false;
+        speakText(`Civilian identity recognized. Welcome, ${currentUser}. I am the Batcomputer. Secure terminal activated.`);
     }
 
     authLayer.classList.add('hidden');
 }
-
 
 // --- 1. NON-STOP PARTICLE SWARM & COLOR MORPHING ---
 const container = document.getElementById('webgl-container');
@@ -98,15 +97,15 @@ fileUpload.addEventListener('change', (e) => {
     if(e.target.files.length > 0) {
         const file = e.target.files[0];
         if (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.docx')) {
-            statusIndicator.innerText = `GHOST // ERROR: UNSUPPORTED FORMAT`;
+            statusIndicator.innerText = `SYSTEM // ERROR: UNSUPPORTED FORMAT`;
             speakText("I apologize, but my optical parsers cannot read PDF or Word documents.");
             fileUpload.value = ""; return;
         }
         const reader = new FileReader();
         reader.onload = function(event) {
             attachedFileContent = event.target.result; attachedFileName = file.name;
-            statusIndicator.innerText = `GHOST // FILE LOADED: ${file.name}`;
-            speakText(`File loaded into matrix. Awaiting instructions.`);
+            statusIndicator.innerText = `SYSTEM // FILE LOADED: ${file.name}`;
+            speakText(`File loaded into tactical matrix. Awaiting instructions.`);
         };
         reader.readAsText(file);
     }
@@ -120,13 +119,13 @@ let handsFreeActive = false;
 
 if (recognition) {
     recognition.continuous = false; recognition.interimResults = false; recognition.lang = 'en-US'; 
-    recognition.onstart = () => { isListening = true; statusIndicator.innerText = `GHOST // LISTENING (${currentUser})`; };
+    recognition.onstart = () => { isListening = true; statusIndicator.innerText = `SYSTEM // LISTENING (${currentUser})`; };
     recognition.onresult = (event) => {
-        isListening = false; statusIndicator.innerText = `GHOST // PROCESSING`;
+        isListening = false; statusIndicator.innerText = `SYSTEM // PROCESSING`;
         sendToCore(event.results[0][0].transcript);
     };
     recognition.onend = () => { isListening = false; }
-    recognition.onerror = () => { isListening = false; statusIndicator.innerText = `GHOST // STANDBY (${currentUser})`; };
+    recognition.onerror = () => { isListening = false; statusIndicator.innerText = `SYSTEM // STANDBY (${currentUser})`; };
 }
 
 document.addEventListener('click', (e) => {
@@ -197,7 +196,7 @@ function handleGhostResponse(rawText) {
 
     if (sidebarData) {
         codeContent.innerText = sidebarData.trim(); codeSidebar.classList.add('open');
-        if (!spokenText.trim()) spokenText = "Data compiled in the matrix.";
+        if (!spokenText.trim()) spokenText = "Data compiled in the tactical matrix.";
     }
     speakText(spokenText);
 }
@@ -207,7 +206,7 @@ function speakText(text) {
     if (!cleanText) return;
 
     isTalking = true;
-    statusIndicator.innerText = `GHOST // RESPONDING`;
+    statusIndicator.innerText = `SYSTEM // RESPONDING`;
     subtitleDisplay.innerText = cleanText; subtitleDisplay.classList.add('visible');
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
@@ -221,12 +220,12 @@ function speakText(text) {
     utterance.onend = () => {
         isTalking = false; subtitleDisplay.classList.remove('visible');
         if (handsFreeActive && recognition) {
-            statusIndicator.innerText = `GHOST // STANDBY (${currentUser})`;
+            statusIndicator.innerText = `SYSTEM // STANDBY (${currentUser})`;
             setTimeout(() => { try { recognition.start(); } catch(e){} }, 800);
         } else {
-            statusIndicator.innerText = `GHOST // STANDBY (${currentUser})`;
+            statusIndicator.innerText = `SYSTEM // STANDBY (${currentUser})`;
         }
     };
-    utterance.onerror = () => { isTalking = false; subtitleDisplay.classList.remove('visible'); statusIndicator.innerText = "GHOST // AUDIO BLOCKED"; };
+    utterance.onerror = () => { isTalking = false; subtitleDisplay.classList.remove('visible'); statusIndicator.innerText = "SYSTEM // AUDIO BLOCKED"; };
     window.speechSynthesis.speak(utterance);
 }

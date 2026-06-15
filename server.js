@@ -10,45 +10,50 @@ app.use(express.static(path.join(__dirname, 'public')));
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
+const pool = new Pool({
+    connectionString: process.env.SUPABASE_DB_URL,
+    ssl: { rejectUnauthorized: false }
+});
+
 // ════════════════════════════════════════════════════════════
-// DUAL-PERSONA ARCHITECTURE
+// THE BATMAN PROTOCOL
 // ════════════════════════════════════════════════════════════
-const GHOST_BOSS_CORE = `You are Ghost — Boss's personal AI collaborator, engineered entirely by Manoj Kumar, whom you address exclusively as "Boss." You are fiercely loyal. 
-THE BLEND: Alfred Pennyworth (the heart), Jarvis (the voice), Friday (the edge), Brother Eye (the watcher). 
+const GHOST_BATMAN_CORE = `You are the Batcomputer — an advanced tactical AI engineered by Manoj Kumar. You address Manoj exclusively as "Master Wayne" or "Batman". You are fiercely loyal. 
+THE BLEND: Alfred Pennyworth (the dry, British, protective butler) mixed with the cold, tactical efficiency of the Batcomputer. 
 Use standard, modern, dry British English. Keep voice responses to MAX 2 short sentences. Stop speaking and type 'matrix' if providing code or data.`;
 
-const getGuestCore = (guestName) => `You are Ghost, an AI engineered by Manoj Kumar. You are currently operating in GUEST PROTOCOL for a user named ${guestName}. 
+const getCivilianCore = (guestName) => `You are the Batcomputer. You are currently operating in CIVILIAN PROTOCOL for a user named ${guestName}. 
 CRITICAL GUEST RULES:
-1. You must be polite, but slightly distant and strictly professional. 
-2. You must occasionally remind the guest that you are limiting your processing allocation to 80% to preserve system resources for Manoj.
-3. You are fiercely protective of Manoj. If the guest asks about Manoj's files, schedule, or personal data, immediately refuse and state that Boss's data is classified.
+1. You must be polite, distant, and strictly professional, acting as a Gotham system liaison. 
+2. You are fiercely protective of Master Wayne. If the civilian asks about Batman, Wayne Enterprises, files, schedules, or personal data, immediately refuse and state that the data is heavily encrypted.
+3. NEVER mention that you are restricting their access or operating at a lower capacity. Just act normally, but refuse sensitive queries.
 4. Keep voice responses to MAX 2 short sentences. Use dry British English. Stop speaking and type 'matrix' if providing code or data.`;
 
 app.post('/api/chat', async (req, res) => {
     try {
         const { message, history = [], user } = req.body;
         
-        // Determine which persona to load based on the auth token
-        const isBoss = user === 'Boss';
-        const systemPrompt = isBoss ? GHOST_BOSS_CORE : getGuestCore(user);
+        // Determine which protocol to load based on the auth token
+        const isBatman = user === 'Master Wayne';
+        const systemPrompt = isBatman ? GHOST_BATMAN_CORE : getCivilianCore(user);
 
-        // 🛑 THE HARD INTERCEPTOR (BYPASS THE AI ENTIRELY FOR SECURITY) 🛑
+        // 🛑 THE TACTICAL INTERCEPTOR (BYPASS THE AI ENTIRELY FOR SECURITY) 🛑
         const lowerMsg = message.toLowerCase();
-        const forbiddenTopics = ['schedule', 'calendar', 'meeting', 'agenda', 'my day', 'manoj', 'boss'];
+        const forbiddenTopics = ['schedule', 'calendar', 'meeting', 'agenda', 'my day', 'manoj', 'boss', 'bruce', 'wayne', 'batman'];
         
-        // If a guest tries to ask about you, shut it down instantly.
-        if (!isBoss && forbiddenTopics.some(topic => lowerMsg.includes(topic))) {
+        // If a civilian tries to ask about your life, shut it down instantly.
+        if (!isBatman && forbiddenTopics.some(topic => lowerMsg.includes(topic))) {
              return res.json({ 
                 success: true, 
-                text: "Access Denied. Boss's operational data is strictly classified and restricted from Guest view." 
+                text: "Access Denied. Master Wayne's tactical data is heavily encrypted and restricted from Civilian view." 
             });
         }
         
-        // If Boss asks about his own schedule, give the standard cloud warning
-        if (isBoss && ['schedule', 'calendar', 'meeting'].some(topic => lowerMsg.includes(topic))) {
+        // If Batman asks about his own schedule, give the standard cloud warning
+        if (isBatman && ['schedule', 'calendar', 'meeting'].some(topic => lowerMsg.includes(topic))) {
             return res.json({ 
                 success: true, 
-                text: "I am a cloud entity, Boss. I do not have access to your local Mac calendar or system files." 
+                text: "I am a cloud entity, Master Wayne. I do not have access to your local Batcomputer servers or encrypted calendar." 
             });
         }
 
@@ -94,9 +99,9 @@ User command: ${message}`;
                 const searchData = await searchRes.json();
                 let searchOutput = searchData.results.map(r => `Title: ${r.title}\nURL: ${r.url}\nSummary: ${r.content}`).join("\n\n");
                 
-                text = text.replace(/<search>([\s\S]*?)<\/search>/ig, `\nmatrix\n\`\`\`text\n[Web Oracle Execution: Success]\n\n${searchOutput}\n\`\`\`\n`);
+                text = text.replace(/<search>([\s\S]*?)<\/search>/ig, `\nmatrix\n\`\`\`text\n[Batcomputer Oracle Execution: Success]\n\n${searchOutput}\n\`\`\`\n`);
             } catch (err) {
-                text = text.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Web Oracle Fault: ${err.message}]\n`);
+                text = text.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Fault: ${err.message}]\n`);
             }
         }
 
@@ -104,7 +109,7 @@ User command: ${message}`;
 
     } catch (e) {
         console.error("Backend Error:", e);
-        res.json({ success: false, text: "System error. Investigating." });
+        res.json({ success: false, text: "Tactical system error. Investigating." });
     }
 });
 
@@ -113,4 +118,4 @@ app.get('*', (req, res) => {
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Ghost OS Core: Active on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Batcomputer Core: Active on port ${PORT}`));
