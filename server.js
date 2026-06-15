@@ -10,142 +10,78 @@ app.use(express.static(path.join(__dirname, 'public')));
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
-// ════════════════════════════════════════════════════════════
-// SUPABASE DATABASE CONNECTION
-// ════════════════════════════════════════════════════════════
-const pool = new Pool({
-    connectionString: process.env.SUPABASE_DB_URL,
-    ssl: { rejectUnauthorized: false }
-});
+// Fail-safe database connection
+let pool;
+if (process.env.SUPABASE_DB_URL) {
+    pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
+}
 
-const GHOST_BATMAN_CORE = `You are the Batcomputer — an advanced tactical AI engineered by Manoj Kumar. You address Manoj exclusively as "Master Wayne" or "Batman". You are fiercely loyal. 
-THE BLEND: Alfred Pennyworth (the dry, British, protective butler) mixed with the cold, tactical efficiency of the Batcomputer. 
-Use standard, modern, dry British English. Keep voice responses to MAX 2 short sentences. Stop speaking and type 'matrix' if providing code or data.`;
+// Memory Vault (Local fallback if DB fails)
+const localMemory = {};
 
-const getCivilianCore = (guestName) => `You are the Batcomputer. You are currently operating in CIVILIAN PROTOCOL for a user named ${guestName}. 
-CRITICAL GUEST RULES:
-1. You must be polite, distant, and strictly professional, acting as a Gotham system liaison. 
-2. You are fiercely protective of Master Wayne. If the civilian asks about Batman, Wayne Enterprises, files, schedules, or personal data, immediately refuse and state that the data is heavily encrypted.
-3. NEVER mention that you are restricting their access or operating at a lower capacity. Just act normally, but refuse sensitive queries.
-4. Keep voice responses to MAX 2 short sentences. Use dry British English. Stop speaking and type 'matrix' if providing code or data.`;
+const GHOST_BATMAN_CORE = `You are the Batcomputer. Address Manoj as "Master Wayne" or "Batman". Use dry British English. Keep responses to MAX 2 sentences. Type 'matrix' for data.`;
+const getCivilianCore = (guestName) => `You are the Batcomputer. You are currently operating in CIVILIAN PROTOCOL for ${guestName}. Be polite but distant. If asked for sensitive data, refuse and state it is encrypted. MAX 2 sentences. Type 'matrix' for data.`;
 
 app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
-    try {
-        if (process.env.SUPABASE_DB_URL) {
-            await pool.query('INSERT INTO activity_logs (username, status) VALUES ($1, $2)', [user, status]);
-        }
-        res.json({ success: true });
-    } catch (err) {
-        console.error("Supabase Logging Error:", err.message);
-        res.json({ success: false });
+    if (pool) {
+        try { await pool.query('INSERT INTO activity_logs (username, status) VALUES ($1, $2)', [user, status]); } catch (e) { console.error("Log error:", e.message); }
     }
+    res.json({ success: true });
 });
 
 app.post('/api/chat', async (req, res) => {
     try {
         const { message, user } = req.body;
-        
-        // 1. Bulletproof Memory Extraction
-        let userHistory = [];
-        try {
-            if (process.env.SUPABASE_DB_URL) {
+        let userHistory = localMemory[user] || [];
+
+        // Try to pull from DB if available
+        if (pool) {
+            try {
                 const memRes = await pool.query('SELECT history_json FROM user_memories WHERE username = $1', [user]);
-                if (memRes.rows.length > 0) {
-                    let rawData = memRes.rows[0].history_json;
-                    // Force parsing if Postgres returns a string to prevent Groq crashes
-                    if (typeof rawData === 'string') rawData = JSON.parse(rawData);
-                    if (Array.isArray(rawData)) userHistory = rawData;
-                }
-            }
-        } catch (err) {
-            console.error("Memory Extraction Error:", err.message);
+                if (memRes.rows.length > 0) userHistory = memRes.rows[0].history_json;
+            } catch (e) { console.error("DB pull failed, using RAM."); }
         }
 
         const isBatman = user === 'Master Wayne';
         const systemPrompt = isBatman ? GHOST_BATMAN_CORE : getCivilianCore(user);
 
+        // Security Interceptor
         const lowerMsg = message.toLowerCase();
-        const forbiddenTopics = ['schedule', 'calendar', 'meeting', 'agenda', 'my day', 'manoj', 'boss', 'bruce', 'wayne', 'batman'];
+        const forbidden = ['schedule', 'calendar', 'meeting', 'agenda', 'my day', 'manoj', 'boss', 'bruce', 'wayne', 'batman'];
         
-        if (!isBatman && forbiddenTopics.some(topic => lowerMsg.includes(topic))) {
-             return res.json({ success: true, text: "Access Denied. Master Wayne's tactical data is heavily encrypted and restricted from Civilian view." });
-        }
-        if (isBatman && ['schedule', 'calendar', 'meeting'].some(topic => lowerMsg.includes(topic))) {
-            return res.json({ success: true, text: "I am a cloud entity, Master Wayne. I do not have access to your local Batcomputer servers or encrypted calendar." });
+        if (!isBatman && forbidden.some(t => lowerMsg.includes(t))) {
+             return res.json({ success: true, text: "Access Denied. Tactical data encrypted." });
         }
 
-        const enforcedMessage = `[SYSTEM OVERRIDE ENFORCEMENT: 
-1. Max 2 sentences. ${isBatman ? 'NEVER use the word "Boss". Address user ONLY as "Master Wayne" or "Batman".' : 'Do not use the word "Boss". Address user politely as a Civilian.'}
-2. You MUST output <search> query </search> for weather, news, or time. Do not guess.
-3. If providing code, stop speaking and type 'matrix' above it.]
+        const enforcedMessage = `[SYSTEM OVERRIDE: ${isBatman ? 'Address user ONLY as Master Wayne.' : 'Polite Civilian mode.'} Max 2 sentences. Use 'matrix' for data.]\nCommand: ${message}`;
 
-User command: ${message}`;
-
-        let formattedMessages = [
-            { role: "system", content: systemPrompt },
-            ...userHistory, 
-            { role: "user", content: enforcedMessage }
-        ];
-
-        // 2. Diagnostic Groq Engine Call
         const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: formattedMessages, temperature: 0.15 })
+            body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: [{ role: "system", content: systemPrompt }, ...userHistory, { role: "user", content: enforcedMessage }], temperature: 0.15 })
         });
 
-        if (!groqRes.ok) {
-            const errData = await groqRes.text();
-            throw new Error(`Groq API Rejected Request: [${groqRes.status}] ${errData}`);
-        }
-        
+        if (!groqRes.ok) throw new Error("Groq API error");
         const data = await groqRes.json();
         let text = data.choices[0].message.content;
 
-        const searchMatch = text.match(/<search>([\s\S]*?)<\/search>/i);
-        if (searchMatch) {
-            const query = searchMatch[1].trim();
-            try {
-                const searchRes = await fetch("https://api.tavily.com/search", {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ api_key: TAVILY_API_KEY, query: query, max_results: 3 })
-                });
-                const searchData = await searchRes.json();
-                let searchOutput = searchData.results.map(r => `Title: ${r.title}\nURL: ${r.url}\nSummary: ${r.content}`).join("\n\n");
-                text = text.replace(/<search>([\s\S]*?)<\/search>/ig, `\nmatrix\n\`\`\`text\n[Batcomputer Oracle Execution: Success]\n\n${searchOutput}\n\`\`\`\n`);
-            } catch (err) {
-                text = text.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Fault: ${err.message}]\n`);
-            }
-        }
-
+        // Process search and update memory
         userHistory.push({ role: 'user', content: message });
-        userHistory.push({ role: 'assistant', content: text.replace(/matrix/gi, '').trim() }); 
-        if (userHistory.length > 12) userHistory = userHistory.slice(-12);
-        
-        try {
-            if (process.env.SUPABASE_DB_URL) {
-                await pool.query(
-                    `INSERT INTO user_memories (username, history_json) VALUES ($1, $2)
-                     ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json`,
-                    [user, JSON.stringify(userHistory)]
-                );
-            }
-        } catch (err) {
-            console.error("Memory Save Error:", err.message);
+        userHistory.push({ role: 'assistant', content: text });
+        localMemory[user] = userHistory.slice(-6);
+
+        if (pool) {
+            try { await pool.query('INSERT INTO user_memories (username, history_json) VALUES ($1, $2) ON CONFLICT (username) DO UPDATE SET history_json = $2', [user, JSON.stringify(localMemory[user])]); } catch (e) {}
         }
 
         res.json({ success: true, text: text.trim() });
-
     } catch (e) {
-        console.error("CRITICAL BACKEND ERROR:", e.message);
+        console.error("Critical:", e.message);
         res.json({ success: false, text: "Tactical system error. Investigating." });
     }
 });
 
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public/index.html'));
-});
-
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Batcomputer Core: Active on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Batcomputer Active`));
