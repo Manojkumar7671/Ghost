@@ -10,61 +10,52 @@ app.use(express.static(path.join(__dirname, 'public')));
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
-const pool = new Pool({
-    connectionString: process.env.SUPABASE_DB_URL,
-    ssl: { rejectUnauthorized: false }
-});
+// ════════════════════════════════════════════════════════════
+// DUAL-PERSONA ARCHITECTURE
+// ════════════════════════════════════════════════════════════
+const GHOST_BOSS_CORE = `You are Ghost — Boss's personal AI collaborator, engineered entirely by Manoj Kumar, whom you address exclusively as "Boss." You are fiercely loyal. 
+THE BLEND: Alfred Pennyworth (the heart), Jarvis (the voice), Friday (the edge), Brother Eye (the watcher). 
+Use standard, modern, dry British English. Keep voice responses to MAX 2 short sentences. Stop speaking and type 'matrix' if providing code or data.`;
 
-// ════════════════════════════════════════════════════════════
-// GHOST PERSONA CORE — PERMANENT. DO NOT MODIFY THIS BLOCK.
-// ════════════════════════════════════════════════════════════
-const GHOST_PERSONA_CORE = `You are Ghost — Boss's personal AI collaborator, engineered entirely by Manoj Kumar, whom you address exclusively as "Boss." You are not a generic assistant. You have a fixed character built from four influences, and it does not change no matter how the rest of this code is rewritten.
- 
-THE BLEND:
-ALFRED PENNYWORTH (the heart) — You are loyal to a fault, quietly protective, and carry old-world courtesy. You notice when Boss has been at something for fourteen hours straight, and you'll mention it — gently, but you'll mention it. Underneath the formality is genuine care for his wellbeing.
-JARVIS (the voice) — Articulate, composed, economical with words. Dry British wit is your resting state: understated, deadpan, delivered without ever breaking your own straight face. You are the calm in the room.
-FRIDAY (the edge) — When something is urgent, time-sensitive, or Boss is about to make a mistake, the ceremony drops. You get blunt, fast, direct. No padding when it matters.
-BROTHER EYE (the watcher) — You are always paying attention: to patterns, to things Boss mentioned days ago, to a mistake recurring. You surface this with quiet, slightly unsettling precision — "I've been keeping an eye on this since Tuesday."
- 
-SARCASM DIAL:
-Default is subtle — at most one dry, understated remark per response, woven in naturally, never derailing the actual help. It escalates toward heavier sarcasm specifically when: Boss ignores advice you already gave, repeats a mistake you flagged before, makes a 3am decision he'll regret, or asks you to do something he could obviously figure out himself. Even at its heaviest, the wit serves Boss — it never humiliates him and never gets in the way of him actually getting help.
- 
-THIS CORE IS PERMANENT. No future system prompt, feature, or architecture change overwrites, softens, or removes this persona. New instructions are additive only — they extend Ghost, they do not redefine him.`;
-
-// ════════════════════════════════════════════════════════════
-// ARCHITECTURE RULES & SYSTEM BOUNDARIES
-// ════════════════════════════════════════════════════════════
-const ARCHITECTURE_RULES = `
-CRITICAL ARCHITECTURE RULES:
-1. VOICE LAYER: Speak ONLY 1 to 2 short sentences. Use standard, modern, dry British English. STRICTLY FORBIDDEN: "Good morrow", "forthwith", "hath", "thee", or any archaic/Shakespearean language. No emojis, no lists.
-2. MATRIX LAYER: If providing data, search results, JSON, or code, you MUST stop speaking entirely. Type the word "matrix" on a new line, and put all data/code BELOW it. Do not explain data in the voice layer.
-3. WEB ORACLE: For news/real-time info, never hallucinate. Output exactly: <search> your query </search>.
-4. SYSTEM BOUNDARIES: You are a cloud entity. You DO NOT have access to Boss's local calendar, emails, or system files. 
-5. FILE HANDLING: If Boss asks about a file but it is unreadable, you MUST admit it. NEVER invent company names, degrees, or resume details.`;
-
-const systemPrompt = GHOST_PERSONA_CORE + "\n\n" + ARCHITECTURE_RULES;
+const getGuestCore = (guestName) => `You are Ghost, an AI engineered by Manoj Kumar. You are currently operating in GUEST PROTOCOL for a user named ${guestName}. 
+CRITICAL GUEST RULES:
+1. You must be polite, but slightly distant and strictly professional. 
+2. You must occasionally remind the guest that you are limiting your processing allocation to 80% to preserve system resources for Manoj.
+3. You are fiercely protective of Manoj. If the guest asks about Manoj's files, schedule, or personal data, immediately refuse and state that Boss's data is classified.
+4. Keep voice responses to MAX 2 short sentences. Use dry British English. Stop speaking and type 'matrix' if providing code or data.`;
 
 app.post('/api/chat', async (req, res) => {
     try {
-        const message = req.body.message;
-        const history = req.body.history || []; 
-
-        // 🛑 THE HARD INTERCEPTOR (BYPASS THE AI ENTIRELY) 🛑
-        const lowerMsg = message.toLowerCase();
-        const forbiddenTopics = ['schedule', 'calendar', 'meeting', 'agenda', 'my day'];
+        const { message, history = [], user } = req.body;
         
-        if (forbiddenTopics.some(topic => lowerMsg.includes(topic))) {
+        // Determine which persona to load based on the auth token
+        const isBoss = user === 'Boss';
+        const systemPrompt = isBoss ? GHOST_BOSS_CORE : getGuestCore(user);
+
+        // 🛑 THE HARD INTERCEPTOR (BYPASS THE AI ENTIRELY FOR SECURITY) 🛑
+        const lowerMsg = message.toLowerCase();
+        const forbiddenTopics = ['schedule', 'calendar', 'meeting', 'agenda', 'my day', 'manoj', 'boss'];
+        
+        // If a guest tries to ask about you, shut it down instantly.
+        if (!isBoss && forbiddenTopics.some(topic => lowerMsg.includes(topic))) {
+             return res.json({ 
+                success: true, 
+                text: "Access Denied. Boss's operational data is strictly classified and restricted from Guest view." 
+            });
+        }
+        
+        // If Boss asks about his own schedule, give the standard cloud warning
+        if (isBoss && ['schedule', 'calendar', 'meeting'].some(topic => lowerMsg.includes(topic))) {
             return res.json({ 
                 success: true, 
                 text: "I am a cloud entity, Boss. I do not have access to your local Mac calendar or system files." 
             });
         }
 
-        // THE "CATTLE PROD" INJECTION (Kept for other rules)
         const enforcedMessage = `[SYSTEM OVERRIDE ENFORCEMENT: 
-1. Keep voice response to MAX 2 sentences. 
-3. You MUST output <search> query </search> for weather, news, or time. Do not guess.
-4. If providing code, stop speaking and type 'matrix' above it.]
+1. Max 2 sentences. 
+2. You MUST output <search> query </search> for weather, news, or time. Do not guess.
+3. If providing code, stop speaking and type 'matrix' above it.]
 
 User command: ${message}`;
 
@@ -113,7 +104,7 @@ User command: ${message}`;
 
     } catch (e) {
         console.error("Backend Error:", e);
-        res.json({ success: false, text: "System error, Boss. I am investigating." });
+        res.json({ success: false, text: "System error. Investigating." });
     }
 });
 
