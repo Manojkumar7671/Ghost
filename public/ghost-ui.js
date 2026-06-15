@@ -1,4 +1,4 @@
-kkk// --- 0. AUTHENTICATION PROTOCOL (BATMAN EDITION) ---
+// --- 0. AUTHENTICATION PROTOCOL (BATMAN EDITION) ---
 let currentUser = "Civilian";
 let isBatman = false;
 
@@ -27,7 +27,7 @@ function initializeGhost() {
         speakText(`Civilian identity recognized. Welcome, ${currentUser}. I am the Batcomputer. Secure terminal activated.`);
     }
 
-    // Ping the server to log the user as ACTIVE in the Excel sheet
+    // Ping the server to log the user as ACTIVE in Supabase
     fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: currentUser, status: 'ACTIVE' }) });
 
     authLayer.classList.add('hidden');

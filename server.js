@@ -1,6 +1,5 @@
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
 const { Pool } = require('pg');
 const app = express();
 
@@ -12,19 +11,12 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
 // ════════════════════════════════════════════════════════════
-// DATABASE & EXCEL LOGGING INITIALIZATION
+// SUPABASE DATABASE CONNECTION
 // ════════════════════════════════════════════════════════════
-const MEMORY_FILE = path.join(__dirname, 'memories.json');
-const LOG_FILE = path.join(__dirname, 'activity_log.csv');
-
-// Create the Excel CSV file with headers if it doesn't exist
-if (!fs.existsSync(LOG_FILE)) {
-    fs.writeFileSync(LOG_FILE, "Timestamp,User,Status\n");
-}
-// Create the Memory Storage file if it doesn't exist
-if (!fs.existsSync(MEMORY_FILE)) {
-    fs.writeFileSync(MEMORY_FILE, JSON.stringify({}));
-}
+const pool = new Pool({
+    connectionString: process.env.SUPABASE_DB_URL,
+    ssl: { rejectUnauthorized: false }
+});
 
 // ════════════════════════════════════════════════════════════
 // THE BATMAN PROTOCOL
@@ -40,12 +32,19 @@ CRITICAL GUEST RULES:
 3. NEVER mention that you are restricting their access or operating at a lower capacity. Just act normally, but refuse sensitive queries.
 4. Keep voice responses to MAX 2 short sentences. Use dry British English. Stop speaking and type 'matrix' if providing code or data.`;
 
-// --- ENDPOINT: Log User Activity to Excel ---
-app.post('/api/auth', (req, res) => {
+// --- ENDPOINT: Log User Activity to Supabase ---
+app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
-    const timestamp = new Date().toLocaleString();
-    fs.appendFileSync(LOG_FILE, `"${timestamp}","${user}","${status}"\n`);
-    res.json({ success: true });
+    try {
+        await pool.query(
+            'INSERT INTO activity_logs (username, status) VALUES ($1, $2)',
+            [user, status]
+        );
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Supabase Logging Error:", err);
+        res.json({ success: false });
+    }
 });
 
 // --- ENDPOINT: Main Chat & Memory Engine ---
@@ -53,14 +52,21 @@ app.post('/api/chat', async (req, res) => {
     try {
         const { message, user } = req.body;
         
-        // 1. Load the user's specific memory file
-        let memories = JSON.parse(fs.readFileSync(MEMORY_FILE));
-        let userHistory = memories[user] || [];
+        // 1. Load the user's specific memory from Supabase
+        let userHistory = [];
+        try {
+            const memRes = await pool.query('SELECT history_json FROM user_memories WHERE username = $1', [user]);
+            if (memRes.rows.length > 0) {
+                userHistory = memRes.rows[0].history_json;
+            }
+        } catch (err) {
+            console.error("Memory Extraction Error:", err);
+        }
 
         const isBatman = user === 'Master Wayne';
         const systemPrompt = isBatman ? GHOST_BATMAN_CORE : getCivilianCore(user);
 
-        // 2. THE TACTICAL INTERCEPTOR (BYPASS THE AI FOR SECURITY)
+        // 2. THE TACTICAL INTERCEPTOR
         const lowerMsg = message.toLowerCase();
         const forbiddenTopics = ['schedule', 'calendar', 'meeting', 'agenda', 'my day', 'manoj', 'boss', 'bruce', 'wayne', 'batman'];
         
@@ -72,7 +78,7 @@ app.post('/api/chat', async (req, res) => {
             return res.json({ success: true, text: "I am a cloud entity, Master Wayne. I do not have access to your local Batcomputer servers or encrypted calendar." });
         }
 
-        // 3. The Cattle Prod Injection (NO "BOSS" ALLOWED)
+        // 3. The Cattle Prod Injection
         const enforcedMessage = `[SYSTEM OVERRIDE ENFORCEMENT: 
 1. Max 2 sentences. ${isBatman ? 'NEVER use the word "Boss". Address user ONLY as "Master Wayne" or "Batman".' : 'Do not use the word "Boss". Address user politely as a Civilian.'}
 2. You MUST output <search> query </search> for weather, news, or time. Do not guess.
@@ -82,7 +88,7 @@ User command: ${message}`;
 
         let formattedMessages = [
             { role: "system", content: systemPrompt },
-            ...userHistory, // Inject their past memories into the AI
+            ...userHistory, 
             { role: "user", content: enforcedMessage }
         ];
 
@@ -114,14 +120,21 @@ User command: ${message}`;
             }
         }
 
-        // 6. Save the new conversation to the user's permanent memory
+        // 6. Save the new conversation back to Supabase
         userHistory.push({ role: 'user', content: message });
-        userHistory.push({ role: 'assistant', content: text.replace(/matrix/gi, '').trim() }); // Don't save the matrix command to memory
+        userHistory.push({ role: 'assistant', content: text.replace(/matrix/gi, '').trim() }); 
         
-        // Keep memory to last 12 messages so the AI doesn't crash from overload
         if (userHistory.length > 12) userHistory = userHistory.slice(-12);
-        memories[user] = userHistory;
-        fs.writeFileSync(MEMORY_FILE, JSON.stringify(memories, null, 2));
+        
+        try {
+            await pool.query(
+                `INSERT INTO user_memories (username, history_json) VALUES ($1, $2)
+                 ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json`,
+                [user, JSON.stringify(userHistory)]
+            );
+        } catch (err) {
+            console.error("Memory Save Error:", err);
+        }
 
         res.json({ success: true, text: text.trim() });
 
