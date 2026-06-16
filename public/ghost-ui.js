@@ -1,4 +1,4 @@
-let currentUser = "Guest";
+klet currentUser = "Guest";
 let isBatman = false;
 const MASTER_PASSCODE = "knightfall"; 
 
@@ -28,6 +28,12 @@ function initializeGhost() {
     const inputVal = authInput.value.trim();
     if (!inputVal) return;
 
+    // 1. INSTANT UI UNLOCK (Bulletproof against internet drops)
+    authLayer.classList.add('hidden');
+    disconnectBtn.classList.add('visible');
+    authInput.value = "";
+
+    // 2. ASSIGN PERSONA
     if (inputVal === MASTER_PASSCODE) {
         currentUser = "Master Wayne";
         isBatman = true;
@@ -42,15 +48,12 @@ function initializeGhost() {
         speakText(`Initialization complete. Welcome, ${currentUser}. I am Ghost, an AI architecture engineered by Manoj Kumar. How may I assist you today?`);
     }
 
+    // 3. BACKGROUND DATABASE LOGGING (Will not hang the UI)
     fetch('/api/auth', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ user: currentUser, status: 'ACTIVE' }) 
     }).catch(e => console.log("Database logging offline."));
-
-    authLayer.classList.add('hidden');
-    disconnectBtn.classList.add('visible');
-    authInput.value = "";
 }
 
 disconnectBtn.addEventListener('click', () => {
@@ -158,10 +161,7 @@ fileUpload.addEventListener('change', (e) => {
 let availableVoices = []; 
 try { window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); }; } catch(e){}
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-// THE BUG FIX IS HERE. Safe instantiation.
 const recognition = SpeechRecognition ? new SpeechRecognition() : null;
-
 let handsFreeActive = false;
 
 if (recognition) {
@@ -250,12 +250,10 @@ function speakText(text) {
     const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/matrix/gi, '').trim(); 
     if (!cleanText) return;
 
-    // 1. ABSOLUTE GUARANTEE: Paint the text to the screen instantly before touching audio
     subtitleDisplay.innerText = cleanText; 
     subtitleDisplay.classList.add('visible');
     statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // RESPONDING`;
 
-    // 2. ATTEMPT AUDIO: Wrapped in a fail-safe try/catch shield
     try {
         window.speechSynthesis.cancel(); 
         isTalking = true;
@@ -290,7 +288,6 @@ function speakText(text) {
         if (window.speechSynthesis.resume) window.speechSynthesis.resume();
         
     } catch(audioError) {
-        // If the emulator completely destroys the audio engine, text stays safe!
         console.warn("Total Audio Failure. Text rendered safely.");
         isTalking = false;
         statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // MUTED (TEXT ONLY)`; 
