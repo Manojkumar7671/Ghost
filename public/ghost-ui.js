@@ -63,16 +63,14 @@ function initializeGhost() {
     }
 
     fetch('/api/auth', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ user: currentUser, status: 'ACTIVE' }) 
     }).catch(e => console.log("Database logging offline."));
 }
 
 disconnectBtn.addEventListener('click', () => {
     fetch('/api/auth', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ user: currentUser, status: 'INACTIVE' }) 
     }).catch(e => console.log("Database offline."));
     
@@ -96,12 +94,9 @@ renderer.setPixelRatio(window.devicePixelRatio);
 container.appendChild(renderer.domElement);
 
 const colors = {
-    idle: new THREE.Color(0x00d4ff),
-    idleAdmin: new THREE.Color(0xff0032),
-    listening: new THREE.Color(0x0055ff),
-    processing: new THREE.Color(0xffaa00),
-    talking: new THREE.Color(0x00ffcc),
-    talkingAdmin: new THREE.Color(0xff6600)
+    idle: new THREE.Color(0x00d4ff), idleAdmin: new THREE.Color(0xff0032),
+    listening: new THREE.Color(0x0055ff), processing: new THREE.Color(0xffaa00),
+    talking: new THREE.Color(0x00ffcc), talkingAdmin: new THREE.Color(0xff6600)
 };
 const geometry = new THREE.SphereGeometry(2, 64, 64); 
 const material = new THREE.PointsMaterial({ color: colors.idle, size: 0.02, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
@@ -118,8 +113,7 @@ function animate() {
     requestAnimationFrame(animate);
     const time = Date.now() * 0.001; 
     let targetColor = isAdminMode ? colors.idleAdmin : colors.idle;
-    let targetScale = 1.0 + Math.sin(time * 2) * 0.02;
-    let amplitude = 1.0;
+    let targetScale = 1.0 + Math.sin(time * 2) * 0.02; let amplitude = 1.0;
 
     if (isTalking) { targetColor = isAdminMode ? colors.talkingAdmin : colors.talking; targetScale = 1.05 + Math.sin(time * 5) * 0.03; amplitude = 2.0; } 
     else if (isProcessing) { targetColor = colors.processing; targetScale = 1.08 + Math.sin(time * 10) * 0.04; amplitude = 3.5; } 
@@ -187,7 +181,6 @@ try { window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const recognition = SpeechRecognition ? new SpeechRecognition() : null;
-
 let handsFreeActive = false;
 
 if (recognition) {
@@ -233,8 +226,7 @@ async function sendToCore(message) {
 
     try {
         const response = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: finalPayload, user: currentUser }) 
         });
         const data = await response.json();
@@ -247,31 +239,37 @@ async function sendToCore(message) {
     }
 }
 
+// 🛑 BULLETPROOF REGEX PARSER 🛑
 function handleGhostResponse(rawText) {
-    let spokenText = rawText; let sidebarData = "";
-    const matrixSplit = rawText.split(/(?:^|\n)matrix(?:\n|$)/i);
-    
-    if (matrixSplit.length > 1) {
-        spokenText = matrixSplit[0]; sidebarData = matrixSplit.slice(1).join('\n').trim();
-    } else {
-        const codeBlockRegex = /```[\s\S]*?```/g;
-        let codeBlocks = rawText.match(codeBlockRegex);
-        if (codeBlocks) {
-            spokenText = rawText.replace(codeBlockRegex, '');
-            sidebarData = codeBlocks.map(block => block.replace(/```\w*\n?|```/g, '')).join('\n\n---\n\n');
-        }
+    let spokenText = rawText; 
+    let sidebarData = "";
+
+    // Extract EVERYTHING inside Markdown code blocks (```)
+    const codeBlockRegex = /```[\s\S]*?```/g;
+    let codeBlocks = rawText.match(codeBlockRegex);
+
+    if (codeBlocks) {
+        // Rip the code out of the spoken text entirely
+        spokenText = rawText.replace(codeBlockRegex, '').trim();
+        
+        // Push raw code content into the sidebar
+        sidebarData = codeBlocks.map(block => {
+            return block.replace(/^```[\w-]*\n?/, '').replace(/\n?```$/, '');
+        }).join('\n\n---\n\n');
     }
 
     if (sidebarData) {
-        codeContent.innerText = sidebarData.trim(); codeSidebar.classList.add('open');
-        if (!spokenText.trim()) spokenText = isAdminMode ? "Data compiled in the admin matrix." : "Data compiled in the matrix.";
+        codeContent.innerText = sidebarData.trim(); 
+        codeSidebar.classList.add('open');
+        if (!spokenText) spokenText = isAdminMode ? "Data compiled in the admin matrix." : "Data compiled in the matrix.";
     }
+    
     speakText(spokenText);
 }
 
-// BULLETPROOF TEXT & AUDIO RENDERER
+// BULLETPROOF AUDIO RENDERER
 function speakText(text) {
-    const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/matrix/gi, '').trim(); 
+    const cleanText = text.replace(/<[^>]*>?/gm, '').trim(); 
     if (!cleanText) return;
 
     subtitleDisplay.innerText = cleanText; 
