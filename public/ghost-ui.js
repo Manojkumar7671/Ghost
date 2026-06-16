@@ -185,7 +185,7 @@ async function sendToCore(message) {
     isProcessing = true;
     if (handsFreeActive && recognition) recognition.stop(); 
     
-    // Clear the PREVIOUS message before sending the new one
+    // We ONLY clear the screen when a NEW message is sent
     subtitleDisplay.classList.remove('visible'); 
 
     let finalPayload = message;
@@ -241,7 +241,7 @@ function speakText(text) {
     isTalking = true;
     statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // RESPONDING`;
     
-    // We display the text instantly
+    // Make the text visible instantly
     subtitleDisplay.innerText = cleanText; 
     subtitleDisplay.classList.add('visible');
 
@@ -254,14 +254,14 @@ function speakText(text) {
     
     utterance.pitch = 1.0; utterance.rate = 0.92; 
     
-    // THE FIX: If audio fails, keep the text on screen and warn the user
+    // THE FIX: Do NOT remove 'visible' class here. Just mark as muted.
     utterance.onerror = (e) => { 
         console.error("Speech API Error:", e);
         isTalking = false; 
         statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // MUTED (TEXT ONLY)`; 
     };
     
-    // THE FIX: When audio finishes naturally, leave the text on the screen!
+    // THE FIX: Do NOT remove 'visible' class here. Leave it for the user to read!
     utterance.onend = () => {
         isTalking = false; 
         if (handsFreeActive && recognition) {
