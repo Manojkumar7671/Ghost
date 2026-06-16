@@ -131,7 +131,7 @@ document.addEventListener('touchend', (e) => {
 
 function toggleInput() { inputLayer.classList.toggle('active'); if (inputLayer.classList.contains('active')) commandInput.focus(); }
 
-commandInput.addEventListener('keydown', () => { if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); isTalking = false; subtitleDisplay.classList.remove('visible'); } });
+commandInput.addEventListener('keydown', () => { if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); isTalking = false; } });
 
 let attachedFileContent = ""; let attachedFileName = "";
 fileUpload.addEventListener('change', (e) => {
@@ -171,7 +171,7 @@ if (recognition) {
 
 document.addEventListener('click', (e) => {
     if (e.target.closest('#input-layer') || e.target.closest('#code-sidebar') || e.target.closest('.icon-btn') || e.target.closest('#auth-layer') || e.target.closest('#disconnect-btn')) return;
-    if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); isTalking = false; subtitleDisplay.classList.remove('visible'); }
+    if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); isTalking = false; }
     if (recognition && !isProcessing) { handsFreeActive = true; try { recognition.start(); } catch(err) {} }
 });
 
@@ -184,6 +184,8 @@ commandInput.addEventListener('keypress', (e) => {
 async function sendToCore(message) {
     isProcessing = true;
     if (handsFreeActive && recognition) recognition.stop(); 
+    
+    // Clear the PREVIOUS message before sending the new one
     subtitleDisplay.classList.remove('visible'); 
 
     let finalPayload = message;
@@ -238,7 +240,10 @@ function speakText(text) {
 
     isTalking = true;
     statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // RESPONDING`;
-    subtitleDisplay.innerText = cleanText; subtitleDisplay.classList.add('visible');
+    
+    // We display the text instantly
+    subtitleDisplay.innerText = cleanText; 
+    subtitleDisplay.classList.add('visible');
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = 'en-GB'; utterance.volume = 1.0; 
@@ -249,15 +254,16 @@ function speakText(text) {
     
     utterance.pitch = 1.0; utterance.rate = 0.92; 
     
+    // THE FIX: If audio fails, keep the text on screen and warn the user
     utterance.onerror = (e) => { 
         console.error("Speech API Error:", e);
         isTalking = false; 
-        subtitleDisplay.classList.remove('visible'); 
-        statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // STANDBY (${currentUser})`; 
+        statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // MUTED (TEXT ONLY)`; 
     };
     
+    // THE FIX: When audio finishes naturally, leave the text on the screen!
     utterance.onend = () => {
-        isTalking = false; subtitleDisplay.classList.remove('visible');
+        isTalking = false; 
         if (handsFreeActive && recognition) {
             statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // STANDBY (${currentUser})`;
             setTimeout(() => { try { recognition.start(); } catch(e){} }, 800);
