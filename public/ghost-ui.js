@@ -8,12 +8,13 @@ const authBtn = document.getElementById('auth-btn');
 const disconnectBtn = document.getElementById('disconnect-btn');
 const sidebarHeader = document.getElementById('sidebar-header');
 
-// INITIAL AUDIO UNLOCK
 function forceUnlockAudio() {
-    let silent = new SpeechSynthesisUtterance('');
-    silent.volume = 0;
-    window.speechSynthesis.speak(silent);
-    if (window.speechSynthesis.resume) window.speechSynthesis.resume();
+    try {
+        let silent = new SpeechSynthesisUtterance('');
+        silent.volume = 0;
+        window.speechSynthesis.speak(silent);
+        if (window.speechSynthesis.resume) window.speechSynthesis.resume();
+    } catch(e) {}
 }
 
 document.body.addEventListener('click', forceUnlockAudio, { once: true });
@@ -45,7 +46,7 @@ function initializeGhost() {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ user: currentUser, status: 'ACTIVE' }) 
-    }).catch(e => console.log("Database logging offline, continuing anyway."));
+    }).catch(e => console.log("Database logging offline."));
 
     authLayer.classList.add('hidden');
     disconnectBtn.classList.add('visible');
@@ -57,7 +58,7 @@ disconnectBtn.addEventListener('click', () => {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ user: currentUser, status: 'INACTIVE' }) 
-    }).catch(e => console.log("Database logging offline."));
+    }).catch(e => console.log("Database offline."));
     
     speakText("Logging off. Securing terminal.");
     authLayer.classList.remove('hidden');
@@ -131,6 +132,10 @@ document.addEventListener('touchend', (e) => {
 
 function toggleInput() { inputLayer.classList.toggle('active'); if (inputLayer.classList.contains('active')) commandInput.focus(); }
 
+commandInput.addEventListener('keydown', () => { 
+    try { if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); isTalking = false; } } catch(e){}
+});
+
 let attachedFileContent = ""; let attachedFileName = "";
 fileUpload.addEventListener('change', (e) => {
     if(e.target.files.length > 0) {
@@ -151,7 +156,7 @@ fileUpload.addEventListener('change', (e) => {
 });
 
 let availableVoices = []; 
-window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); };
+try { window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); }; } catch(e){}
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const recognition = new SpeechRecognition ? new SpeechRecognition() : null;
 let handsFreeActive = false;
@@ -169,17 +174,18 @@ if (recognition) {
 
 document.addEventListener('click', (e) => {
     if (e.target.closest('#input-layer') || e.target.closest('#code-sidebar') || e.target.closest('.icon-btn') || e.target.closest('#auth-layer') || e.target.closest('#disconnect-btn')) return;
-    if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); isTalking = false; }
+    try { if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); isTalking = false; } } catch(e){}
     if (recognition && !isProcessing) { handsFreeActive = true; try { recognition.start(); } catch(err) {} }
 });
 
 commandInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && commandInput.value.trim() !== '') {
-        // THE AUDIO PRIMER: Trick Chrome into keeping audio awake during processing
-        window.speechSynthesis.cancel();
-        let prime = new SpeechSynthesisUtterance('');
-        prime.volume = 0;
-        window.speechSynthesis.speak(prime);
+        try {
+            window.speechSynthesis.cancel();
+            let prime = new SpeechSynthesisUtterance('');
+            prime.volume = 0;
+            window.speechSynthesis.speak(prime);
+        } catch(err){}
 
         sendToCore(commandInput.value.trim()); 
         commandInput.value = '';
@@ -236,43 +242,54 @@ function handleGhostResponse(rawText) {
     speakText(spokenText);
 }
 
+// 🛑 BULLETPROOF TEXT & AUDIO RENDERER 🛑
 function speakText(text) {
     const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/matrix/gi, '').trim(); 
     if (!cleanText) return;
 
-    window.speechSynthesis.cancel(); 
-
-    isTalking = true;
-    statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // RESPONDING`;
-    
+    // 1. ABSOLUTE GUARANTEE: Paint the text to the screen instantly before touching audio
     subtitleDisplay.innerText = cleanText; 
     subtitleDisplay.classList.add('visible');
+    statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // RESPONDING`;
 
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = 'en-GB'; utterance.volume = 1.0; 
-    let voices = window.speechSynthesis.getVoices(); if (voices.length === 0) voices = availableVoices;
-    const premiumVoices = ['Google UK English Male', 'Daniel', 'Oliver', 'Arthur'];
-    const britishVoice = voices.find(v => premiumVoices.some(name => v.name.includes(name))) || voices.find(v => v.lang === 'en-GB' && v.name.includes('Male')) || voices.find(v => v.lang.startsWith('en-'));
-    if (britishVoice) utterance.voice = britishVoice;
-    
-    utterance.pitch = 1.0; utterance.rate = 0.92; 
-    
-    utterance.onerror = (e) => { 
-        console.error("Speech API Error:", e);
-        isTalking = false; 
+    // 2. ATTEMPT AUDIO: Wrapped in a fail-safe try/catch shield
+    try {
+        window.speechSynthesis.cancel(); 
+        isTalking = true;
+
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.lang = 'en-GB'; utterance.volume = 1.0; 
+        
+        let voices = window.speechSynthesis.getVoices(); if (voices.length === 0) voices = availableVoices;
+        const premiumVoices = ['Google UK English Male', 'Daniel', 'Oliver', 'Arthur'];
+        const britishVoice = voices.find(v => premiumVoices.some(name => v.name.includes(name))) || voices.find(v => v.lang === 'en-GB' && v.name.includes('Male')) || voices.find(v => v.lang.startsWith('en-'));
+        if (britishVoice) utterance.voice = britishVoice;
+        
+        utterance.pitch = 1.0; utterance.rate = 0.92; 
+        
+        utterance.onerror = (e) => { 
+            console.warn("Speech API Blocked. Keeping text visible.");
+            isTalking = false; 
+            statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // MUTED (TEXT ONLY)`; 
+        };
+        
+        utterance.onend = () => {
+            isTalking = false; 
+            if (handsFreeActive && recognition) {
+                statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // STANDBY (${currentUser})`;
+                setTimeout(() => { try { recognition.start(); } catch(e){} }, 800);
+            } else {
+                statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // STANDBY (${currentUser})`;
+            }
+        };
+
+        window.speechSynthesis.speak(utterance);
+        if (window.speechSynthesis.resume) window.speechSynthesis.resume();
+        
+    } catch(audioError) {
+        // If the emulator completely destroys the audio engine, text stays safe!
+        console.warn("Total Audio Failure. Text rendered safely.");
+        isTalking = false;
         statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // MUTED (TEXT ONLY)`; 
-    };
-    
-    utterance.onend = () => {
-        isTalking = false; 
-        if (handsFreeActive && recognition) {
-            statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // STANDBY (${currentUser})`;
-            setTimeout(() => { try { recognition.start(); } catch(e){} }, 800);
-        } else {
-            statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // STANDBY (${currentUser})`;
-        }
-    };
-
-    window.speechSynthesis.speak(utterance);
-    if (window.speechSynthesis.resume) window.speechSynthesis.resume();
-}
+    }
+}}
