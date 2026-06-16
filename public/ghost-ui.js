@@ -158,7 +158,10 @@ fileUpload.addEventListener('change', (e) => {
 let availableVoices = []; 
 try { window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); }; } catch(e){}
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-const recognition = new SpeechRecognition ? new SpeechRecognition() : null;
+
+// THE BUG FIX IS HERE. Safe instantiation.
+const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+
 let handsFreeActive = false;
 
 if (recognition) {
@@ -292,4 +295,4 @@ function speakText(text) {
         isTalking = false;
         statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // MUTED (TEXT ONLY)`; 
     }
-}}
+}
