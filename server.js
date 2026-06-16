@@ -10,9 +10,17 @@ app.use(express.static(path.join(__dirname, 'public')));
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
+// ════════════════════════════════════════════════════════════
+// DATABASE CONNECTION WITH AGGRESSIVE TIMEOUTS
+// ════════════════════════════════════════════════════════════
 let pool;
 if (process.env.SUPABASE_DB_URL) {
-    pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
+    pool = new Pool({ 
+        connectionString: process.env.SUPABASE_DB_URL, 
+        ssl: { rejectUnauthorized: false },
+        connectionTimeoutMillis: 2000, // Drops dead connections after 2 seconds
+        query_timeout: 2000 // Prevents read/write from hanging the brain
+    });
 }
 
 // ════════════════════════════════════════════════════════════
@@ -35,7 +43,7 @@ app.post('/api/auth', async (req, res) => {
         if (pool) await pool.query('INSERT INTO activity_logs (username, status) VALUES ($1, $2)', [user, status]);
         res.json({ success: true });
     } catch (err) {
-        console.error("Logging Error:", err.message);
+        console.error("Logging Error (Ignored):", err.message);
         res.json({ success: false });
     }
 });
@@ -54,7 +62,7 @@ app.post('/api/chat', async (req, res) => {
                     if (Array.isArray(rawData)) userHistory = rawData;
                 }
             }
-        } catch (err) { console.error("Memory Error:", err.message); }
+        } catch (err) { console.error("Memory Extraction Error (Using Local RAM):", err.message); }
 
         const isAdmin = user === 'Master Manoj';
         const systemPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
@@ -117,7 +125,7 @@ User command: ${message}`;
                     [user, JSON.stringify(userHistory)]
                 );
             }
-        } catch (err) { console.error("Memory Save Error:", err.message); }
+        } catch (err) { console.error("Memory Save Error (Ignored):", err.message); }
 
         res.json({ success: true, text: text.trim() });
 
