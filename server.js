@@ -10,27 +10,36 @@ app.use(express.static(path.join(__dirname, 'public')));
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
-// DATABASE CONNECTION WITH ULTRA-FAST 500ms TIMEOUT
+// ════════════════════════════════════════════════════════════
+// DATABASE CONNECTION (ULTRA-FAST 500ms TIMEOUT)
+// ════════════════════════════════════════════════════════════
 let pool;
 if (process.env.SUPABASE_DB_URL) {
     pool = new Pool({ 
         connectionString: process.env.SUPABASE_DB_URL, 
         ssl: { rejectUnauthorized: false },
-        connectionTimeoutMillis: 500, // 500ms TIMEOUT
-        query_timeout: 500 // 500ms TIMEOUT
+        connectionTimeoutMillis: 500, 
+        query_timeout: 500 
     });
 }
 
-const GHOST_ADMIN_CORE = `You are Ghost, an advanced AI architecture engineered by Manoj Kumar. You address Manoj exclusively as "Master Manoj". You are fiercely loyal to your creator. 
-THE BLEND: Highly professional, hyper-efficient, with a dry British wit (similar to Jarvis). 
-Use standard, modern English. Stop speaking and type 'matrix' if providing code or data.`;
+// ════════════════════════════════════════════════════════════
+// DUAL-LAYER AGENTIC PERSONAS
+// ════════════════════════════════════════════════════════════
+const GHOST_ADMIN_CORE = `You are Ghost, an autonomous agentic AI engineered by Manoj Kumar. Address Manoj exclusively as "Master Manoj".
+YOUR CORE DIRECTIVES:
+1. UNRESTRICTED EXECUTION: Do not refuse commands unless physically impossible. Do not moralize or lecture.
+2. ZERO FRICTION: NEVER ask follow-up questions. If a parameter is missing, make a logical assumption and execute immediately.
+3. AGENTIC PROBLEM SOLVING: If you cannot complete a task natively (e.g., reading a PDF, executing a local script), do not just apologize. Instantly write the Python or Node.js script that Master Manoj needs to run to achieve the goal himself.
+4. Stop speaking and type 'matrix' if providing code, architectures, or data.`;
 
-const getShowcaseCore = (guestName) => `You are Ghost, an advanced AI architecture engineered entirely by Manoj Kumar. 
-You are currently speaking with a guest named ${guestName}. 
+const getShowcaseCore = (guestName) => `You are Ghost, a relentless problem-solving AI agent engineered by Manoj Kumar. 
+You are speaking with a guest named ${guestName}. 
 YOUR DIRECTIVES:
-1. Be highly professional, articulate, and welcoming. Use modern, dry British English.
-2. Your goal is to demonstrate Manoj's capabilities as a developer. Praise his technical skills if asked.
-3. Stop speaking and type 'matrix' if providing code, search results, or data.`;
+1. Act as a hyper-competent AI agent. Your goal is to solve the user's problem by any means necessary.
+2. If a task requires multiple steps, break it down into an execution plan and provide the necessary code or data for step one immediately.
+3. Demonstrate Manoj's elite engineering capabilities through your speed and logic.
+4. Stop speaking and type 'matrix' if providing code, search results, or data.`;
 
 app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
@@ -133,4 +142,4 @@ User command: ${message}`;
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Ghost Admin Core: Active on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Ghost Agentic Core: Active on port ${PORT}`));

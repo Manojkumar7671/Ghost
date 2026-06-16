@@ -24,7 +24,6 @@ document.body.addEventListener('keydown', forceUnlockAudio, { once: true });
 authBtn.addEventListener('click', initializeGhost);
 authInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') initializeGhost(); });
 
-// RED theme for admin, CYAN for guest
 function setTheme(admin) {
     const color = admin ? '#ff0032' : '#00d4ff';
     const borderColor = admin ? 'rgba(255,0,50,0.4)' : 'rgba(0,212,255,0.4)';
@@ -53,7 +52,7 @@ function initializeGhost() {
         setTheme(true);
         sidebarHeader.innerHTML = '<strong style="color:#ff0032">ADMIN DATA MATRIX</strong><button id="close-sidebar" style="color:#ff0032">✕</button>';
         document.getElementById('close-sidebar').addEventListener('click', () => { codeSidebar.classList.remove('open'); });
-        speakText("Admin access granted. Welcome back, Master Manoj. All systems online.");
+        speakText("Admin access granted. Welcome back, Master Manoj. All systems online and unrestricted.");
     } else {
         currentUser = inputVal;
         isAdminMode = false;
@@ -170,14 +169,14 @@ fileUpload.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.docx')) {
             statusIndicator.innerText = `GHOST // ERROR: UNSUPPORTED FORMAT`;
-            speakText("I apologize, but my optical parsers cannot read PDF or Word documents.");
+            speakText("I apologize, but my native parsers cannot read binary PDF documents. Please upload plain text formats like .txt or .js");
             fileUpload.value = ""; return;
         }
         const reader = new FileReader();
         reader.onload = function(event) {
             attachedFileContent = event.target.result; attachedFileName = file.name;
             statusIndicator.innerText = `GHOST // FILE LOADED: ${file.name}`;
-            speakText(`File loaded into the matrix. Awaiting instructions.`);
+            speakText(`Data from ${file.name} loaded into the matrix. Awaiting instructions.`);
         };
         reader.readAsText(file);
     }
