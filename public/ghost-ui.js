@@ -1,4 +1,4 @@
-klet currentUser = "Guest";
+let currentUser = "Guest";
 let isBatman = false;
 const MASTER_PASSCODE = "knightfall"; 
 
@@ -28,12 +28,10 @@ function initializeGhost() {
     const inputVal = authInput.value.trim();
     if (!inputVal) return;
 
-    // 1. INSTANT UI UNLOCK (Bulletproof against internet drops)
     authLayer.classList.add('hidden');
     disconnectBtn.classList.add('visible');
     authInput.value = "";
 
-    // 2. ASSIGN PERSONA
     if (inputVal === MASTER_PASSCODE) {
         currentUser = "Master Wayne";
         isBatman = true;
@@ -48,7 +46,6 @@ function initializeGhost() {
         speakText(`Initialization complete. Welcome, ${currentUser}. I am Ghost, an AI architecture engineered by Manoj Kumar. How may I assist you today?`);
     }
 
-    // 3. BACKGROUND DATABASE LOGGING (Will not hang the UI)
     fetch('/api/auth', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
@@ -160,8 +157,10 @@ fileUpload.addEventListener('change', (e) => {
 
 let availableVoices = []; 
 try { window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); }; } catch(e){}
+
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+
 let handsFreeActive = false;
 
 if (recognition) {
