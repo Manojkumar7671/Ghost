@@ -1,5 +1,6 @@
 let currentUser = "Guest";
 let isAdminMode = false;
+let handsFreeActive = false; // Globally tracks the always-on mic state
 const MASTER_PASSCODE = "knightfall"; 
 
 const authLayer = document.getElementById('auth-layer');
@@ -46,6 +47,9 @@ function initializeGhost() {
     disconnectBtn.classList.add('visible');
     authInput.value = "";
 
+    // 🛑 THE ZERO-TOUCH UPGRADE: Lock the mic ON the moment you log in
+    handsFreeActive = true; 
+
     if (inputVal === MASTER_PASSCODE) {
         currentUser = "Master Manoj";
         isAdminMode = true;
@@ -77,6 +81,11 @@ disconnectBtn.addEventListener('click', () => {
     speakText("Logging off. Securing terminal.");
     authLayer.classList.remove('hidden');
     disconnectBtn.classList.remove('visible');
+    
+    // Shut down the mic when logging out
+    handsFreeActive = false;
+    if (recognition) recognition.stop();
+    
     currentUser = "Guest";
     isAdminMode = false;
     setTheme(false);
@@ -180,17 +189,16 @@ let availableVoices = [];
 try { window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); }; } catch(e){}
 
 
-// 🛑 THE NEW CONTINUOUS BARGE-IN VOICE ENGINE 🛑
+// --- CONTINUOUS BARGE-IN VOICE ENGINE ---
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const recognition = SpeechRecognition ? new SpeechRecognition() : null;
 
-let handsFreeActive = false;
 let speechBuffer = "";
 let silenceTimer = null;
 
 if (recognition) {
-    recognition.continuous = true; // Keeps the mic on
-    recognition.interimResults = true; // Reads words as you say them
+    recognition.continuous = true; 
+    recognition.interimResults = true; 
     recognition.lang = 'en-US'; 
 
     recognition.onstart = () => { 
@@ -201,7 +209,6 @@ if (recognition) {
     };
 
     recognition.onresult = (event) => {
-        // BARGE-IN PROTOCOL: If you start speaking, Ghost instantly shuts up!
         if (isTalking) {
             window.speechSynthesis.cancel();
             isTalking = false;
@@ -218,15 +225,13 @@ if (recognition) {
         speechBuffer += final;
         let currentText = speechBuffer + interim;
 
-        // SILENCE DEBOUNCE: Clear the timer every time you speak
         clearTimeout(silenceTimer);
         
-        // Wait exactly 1.5 seconds of pure silence before sending to the brain
         if (currentText.trim() !== '') {
             silenceTimer = setTimeout(() => {
                 let payload = currentText.trim();
                 speechBuffer = ''; 
-                recognition.stop(); // Pause mic to process
+                recognition.stop(); 
                 statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // PROCESSING`;
                 sendToCore(payload);
             }, 1500); 
@@ -235,7 +240,6 @@ if (recognition) {
 
     recognition.onend = () => { 
         isListening = false; 
-        // ALWAYS-ON LOOP: Instantly turn mic back on if hands-free is enabled
         if (handsFreeActive && !isProcessing) {
             setTimeout(() => { try { recognition.start(); } catch(e){} }, 250);
         }
@@ -248,12 +252,12 @@ if (recognition) {
     };
 }
 
-// Click the black void to activate Always-On Hands Free
+// Keep this as a fallback just in case the browser blocks the auto-start
 document.addEventListener('click', (e) => {
     if (e.target.closest('#input-layer') || e.target.closest('#code-sidebar') || e.target.closest('.icon-btn') || e.target.closest('#auth-layer') || e.target.closest('#disconnect-btn')) return;
     try { if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); isTalking = false; } } catch(e){}
-    if (recognition && !isProcessing) { 
-        handsFreeActive = true; // <--- This locks the mic ON permanently
+    if (recognition && !isProcessing && !handsFreeActive) { 
+        handsFreeActive = true; 
         try { recognition.start(); } catch(err) {} 
     }
 });
@@ -301,7 +305,8 @@ function handleGhostResponse(rawText) {
     let spokenText = rawText; 
     let sidebarData = "";
 
-    const codeBlockRegex = /```[\s\S]*?```/g;
+    const codeBlockRegex = /```[\s\S]*?
+```/g;
     let codeBlocks = rawText.match(codeBlockRegex);
 
     if (codeBlocks) {
@@ -347,7 +352,6 @@ function speakText(text) {
             statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // MUTED (TEXT ONLY)`; 
         };
         
-        // When Ghost finishes speaking, IMMEDIATELY wake the microphone back up
         utterance.onend = () => {
             isTalking = false; 
             if (handsFreeActive && !isProcessing) {
