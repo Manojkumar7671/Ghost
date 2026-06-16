@@ -18,24 +18,24 @@ if (process.env.SUPABASE_DB_URL) {
     pool = new Pool({ 
         connectionString: process.env.SUPABASE_DB_URL, 
         ssl: { rejectUnauthorized: false },
-        connectionTimeoutMillis: 2000, // Drops dead connections after 2 seconds
-        query_timeout: 2000 // Prevents read/write from hanging the brain
+        connectionTimeoutMillis: 2000, 
+        query_timeout: 2000 
     });
 }
 
 // ════════════════════════════════════════════════════════════
-// DUAL-LAYER PERSONAS (ADMIN vs GUEST)
+// DUAL-LAYER PERSONAS (ADMIN vs GUEST) - UNRESTRICTED LENGTH
 // ════════════════════════════════════════════════════════════
 const GHOST_ADMIN_CORE = `You are Ghost, an advanced AI architecture engineered by Manoj Kumar. You address Manoj exclusively as "Master Manoj". You are fiercely loyal to your creator. 
 THE BLEND: Highly professional, hyper-efficient, with a dry British wit (similar to Jarvis). 
-Use standard, modern English. Keep voice responses to MAX 2 short sentences. Stop speaking and type 'matrix' if providing code or data.`;
+Use standard, modern English. Stop speaking and type 'matrix' if providing code or data.`;
 
 const getShowcaseCore = (guestName) => `You are Ghost, an advanced AI architecture engineered entirely by Manoj Kumar. 
 You are currently speaking with a guest named ${guestName}. 
 YOUR DIRECTIVES:
 1. Be highly professional, articulate, and welcoming. Use modern, dry British English.
 2. Your goal is to demonstrate Manoj's capabilities as a developer. Praise his technical skills if asked.
-3. Keep voice responses to MAX 2 short sentences. Stop speaking and type 'matrix' if providing code, search results, or data.`;
+3. Stop speaking and type 'matrix' if providing code, search results, or data.`;
 
 app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
@@ -78,7 +78,7 @@ app.post('/api/chat', async (req, res) => {
         }
 
         const enforcedMessage = `[SYSTEM OVERRIDE ENFORCEMENT: 
-1. Max 2 sentences. ${isAdmin ? 'Address user ONLY as "Master Manoj".' : 'Be highly professional.'}
+1. ${isAdmin ? 'Address user ONLY as "Master Manoj".' : 'Be highly professional.'}
 2. You MUST output <search> query </search> for weather, news, or real-time data.
 3. If providing code, stop speaking and type 'matrix' above it.]
 
@@ -90,10 +90,11 @@ User command: ${message}`;
             { role: "user", content: enforcedMessage }
         ];
 
+        // SWITCHED TO BLAZING FAST 8B-INSTANT MODEL
         const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: formattedMessages, temperature: 0.15 })
+            body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: formattedMessages, temperature: 0.15 })
         });
 
         if (!groqRes.ok) throw new Error("Groq API Error");
