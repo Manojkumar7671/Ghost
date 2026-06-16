@@ -1,5 +1,5 @@
-kkklet currentUser = "Guest";
-let isBatman = false;
+let currentUser = "Guest";
+let isAdminMode = false;
 const MASTER_PASSCODE = "knightfall"; 
 
 const authLayer = document.getElementById('auth-layer');
@@ -48,15 +48,15 @@ function initializeGhost() {
     authInput.value = "";
 
     if (inputVal === MASTER_PASSCODE) {
-        currentUser = "Master Wayne";
-        isBatman = true;
+        currentUser = "Master Manoj";
+        isAdminMode = true;
         setTheme(true);
         sidebarHeader.innerHTML = '<strong style="color:#ff0032">ADMIN DATA MATRIX</strong><button id="close-sidebar" style="color:#ff0032">✕</button>';
         document.getElementById('close-sidebar').addEventListener('click', () => { codeSidebar.classList.remove('open'); });
-        speakText("Admin access granted. Online, Master Wayne.");
+        speakText("Admin access granted. Welcome back, Master Manoj. All systems online.");
     } else {
         currentUser = inputVal;
-        isBatman = false;
+        isAdminMode = false;
         setTheme(false);
         sidebarHeader.innerHTML = '<strong>GHOST DATA MATRIX</strong><button id="close-sidebar">✕</button>';
         document.getElementById('close-sidebar').addEventListener('click', () => { codeSidebar.classList.remove('open'); });
@@ -81,7 +81,7 @@ disconnectBtn.addEventListener('click', () => {
     authLayer.classList.remove('hidden');
     disconnectBtn.classList.remove('visible');
     currentUser = "Guest";
-    isBatman = false;
+    isAdminMode = false;
     setTheme(false);
 });
 
@@ -118,11 +118,11 @@ let isProcessing = false; let isListening = false; let isTalking = false;
 function animate() {
     requestAnimationFrame(animate);
     const time = Date.now() * 0.001; 
-    let targetColor = isBatman ? colors.idleAdmin : colors.idle;
+    let targetColor = isAdminMode ? colors.idleAdmin : colors.idle;
     let targetScale = 1.0 + Math.sin(time * 2) * 0.02;
     let amplitude = 1.0;
 
-    if (isTalking) { targetColor = isBatman ? colors.talkingAdmin : colors.talking; targetScale = 1.05 + Math.sin(time * 5) * 0.03; amplitude = 2.0; } 
+    if (isTalking) { targetColor = isAdminMode ? colors.talkingAdmin : colors.talking; targetScale = 1.05 + Math.sin(time * 5) * 0.03; amplitude = 2.0; } 
     else if (isProcessing) { targetColor = colors.processing; targetScale = 1.08 + Math.sin(time * 10) * 0.04; amplitude = 3.5; } 
     else if (isListening) { targetColor = colors.listening; targetScale = 0.98 + Math.sin(time * 8) * 0.02; amplitude = 1.5; }
 
@@ -193,13 +193,13 @@ let handsFreeActive = false;
 
 if (recognition) {
     recognition.continuous = false; recognition.interimResults = false; recognition.lang = 'en-US'; 
-    recognition.onstart = () => { isListening = true; statusIndicator.innerText = `${isBatman ? 'ADMIN' : 'GHOST'} // LISTENING (${currentUser})`; };
+    recognition.onstart = () => { isListening = true; statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // LISTENING (${currentUser})`; };
     recognition.onresult = (event) => {
-        isListening = false; statusIndicator.innerText = `${isBatman ? 'ADMIN' : 'GHOST'} // PROCESSING`;
+        isListening = false; statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // PROCESSING`;
         sendToCore(event.results[0][0].transcript);
     };
     recognition.onend = () => { isListening = false; }
-    recognition.onerror = () => { isListening = false; statusIndicator.innerText = `${isBatman ? 'ADMIN' : 'GHOST'} // STANDBY (${currentUser})`; };
+    recognition.onerror = () => { isListening = false; statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // STANDBY (${currentUser})`; };
 }
 
 document.addEventListener('click', (e) => {
@@ -265,7 +265,7 @@ function handleGhostResponse(rawText) {
 
     if (sidebarData) {
         codeContent.innerText = sidebarData.trim(); codeSidebar.classList.add('open');
-        if (!spokenText.trim()) spokenText = isBatman ? "Data compiled in the admin matrix." : "Data compiled in the matrix.";
+        if (!spokenText.trim()) spokenText = isAdminMode ? "Data compiled in the admin matrix." : "Data compiled in the matrix.";
     }
     speakText(spokenText);
 }
@@ -277,7 +277,7 @@ function speakText(text) {
 
     subtitleDisplay.innerText = cleanText; 
     subtitleDisplay.classList.add('visible');
-    statusIndicator.innerText = `${isBatman ? 'ADMIN' : 'GHOST'} // RESPONDING`;
+    statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // RESPONDING`;
 
     try {
         window.speechSynthesis.cancel(); 
@@ -295,16 +295,16 @@ function speakText(text) {
         
         utterance.onerror = () => { 
             isTalking = false; 
-            statusIndicator.innerText = `${isBatman ? 'ADMIN' : 'GHOST'} // MUTED (TEXT ONLY)`; 
+            statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // MUTED (TEXT ONLY)`; 
         };
         
         utterance.onend = () => {
             isTalking = false; 
             if (handsFreeActive && recognition) {
-                statusIndicator.innerText = `${isBatman ? 'ADMIN' : 'GHOST'} // STANDBY (${currentUser})`;
+                statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // STANDBY (${currentUser})`;
                 setTimeout(() => { try { recognition.start(); } catch(e){} }, 800);
             } else {
-                statusIndicator.innerText = `${isBatman ? 'ADMIN' : 'GHOST'} // STANDBY (${currentUser})`;
+                statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // STANDBY (${currentUser})`;
             }
         };
 
@@ -313,6 +313,6 @@ function speakText(text) {
         
     } catch(audioError) {
         isTalking = false;
-        statusIndicator.innerText = `${isBatman ? 'ADMIN' : 'GHOST'} // MUTED (TEXT ONLY)`; 
+        statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // MUTED (TEXT ONLY)`; 
     }
 }
