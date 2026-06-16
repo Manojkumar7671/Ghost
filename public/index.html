@@ -8,7 +8,6 @@
         body { margin: 0; overflow: hidden; background-color: #020202; font-family: 'Courier New', Courier, monospace; color: #00d4ff; }
         #webgl-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
         
-        /* THE AUTHENTICATION LAYER */
         #auth-layer {
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
             background: rgba(2, 2, 2, 0.95); backdrop-filter: blur(10px); z-index: 100;
@@ -23,7 +22,6 @@
         .auth-btn { background: rgba(0, 212, 255, 0.1); border: 1px solid #00d4ff; color: #00d4ff; font-family: inherit; padding: 10px 30px; cursor: pointer; letter-spacing: 1px; transition: all 0.2s; font-weight: bold; }
         .auth-btn:hover { background: #00d4ff; color: #020202; }
 
-        /* MAIN UI STYLES */
         #top-bar { position: absolute; top: 20px; left: 20px; z-index: 10; display: flex; align-items: center; gap: 20px;}
         #status-indicator { font-size: 0.9rem; font-weight: bold; opacity: 0.7; }
         #disconnect-btn { background: rgba(255, 0, 50, 0.2); border: 1px solid #ff0032; color: #ff0032; font-family: inherit; padding: 5px 15px; cursor: pointer; border-radius: 5px; font-weight: bold; transition: 0.2s; display: none; }
@@ -43,7 +41,6 @@
         #close-sidebar { background: transparent; border: none; color: #00d4ff; font-size: 1.5rem; cursor: pointer; }
         #code-content { padding: 20px; overflow-y: auto; flex-grow: 1; white-space: pre-wrap; font-size: 0.9rem; line-height: 1.5; }
 
-        /* MOBILE RESPONSIVENESS */
         @media (max-width: 600px) {
             #subtitle-display { font-size: 1rem; bottom: 100px; width: 95%; }
             .auth-box { width: 80%; padding: 20px; }

@@ -1,6 +1,5 @@
 let currentUser = "Guest";
 let isBatman = false;
-
 const MASTER_PASSCODE = "knightfall"; 
 
 const authLayer = document.getElementById('auth-layer');
@@ -16,7 +15,7 @@ function forceUnlockAudio() {
     window.speechSynthesis.speak(silent);
     if (window.speechSynthesis.resume) window.speechSynthesis.resume();
 }
-// Triggers the exact second you touch the screen or hit a key
+
 document.body.addEventListener('click', forceUnlockAudio, { once: true });
 document.body.addEventListener('touchstart', forceUnlockAudio, { once: true });
 document.body.addEventListener('keydown', forceUnlockAudio, { once: true });
@@ -71,15 +70,18 @@ const container = document.getElementById('webgl-container');
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.z = 5;
+
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 container.appendChild(renderer.domElement);
+
 const colors = { idle: new THREE.Color(0x00d4ff), listening: new THREE.Color(0x0055ff), processing: new THREE.Color(0xffaa00), talking: new THREE.Color(0x00ffcc) };
 const geometry = new THREE.SphereGeometry(2, 64, 64); 
 const material = new THREE.PointsMaterial({ color: colors.idle, size: 0.02, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
 const coreParticles = new THREE.Points(geometry, material);
 scene.add(coreParticles);
+
 const positionAttribute = geometry.attributes.position;
 const basePositions = [];
 for (let i = 0; i < positionAttribute.count; i++) basePositions.push(new THREE.Vector3().fromBufferAttribute(positionAttribute, i));
@@ -107,15 +109,19 @@ function animate() {
     renderer.render(scene, camera);
 }
 animate();
+
 window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
 
 // --- 2. UI INTERACTION & LOGIC ---
-const inputLayer = document.getElementById('input-layer'); const commandInput = document.getElementById('command-input');
-const codeSidebar = document.getElementById('code-sidebar'); const codeContent = document.getElementById('code-content');
+const inputLayer = document.getElementById('input-layer'); 
+const commandInput = document.getElementById('command-input');
+const codeSidebar = document.getElementById('code-sidebar'); 
+const codeContent = document.getElementById('code-content');
 const statusIndicator = document.getElementById('status-indicator');
-const subtitleDisplay = document.getElementById('subtitle-display'); const fileUpload = document.getElementById('file-upload');
-let lastTap = 0;
+const subtitleDisplay = document.getElementById('subtitle-display'); 
+const fileUpload = document.getElementById('file-upload');
 
+let lastTap = 0;
 document.addEventListener('dblclick', toggleInput);
 document.addEventListener('touchend', (e) => {
     const currentTime = new Date().getTime();
@@ -124,6 +130,7 @@ document.addEventListener('touchend', (e) => {
 });
 
 function toggleInput() { inputLayer.classList.toggle('active'); if (inputLayer.classList.contains('active')) commandInput.focus(); }
+
 commandInput.addEventListener('keydown', () => { if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); isTalking = false; subtitleDisplay.classList.remove('visible'); } });
 
 let attachedFileContent = ""; let attachedFileName = "";
@@ -145,7 +152,8 @@ fileUpload.addEventListener('change', (e) => {
     }
 });
 
-let availableVoices = []; window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); };
+let availableVoices = []; 
+window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); };
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const recognition = new SpeechRecognition ? new SpeechRecognition() : null;
 let handsFreeActive = false;
