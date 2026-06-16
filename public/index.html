@@ -5,51 +5,51 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ghost OS</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #020202; font-family: 'Courier New', Courier, monospace; color: #00d4ff; }
+        :root { --ghost-color: #00d4ff; --ghost-glow: rgba(0,212,255,0.8); }
+        body { margin: 0; overflow: hidden; background-color: #020202; font-family: 'Courier New', Courier, monospace; color: var(--ghost-color); }
         #webgl-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
-        
+
         #auth-layer {
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(2, 2, 2, 0.95); backdrop-filter: blur(10px); z-index: 100;
+            background: rgba(2,2,2,0.95); backdrop-filter: blur(10px); z-index: 100;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             transition: opacity 0.5s ease;
         }
         #auth-layer.hidden { opacity: 0; pointer-events: none; }
-        
-        .auth-box { text-align: center; border: 1px solid rgba(0, 212, 255, 0.3); padding: 40px; border-radius: 10px; background: rgba(0, 212, 255, 0.05); }
-        .auth-box h2 { letter-spacing: 2px; margin-bottom: 20px; text-shadow: 0 0 10px rgba(0, 212, 255, 0.5); }
+
+        .auth-box { text-align: center; border: 1px solid rgba(0,212,255,0.3); padding: 40px; border-radius: 10px; background: rgba(0,212,255,0.05); }
+        .auth-box h2 { letter-spacing: 2px; margin-bottom: 20px; color: #00d4ff; text-shadow: 0 0 10px rgba(0,212,255,0.5); }
         .auth-input { width: 300px; background: transparent; border: none; border-bottom: 2px solid #00d4ff; color: #00d4ff; font-family: inherit; font-size: 1.2rem; padding: 10px; text-align: center; outline: none; margin-bottom: 20px; }
-        .auth-btn { background: rgba(0, 212, 255, 0.1); border: 1px solid #00d4ff; color: #00d4ff; font-family: inherit; padding: 10px 30px; cursor: pointer; letter-spacing: 1px; transition: all 0.2s; font-weight: bold; }
+        .auth-btn { background: rgba(0,212,255,0.1); border: 1px solid #00d4ff; color: #00d4ff; font-family: inherit; padding: 10px 30px; cursor: pointer; letter-spacing: 1px; transition: all 0.2s; font-weight: bold; }
         .auth-btn:hover { background: #00d4ff; color: #020202; }
 
-        #top-bar { position: absolute; top: 20px; left: 20px; z-index: 10; display: flex; align-items: center; gap: 20px;}
-        #status-indicator { font-size: 0.9rem; font-weight: bold; opacity: 0.7; }
-        #disconnect-btn { background: rgba(255, 0, 50, 0.2); border: 1px solid #ff0032; color: #ff0032; font-family: inherit; padding: 5px 15px; cursor: pointer; border-radius: 5px; font-weight: bold; transition: 0.2s; display: none; }
+        #top-bar { position: absolute; top: 20px; left: 20px; z-index: 10; display: flex; align-items: center; gap: 20px; }
+        #status-indicator { font-size: 0.9rem; font-weight: bold; opacity: 0.7; color: #00d4ff; }
+        #disconnect-btn { background: rgba(255,0,50,0.2); border: 1px solid #ff0032; color: #ff0032; font-family: inherit; padding: 5px 15px; cursor: pointer; border-radius: 5px; font-weight: bold; transition: 0.2s; display: none; }
         #disconnect-btn.visible { display: block; }
         #disconnect-btn:hover { background: #ff0032; color: #fff; }
 
-        /* UPGRADED HUD SUBTITLE BOX */
-        #subtitle-display { 
-            position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); 
-            z-index: 5; width: 85%; max-width: 800px; text-align: center; 
-            font-size: 1.2rem; font-weight: bold; color: #00d4ff; 
-            text-shadow: 0 0 8px rgba(0, 212, 255, 0.8); 
-            background: rgba(0, 20, 30, 0.85); 
-            border: 1px solid rgba(0, 212, 255, 0.4); 
+        #subtitle-display {
+            position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
+            z-index: 5; width: 85%; max-width: 800px; text-align: center;
+            font-size: 1.2rem; font-weight: bold; color: #00d4ff;
+            text-shadow: 0 0 8px rgba(0,212,255,0.8);
+            background: rgba(0,20,30,0.85);
+            border: 1px solid rgba(0,212,255,0.4);
             padding: 15px 20px; border-radius: 8px; backdrop-filter: blur(4px);
-            opacity: 0; pointer-events: none; letter-spacing: 1px; 
-            transition: opacity 0.3s ease; 
+            opacity: 0; pointer-events: none; letter-spacing: 1px;
+            transition: opacity 0.3s ease;
         }
         #subtitle-display.visible { opacity: 1; }
 
         #input-layer { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; align-items: center; gap: 10px; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
         #input-layer.active { opacity: 1; pointer-events: auto; }
-        #command-input { width: 400px; background: rgba(0, 212, 255, 0.05); border: 1px solid rgba(0, 212, 255, 0.3); border-radius: 20px; color: #00d4ff; font-family: inherit; font-size: 1.1rem; padding: 12px 20px; outline: none; }
-        .icon-btn { background: rgba(0, 212, 255, 0.1); border: 1px solid rgba(0, 212, 255, 0.3); border-radius: 50%; width: 45px; height: 45px; color: #00d4ff; cursor: pointer; font-size: 1.2rem; display: flex; justify-content: center; align-items: center; }
-        
-        #code-sidebar { position: absolute; top: 0; right: -500px; width: 450px; height: 100vh; background: rgba(2, 2, 2, 0.85); border-left: 1px solid rgba(0, 212, 255, 0.3); backdrop-filter: blur(10px); z-index: 20; transition: right 0.4s; display: flex; flex-direction: column; }
+        #command-input { width: 400px; background: rgba(0,212,255,0.05); border: 1px solid rgba(0,212,255,0.3); border-radius: 20px; color: #00d4ff; font-family: inherit; font-size: 1.1rem; padding: 12px 20px; outline: none; }
+        .icon-btn { background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.3); border-radius: 50%; width: 45px; height: 45px; color: #00d4ff; cursor: pointer; font-size: 1.2rem; display: flex; justify-content: center; align-items: center; }
+
+        #code-sidebar { position: absolute; top: 0; right: -500px; width: 450px; height: 100vh; background: rgba(2,2,2,0.85); border-left: 1px solid rgba(0,212,255,0.3); backdrop-filter: blur(10px); z-index: 20; transition: right 0.4s; display: flex; flex-direction: column; }
         #code-sidebar.open { right: 0; }
-        #sidebar-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0, 212, 255, 0.2); }
+        #sidebar-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,212,255,0.2); }
         #close-sidebar { background: transparent; border: none; color: #00d4ff; font-size: 1.5rem; cursor: pointer; }
         #code-content { padding: 20px; overflow-y: auto; flex-grow: 1; white-space: pre-wrap; font-size: 0.9rem; line-height: 1.5; }
 
@@ -58,8 +58,8 @@
             .auth-box { width: 80%; padding: 20px; }
             .auth-input { width: 100%; font-size: 1rem; }
             #command-input { width: 220px; font-size: 0.9rem; }
-            #code-sidebar { width: 100%; right: -100%; border-left: none; border-top: 1px solid rgba(0, 212, 255, 0.3); }
-            #top-bar { top: 10px; left: 10px; gap: 10px; flex-direction: column; align-items: flex-start; }
+            #code-sidebar { width: 100%; right: -100%; }
+            #top-bar { top: 10px; left: 10px; flex-direction: column; align-items: flex-start; }
         }
     </style>
 </head>
@@ -77,7 +77,7 @@
         <div id="status-indicator">GHOST // STANDBY</div>
         <button id="disconnect-btn">DISCONNECT</button>
     </div>
-    
+
     <div id="subtitle-display"></div>
     <div id="webgl-container"></div>
 

@@ -24,6 +24,21 @@ document.body.addEventListener('keydown', forceUnlockAudio, { once: true });
 authBtn.addEventListener('click', initializeGhost);
 authInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') initializeGhost(); });
 
+// RED theme for admin, CYAN for guest
+function setTheme(admin) {
+    const color = admin ? '#ff0032' : '#00d4ff';
+    const borderColor = admin ? 'rgba(255,0,50,0.4)' : 'rgba(0,212,255,0.4)';
+    const bgColor = admin ? 'rgba(30,0,10,0.85)' : 'rgba(0,20,30,0.85)';
+    const glow = admin ? '0 0 8px rgba(255,0,50,0.8)' : '0 0 8px rgba(0,212,255,0.8)';
+
+    document.getElementById('status-indicator').style.color = color;
+    document.getElementById('subtitle-display').style.color = color;
+    document.getElementById('subtitle-display').style.borderColor = borderColor;
+    document.getElementById('subtitle-display').style.background = bgColor;
+    document.getElementById('subtitle-display').style.textShadow = glow;
+    document.title = admin ? "Ghost OS // ADMIN" : "Ghost OS";
+}
+
 function initializeGhost() {
     const inputVal = authInput.value.trim();
     if (!inputVal) return;
@@ -35,12 +50,14 @@ function initializeGhost() {
     if (inputVal === MASTER_PASSCODE) {
         currentUser = "Master Wayne";
         isBatman = true;
-        sidebarHeader.innerHTML = '<strong>TACTICAL DATA MATRIX</strong><button id="close-sidebar">✕</button>';
+        setTheme(true);
+        sidebarHeader.innerHTML = '<strong style="color:#ff0032">ADMIN DATA MATRIX</strong><button id="close-sidebar" style="color:#ff0032">✕</button>';
         document.getElementById('close-sidebar').addEventListener('click', () => { codeSidebar.classList.remove('open'); });
-        speakText("Protocol Knightfall accepted. Welcome to the Batcave, Master Wayne. All tactical systems are online.");
+        speakText("Admin access granted. Online, Master Wayne.");
     } else {
         currentUser = inputVal;
         isBatman = false;
+        setTheme(false);
         sidebarHeader.innerHTML = '<strong>GHOST DATA MATRIX</strong><button id="close-sidebar">✕</button>';
         document.getElementById('close-sidebar').addEventListener('click', () => { codeSidebar.classList.remove('open'); });
         speakText(`Initialization complete. Welcome, ${currentUser}. I am Ghost, an AI architecture engineered by Manoj Kumar. How may I assist you today?`);
@@ -64,6 +81,8 @@ disconnectBtn.addEventListener('click', () => {
     authLayer.classList.remove('hidden');
     disconnectBtn.classList.remove('visible');
     currentUser = "Guest";
+    isBatman = false;
+    setTheme(false);
 });
 
 // --- 1. NON-STOP PARTICLE SWARM ---
@@ -77,7 +96,14 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 container.appendChild(renderer.domElement);
 
-const colors = { idle: new THREE.Color(0x00d4ff), listening: new THREE.Color(0x0055ff), processing: new THREE.Color(0xffaa00), talking: new THREE.Color(0x00ffcc) };
+const colors = {
+    idle: new THREE.Color(0x00d4ff),
+    idleAdmin: new THREE.Color(0xff0032),
+    listening: new THREE.Color(0x0055ff),
+    processing: new THREE.Color(0xffaa00),
+    talking: new THREE.Color(0x00ffcc),
+    talkingAdmin: new THREE.Color(0xff6600)
+};
 const geometry = new THREE.SphereGeometry(2, 64, 64); 
 const material = new THREE.PointsMaterial({ color: colors.idle, size: 0.02, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
 const coreParticles = new THREE.Points(geometry, material);
@@ -92,9 +118,11 @@ let isProcessing = false; let isListening = false; let isTalking = false;
 function animate() {
     requestAnimationFrame(animate);
     const time = Date.now() * 0.001; 
-    let targetColor = colors.idle; let targetScale = 1.0 + Math.sin(time * 2) * 0.02; let amplitude = 1.0;
+    let targetColor = isBatman ? colors.idleAdmin : colors.idle;
+    let targetScale = 1.0 + Math.sin(time * 2) * 0.02;
+    let amplitude = 1.0;
 
-    if (isTalking) { targetColor = colors.talking; targetScale = 1.05 + Math.sin(time * 5) * 0.03; amplitude = 2.0; } 
+    if (isTalking) { targetColor = isBatman ? colors.talkingAdmin : colors.talking; targetScale = 1.05 + Math.sin(time * 5) * 0.03; amplitude = 2.0; } 
     else if (isProcessing) { targetColor = colors.processing; targetScale = 1.08 + Math.sin(time * 10) * 0.04; amplitude = 3.5; } 
     else if (isListening) { targetColor = colors.listening; targetScale = 0.98 + Math.sin(time * 8) * 0.02; amplitude = 1.5; }
 
@@ -165,13 +193,13 @@ let handsFreeActive = false;
 
 if (recognition) {
     recognition.continuous = false; recognition.interimResults = false; recognition.lang = 'en-US'; 
-    recognition.onstart = () => { isListening = true; statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // LISTENING (${currentUser})`; };
+    recognition.onstart = () => { isListening = true; statusIndicator.innerText = `${isBatman ? 'ADMIN' : 'GHOST'} // LISTENING (${currentUser})`; };
     recognition.onresult = (event) => {
-        isListening = false; statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // PROCESSING`;
+        isListening = false; statusIndicator.innerText = `${isBatman ? 'ADMIN' : 'GHOST'} // PROCESSING`;
         sendToCore(event.results[0][0].transcript);
     };
     recognition.onend = () => { isListening = false; }
-    recognition.onerror = () => { isListening = false; statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // STANDBY (${currentUser})`; };
+    recognition.onerror = () => { isListening = false; statusIndicator.innerText = `${isBatman ? 'ADMIN' : 'GHOST'} // STANDBY (${currentUser})`; };
 }
 
 document.addEventListener('click', (e) => {
@@ -188,7 +216,6 @@ commandInput.addEventListener('keypress', (e) => {
             prime.volume = 0;
             window.speechSynthesis.speak(prime);
         } catch(err){}
-
         sendToCore(commandInput.value.trim()); 
         commandInput.value = '';
     }
@@ -197,7 +224,6 @@ commandInput.addEventListener('keypress', (e) => {
 async function sendToCore(message) {
     isProcessing = true;
     if (handsFreeActive && recognition) recognition.stop(); 
-    
     subtitleDisplay.classList.remove('visible'); 
 
     let finalPayload = message;
@@ -239,19 +265,19 @@ function handleGhostResponse(rawText) {
 
     if (sidebarData) {
         codeContent.innerText = sidebarData.trim(); codeSidebar.classList.add('open');
-        if (!spokenText.trim()) spokenText = isBatman ? "Data compiled in the tactical matrix." : "Data compiled in the matrix.";
+        if (!spokenText.trim()) spokenText = isBatman ? "Data compiled in the admin matrix." : "Data compiled in the matrix.";
     }
     speakText(spokenText);
 }
 
-// 🛑 BULLETPROOF TEXT & AUDIO RENDERER 🛑
+// BULLETPROOF TEXT & AUDIO RENDERER
 function speakText(text) {
     const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/matrix/gi, '').trim(); 
     if (!cleanText) return;
 
     subtitleDisplay.innerText = cleanText; 
     subtitleDisplay.classList.add('visible');
-    statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // RESPONDING`;
+    statusIndicator.innerText = `${isBatman ? 'ADMIN' : 'GHOST'} // RESPONDING`;
 
     try {
         window.speechSynthesis.cancel(); 
@@ -267,19 +293,18 @@ function speakText(text) {
         
         utterance.pitch = 1.0; utterance.rate = 0.92; 
         
-        utterance.onerror = (e) => { 
-            console.warn("Speech API Blocked. Keeping text visible.");
+        utterance.onerror = () => { 
             isTalking = false; 
-            statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // MUTED (TEXT ONLY)`; 
+            statusIndicator.innerText = `${isBatman ? 'ADMIN' : 'GHOST'} // MUTED (TEXT ONLY)`; 
         };
         
         utterance.onend = () => {
             isTalking = false; 
             if (handsFreeActive && recognition) {
-                statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // STANDBY (${currentUser})`;
+                statusIndicator.innerText = `${isBatman ? 'ADMIN' : 'GHOST'} // STANDBY (${currentUser})`;
                 setTimeout(() => { try { recognition.start(); } catch(e){} }, 800);
             } else {
-                statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // STANDBY (${currentUser})`;
+                statusIndicator.innerText = `${isBatman ? 'ADMIN' : 'GHOST'} // STANDBY (${currentUser})`;
             }
         };
 
@@ -287,8 +312,7 @@ function speakText(text) {
         if (window.speechSynthesis.resume) window.speechSynthesis.resume();
         
     } catch(audioError) {
-        console.warn("Total Audio Failure. Text rendered safely.");
         isTalking = false;
-        statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // MUTED (TEXT ONLY)`; 
+        statusIndicator.innerText = `${isBatman ? 'ADMIN' : 'GHOST'} // MUTED (TEXT ONLY)`; 
     }
 }
