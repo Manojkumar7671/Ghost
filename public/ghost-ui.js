@@ -8,7 +8,7 @@ const authBtn = document.getElementById('auth-btn');
 const disconnectBtn = document.getElementById('disconnect-btn');
 const sidebarHeader = document.getElementById('sidebar-header');
 
-// --- THE ABSOLUTE AUDIO WAKE-LOCK ---
+// INITIAL AUDIO UNLOCK
 function forceUnlockAudio() {
     let silent = new SpeechSynthesisUtterance('');
     silent.volume = 0;
@@ -65,7 +65,7 @@ disconnectBtn.addEventListener('click', () => {
     currentUser = "Guest";
 });
 
-// --- 1. NON-STOP PARTICLE SWARM & COLOR MORPHING ---
+// --- 1. NON-STOP PARTICLE SWARM ---
 const container = document.getElementById('webgl-container');
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -112,7 +112,7 @@ animate();
 
 window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
 
-// --- 2. UI INTERACTION & LOGIC ---
+// --- 2. UI INTERACTION ---
 const inputLayer = document.getElementById('input-layer'); 
 const commandInput = document.getElementById('command-input');
 const codeSidebar = document.getElementById('code-sidebar'); 
@@ -130,8 +130,6 @@ document.addEventListener('touchend', (e) => {
 });
 
 function toggleInput() { inputLayer.classList.toggle('active'); if (inputLayer.classList.contains('active')) commandInput.focus(); }
-
-commandInput.addEventListener('keydown', () => { if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); isTalking = false; } });
 
 let attachedFileContent = ""; let attachedFileName = "";
 fileUpload.addEventListener('change', (e) => {
@@ -177,7 +175,14 @@ document.addEventListener('click', (e) => {
 
 commandInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && commandInput.value.trim() !== '') {
-        sendToCore(commandInput.value.trim()); commandInput.value = '';
+        // THE AUDIO PRIMER: Trick Chrome into keeping audio awake during processing
+        window.speechSynthesis.cancel();
+        let prime = new SpeechSynthesisUtterance('');
+        prime.volume = 0;
+        window.speechSynthesis.speak(prime);
+
+        sendToCore(commandInput.value.trim()); 
+        commandInput.value = '';
     }
 });
 
@@ -185,7 +190,6 @@ async function sendToCore(message) {
     isProcessing = true;
     if (handsFreeActive && recognition) recognition.stop(); 
     
-    // We ONLY clear the screen when a NEW message is sent
     subtitleDisplay.classList.remove('visible'); 
 
     let finalPayload = message;
@@ -241,7 +245,6 @@ function speakText(text) {
     isTalking = true;
     statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // RESPONDING`;
     
-    // Make the text visible instantly
     subtitleDisplay.innerText = cleanText; 
     subtitleDisplay.classList.add('visible');
 
@@ -254,14 +257,12 @@ function speakText(text) {
     
     utterance.pitch = 1.0; utterance.rate = 0.92; 
     
-    // THE FIX: Do NOT remove 'visible' class here. Just mark as muted.
     utterance.onerror = (e) => { 
         console.error("Speech API Error:", e);
         isTalking = false; 
         statusIndicator.innerText = `${isBatman ? 'BATCAVE' : 'GHOST'} // MUTED (TEXT ONLY)`; 
     };
     
-    // THE FIX: Do NOT remove 'visible' class here. Leave it for the user to read!
     utterance.onend = () => {
         isTalking = false; 
         if (handsFreeActive && recognition) {

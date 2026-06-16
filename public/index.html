@@ -28,8 +28,20 @@
         #disconnect-btn.visible { display: block; }
         #disconnect-btn:hover { background: #ff0032; color: #fff; }
 
-        #subtitle-display { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); z-index: 5; width: 80%; max-width: 800px; text-align: center; font-size: 1.5rem; font-weight: bold; text-shadow: 0 0 10px rgba(0, 212, 255, 0.8); opacity: 0; pointer-events: none; letter-spacing: 1px;}
+        /* UPGRADED HUD SUBTITLE BOX */
+        #subtitle-display { 
+            position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); 
+            z-index: 5; width: 85%; max-width: 800px; text-align: center; 
+            font-size: 1.2rem; font-weight: bold; color: #00d4ff; 
+            text-shadow: 0 0 8px rgba(0, 212, 255, 0.8); 
+            background: rgba(0, 20, 30, 0.85); 
+            border: 1px solid rgba(0, 212, 255, 0.4); 
+            padding: 15px 20px; border-radius: 8px; backdrop-filter: blur(4px);
+            opacity: 0; pointer-events: none; letter-spacing: 1px; 
+            transition: opacity 0.3s ease; 
+        }
         #subtitle-display.visible { opacity: 1; }
+
         #input-layer { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; align-items: center; gap: 10px; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
         #input-layer.active { opacity: 1; pointer-events: auto; }
         #command-input { width: 400px; background: rgba(0, 212, 255, 0.05); border: 1px solid rgba(0, 212, 255, 0.3); border-radius: 20px; color: #00d4ff; font-family: inherit; font-size: 1.1rem; padding: 12px 20px; outline: none; }
@@ -42,7 +54,7 @@
         #code-content { padding: 20px; overflow-y: auto; flex-grow: 1; white-space: pre-wrap; font-size: 0.9rem; line-height: 1.5; }
 
         @media (max-width: 600px) {
-            #subtitle-display { font-size: 1rem; bottom: 100px; width: 95%; }
+            #subtitle-display { font-size: 1rem; bottom: 100px; width: 90%; padding: 12px; }
             .auth-box { width: 80%; padding: 20px; }
             .auth-input { width: 100%; font-size: 1rem; }
             #command-input { width: 220px; font-size: 0.9rem; }
