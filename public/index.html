@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+k<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -40,15 +40,14 @@
             opacity: 0; pointer-events: auto; letter-spacing: 1px;
             transition: opacity 0.3s ease;
             
-            /* THE FIX: Text wrapping and scrolling */
+            /* HEIGHT EXPANDED TO 250PX AND WRAPPING ENABLED */
             white-space: pre-wrap; 
             word-wrap: break-word;
-            max-height: 120px;
+            max-height: 250px;
             overflow-y: auto;
         }
         #subtitle-display.visible { opacity: 1; }
 
-        /* Custom Scrollbar for the HUD */
         #subtitle-display::-webkit-scrollbar { width: 5px; }
         #subtitle-display::-webkit-scrollbar-track { background: transparent; }
         #subtitle-display::-webkit-scrollbar-thumb { background: rgba(0, 212, 255, 0.5); border-radius: 10px; }

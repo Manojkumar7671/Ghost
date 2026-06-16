@@ -10,22 +10,17 @@ app.use(express.static(path.join(__dirname, 'public')));
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
-// ════════════════════════════════════════════════════════════
-// DATABASE CONNECTION WITH AGGRESSIVE TIMEOUTS
-// ════════════════════════════════════════════════════════════
+// DATABASE CONNECTION WITH ULTRA-FAST 500ms TIMEOUT
 let pool;
 if (process.env.SUPABASE_DB_URL) {
     pool = new Pool({ 
         connectionString: process.env.SUPABASE_DB_URL, 
         ssl: { rejectUnauthorized: false },
-        connectionTimeoutMillis: 2000, 
-        query_timeout: 2000 
+        connectionTimeoutMillis: 500, // 500ms TIMEOUT
+        query_timeout: 500 // 500ms TIMEOUT
     });
 }
 
-// ════════════════════════════════════════════════════════════
-// DUAL-LAYER PERSONAS (ADMIN vs GUEST) - UNRESTRICTED LENGTH
-// ════════════════════════════════════════════════════════════
 const GHOST_ADMIN_CORE = `You are Ghost, an advanced AI architecture engineered by Manoj Kumar. You address Manoj exclusively as "Master Manoj". You are fiercely loyal to your creator. 
 THE BLEND: Highly professional, hyper-efficient, with a dry British wit (similar to Jarvis). 
 Use standard, modern English. Stop speaking and type 'matrix' if providing code or data.`;
@@ -90,7 +85,6 @@ User command: ${message}`;
             { role: "user", content: enforcedMessage }
         ];
 
-        // SWITCHED TO BLAZING FAST 8B-INSTANT MODEL
         const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
