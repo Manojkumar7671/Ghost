@@ -37,10 +37,21 @@
             background: rgba(0,20,30,0.85);
             border: 1px solid rgba(0,212,255,0.4);
             padding: 15px 20px; border-radius: 8px; backdrop-filter: blur(4px);
-            opacity: 0; pointer-events: none; letter-spacing: 1px;
+            opacity: 0; pointer-events: auto; letter-spacing: 1px;
             transition: opacity 0.3s ease;
+            
+            /* THE FIX: Text wrapping and scrolling */
+            white-space: pre-wrap; 
+            word-wrap: break-word;
+            max-height: 120px;
+            overflow-y: auto;
         }
         #subtitle-display.visible { opacity: 1; }
+
+        /* Custom Scrollbar for the HUD */
+        #subtitle-display::-webkit-scrollbar { width: 5px; }
+        #subtitle-display::-webkit-scrollbar-track { background: transparent; }
+        #subtitle-display::-webkit-scrollbar-thumb { background: rgba(0, 212, 255, 0.5); border-radius: 10px; }
 
         #input-layer { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; align-items: center; gap: 10px; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
         #input-layer.active { opacity: 1; pointer-events: auto; }

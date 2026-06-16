@@ -1,4 +1,4 @@
-let currentUser = "Guest";
+kkklet currentUser = "Guest";
 let isBatman = false;
 const MASTER_PASSCODE = "knightfall"; 
 
