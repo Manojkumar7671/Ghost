@@ -10,6 +10,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
+// DATABASE CONNECTION (ULTRA-FAST 500ms TIMEOUT)
 let pool;
 if (process.env.SUPABASE_DB_URL) {
     pool = new Pool({ 
@@ -45,7 +46,6 @@ app.post('/api/auth', async (req, res) => {
 app.post('/api/chat', async (req, res) => {
     try {
         const { message, user } = req.body;
-        
         let userHistory = [];
         try {
             if (pool) {
@@ -60,21 +60,10 @@ app.post('/api/chat', async (req, res) => {
 
         const isAdmin = user === 'Master Manoj';
         const systemPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
-
-        const lowerMsg = message.toLowerCase();
-        const forbiddenTopics = ['schedule', 'calendar', 'meeting', 'agenda', 'my day'];
-        
-        if (!isAdmin && forbiddenTopics.some(topic => lowerMsg.includes(topic))) {
-             return res.json({ success: true, text: "As a demonstration model, I do not have access to Manoj's private local calendar." });
-        }
-        if (isAdmin && ['schedule', 'calendar', 'meeting'].some(topic => lowerMsg.includes(topic))) {
-            return res.json({ success: true, text: "I am a cloud entity, Master Manoj. I do not have access to your local encrypted calendar." });
-        }
-
         const enforcedMessage = `[SYSTEM OVERRIDE ENFORCEMENT: 
 1. ${isAdmin ? 'Address user ONLY as "Master Manoj".' : 'Be highly professional.'}
-2. You MUST output <search> query </search> for weather, news, or real-time data.
-3. ABSOLUTE RULE: DO NOT end your response with a question, offer for assistance, or inquiry (e.g., "How can I help?"). Terminate the response immediately.]
+2. You MUST output <search> query </search> for real-time data.
+3. ABSOLUTE RULE: DO NOT end your response with a question, offer for assistance, or inquiry. Terminate the response immediately.]
 
 User command: ${message}`;
 
@@ -91,7 +80,7 @@ User command: ${message}`;
                 model: 'llama-3.1-8b-instant', 
                 messages: formattedMessages, 
                 temperature: 0.15,
-                max_tokens: 4096 // THE FIX: Forcing the AI to use maximum memory to finish its thoughts
+                max_tokens: 4096 
             })
         });
 
@@ -127,7 +116,6 @@ User command: ${message}`;
         } catch (err) {}
 
         res.json({ success: true, text: text.trim() });
-
     } catch (e) {
         res.json({ success: false, text: "System error. Investigating." });
     }
