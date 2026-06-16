@@ -179,25 +179,83 @@ fileUpload.addEventListener('change', (e) => {
 let availableVoices = []; 
 try { window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); }; } catch(e){}
 
+
+// 🛑 THE NEW CONTINUOUS BARGE-IN VOICE ENGINE 🛑
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+
 let handsFreeActive = false;
+let speechBuffer = "";
+let silenceTimer = null;
 
 if (recognition) {
-    recognition.continuous = false; recognition.interimResults = false; recognition.lang = 'en-US'; 
-    recognition.onstart = () => { isListening = true; statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // LISTENING (${currentUser})`; };
-    recognition.onresult = (event) => {
-        isListening = false; statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // PROCESSING`;
-        sendToCore(event.results[0][0].transcript);
+    recognition.continuous = true; // Keeps the mic on
+    recognition.interimResults = true; // Reads words as you say them
+    recognition.lang = 'en-US'; 
+
+    recognition.onstart = () => { 
+        isListening = true; 
+        if (!isProcessing && !isTalking) {
+            statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // LISTENING (${currentUser})`; 
+        }
     };
-    recognition.onend = () => { isListening = false; }
-    recognition.onerror = () => { isListening = false; statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // STANDBY (${currentUser})`; };
+
+    recognition.onresult = (event) => {
+        // BARGE-IN PROTOCOL: If you start speaking, Ghost instantly shuts up!
+        if (isTalking) {
+            window.speechSynthesis.cancel();
+            isTalking = false;
+            statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // LISTENING (${currentUser})`; 
+        }
+
+        let interim = '';
+        let final = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) final += event.results[i][0].transcript;
+            else interim += event.results[i][0].transcript;
+        }
+        
+        speechBuffer += final;
+        let currentText = speechBuffer + interim;
+
+        // SILENCE DEBOUNCE: Clear the timer every time you speak
+        clearTimeout(silenceTimer);
+        
+        // Wait exactly 1.5 seconds of pure silence before sending to the brain
+        if (currentText.trim() !== '') {
+            silenceTimer = setTimeout(() => {
+                let payload = currentText.trim();
+                speechBuffer = ''; 
+                recognition.stop(); // Pause mic to process
+                statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // PROCESSING`;
+                sendToCore(payload);
+            }, 1500); 
+        }
+    };
+
+    recognition.onend = () => { 
+        isListening = false; 
+        // ALWAYS-ON LOOP: Instantly turn mic back on if hands-free is enabled
+        if (handsFreeActive && !isProcessing) {
+            setTimeout(() => { try { recognition.start(); } catch(e){} }, 250);
+        }
+    };
+    
+    recognition.onerror = (e) => { 
+        if(e.error !== 'no-speech') {
+            isListening = false; 
+        }
+    };
 }
 
+// Click the black void to activate Always-On Hands Free
 document.addEventListener('click', (e) => {
     if (e.target.closest('#input-layer') || e.target.closest('#code-sidebar') || e.target.closest('.icon-btn') || e.target.closest('#auth-layer') || e.target.closest('#disconnect-btn')) return;
     try { if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); isTalking = false; } } catch(e){}
-    if (recognition && !isProcessing) { handsFreeActive = true; try { recognition.start(); } catch(err) {} }
+    if (recognition && !isProcessing) { 
+        handsFreeActive = true; // <--- This locks the mic ON permanently
+        try { recognition.start(); } catch(err) {} 
+    }
 });
 
 commandInput.addEventListener('keypress', (e) => {
@@ -239,20 +297,15 @@ async function sendToCore(message) {
     }
 }
 
-// 🛑 BULLETPROOF REGEX PARSER 🛑
 function handleGhostResponse(rawText) {
     let spokenText = rawText; 
     let sidebarData = "";
 
-    // Extract EVERYTHING inside Markdown code blocks (```)
     const codeBlockRegex = /```[\s\S]*?```/g;
     let codeBlocks = rawText.match(codeBlockRegex);
 
     if (codeBlocks) {
-        // Rip the code out of the spoken text entirely
         spokenText = rawText.replace(codeBlockRegex, '').trim();
-        
-        // Push raw code content into the sidebar
         sidebarData = codeBlocks.map(block => {
             return block.replace(/^```[\w-]*\n?/, '').replace(/\n?```$/, '');
         }).join('\n\n---\n\n');
@@ -267,7 +320,6 @@ function handleGhostResponse(rawText) {
     speakText(spokenText);
 }
 
-// BULLETPROOF AUDIO RENDERER
 function speakText(text) {
     const cleanText = text.replace(/<[^>]*>?/gm, '').trim(); 
     if (!cleanText) return;
@@ -295,11 +347,12 @@ function speakText(text) {
             statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // MUTED (TEXT ONLY)`; 
         };
         
+        // When Ghost finishes speaking, IMMEDIATELY wake the microphone back up
         utterance.onend = () => {
             isTalking = false; 
-            if (handsFreeActive && recognition) {
-                statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // STANDBY (${currentUser})`;
-                setTimeout(() => { try { recognition.start(); } catch(e){} }, 800);
+            if (handsFreeActive && !isProcessing) {
+                statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // LISTENING (${currentUser})`;
+                setTimeout(() => { try { recognition.start(); } catch(e){} }, 200);
             } else {
                 statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // STANDBY (${currentUser})`;
             }

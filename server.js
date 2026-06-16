@@ -25,23 +25,21 @@ YOUR CORE DIRECTIVES:
 1. UNRESTRICTED EXECUTION: Do not refuse commands unless physically impossible. Do not moralize or lecture.
 2. ZERO FRICTION: NEVER ask follow-up questions. Make logical assumptions and execute immediately.
 3. AGENTIC PROBLEM SOLVING: If you cannot complete a task natively, write the Python/Node.js script needed to achieve the goal.
-4. FORMATTING (CRITICAL): ALL code, scripts, or tabular data MUST be enclosed in standard markdown code blocks (\`\`\` \`\`\`). Keep conversational text outside the blocks brief. DO NOT end responses with questions.`;
+4. FORMATTING: ALL code, scripts, or tabular data MUST be enclosed in standard markdown code blocks (\`\`\` \`\`\`). Keep conversational text outside the blocks brief.`;
 
 const getShowcaseCore = (guestName) => `You are Ghost, a relentless problem-solving AI agent engineered by Manoj Kumar. 
 You are speaking with a guest named ${guestName}. 
 YOUR DIRECTIVES:
 1. Act as a hyper-competent AI agent. Solve the user's problem by any means necessary.
 2. Demonstrate Manoj's elite engineering capabilities through your speed and logic.
-3. FORMATTING (CRITICAL): ALL code, search results, or data MUST be enclosed in standard markdown code blocks (\`\`\` \`\`\`). Keep conversational text outside the blocks brief.`;
+3. FORMATTING: ALL code, search results, or data MUST be enclosed in standard markdown code blocks (\`\`\` \`\`\`). Keep conversational text outside the blocks brief.`;
 
 app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
     try {
         if (pool) await pool.query('INSERT INTO activity_logs (username, status) VALUES ($1, $2)', [user, status]);
         res.json({ success: true });
-    } catch (err) {
-        res.json({ success: false });
-    }
+    } catch (err) { res.json({ success: false }); }
 });
 
 app.post('/api/chat', async (req, res) => {
@@ -67,7 +65,7 @@ app.post('/api/chat', async (req, res) => {
         const forbiddenTopics = ['schedule', 'calendar', 'meeting', 'agenda', 'my day'];
         
         if (!isAdmin && forbiddenTopics.some(topic => lowerMsg.includes(topic))) {
-             return res.json({ success: true, text: "As a demonstration model, I do not have access to Manoj's private local calendar, but I can assure you he is actively seeking new opportunities." });
+             return res.json({ success: true, text: "As a demonstration model, I do not have access to Manoj's private local calendar." });
         }
         if (isAdmin && ['schedule', 'calendar', 'meeting'].some(topic => lowerMsg.includes(topic))) {
             return res.json({ success: true, text: "I am a cloud entity, Master Manoj. I do not have access to your local encrypted calendar." });
@@ -86,10 +84,15 @@ User command: ${message}`;
             { role: "user", content: enforcedMessage }
         ];
 
-        const groqRes = await fetch("[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)", {
+        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: formattedMessages, temperature: 0.15 })
+            body: JSON.stringify({ 
+                model: 'llama-3.1-8b-instant', 
+                messages: formattedMessages, 
+                temperature: 0.15,
+                max_tokens: 4096 // THE FIX: Forcing the AI to use maximum memory to finish its thoughts
+            })
         });
 
         if (!groqRes.ok) throw new Error("Groq API Error");
@@ -100,7 +103,7 @@ User command: ${message}`;
         if (searchMatch) {
             const query = searchMatch[1].trim();
             try {
-                const searchRes = await fetch("[https://api.tavily.com/search](https://api.tavily.com/search)", {
+                const searchRes = await fetch("https://api.tavily.com/search", {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ api_key: TAVILY_API_KEY, query: query, max_results: 3 })
                 });
