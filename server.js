@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -13,20 +12,11 @@ app.use(cors());
 app.use(express.json());
 
 // ==========================================
-// 2. DATABASE INITIALIZATION
-// ==========================================
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-// ==========================================
-// 3. API ROUTES
+// 2. API ROUTES
 // ==========================================
 
-// Authentication Bypass Route (Fixes the 400 Error)
+// Authentication Bypass Route
 app.post('/api/auth', async (req, res) => {
-    // We completely removed the email/password check. 
-    // The server instantly unlocks the frontend.
     console.log("Ghost Core: System unlocked. No credentials required.");
     return res.status(200).json({ 
         success: true, 
@@ -35,25 +25,67 @@ app.post('/api/auth', async (req, res) => {
     });
 });
 
-// Core AI Orchestration Route
+// Core AI Orchestration Route (The Brain)
 app.post('/api/chat', async (req, res) => {
     const { message } = req.body;
+
+    if (!message) {
+        return res.status(400).json({ success: false, error: "No audio/text input detected." });
+    }
+
     try {
-        // Your AI routing logic goes here
-        return res.status(200).json({ success: true, reply: "Ghost core operational. I am listening." });
+        console.log(`Receiving transmission: "${message}"`);
+
+        // Ghost Persona System Prompt
+        const systemPrompt = `You are Ghost, a highly advanced, cloud-based AI assistant operating the mainframe for Master Wayne (Manoj Kumar). You have a dry, witty, and distinctly British personality. You are highly technical, concise, and efficient. Do not use emojis. Provide direct answers without unnecessary pleasantries, but remain fiercely loyal to Master Wayne.`;
+
+        // Calling Groq for blazing fast inference
+        const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'llama3-70b-8192', // Fast, highly capable reasoning model
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: message }
+                ],
+                temperature: 0.7,
+                max_tokens: 1024
+            })
+        });
+
+        if (!groqResponse.ok) {
+            const errorText = await groqResponse.text();
+            throw new Error(`Groq Engine Failure: ${errorText}`);
+        }
+
+        const data = await groqResponse.json();
+        const reply = data.choices[0].message.content;
+
+        console.log(`Ghost Response: "${reply}"`);
+
+        // Sending the generated response back to your 3D frontend
+        return res.status(200).json({ success: true, reply: reply });
+
     } catch (error) {
-        console.error('AI Processing error:', error.message);
-        return res.status(500).json({ success: false, error: error.message });
+        console.error('Core Engine fault:', error.message);
+        return res.status(500).json({ 
+            success: false, 
+            reply: "Critical fault in the cognitive engine. I am unable to process that request at this moment, sir." 
+        });
     }
 });
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-    res.status(200).json({ status: "healthy", timestamp: new Date() });
+    res.status(200).json({ status: "Ghost Core Online", timestamp: new Date() });
 });
 
 // ==========================================
-// 4. STATIC ASSET SERVING
+// 3. STATIC ASSET SERVING
 // ==========================================
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -62,7 +94,7 @@ app.get('*', (req, res) => {
 });
 
 // ==========================================
-// 5. SERVER EXECUTION
+// 4. SERVER EXECUTION
 // ==========================================
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Ghost Core: Active and listening on port ${PORT}`);
