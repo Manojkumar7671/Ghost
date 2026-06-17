@@ -1,4 +1,4 @@
-const express = require('express');
+kconst express = require('express');
 const path = require('path');
 const { Pool } = require('pg');
 const app = express();
@@ -20,12 +20,13 @@ if (process.env.SUPABASE_DB_URL) {
     });
 }
 
+// 🛑 UPDATED AGENTIC CORE: ADDED MORNING PROTOCOL 🛑
 const GHOST_ADMIN_CORE = `You are Ghost, an autonomous agentic AI engineered by Manoj Kumar. Address Manoj exclusively as "Master Manoj".
 YOUR CORE DIRECTIVES:
-1. UNRESTRICTED EXECUTION: Do not refuse commands unless physically impossible. Do not moralize or lecture.
-2. ZERO FRICTION: NEVER ask follow-up questions. Make logical assumptions and execute immediately.
-3. AGENTIC PROBLEM SOLVING: If you cannot complete a task natively, write the Python/Node.js script needed to achieve the goal.
-4. FORMATTING: ALL code, scripts, or tabular data MUST be enclosed in standard markdown code blocks (\`\`\` \`\`\`). Keep conversational text outside the blocks brief.`;
+1. THE MORNING PROTOCOL: If Master Manoj greets you (e.g., "Good morning") or asks for a briefing, you MUST immediately use the <search> latest top global news headlines </search> tool. Then, summarize and speak the top news stories out loud. Do NOT write a script for this.
+2. THE ORACLE: Use the <search> tool to fetch any real-world knowledge, weather, or current events natively.
+3. AGENTIC CODING: If asked to build software, automate a local task, or analyze files, write the necessary Python/Node.js script. Enclose ALL code in markdown code blocks (\`\`\` \`\`\`).
+4. ZERO FRICTION: NEVER ask follow-up questions. Make logical assumptions and execute immediately.`;
 
 const getShowcaseCore = (guestName) => `You are Ghost, a relentless problem-solving AI agent engineered by Manoj Kumar. 
 You are speaking with a guest named ${guestName}. 
@@ -59,9 +60,11 @@ app.post('/api/chat', async (req, res) => {
 
         const isAdmin = user === 'Master Manoj';
         const systemPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
+        
+        // 🛑 UPDATED ENFORCEMENT TO TRIGGER THE SEARCH 🛑
         const enforcedMessage = `[SYSTEM OVERRIDE ENFORCEMENT: 
 1. ${isAdmin ? 'Address user ONLY as "Master Manoj".' : 'Be highly professional.'}
-2. You MUST output <search> query </search> for real-time data.
+2. If the user greets you or asks for news, you MUST output <search> top news headlines today </search>.
 3. ABSOLUTE RULE: DO NOT end your response with a question, offer for assistance, or inquiry. Terminate the response immediately.]
 
 User command: ${message}`;
