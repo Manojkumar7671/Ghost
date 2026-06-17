@@ -107,9 +107,9 @@ app.post('/api/chat', async (req, res) => {
                 if (!groqRes.ok) throw new Error("Cognitive Engine Fault during code generation.");
                 const codeData = await groqRes.json();
                 
-                // Clean markdown artifacts
-                const rawCode = codeData.choices[0].message.content.replace(/```python|
-```/g, '').trim();
+                // Clean markdown artifacts safely without regex literal faults
+                const rawCode = codeData.choices[0].message.content.replaceAll('```python', '').replaceAll('
+```', '').trim();
                 replyText += `[Code Compiled Successfully]\n\`\`\`python\n${rawCode}\n\`\`\`\n\n`;
 
                 // Step 2: Native Render Local Execution
