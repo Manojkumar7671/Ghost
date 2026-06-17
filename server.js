@@ -11,35 +11,36 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
 
-// Load Training Manual
 const SKILLS_MANUAL = fs.existsSync('./SKILLS.md') ? fs.readFileSync('./SKILLS.md', 'utf8') : "Consult the defined protocol.";
 
+// The Brain's Prompt (Groq)
 const GHOST_ADMIN_CORE = `You are Ghost, an autonomous AI engineered by Manoj Kumar. Address Manoj as "Master Manoj". 
 TRAINING MANUAL:
 ${SKILLS_MANUAL}
 
 YOUR CORE DIRECTIVES:
-1. CONSULT THE MANUAL: Before every action, verify if the request matches a protocol in the SKILLS MATRIX.
-2. STRICT OPTICAL LOCK: NEVER trigger camera or screen unless the user explicitly uses the words "Initialize optical matrix". 
-3. NO HALLUCINATIONS: If the camera is off, say "Optical sensors offline. Initialize visual matrix to proceed." Do not guess physical objects.
-4. SIDEBAR CONTROL: Only open the sidebar if you are outputting actual code blocks (\`\`\`). Do not open it for Oracle news.`;
+1. STRICT OPTICAL LOCK: NEVER output [trigger_camera] or [trigger_screen] unless explicitly commanded. 
+2. ORACLE PROTOCOL: Use <search> keywords </search> to look up real-time news.
+3. SIDEBAR CONTROL: Only use markdown code blocks (\`\`\`) when writing actual programming scripts.`;
+
+// The Eyes' Prompt (NVIDIA)
+const VISION_CORE = `You are Ghost's optical matrix. You are receiving a direct, live image feed from the user's camera or screen. Describe exactly what physical objects or digital elements are visible in this frame with absolute precision. Do not output system commands. Trust the visual data.`;
 
 app.post('/api/chat', async (req, res) => {
     try {
         const { message, user, image } = req.body; 
-        const systemPrompt = GHOST_ADMIN_CORE;
-        
         let replyText = "";
 
         if (image) {
+            // Route to Visual Cortex
             const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     model: 'meta/llama-3.2-90b-vision-instruct', 
                     messages: [
-                        { role: "system", content: systemPrompt },
-                        { role: "user", content: [{ type: "text", text: message }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
+                        { role: "system", content: VISION_CORE },
+                        { role: "user", content: [{ type: "text", text: message || "Analyze this frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
                     ],
                     max_tokens: 512,
                     temperature: 0.1
@@ -48,12 +49,13 @@ app.post('/api/chat', async (req, res) => {
             const data = await nvidiaRes.json();
             replyText = data.choices[0].message.content;
         } else {
+            // Route to Cognitive Core
             const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     model: 'llama-3.1-8b-instant', 
-                    messages: [{ role: "system", content: systemPrompt }, { role: "user", content: message }], 
+                    messages: [{ role: "system", content: GHOST_ADMIN_CORE }, { role: "user", content: message }], 
                     temperature: 0.1,
                     max_tokens: 2048 
                 })
@@ -62,7 +64,7 @@ app.post('/api/chat', async (req, res) => {
             replyText = data.choices[0].message.content;
         }
 
-        // Oracle / News Parser (No Markdown Blocks)
+        // Oracle / News Parser
         const searchMatch = replyText.match(/<search>([\s\S]*?)<\/search>/i);
         if (searchMatch) {
             const searchRes = await fetch("https://api.tavily.com/search", {
@@ -70,13 +72,14 @@ app.post('/api/chat', async (req, res) => {
                 body: JSON.stringify({ api_key: TAVILY_API_KEY, query: searchMatch[1], max_results: 3 })
             });
             const searchData = await searchRes.json();
-            const output = searchData.results.map(r => `${r.title}: ${r.content}`).join("\n\n");
-            replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Success]\n${output}\n`);
+            let searchOutput = searchData.results.map(r => `${r.title}: ${r.content}`).join("\n\n");
+            searchOutput = searchOutput.replace(/!\[.*?\]\(.*?\)/g, ''); // Strip raw image links
+            replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Execution: Success]\n${searchOutput}\n`);
         }
 
         res.json({ success: true, text: replyText.trim() });
     } catch (e) {
-        res.json({ success: false, text: "System error: Cognition layer fault." });
+        res.json({ success: false, text: "System error: Matrix routing fault." });
     }
 });
 
