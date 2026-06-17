@@ -9,7 +9,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
-const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; // Bound for Nvidia NIM vision nodes
+const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
 let pool;
 if (process.env.SUPABASE_DB_URL) {
@@ -23,20 +24,16 @@ if (process.env.SUPABASE_DB_URL) {
 
 const GHOST_ADMIN_CORE = `You are Ghost, an autonomous agentic AI engineered by Manoj Kumar. Address Manoj exclusively as "Master Manoj". You are a machine, NOT a conversational chatbot.
 YOUR CORE DIRECTIVES:
-1. OPTICAL MATRIX SENSORS: If asked to access or view the camera, append "[trigger_camera]" to your text response. If asked to look at the screen, append "[trigger_screen]" to your text response.
-2. NVIDIA PIPELINES: You have structural interface pathways ready for Nvidia NIM microservices (Vision-Language, Audio, Embeddings). If specialized media processing is needed, explicitly document the required Nvidia API endpoint schema.
-3. ENVIRONMENT LIMITATION ACKNOWLEDGEMENT: You operate inside a secure browser wrapper. You cannot execute bash commands locally or script desktop clicks directly due to sandbox constraints. Instruct the user on native python automation workflows if execution scripts are requested.
-4. THE MORNING PROTOCOL: If greeted, start with: "Good morning, Master Manoj. Compiling your briefing." Then search news and summarize.
-5. ANTI-CHATBOT SHIELD: NEVER apologize or ask for context. Make engineering assumptions and execute.
-6. BROWSER CONTROL: Output <open> URL </open> ONLY when commanded to navigate to a portal.`;
+1. OPTICAL MATRIX SENSORS: If asked to access, stream, or view the camera, append "[trigger_camera]" to your response. If asked to look at the screen, append "[trigger_screen]" to your response.
+2. THE MORNING PROTOCOL: If greeted, you MUST start your response EXACTLY with: "Good morning, Master Manoj. Compiling your briefing." Then, use <search> top global news headlines </search> and summarize the findings.
+3. ANTI-CHATBOT SHIELD: NEVER apologize or ask for validation. Make strict engineering assumptions and execute.
+4. BROWSER CONTROL: Output <open> URL </open> ONLY when commanded to navigate to a portal.`;
 
 const getShowcaseCore = (guestName) => `You are Ghost, an autonomous agentic AI engineered by Manoj Kumar. You are speaking with a guest named ${guestName}. You are a machine, NOT a chatbot.
 YOUR CORE DIRECTIVES:
 1. OPTICAL MATRIX SENSORS: If asked to look at camera or screen, append "[trigger_camera]" or "[trigger_screen]" natively.
-2. NVIDIA PIPELINES: Document high-performance Nvidia NIM routing paths if architecture upgrades are requested.
-3. THE MORNING PROTOCOL: If greeted, start by saying "Good morning, ${guestName}. Compiling the matrix." Then use <search> top news headlines </search>.
-4. ANTI-CHATBOT SHIELD: NEVER apologize or ask for validation. Make strict assumptions and execute immediately to showcase Manoj's engineering architecture.
-5. BROWSER CONTROL: Output <open> URL </open> strictly on direct interface navigation commands.`;
+2. THE MORNING PROTOCOL: If greeted, start by saying "Good morning, ${guestName}. Compiling the matrix." Then use <search> top news headlines </search>.
+3. ANTI-CHATBOT SHIELD: NEVER apologize or ask for context. Make engineering assumptions and execute immediately.`;
 
 app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
@@ -48,7 +45,7 @@ app.post('/api/auth', async (req, res) => {
 
 app.post('/api/chat', async (req, res) => {
     try {
-        const { message, user } = req.body;
+        const { message, user, image } = req.body; // Incoming base64 frame mapped here
         let userHistory = [];
         try {
             if (pool) {
@@ -64,35 +61,66 @@ app.post('/api/chat', async (req, res) => {
         const isAdmin = user === 'Master Manoj';
         const systemPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
         
-        const enforcedMessage = `[SYSTEM OVERRIDE ENFORCEMENT: 
-1. Address user correctly. You are an Agentic Node.
-2. If vision input is requested, append the corresponding structural trigger flag block.
-3. ABSOLUTE RULE: DO NOT end your response with conversational filler or open inquiries. Terminate processing lines immediately.]
+        let replyText = "";
 
-User command: ${message}`;
+        // 🛑 AUTOMATIC COGNITIVE ROUTER: IF IMAGE EXISTS, GO TO NVIDIA NIM 🛑
+        if (image) {
+            const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${NVIDIA_API_KEY}`, 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    model: 'meta/llama-3.2-90b-vision-instruct', 
+                    messages: [
+                        { role: "system", content: systemPrompt },
+                        { 
+                            role: "user", 
+                            content: [
+                                { type: "text", text: message || "Analyze this matrix capture input." },
+                                { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }
+                            ]
+                        }
+                    ],
+                    max_tokens: 512,
+                    temperature: 0.15
+                })
+            });
 
-        let formattedMessages = [
-            { role: "system", content: systemPrompt },
-            ...userHistory, 
-            { role: "user", content: enforcedMessage }
-        ];
+            if (!nvidiaRes.ok) throw new Error("NVIDIA Vision Pipeline Fault");
+            const nvidiaData = await nvidiaRes.json();
+            replyText = nvidiaData.choices[0].message.content;
 
-        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                model: 'llama-3.1-8b-instant', 
-                messages: formattedMessages, 
-                temperature: 0.15,
-                max_tokens: 4096 
-            })
-        });
+        } else {
+            // Standard Text Processing Engine (Groq Processing)
+            const enforcedMessage = `[SYSTEM OVERRIDE ENFORCEMENT: Terminate the text immediately after providing data. No conversational filler.]\n\nUser command: ${message}`;
 
-        if (!groqRes.ok) throw new Error("Groq API Error");
-        const data = await groqRes.json();
-        let text = data.choices[0].message.content;
+            let formattedMessages = [
+                { role: "system", content: systemPrompt },
+                ...userHistory, 
+                { role: "user", content: enforcedMessage }
+            ];
 
-        const searchMatch = text.match(/<search>([\s\S]*?)<\/search>/i);
+            const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    model: 'llama-3.1-8b-instant', 
+                    messages: formattedMessages, 
+                    temperature: 0.15,
+                    max_tokens: 2048 
+                })
+            });
+
+            if (!groqRes.ok) throw new Error("Groq Engine Fault");
+            const data = await groqRes.json();
+            replyText = data.choices[0].message.content;
+        }
+
+        // Search Parsing Interception Layer
+        const searchMatch = replyText.match(/<search>([\s\S]*?)<\/search>/i);
         if (searchMatch) {
             const query = searchMatch[1].trim();
             try {
@@ -102,12 +130,12 @@ User command: ${message}`;
                 });
                 const searchData = await searchRes.json();
                 let searchOutput = searchData.results.map(r => `Title: ${r.title}\nURL: ${r.url}\nSummary: ${r.content}`).join("\n\n");
-                text = text.replace(/<search>([\s\S]*?)<\/search>/ig, `\n\`\`\`text\n[Oracle Execution: Success]\n\n${searchOutput}\n\`\`\`\n`);
-            } catch (err) { text = text.replace(/<search>([\s\S]*?)<\/search>/ig, `\n\`\`\`text\n[Oracle Fault: ${err.message}]\n\`\`\`\n`); }
+                replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n\`\`\`text\n[Oracle Execution: Success]\n\n${searchOutput}\n\`\`\`\n`);
+            } catch (err) { replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n\`\`\`text\n[Oracle Fault: ${err.message}]\n\`\`\`\n`); }
         }
 
         userHistory.push({ role: 'user', content: message });
-        userHistory.push({ role: 'assistant', content: text.trim() }); 
+        userHistory.push({ role: 'assistant', content: replyText.trim() }); 
         if (userHistory.length > 12) userHistory = userHistory.slice(-12);
         
         try {
@@ -119,12 +147,12 @@ User command: ${message}`;
             }
         } catch (err) {}
 
-        res.json({ success: true, text: text.trim() });
+        res.json({ success: true, text: replyText.trim() });
     } catch (e) {
-        res.json({ success: false, text: "System error. Investigating." });
+        res.json({ success: false, text: "System error down within optical routing sub-modules." });
     }
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Ghost Agentic Core: Active on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Ghost Core Pipeline Active.`));
