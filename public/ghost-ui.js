@@ -296,7 +296,6 @@ function captureFrame(videoElementId) {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     
-    // Maximized resolution parameters to prevent text artifact blending over high density streams
     return canvas.toDataURL('image/jpeg', 0.98).split(',')[1];
 }
 
@@ -379,8 +378,7 @@ function handleGhostResponse(rawText) {
     }
     spokenText = spokenText.replace(openRegex, '').trim();
 
-    const codeBlockRegex = new RegExp("```[\\s\\S]*?
-```", "g");
+    const codeBlockRegex = new RegExp("```[\\s\\S]*?```", "g");
     let codeBlocks = spokenText.match(codeBlockRegex);
 
     if (codeBlocks) {
