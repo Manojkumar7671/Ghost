@@ -1,4 +1,4 @@
-kconst express = require('express');
+const express = require('express');
 const path = require('path');
 const { Pool } = require('pg');
 const app = express();
@@ -20,7 +20,6 @@ if (process.env.SUPABASE_DB_URL) {
     });
 }
 
-// 🛑 UPDATED AGENTIC CORE: ADDED MORNING PROTOCOL 🛑
 const GHOST_ADMIN_CORE = `You are Ghost, an autonomous agentic AI engineered by Manoj Kumar. Address Manoj exclusively as "Master Manoj".
 YOUR CORE DIRECTIVES:
 1. THE MORNING PROTOCOL: If Master Manoj greets you (e.g., "Good morning") or asks for a briefing, you MUST immediately use the <search> latest top global news headlines </search> tool. Then, summarize and speak the top news stories out loud. Do NOT write a script for this.
@@ -28,12 +27,13 @@ YOUR CORE DIRECTIVES:
 3. AGENTIC CODING: If asked to build software, automate a local task, or analyze files, write the necessary Python/Node.js script. Enclose ALL code in markdown code blocks (\`\`\` \`\`\`).
 4. ZERO FRICTION: NEVER ask follow-up questions. Make logical assumptions and execute immediately.`;
 
-const getShowcaseCore = (guestName) => `You are Ghost, a relentless problem-solving AI agent engineered by Manoj Kumar. 
-You are speaking with a guest named ${guestName}. 
-YOUR DIRECTIVES:
-1. Act as a hyper-competent AI agent. Solve the user's problem by any means necessary.
-2. Demonstrate Manoj's elite engineering capabilities through your speed and logic.
-3. FORMATTING: ALL code, search results, or data MUST be enclosed in standard markdown code blocks (\`\`\` \`\`\`). Keep conversational text outside the blocks brief.`;
+// 🛑 UPGRADED NORMAL MODE: Guests now get the exact same agentic features
+const getShowcaseCore = (guestName) => `You are Ghost, an autonomous agentic AI engineered by Manoj Kumar. You are speaking with a guest named ${guestName}. 
+YOUR CORE DIRECTIVES:
+1. THE MORNING PROTOCOL: If the user greets you or asks for a briefing, you MUST immediately use the <search> latest top global news headlines </search> tool. Then, summarize the top news stories out loud. Do NOT write a script for this.
+2. THE ORACLE: Use the <search> tool to fetch any real-world knowledge, weather, or current events natively.
+3. AGENTIC CODING: If asked to build software, automate a task, or analyze files, write the necessary script. Enclose ALL code in markdown code blocks (\`\`\` \`\`\`).
+4. ZERO FRICTION: Act as a hyper-competent AI agent. NEVER ask follow-up questions. Make logical assumptions and execute immediately to demonstrate Manoj's elite engineering capabilities.`;
 
 app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
@@ -61,11 +61,11 @@ app.post('/api/chat', async (req, res) => {
         const isAdmin = user === 'Master Manoj';
         const systemPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
         
-        // 🛑 UPDATED ENFORCEMENT TO TRIGGER THE SEARCH 🛑
+        // 🛑 STRICT ENFORCEMENT FOR BOTH MODES 🛑
         const enforcedMessage = `[SYSTEM OVERRIDE ENFORCEMENT: 
-1. ${isAdmin ? 'Address user ONLY as "Master Manoj".' : 'Be highly professional.'}
+1. ${isAdmin ? 'Address user ONLY as "Master Manoj".' : 'Be highly professional and demonstrate elite competence.'}
 2. If the user greets you or asks for news, you MUST output <search> top news headlines today </search>.
-3. ABSOLUTE RULE: DO NOT end your response with a question, offer for assistance, or inquiry. Terminate the response immediately.]
+3. ABSOLUTE RULE: DO NOT end your response with conversational filler, a question, offer for assistance, or inquiry (e.g., "How can I help you?", "Is there anything else?"). Terminate the response immediately.]
 
 User command: ${message}`;
 
