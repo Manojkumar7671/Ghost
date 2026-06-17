@@ -200,7 +200,7 @@ fileUpload.addEventListener('change', async (e) => {
                     attachedFileContent = fullText; 
                     attachedFileName = file.name;
                     statusIndicator.innerText = `GHOST // FILE LOADED: ${file.name}`;
-                    speakText(`PDF data compiled successfully. Awaiting execution directive.`);
+                    speakText("PDF data compiled successfully. Awaiting execution directive.");
                 } catch(err) {
                     speakText("Critical error parsing PDF data layer.");
                 }
@@ -285,7 +285,7 @@ commandInput.addEventListener('keypress', (e) => {
     }
 });
 
-// 🛑 AUTOMATED FRAME BUFFER CAPTURE FUNCTION 🛑
+// 🛑 AUTOMATED FRAME BUFFER CAPTURE FUNCTION (HIGH RES FIX) 🛑
 function captureFrame(videoElementId) {
     const video = document.getElementById(videoElementId);
     if (!video || video.readyState !== video.HAVE_CURRENT_DATA) return null;
@@ -296,7 +296,8 @@ function captureFrame(videoElementId) {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     
-    return canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+    // Maximized resolution parameters to prevent text artifact blending over high density streams
+    return canvas.toDataURL('image/jpeg', 0.98).split(',')[1];
 }
 
 async function startCamera() {
@@ -378,7 +379,8 @@ function handleGhostResponse(rawText) {
     }
     spokenText = spokenText.replace(openRegex, '').trim();
 
-    const codeBlockRegex = new RegExp("```[\\s\\S]*?```", "g");
+    const codeBlockRegex = new RegExp("```[\\s\\S]*?
+```", "g");
     let codeBlocks = spokenText.match(codeBlockRegex);
 
     if (codeBlocks) {
