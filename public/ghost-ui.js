@@ -11,6 +11,13 @@ const authInput = document.getElementById('auth-input');
 const authBtn = document.getElementById('auth-btn');
 const disconnectBtn = document.getElementById('disconnect-btn');
 const sidebarHeader = document.getElementById('sidebar-header');
+const codeSidebar = document.getElementById('code-sidebar');
+const codeContent = document.getElementById('code-content');
+const statusIndicator = document.getElementById('status-indicator');
+const subtitleDisplay = document.getElementById('subtitle-display');
+const fileUpload = document.getElementById('file-upload');
+const inputLayer = document.getElementById('input-layer');
+const commandInput = document.getElementById('command-input');
 
 function forceUnlockAudio() {
     try {
@@ -34,11 +41,11 @@ function setTheme(admin) {
     const bgColor = admin ? 'rgba(30,0,10,0.85)' : 'rgba(0,20,30,0.85)';
     const glow = admin ? '0 0 8px rgba(255,0,50,0.8)' : '0 0 8px rgba(0,212,255,0.8)';
 
-    document.getElementById('status-indicator').style.color = color;
-    document.getElementById('subtitle-display').style.color = color;
-    document.getElementById('subtitle-display').style.borderColor = borderColor;
-    document.getElementById('subtitle-display').style.background = bgColor;
-    document.getElementById('subtitle-display').style.textShadow = glow;
+    statusIndicator.style.color = color;
+    subtitleDisplay.style.color = color;
+    subtitleDisplay.style.borderColor = borderColor;
+    subtitleDisplay.style.background = bgColor;
+    subtitleDisplay.style.textShadow = glow;
     document.title = admin ? "Ghost OS // ADMIN" : "Ghost OS";
 }
 
@@ -149,14 +156,6 @@ animate();
 window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
 
 // --- 2. UI INTERACTION ---
-const inputLayer = document.getElementById('input-layer'); 
-const commandInput = document.getElementById('command-input');
-const codeSidebar = document.getElementById('code-sidebar'); 
-const codeContent = document.getElementById('code-content');
-const statusIndicator = document.getElementById('status-indicator');
-const subtitleDisplay = document.getElementById('subtitle-display'); 
-const fileUpload = document.getElementById('file-upload');
-
 let lastTap = 0;
 document.addEventListener('dblclick', toggleInput);
 document.addEventListener('touchend', (e) => {
@@ -305,6 +304,7 @@ async function startCamera() {
         cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         const videoElement = document.getElementById('camera-feed');
         videoElement.srcObject = cameraStream;
+        await videoElement.play(); 
         videoElement.classList.add('active');
         statusIndicator.innerText = `GHOST // OPTICAL STREAM ACTIVE`;
     } catch (err) { speakText("Camera interface array mapping failure."); }
@@ -315,6 +315,7 @@ async function startScreenShare() {
         screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
         const videoElement = document.getElementById('screen-feed');
         videoElement.srcObject = screenStream;
+        await videoElement.play(); 
         videoElement.classList.add('active');
         statusIndicator.innerText = `GHOST // SCREEN CAPTURE LIVE`;
     } catch (err) { speakText("Screen sync channel initialization canceled."); }
