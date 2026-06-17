@@ -46,7 +46,6 @@ function initializeGhost() {
     authLayer.classList.add('hidden');
     disconnectBtn.classList.add('visible');
     authInput.value = "";
-
     handsFreeActive = true; 
 
     if (inputVal === MASTER_PASSCODE) {
@@ -62,7 +61,7 @@ function initializeGhost() {
         setTheme(false);
         sidebarHeader.innerHTML = '<strong>GHOST DATA MATRIX</strong><button id="close-sidebar">✕</button>';
         document.getElementById('close-sidebar').addEventListener('click', () => { codeSidebar.classList.remove('open'); });
-        speakText(`Initialization complete. Welcome, ${currentUser}. I am Ghost, an AI architecture engineered by Manoj Kumar. How may I assist you today?`);
+        speakText(`Initialization complete. Welcome, ${currentUser}. I am Ghost. Systems online.`);
     }
 
     fetch('/api/auth', { 
@@ -165,34 +164,63 @@ commandInput.addEventListener('keydown', () => {
 });
 
 let attachedFileContent = ""; let attachedFileName = "";
-fileUpload.addEventListener('change', (e) => {
+
+// 🛑 OPTICAL FILE PARSER (PDF + TEXT) 🛑
+fileUpload.addEventListener('change', async (e) => {
     if(e.target.files.length > 0) {
         const file = e.target.files[0];
-        if (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.docx')) {
-            statusIndicator.innerText = `GHOST // ERROR: UNSUPPORTED FORMAT`;
-            speakText("I apologize, but my native parsers cannot read binary PDF documents. Please upload plain text formats like .txt or .js");
+        
+        if (file.name.toLowerCase().endsWith('.docx')) {
+            statusIndicator.innerText = `GHOST // ERROR: DOCX UNSUPPORTED`;
+            speakText("My optical parsers cannot read DOCX files natively yet. Please convert to PDF or text.");
             fileUpload.value = ""; return;
         }
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            attachedFileContent = event.target.result; attachedFileName = file.name;
-            statusIndicator.innerText = `GHOST // FILE LOADED: ${file.name}`;
-            speakText(`Data from ${file.name} loaded into the matrix. Awaiting instructions.`);
-        };
-        reader.readAsText(file);
+
+        statusIndicator.innerText = `GHOST // READING MATRIX`;
+        
+        // Handle PDF Files using pdf.js
+        if (file.name.toLowerCase().endsWith('.pdf')) {
+            speakText(`Extracting optical data from ${file.name}.`);
+            const reader = new FileReader();
+            reader.onload = async function(event) {
+                try {
+                    const typedarray = new Uint8Array(event.target.result);
+                    const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                    let fullText = "";
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const textContent = await page.getTextContent();
+                        fullText += textContent.items.map(item => item.str).join(' ') + "\n";
+                    }
+                    attachedFileContent = fullText; 
+                    attachedFileName = file.name;
+                    statusIndicator.innerText = `GHOST // FILE LOADED: ${file.name}`;
+                    speakText(`PDF data compiled successfully. Awaiting execution directive.`);
+                } catch(err) {
+                    speakText("Critical error parsing PDF data layer.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        } else {
+            // Handle standard text/code files
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                attachedFileContent = event.target.result; attachedFileName = file.name;
+                statusIndicator.innerText = `GHOST // FILE LOADED: ${file.name}`;
+                speakText(`Data from ${file.name} compiled. Awaiting execution directive.`);
+            };
+            reader.readAsText(file);
+        }
     }
 });
 
 let availableVoices = []; 
 try { window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); }; } catch(e){}
 
-
 // --- CONTINUOUS BARGE-IN VOICE ENGINE ---
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const recognition = SpeechRecognition ? new SpeechRecognition() : null;
-
-let speechBuffer = "";
-let silenceTimer = null;
+let speechBuffer = ""; let silenceTimer = null;
 
 if (recognition) {
     recognition.continuous = true; 
@@ -201,20 +229,16 @@ if (recognition) {
 
     recognition.onstart = () => { 
         isListening = true; 
-        if (!isProcessing && !isTalking) {
-            statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // LISTENING (${currentUser})`; 
-        }
+        if (!isProcessing && !isTalking) { statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // LISTENING (${currentUser})`; }
     };
 
     recognition.onresult = (event) => {
         if (isTalking) {
-            window.speechSynthesis.cancel();
-            isTalking = false;
+            window.speechSynthesis.cancel(); isTalking = false;
             statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // LISTENING (${currentUser})`; 
         }
 
-        let interim = '';
-        let final = '';
+        let interim = ''; let final = '';
         for (let i = event.resultIndex; i < event.results.length; ++i) {
             if (event.results[i].isFinal) final += event.results[i][0].transcript;
             else interim += event.results[i][0].transcript;
@@ -238,35 +262,20 @@ if (recognition) {
 
     recognition.onend = () => { 
         isListening = false; 
-        if (handsFreeActive && !isProcessing) {
-            setTimeout(() => { try { recognition.start(); } catch(e){} }, 250);
-        }
+        if (handsFreeActive && !isProcessing) { setTimeout(() => { try { recognition.start(); } catch(e){} }, 250); }
     };
-    
-    recognition.onerror = (e) => { 
-        if(e.error !== 'no-speech') {
-            isListening = false; 
-        }
-    };
+    recognition.onerror = (e) => { if(e.error !== 'no-speech') { isListening = false; } };
 }
 
 document.addEventListener('click', (e) => {
     if (e.target.closest('#input-layer') || e.target.closest('#code-sidebar') || e.target.closest('.icon-btn') || e.target.closest('#auth-layer') || e.target.closest('#disconnect-btn')) return;
     try { if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); isTalking = false; } } catch(e){}
-    if (recognition && !isProcessing && !handsFreeActive) { 
-        handsFreeActive = true; 
-        try { recognition.start(); } catch(err) {} 
-    }
+    if (recognition && !isProcessing && !handsFreeActive) { handsFreeActive = true; try { recognition.start(); } catch(err) {} }
 });
 
 commandInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && commandInput.value.trim() !== '') {
-        try {
-            window.speechSynthesis.cancel();
-            let prime = new SpeechSynthesisUtterance('');
-            prime.volume = 0;
-            window.speechSynthesis.speak(prime);
-        } catch(err){}
+        try { window.speechSynthesis.cancel(); let prime = new SpeechSynthesisUtterance(''); prime.volume = 0; window.speechSynthesis.speak(prime); } catch(err){}
         sendToCore(commandInput.value.trim()); 
         commandInput.value = '';
     }
@@ -291,25 +300,30 @@ async function sendToCore(message) {
         const data = await response.json();
         if (data.success) handleGhostResponse(data.text);
         else speakText("System error. Investigating.");
-    } catch (error) {
-        speakText("Critical fault. Unable to reach core engine.");
-    } finally {
-        isProcessing = false;
-    }
+    } catch (error) { speakText("Critical fault. Unable to reach core engine."); } finally { isProcessing = false; }
 }
 
+// 🛑 ORCHESTRATION & BROWSER INTERCEPTOR 🛑
 function handleGhostResponse(rawText) {
     let spokenText = rawText; 
     let sidebarData = "";
 
-    const codeBlockRegex = /```[\s\S]*?```/g;
-    let codeBlocks = rawText.match(codeBlockRegex);
+    const openRegex = /<open>(.*?)<\/open>/gi;
+    let urlMatches = [...spokenText.matchAll(openRegex)];
+    for (let match of urlMatches) {
+        let url = match[1].trim();
+        if (!url.startsWith('http')) url = 'https://' + url;
+        setTimeout(() => { window.open(url, '_blank'); }, 500); 
+    }
+    spokenText = spokenText.replace(openRegex, '').trim();
+
+    const codeBlockRegex = /```[\s\S]*?
+```/g;
+    let codeBlocks = spokenText.match(codeBlockRegex);
 
     if (codeBlocks) {
-        spokenText = rawText.replace(codeBlockRegex, '').trim();
-        sidebarData = codeBlocks.map(block => {
-            return block.replace(/^```[\w-]*\n?/, '').replace(/\n?```$/, '');
-        }).join('\n\n---\n\n');
+        spokenText = spokenText.replace(codeBlockRegex, '').trim();
+        sidebarData = codeBlocks.map(block => { return block.replace(/^```[\w-]*\n?/, '').replace(/\n?```$/, ''); }).join('\n\n---\n\n');
     }
 
     if (sidebarData) {
@@ -322,7 +336,7 @@ function handleGhostResponse(rawText) {
 }
 
 function speakText(text) {
-    const cleanText = text.replace(/<[^>]*>?/gm, '').trim(); 
+    const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/[*#`_]/g, '').trim(); 
     if (!cleanText) return;
 
     subtitleDisplay.innerText = cleanText; 
@@ -343,26 +357,20 @@ function speakText(text) {
         
         utterance.pitch = 1.0; utterance.rate = 0.92; 
         
-        utterance.onerror = () => { 
-            isTalking = false; 
-            statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // MUTED (TEXT ONLY)`; 
-        };
+        utterance.onerror = () => { isTalking = false; statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // MUTED (TEXT ONLY)`; };
         
         utterance.onend = () => {
             isTalking = false; 
             if (handsFreeActive && !isProcessing) {
                 statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // LISTENING (${currentUser})`;
                 setTimeout(() => { try { recognition.start(); } catch(e){} }, 200);
-            } else {
-                statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // STANDBY (${currentUser})`;
-            }
+            } else { statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // STANDBY (${currentUser})`; }
         };
 
         window.speechSynthesis.speak(utterance);
         if (window.speechSynthesis.resume) window.speechSynthesis.resume();
         
     } catch(audioError) {
-        isTalking = false;
-        statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // MUTED (TEXT ONLY)`; 
+        isTalking = false; statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // MUTED (TEXT ONLY)`; 
     }
 }
