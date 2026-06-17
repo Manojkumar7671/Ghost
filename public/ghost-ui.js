@@ -1,6 +1,6 @@
 let currentUser = "Guest";
 let isAdminMode = false;
-let handsFreeActive = false; // Globally tracks the always-on mic state
+let handsFreeActive = false; 
 const MASTER_PASSCODE = "knightfall"; 
 
 const authLayer = document.getElementById('auth-layer');
@@ -47,7 +47,6 @@ function initializeGhost() {
     disconnectBtn.classList.add('visible');
     authInput.value = "";
 
-    // 🛑 THE ZERO-TOUCH UPGRADE: Lock the mic ON the moment you log in
     handsFreeActive = true; 
 
     if (inputVal === MASTER_PASSCODE) {
@@ -82,7 +81,6 @@ disconnectBtn.addEventListener('click', () => {
     authLayer.classList.remove('hidden');
     disconnectBtn.classList.remove('visible');
     
-    // Shut down the mic when logging out
     handsFreeActive = false;
     if (recognition) recognition.stop();
     
@@ -234,7 +232,7 @@ if (recognition) {
                 recognition.stop(); 
                 statusIndicator.innerText = `${isAdminMode ? 'ADMIN' : 'GHOST'} // PROCESSING`;
                 sendToCore(payload);
-            }, 1500); 
+            }, 3500); 
         }
     };
 
@@ -252,7 +250,6 @@ if (recognition) {
     };
 }
 
-// Keep this as a fallback just in case the browser blocks the auto-start
 document.addEventListener('click', (e) => {
     if (e.target.closest('#input-layer') || e.target.closest('#code-sidebar') || e.target.closest('.icon-btn') || e.target.closest('#auth-layer') || e.target.closest('#disconnect-btn')) return;
     try { if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); isTalking = false; } } catch(e){}
@@ -305,8 +302,7 @@ function handleGhostResponse(rawText) {
     let spokenText = rawText; 
     let sidebarData = "";
 
-    const codeBlockRegex = /```[\s\S]*?
-```/g;
+    const codeBlockRegex = /```[\s\S]*?```/g;
     let codeBlocks = rawText.match(codeBlockRegex);
 
     if (codeBlocks) {

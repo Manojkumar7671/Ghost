@@ -10,7 +10,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
-// DATABASE CONNECTION (ULTRA-FAST 500ms TIMEOUT)
 let pool;
 if (process.env.SUPABASE_DB_URL) {
     pool = new Pool({ 
