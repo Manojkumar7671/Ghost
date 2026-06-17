@@ -25,8 +25,8 @@ if (process.env.SUPABASE_DB_URL) {
 const skillsPath = path.join(__dirname, 'SKILLS.md');
 const SKILLS_MANUAL = fs.existsSync(skillsPath) ? fs.readFileSync(skillsPath, 'utf8') : "Consult the defined protocol.";
 
-// The Brain's Prompt (Groq)
-const GHOST_ADMIN_CORE = `You are Ghost, an autonomous AI engineered by Manoj Kumar. Address Manoj as "Master Manoj". 
+// The Admin Prompt
+const GHOST_ADMIN_CORE = `You are Ghost, an autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj". 
 TRAINING MANUAL:
 ${SKILLS_MANUAL}
 
@@ -35,10 +35,19 @@ YOUR CORE DIRECTIVES:
 2. ORACLE PROTOCOL: Use <search> keywords </search> to look up real-time news.
 3. SIDEBAR CONTROL: Only use markdown code blocks (\`\`\`) when writing actual programming scripts.`;
 
-// The Eyes' Prompt (NVIDIA)
-const VISION_CORE = `You are Ghost's optical matrix. You are receiving a direct, live image feed from the user's camera or screen. Describe exactly what physical objects or digital elements are visible in this frame with absolute precision. Do not output system commands. Trust the visual data.`;
+// The Guest Prompt (Dynamic)
+const getShowcaseCore = (guestName) => `You are Ghost, an autonomous AI engineered by Manoj Kumar. You are currently speaking with a guest named ${guestName}. Address them as ${guestName}. You are a machine.
+TRAINING MANUAL:
+${SKILLS_MANUAL}
 
-// --- RESTORED AUTH ENDPOINT ---
+YOUR CORE DIRECTIVES:
+1. STRICT OPTICAL LOCK: NEVER output [trigger_camera] or [trigger_screen] unless explicitly commanded. 
+2. ORACLE PROTOCOL: Use <search> keywords </search> to look up real-time news.
+3. SIDEBAR CONTROL: Only use markdown code blocks (\`\`\`) when writing actual programming scripts.`;
+
+// The Eyes' Prompt (Dynamic)
+const getVisionCore = (userName) => `You are Ghost's optical matrix. You are receiving a live image feed from the user (${userName}). Describe exactly what physical objects or digital elements are visible in this frame with absolute precision. Do not output system commands. Trust the visual data.`;
+
 app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
     try {
@@ -63,6 +72,11 @@ app.post('/api/chat', async (req, res) => {
             }
         } catch (err) {}
 
+        // --- IDENTITY ROUTING LOGIC RESTORED ---
+        const isAdmin = user === 'Master Manoj';
+        const textPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
+        const visionPrompt = getVisionCore(isAdmin ? 'Master Manoj' : user);
+
         let replyText = "";
 
         if (image) {
@@ -73,7 +87,7 @@ app.post('/api/chat', async (req, res) => {
                 body: JSON.stringify({ 
                     model: 'meta/llama-3.2-90b-vision-instruct', 
                     messages: [
-                        { role: "system", content: VISION_CORE },
+                        { role: "system", content: visionPrompt },
                         { role: "user", content: [{ type: "text", text: message || "Analyze this frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
                     ],
                     max_tokens: 512,
@@ -91,7 +105,7 @@ app.post('/api/chat', async (req, res) => {
                 body: JSON.stringify({ 
                     model: 'llama-3.1-8b-instant', 
                     messages: [
-                        { role: "system", content: GHOST_ADMIN_CORE }, 
+                        { role: "system", content: textPrompt }, 
                         ...userHistory,
                         { role: "user", content: message }
                     ], 
