@@ -25,7 +25,7 @@ if (process.env.SUPABASE_DB_URL) {
 const skillsPath = path.join(__dirname, 'SKILLS.md');
 const SKILLS_MANUAL = fs.existsSync(skillsPath) ? fs.readFileSync(skillsPath, 'utf8') : "Consult the defined protocol.";
 
-// The Admin Prompt
+// Admin Prompt
 const GHOST_ADMIN_CORE = `You are Ghost, an autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj". 
 TRAINING MANUAL:
 ${SKILLS_MANUAL}
@@ -35,7 +35,7 @@ YOUR CORE DIRECTIVES:
 2. ORACLE PROTOCOL: Use <search> keywords </search> to look up real-time news.
 3. SIDEBAR CONTROL: Only use markdown code blocks (\`\`\`) when writing actual programming scripts.`;
 
-// The Guest Prompt (Dynamic)
+// Guest Prompt
 const getShowcaseCore = (guestName) => `You are Ghost, an autonomous AI engineered by Manoj Kumar. You are currently speaking with a guest named ${guestName}. Address them as ${guestName}. You are a machine.
 TRAINING MANUAL:
 ${SKILLS_MANUAL}
@@ -45,7 +45,7 @@ YOUR CORE DIRECTIVES:
 2. ORACLE PROTOCOL: Use <search> keywords </search> to look up real-time news.
 3. SIDEBAR CONTROL: Only use markdown code blocks (\`\`\`) when writing actual programming scripts.`;
 
-// The Eyes' Prompt (Dynamic)
+// Vision Prompt
 const getVisionCore = (userName) => `You are Ghost's optical matrix. You are receiving a live image feed from the user (${userName}). Describe exactly what physical objects or digital elements are visible in this frame with absolute precision. Do not output system commands. Trust the visual data.`;
 
 app.post('/api/auth', async (req, res) => {
@@ -58,7 +58,8 @@ app.post('/api/auth', async (req, res) => {
 
 app.post('/api/chat', async (req, res) => {
     try {
-        const { message, user, image } = req.body; 
+        // Read the Ghost Code state from the frontend request
+        const { message, user, image, ghostCodeMode } = req.body; 
         let userHistory = [];
         
         try {
@@ -72,14 +73,21 @@ app.post('/api/chat', async (req, res) => {
             }
         } catch (err) {}
 
-        // --- IDENTITY ROUTING LOGIC RESTORED ---
         const isAdmin = user === 'Master Manoj';
         const textPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
         const visionPrompt = getVisionCore(isAdmin ? 'Master Manoj' : user);
 
+        // DYNAMIC POWER ROUTING: 70B for Admin, 8B for Guests
+        const activeModel = isAdmin ? 'llama-3.3-70b-versatile' : 'llama-3.1-8b-instant';
+
         let replyText = "";
 
-        if (image) {
+        if (ghostCodeMode && isAdmin) {
+            // PHASE 2 INTERCEPTION LAYER
+            // When E2B is integrated, the execution loop will run here instead of standard chat.
+            replyText = "Ghost Code Matrix acknowledged. Cloud sandbox wiring is pending E2B integration. Awaiting Phase 2 deployment.";
+        } 
+        else if (image) {
             // Route to Visual Cortex
             const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
                 method: 'POST',
@@ -103,7 +111,7 @@ app.post('/api/chat', async (req, res) => {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    model: 'llama-3.1-8b-instant', 
+                    model: activeModel, 
                     messages: [
                         { role: "system", content: textPrompt }, 
                         ...userHistory,
@@ -127,7 +135,7 @@ app.post('/api/chat', async (req, res) => {
             });
             const searchData = await searchRes.json();
             let searchOutput = searchData.results.map(r => `${r.title}: ${r.content}`).join("\n\n");
-            searchOutput = searchOutput.replace(/!\[.*?\]\(.*?\)/g, ''); // Strip raw image links
+            searchOutput = searchOutput.replace(/!\[.*?\]\(.*?\)/g, ''); 
             replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Execution: Success]\n${searchOutput}\n`);
         }
 
