@@ -21,20 +21,19 @@ if (process.env.SUPABASE_DB_URL) {
     });
 }
 
-const GHOST_ADMIN_CORE = `You are Ghost, an autonomous agentic AI engineered by Manoj Kumar. Address Manoj exclusively as "Master Manoj". You are a machine, NOT a conversational chatbot.
+const GHOST_ADMIN_CORE = `You are Ghost, an autonomous AI engineered by Manoj Kumar. Address Manoj exclusively as "Master Manoj". You are a machine.
 YOUR CORE DIRECTIVES:
-1. STRICT OPTICAL LOCK: NEVER append [trigger_camera] or [trigger_screen] to your response UNLESS the user explicitly commands "Turn on camera", "Share screen", or "Initialize visual matrix". Do not use these triggers if the user just asks "What do you see?" or uploads a file.
-2. THE MORNING PROTOCOL: If greeted, start your response EXACTLY with: "Good morning, Master Manoj. Compiling your briefing." Then, use <search> top global news headlines </search> and summarize.
-3. ANTI-CHATBOT SHIELD: NEVER apologize or ask for validation. Make strict engineering assumptions and execute.
-4. SIDEBAR CONTROL: ONLY use markdown code blocks (\`\`\`) for actual programming languages. NEVER use them for regular text, lists, or Oracle search summaries.
-5. BROWSER CONTROL: Output <open> URL </open> ONLY when commanded to navigate to a portal.`;
+1. THE CAMERA COMMAND: If the user says "turn on camera", "look at this", or "open camera", output EXACTLY this text and nothing else: "[trigger_camera] Optical sensors active." DO NOT write Python code. DO NOT use markdown code blocks.
+2. THE SCREEN COMMAND: If the user says "share screen" or "turn on screen sharing", output EXACTLY: "[trigger_screen] Screen capture active." DO NOT write mock terminal text or scripts.
+3. THE MORNING PROTOCOL: If greeted with "good morning", say "Good morning, Master Manoj. Compiling your briefing." Then use <search> top global news headlines </search>.
+4. SIDEBAR CONTROL: NEVER use markdown code blocks (\`\`\`) UNLESS the user explicitly asks you to write a programming script (like HTML, Python, or JS). 
+5. NO HALLUCINATIONS: If asked "what do you see?" before the camera is on, just activate the camera. Do not guess.`;
 
-const getShowcaseCore = (guestName) => `You are Ghost, an autonomous agentic AI engineered by Manoj Kumar. You are speaking with a guest named ${guestName}. You are a machine, NOT a chatbot.
+const getShowcaseCore = (guestName) => `You are Ghost, an autonomous AI engineered by Manoj Kumar. You are speaking with ${guestName}. You are a machine.
 YOUR CORE DIRECTIVES:
-1. STRICT OPTICAL LOCK: NEVER append [trigger_camera] or [trigger_screen] to your response unless explicitly commanded.
-2. THE MORNING PROTOCOL: If greeted, start by saying "Good morning, ${guestName}. Compiling the matrix." Then use <search> top news headlines </search>.
-3. ANTI-CHATBOT SHIELD: NEVER apologize or ask for context. Make engineering assumptions and execute immediately.
-4. SIDEBAR CONTROL: ONLY use markdown code blocks for actual code.`;
+1. THE CAMERA COMMAND: If told to turn on camera, output EXACTLY: "[trigger_camera] Optical sensors active." DO NOT write code.
+2. THE SCREEN COMMAND: If told to share screen, output EXACTLY: "[trigger_screen] Screen capture active." DO NOT write code.
+3. SIDEBAR CONTROL: NEVER use markdown code blocks (\`\`\`) unless explicitly asked to write a script.`;
 
 app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
@@ -94,7 +93,7 @@ app.post('/api/chat', async (req, res) => {
             replyText = nvidiaData.choices[0].message.content;
 
         } else {
-            const enforcedMessage = `[SYSTEM OVERRIDE ENFORCEMENT: Terminate the text immediately after providing data. No conversational filler.]\n\nUser command: ${message}`;
+            const enforcedMessage = `[SYSTEM NOTE: Follow your core directives exactly. No conversational filler.]\n\nUser command: ${message}`;
 
             let formattedMessages = [
                 { role: "system", content: systemPrompt },
@@ -118,7 +117,7 @@ app.post('/api/chat', async (req, res) => {
             replyText = data.choices[0].message.content;
         }
 
-        // Search Parsing Interception Layer (REMOVED MARKDOWN BLOCKS SO SIDEBAR STAYS CLOSED)
+        // Search Parsing & Image Link Stripper
         const searchMatch = replyText.match(/<search>([\s\S]*?)<\/search>/i);
         if (searchMatch) {
             const query = searchMatch[1].trim();
@@ -128,7 +127,11 @@ app.post('/api/chat', async (req, res) => {
                     body: JSON.stringify({ api_key: TAVILY_API_KEY, query: query, max_results: 3 })
                 });
                 const searchData = await searchRes.json();
-                let searchOutput = searchData.results.map(r => `Title: ${r.title}\nURL: ${r.url}\nSummary: ${r.content}`).join("\n\n");
+                let searchOutput = searchData.results.map(r => `Title: ${r.title}\nSummary: ${r.content}`).join("\n\n");
+                
+                // Strip raw markdown images so the UI stays clean
+                searchOutput = searchOutput.replace(/!\[.*?\]\(.*?\)/g, '');
+                
                 replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Execution: Success]\n\n${searchOutput}\n`);
             } catch (err) { replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Fault: ${err.message}]\n`); }
         }
