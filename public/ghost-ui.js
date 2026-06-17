@@ -178,7 +178,6 @@ fileUpload.addEventListener('change', async (e) => {
 
         statusIndicator.innerText = `GHOST // READING MATRIX`;
         
-        // Handle PDF Files using pdf.js
         if (file.name.toLowerCase().endsWith('.pdf')) {
             speakText(`Extracting optical data from ${file.name}.`);
             const reader = new FileReader();
@@ -202,7 +201,6 @@ fileUpload.addEventListener('change', async (e) => {
             };
             reader.readAsArrayBuffer(file);
         } else {
-            // Handle standard text/code files
             const reader = new FileReader();
             reader.onload = function(event) {
                 attachedFileContent = event.target.result; attachedFileName = file.name;
@@ -303,12 +301,13 @@ async function sendToCore(message) {
     } catch (error) { speakText("Critical fault. Unable to reach core engine."); } finally { isProcessing = false; }
 }
 
-// 🛑 ORCHESTRATION & BROWSER INTERCEPTOR 🛑
+// 🛑 ORCHESTRATION & BROWSER INTERCEPTOR (FIXED REGEX) 🛑
 function handleGhostResponse(rawText) {
     let spokenText = rawText; 
     let sidebarData = "";
 
-    const openRegex = /<open>(.*?)<\/open>/gi;
+    // Bulletproof Regex for Web URLs
+    const openRegex = new RegExp("<open>(.*?)</open>", "gi");
     let urlMatches = [...spokenText.matchAll(openRegex)];
     for (let match of urlMatches) {
         let url = match[1].trim();
@@ -317,8 +316,8 @@ function handleGhostResponse(rawText) {
     }
     spokenText = spokenText.replace(openRegex, '').trim();
 
-    const codeBlockRegex = /```[\s\S]*?
-```/g;
+    // Bulletproof Regex for Code Blocks (Prevents Markdown line-break crashes)
+    const codeBlockRegex = new RegExp("```[\\s\\S]*?```", "g");
     let codeBlocks = spokenText.match(codeBlockRegex);
 
     if (codeBlocks) {
