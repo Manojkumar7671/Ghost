@@ -90,7 +90,7 @@ app.post('/api/chat', async (req, res) => {
             try {
                 // Step 1: Force AI to generate raw Python code
                 const codePrompt = `You are an elite Senior Systems Engineer. Write a Python script to accomplish the user's task. 
-                OUTPUT ONLY VALID PYTHON CODE. DO NOT use markdown formatting (\`\`\`). DO NOT explain the code. Just output the raw code script.
+                OUTPUT ONLY VALID PYTHON CODE. DO NOT use markdown formatting. DO NOT explain the code. Just output the raw code script.
                 Task: ${message}`;
                 
                 const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -107,28 +107,24 @@ app.post('/api/chat', async (req, res) => {
                 if (!groqRes.ok) throw new Error("Cognitive Engine Fault during code generation.");
                 const codeData = await groqRes.json();
                 
-                // Clean markdown artifacts safely without regex literal faults
-                const rawCode = codeData.choices[0].message.content.replaceAll('```python', '').replaceAll('
-```', '').trim();
-                replyText += `[Code Compiled Successfully]\n\`\`\`python\n${rawCode}\n\`\`\`\n\n`;
+                // Bulletproof Hex-encoded string replace to strip markdown formatting
+                const rawCode = codeData.choices[0].message.content.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
+                
+                replyText += `[Code Compiled Successfully]\n\x60\x60\x60python\n${rawCode}\n\x60\x60\x60\n\n`;
 
                 // Step 2: Native Render Local Execution
                 replyText += `[Render Server Virtual Terminal Online. Executing Payload...]\n\n`;
                 
-                // Create a temporary python file on the server
                 const tempFilePath = path.join(__dirname, 'ghost_payload.py');
                 fs.writeFileSync(tempFilePath, rawCode);
 
                 try {
-                    // Run the file using the server's native python environment (10 second timeout)
                     const output = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
                     replyText += `[Execution Success - Terminal Output]\n${output}`;
                 } catch (execError) {
-                    // Catch crashes or syntax errors in the Python script
                     replyText += `[Execution Failed - Traceback]\n${execError.stderr || execError.message}`;
                 }
 
-                // Step 3: Destroy the file to keep the server clean
                 if (fs.existsSync(tempFilePath)) {
                     fs.unlinkSync(tempFilePath);
                 }
@@ -176,7 +172,7 @@ app.post('/api/chat', async (req, res) => {
             replyText = data.choices[0].message.content;
         }
 
-        // Oracle / News Parser Intervention Layer
+        // Oracle / News Parser
         const searchMatch = replyText.match(/<search>([\s\S]*?)<\/search>/i);
         if (searchMatch) {
             const searchRes = await fetch("https://api.tavily.com/search", {
@@ -185,11 +181,10 @@ app.post('/api/chat', async (req, res) => {
             });
             const searchData = await searchRes.json();
             let searchOutput = searchData.results.map(r => `${r.title}: ${r.content}`).join("\n\n");
-            searchOutput = searchOutput.replace(/!\[.*?\]\(.*?\)/g, ''); // Strip markdown images
+            searchOutput = searchOutput.replace(/!\[.*?\]\(.*?\)/g, ''); 
             replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Execution: Success]\n${searchOutput}\n`);
         }
 
-        // Memory Compilation
         userHistory.push({ role: 'user', content: message });
         userHistory.push({ role: 'assistant', content: replyText.trim() }); 
         if (userHistory.length > 12) userHistory = userHistory.slice(-12);
