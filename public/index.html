@@ -3,119 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ghost OS</title>
-    
-    <!-- OPTICAL PDF PARSER LIBRARIES -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
-
+    <title>Ghost OS // Admin Matrix</title>
     <style>
-        :root { --ghost-color: #00d4ff; --ghost-glow: rgba(0,212,255,0.8); }
-        body { margin: 0; overflow: hidden; background-color: #020202; font-family: 'Courier New', Courier, monospace; color: var(--ghost-color); }
-        #webgl-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
-
-        #auth-layer {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(2,2,2,0.95); backdrop-filter: blur(10px); z-index: 100;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            transition: opacity 0.5s ease;
-        }
-        #auth-layer.hidden { opacity: 0; pointer-events: none; }
-
-        .auth-box { text-align: center; border: 1px solid rgba(0,212,255,0.3); padding: 40px; border-radius: 10px; background: rgba(0,212,255,0.05); }
-        .auth-box h2 { letter-spacing: 2px; margin-bottom: 20px; color: #00d4ff; text-shadow: 0 0 10px rgba(0,212,255,0.5); }
-        .auth-input { width: 300px; background: transparent; border: none; border-bottom: 2px solid #00d4ff; color: #00d4ff; font-family: inherit; font-size: 1.2rem; padding: 10px; text-align: center; outline: none; margin-bottom: 20px; }
-        .auth-btn { background: rgba(0,212,255,0.1); border: 1px solid #00d4ff; color: #00d4ff; font-family: inherit; padding: 10px 30px; cursor: pointer; letter-spacing: 1px; transition: all 0.2s; font-weight: bold; }
-        .auth-btn:hover { background: #00d4ff; color: #020202; }
-
-        #top-bar { position: absolute; top: 20px; left: 20px; z-index: 10; display: flex; align-items: center; gap: 20px; }
-        #status-indicator { font-size: 0.9rem; font-weight: bold; opacity: 0.7; color: #00d4ff; }
-        #disconnect-btn { background: rgba(255,0,50,0.2); border: 1px solid #ff0032; color: #ff0032; font-family: inherit; padding: 5px 15px; cursor: pointer; border-radius: 5px; font-weight: bold; transition: 0.2s; display: none; }
-        #disconnect-btn.visible { display: block; }
-        #disconnect-btn:hover { background: #ff0032; color: #fff; }
-
-        /* VISION MATRIX MONITOR */
-        #vision-container { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 15; display: flex; gap: 10px; pointer-events: none; }
-        .vision-feed { width: 120px; height: 90px; border: 1px solid rgba(0,212,255,0.3); border-radius: 5px; background: rgba(0,0,0,0.5); display: none; object-fit: cover; }
-        .vision-feed.active { display: block; }
-
-        #subtitle-display {
-            position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
-            z-index: 5; width: 85%; max-width: 800px; text-align: center;
-            font-size: 1.2rem; font-weight: bold; color: #00d4ff;
-            text-shadow: 0 0 8px rgba(0,212,255,0.8);
-            background: rgba(0,20,30,0.85);
-            border: 1px solid rgba(0,212,255,0.4);
-            padding: 15px 20px; border-radius: 8px; backdrop-filter: blur(4px);
-            opacity: 0; pointer-events: auto; letter-spacing: 1px;
-            transition: opacity 0.3s ease;
-            white-space: pre-wrap; word-wrap: break-word; max-height: 35vh; overflow-y: auto;
-        }
-        #subtitle-display.visible { opacity: 1; }
-        #subtitle-display::-webkit-scrollbar { width: 5px; }
-        #subtitle-display::-webkit-scrollbar-track { background: transparent; }
-        #subtitle-display::-webkit-scrollbar-thumb { background: rgba(0, 212, 255, 0.5); border-radius: 10px; }
-
-        #input-layer { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; align-items: center; gap: 10px; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
-        #input-layer.active { opacity: 1; pointer-events: auto; }
-        #command-input { width: 400px; background: rgba(0,212,255,0.05); border: 1px solid rgba(0,212,255,0.3); border-radius: 20px; color: #00d4ff; font-family: inherit; font-size: 1.1rem; padding: 12px 20px; outline: none; }
-        .icon-btn { background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.3); border-radius: 50%; width: 45px; height: 45px; color: #00d4ff; cursor: pointer; font-size: 1.2rem; display: flex; justify-content: center; align-items: center; }
-
-        #code-sidebar { position: absolute; top: 0; right: -500px; width: 450px; height: 100vh; background: rgba(2,2,2,0.85); border-left: 1px solid rgba(0,212,255,0.3); backdrop-filter: blur(10px); z-index: 20; transition: right 0.4s; display: flex; flex-direction: column; }
-        #code-sidebar.open { right: 0; }
-        #sidebar-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,212,255,0.2); }
-        #close-sidebar { background: transparent; border: none; color: #00d4ff; font-size: 1.5rem; cursor: pointer; }
-        #code-content { padding: 20px; overflow-y: auto; flex-grow: 1; white-space: pre-wrap; font-family: monospace; font-size: 0.9rem; line-height: 1.5; }
-
-        @media (max-width: 600px) {
-            #subtitle-display { font-size: 1rem; bottom: 100px; width: 90%; padding: 12px; }
-            .auth-box { width: 80%; padding: 20px; }
-            .auth-input { width: 100%; font-size: 1rem; }
-            #command-input { width: 220px; font-size: 0.9rem; }
-            #code-sidebar { width: 100%; right: -100%; }
-            #top-bar { top: 10px; left: 10px; flex-direction: column; align-items: flex-start; }
-        }
+        body { margin: 0; background-color: #000; color: #00ffcc; font-family: monospace; overflow: hidden; }
+        input:focus { outline: none; }
+        /* Any custom CSS you had previously goes here */
     </style>
 </head>
 <body>
-    <div id="auth-layer">
-        <div class="auth-box">
-            <h2>GHOST OS // LOGIN</h2>
-            <input type="text" id="auth-input" class="auth-input" placeholder="Enter your name..." autocomplete="off">
-            <br>
-            <button id="auth-btn" class="auth-btn">CONNECT</button>
-        </div>
+    
+    <!-- TOP NAVIGATION BAR -->
+    <div id="top-bar" style="position: absolute; top: 0; left: 0; width: 100%; padding: 15px; display: flex; align-items: center; box-sizing: border-box; z-index: 1000;">
+        <div id="status-indicator" style="font-weight: bold; letter-spacing: 1px;">GHOST // STANDBY</div>
+        
+        <!-- GHOST CODE EXECUTION TOGGLE -->
+        <button id="ghost-code-btn" style="display: none; margin-left: 15px; border: 1px solid #00ffcc; color: #00ffcc; background: rgba(0,255,204,0.1); padding: 5px 10px; cursor: pointer; border-radius: 4px; font-weight: bold; font-family: monospace; text-shadow: 0 0 5px #00ffcc; transition: 0.3s;">[GHOST CODE: OFF]</button>
+        
+        <button id="disconnect-btn" style="display: none; margin-left: auto; border: 1px solid #ff0032; color: #ff0032; background: rgba(255,0,50,0.1); padding: 5px 10px; cursor: pointer; border-radius: 4px; font-weight: bold; font-family: monospace;">DISCONNECT</button>
     </div>
 
-    <div id="top-bar">
-        <div id="status-indicator">GHOST // STANDBY</div>
-        <button id="disconnect-btn">DISCONNECT</button>
+    <!-- AUTHENTICATION OVERLAY -->
+    <div id="auth-layer" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001; text-align: center;">
+        <input type="password" id="authInput" placeholder="Enter Passcode..." style="background: rgba(0,0,0,0.7); border: 1px solid #00ffcc; color: #00ffcc; padding: 15px; font-family: monospace; text-align: center; border-radius: 8px; width: 250px;">
     </div>
 
-    <!-- MONITOR FEEDS -->
-    <div id="vision-container">
-        <video id="camera-feed" class="vision-feed" autoplay playsinline muted></video>
-        <video id="screen-feed" class="vision-feed" autoplay playsinline muted></video>
+    <!-- INPUT MATRIX -->
+    <div id="input-area" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; z-index: 1000; width: 80%;">
+        <input type="file" id="image-upload" style="display: none;">
+        <button id="attach-btn" style="background: rgba(0,0,0,0.7); border: 1px solid #555; color: #fff; padding: 12px; border-radius: 50%; cursor: pointer;">📎</button>
+        <input type="text" id="chatInput" placeholder="Double-tap screen to hide..." style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid #00ffcc; color: #00ffcc; padding: 12px 20px; border-radius: 20px; font-family: monospace;">
     </div>
 
-    <div id="subtitle-display"></div>
-    <div id="webgl-container"></div>
+    <!-- RETAIN YOUR 3D SPHERE CANVAS AND SCRIPTS BELOW THIS LINE -->
+    <canvas id="bg-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none;"></canvas>
 
-    <div id="input-layer">
-        <label for="file-upload" class="icon-btn">📎</label>
-        <input type="file" id="file-upload" style="display: none;">
-        <input type="text" id="command-input" placeholder="Double-tap screen to hide..." autocomplete="off">
-    </div>
-
-    <div id="code-sidebar">
-        <div id="sidebar-header">
-            <strong>GHOST DATA MATRIX</strong>
-            <button id="close-sidebar">✕</button>
-        </div>
-        <div id="code-content"></div>
-    </div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="ghost-ui.js"></script>
+    <!-- Your Three.js scripts go here -->
 </body>
 </html>
