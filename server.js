@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const { Pool } = require('pg');
 const app = express();
 
 app.use(express.json({ limit: '50mb' }));
@@ -11,7 +12,18 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
 
-const SKILLS_MANUAL = fs.existsSync('./SKILLS.md') ? fs.readFileSync('./SKILLS.md', 'utf8') : "Consult the defined protocol.";
+let pool;
+if (process.env.SUPABASE_DB_URL) {
+    pool = new Pool({ 
+        connectionString: process.env.SUPABASE_DB_URL, 
+        ssl: { rejectUnauthorized: false },
+        connectionTimeoutMillis: 500, 
+        query_timeout: 500 
+    });
+}
+
+const skillsPath = path.join(__dirname, 'SKILLS.md');
+const SKILLS_MANUAL = fs.existsSync(skillsPath) ? fs.readFileSync(skillsPath, 'utf8') : "Consult the defined protocol.";
 
 // The Brain's Prompt (Groq)
 const GHOST_ADMIN_CORE = `You are Ghost, an autonomous AI engineered by Manoj Kumar. Address Manoj as "Master Manoj". 
@@ -26,9 +38,31 @@ YOUR CORE DIRECTIVES:
 // The Eyes' Prompt (NVIDIA)
 const VISION_CORE = `You are Ghost's optical matrix. You are receiving a direct, live image feed from the user's camera or screen. Describe exactly what physical objects or digital elements are visible in this frame with absolute precision. Do not output system commands. Trust the visual data.`;
 
+// --- RESTORED AUTH ENDPOINT ---
+app.post('/api/auth', async (req, res) => {
+    const { user, status } = req.body;
+    try {
+        if (pool) await pool.query('INSERT INTO activity_logs (username, status) VALUES ($1, $2)', [user, status]);
+        res.json({ success: true });
+    } catch (err) { res.json({ success: false }); }
+});
+
 app.post('/api/chat', async (req, res) => {
     try {
         const { message, user, image } = req.body; 
+        let userHistory = [];
+        
+        try {
+            if (pool) {
+                const memRes = await pool.query('SELECT history_json FROM user_memories WHERE username = $1', [user]);
+                if (memRes.rows.length > 0) {
+                    let rawData = memRes.rows[0].history_json;
+                    if (typeof rawData === 'string') rawData = JSON.parse(rawData);
+                    if (Array.isArray(rawData)) userHistory = rawData;
+                }
+            }
+        } catch (err) {}
+
         let replyText = "";
 
         if (image) {
@@ -46,6 +80,7 @@ app.post('/api/chat', async (req, res) => {
                     temperature: 0.1
                 })
             });
+            if (!nvidiaRes.ok) throw new Error("NVIDIA Vision Pipeline Fault");
             const data = await nvidiaRes.json();
             replyText = data.choices[0].message.content;
         } else {
@@ -55,11 +90,16 @@ app.post('/api/chat', async (req, res) => {
                 headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     model: 'llama-3.1-8b-instant', 
-                    messages: [{ role: "system", content: GHOST_ADMIN_CORE }, { role: "user", content: message }], 
+                    messages: [
+                        { role: "system", content: GHOST_ADMIN_CORE }, 
+                        ...userHistory,
+                        { role: "user", content: message }
+                    ], 
                     temperature: 0.1,
                     max_tokens: 2048 
                 })
             });
+            if (!groqRes.ok) throw new Error("Groq Engine Fault");
             const data = await groqRes.json();
             replyText = data.choices[0].message.content;
         }
@@ -76,6 +116,19 @@ app.post('/api/chat', async (req, res) => {
             searchOutput = searchOutput.replace(/!\[.*?\]\(.*?\)/g, ''); // Strip raw image links
             replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Execution: Success]\n${searchOutput}\n`);
         }
+
+        userHistory.push({ role: 'user', content: message });
+        userHistory.push({ role: 'assistant', content: replyText.trim() }); 
+        if (userHistory.length > 12) userHistory = userHistory.slice(-12);
+        
+        try {
+            if (pool) {
+                await pool.query(
+                    `INSERT INTO user_memories (username, history_json) VALUES ($1, $2) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json`,
+                    [user, JSON.stringify(userHistory)]
+                );
+            }
+        } catch (err) {}
 
         res.json({ success: true, text: replyText.trim() });
     } catch (e) {
