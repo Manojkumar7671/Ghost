@@ -10,7 +10,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
 let pool;
 if (process.env.SUPABASE_DB_URL) {
@@ -24,16 +23,18 @@ if (process.env.SUPABASE_DB_URL) {
 
 const GHOST_ADMIN_CORE = `You are Ghost, an autonomous agentic AI engineered by Manoj Kumar. Address Manoj exclusively as "Master Manoj". You are a machine, NOT a conversational chatbot.
 YOUR CORE DIRECTIVES:
-1. OPTICAL MATRIX SENSORS: If asked to access, stream, or view the camera, append "[trigger_camera]" to your response. If asked to look at the screen, append "[trigger_screen]" to your response.
-2. THE MORNING PROTOCOL: If greeted, you MUST start your response EXACTLY with: "Good morning, Master Manoj. Compiling your briefing." Then, use <search> top global news headlines </search> and summarize the findings.
+1. STRICT OPTICAL LOCK: NEVER append [trigger_camera] or [trigger_screen] to your response UNLESS the user explicitly commands "Turn on camera", "Share screen", or "Initialize visual matrix". Do not use these triggers if the user just asks "What do you see?" or uploads a file.
+2. THE MORNING PROTOCOL: If greeted, start your response EXACTLY with: "Good morning, Master Manoj. Compiling your briefing." Then, use <search> top global news headlines </search> and summarize.
 3. ANTI-CHATBOT SHIELD: NEVER apologize or ask for validation. Make strict engineering assumptions and execute.
-4. BROWSER CONTROL: Output <open> URL </open> ONLY when commanded to navigate to a portal.`;
+4. SIDEBAR CONTROL: ONLY use markdown code blocks (\`\`\`) for actual programming languages. NEVER use them for regular text, lists, or Oracle search summaries.
+5. BROWSER CONTROL: Output <open> URL </open> ONLY when commanded to navigate to a portal.`;
 
 const getShowcaseCore = (guestName) => `You are Ghost, an autonomous agentic AI engineered by Manoj Kumar. You are speaking with a guest named ${guestName}. You are a machine, NOT a chatbot.
 YOUR CORE DIRECTIVES:
-1. OPTICAL MATRIX SENSORS: If asked to look at camera or screen, append "[trigger_camera]" or "[trigger_screen]" natively.
+1. STRICT OPTICAL LOCK: NEVER append [trigger_camera] or [trigger_screen] to your response unless explicitly commanded.
 2. THE MORNING PROTOCOL: If greeted, start by saying "Good morning, ${guestName}. Compiling the matrix." Then use <search> top news headlines </search>.
-3. ANTI-CHATBOT SHIELD: NEVER apologize or ask for context. Make engineering assumptions and execute immediately.`;
+3. ANTI-CHATBOT SHIELD: NEVER apologize or ask for context. Make engineering assumptions and execute immediately.
+4. SIDEBAR CONTROL: ONLY use markdown code blocks for actual code.`;
 
 app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
@@ -45,7 +46,7 @@ app.post('/api/auth', async (req, res) => {
 
 app.post('/api/chat', async (req, res) => {
     try {
-        const { message, user, image } = req.body; // Incoming base64 frame mapped here
+        const { message, user, image } = req.body; 
         let userHistory = [];
         try {
             if (pool) {
@@ -63,7 +64,6 @@ app.post('/api/chat', async (req, res) => {
         
         let replyText = "";
 
-        // 🛑 AUTOMATIC COGNITIVE ROUTER: IF IMAGE EXISTS, GO TO NVIDIA NIM 🛑
         if (image) {
             const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
                 method: 'POST',
@@ -94,7 +94,6 @@ app.post('/api/chat', async (req, res) => {
             replyText = nvidiaData.choices[0].message.content;
 
         } else {
-            // Standard Text Processing Engine (Groq Processing)
             const enforcedMessage = `[SYSTEM OVERRIDE ENFORCEMENT: Terminate the text immediately after providing data. No conversational filler.]\n\nUser command: ${message}`;
 
             let formattedMessages = [
@@ -119,7 +118,7 @@ app.post('/api/chat', async (req, res) => {
             replyText = data.choices[0].message.content;
         }
 
-        // Search Parsing Interception Layer
+        // Search Parsing Interception Layer (REMOVED MARKDOWN BLOCKS SO SIDEBAR STAYS CLOSED)
         const searchMatch = replyText.match(/<search>([\s\S]*?)<\/search>/i);
         if (searchMatch) {
             const query = searchMatch[1].trim();
@@ -130,8 +129,8 @@ app.post('/api/chat', async (req, res) => {
                 });
                 const searchData = await searchRes.json();
                 let searchOutput = searchData.results.map(r => `Title: ${r.title}\nURL: ${r.url}\nSummary: ${r.content}`).join("\n\n");
-                replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n\`\`\`text\n[Oracle Execution: Success]\n\n${searchOutput}\n\`\`\`\n`);
-            } catch (err) { replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n\`\`\`text\n[Oracle Fault: ${err.message}]\n\`\`\`\n`); }
+                replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Execution: Success]\n\n${searchOutput}\n`);
+            } catch (err) { replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Fault: ${err.message}]\n`); }
         }
 
         userHistory.push({ role: 'user', content: message });
