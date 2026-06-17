@@ -56,12 +56,13 @@ function initializeGhost() {
         document.getElementById('close-sidebar').addEventListener('click', () => { codeSidebar.classList.remove('open'); });
         speakText("Admin access granted. Welcome back, Master Manoj. All systems online and unrestricted.");
     } else {
+        // 🛑 NEW GUEST FEATURE SHOWCASE GREETING 🛑
         currentUser = inputVal;
         isAdminMode = false;
         setTheme(false);
         sidebarHeader.innerHTML = '<strong>GHOST DATA MATRIX</strong><button id="close-sidebar">✕</button>';
         document.getElementById('close-sidebar').addEventListener('click', () => { codeSidebar.classList.remove('open'); });
-        speakText(`Initialization complete. Welcome, ${currentUser}. I am Ghost. Systems online.`);
+        speakText(`Initialization complete. Welcome, ${currentUser}. I am Ghost, an autonomous AI engineered by Manoj Kumar. My capabilities include real-time Oracle web search, optical document parsing, browser control, and agentic code generation. Systems online.`);
     }
 
     fetch('/api/auth', { 
@@ -165,7 +166,6 @@ commandInput.addEventListener('keydown', () => {
 
 let attachedFileContent = ""; let attachedFileName = "";
 
-// 🛑 OPTICAL FILE PARSER (PDF + TEXT) 🛑
 fileUpload.addEventListener('change', async (e) => {
     if(e.target.files.length > 0) {
         const file = e.target.files[0];
@@ -301,12 +301,10 @@ async function sendToCore(message) {
     } catch (error) { speakText("Critical fault. Unable to reach core engine."); } finally { isProcessing = false; }
 }
 
-// 🛑 ORCHESTRATION & BROWSER INTERCEPTOR (FIXED REGEX) 🛑
 function handleGhostResponse(rawText) {
     let spokenText = rawText; 
     let sidebarData = "";
 
-    // Bulletproof Regex for Web URLs
     const openRegex = new RegExp("<open>(.*?)</open>", "gi");
     let urlMatches = [...spokenText.matchAll(openRegex)];
     for (let match of urlMatches) {
@@ -316,8 +314,8 @@ function handleGhostResponse(rawText) {
     }
     spokenText = spokenText.replace(openRegex, '').trim();
 
-    // Bulletproof Regex for Code Blocks (Prevents Markdown line-break crashes)
-    const codeBlockRegex = new RegExp("```[\\s\\S]*?```", "g");
+    const codeBlockRegex = new RegExp("```[\\s\\S]*?
+```", "g");
     let codeBlocks = spokenText.match(codeBlockRegex);
 
     if (codeBlocks) {
