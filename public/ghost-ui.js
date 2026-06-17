@@ -3,6 +3,9 @@ let isAdminMode = false;
 let handsFreeActive = false; 
 const MASTER_PASSCODE = "knightfall"; 
 
+let cameraStream = null;
+let screenStream = null;
+
 const authLayer = document.getElementById('auth-layer');
 const authInput = document.getElementById('auth-input');
 const authBtn = document.getElementById('auth-btn');
@@ -54,15 +57,14 @@ function initializeGhost() {
         setTheme(true);
         sidebarHeader.innerHTML = '<strong style="color:#ff0032">ADMIN DATA MATRIX</strong><button id="close-sidebar" style="color:#ff0032">✕</button>';
         document.getElementById('close-sidebar').addEventListener('click', () => { codeSidebar.classList.remove('open'); });
-        speakText("Admin access granted. Welcome back, Master Manoj. All systems online and unrestricted.");
+        speakText("Admin access granted. Welcome back, Master Manoj. Vision processing arrays and Nvidia core pipelines initialized.");
     } else {
-        // 🛑 NEW GUEST FEATURE SHOWCASE GREETING 🛑
         currentUser = inputVal;
         isAdminMode = false;
         setTheme(false);
         sidebarHeader.innerHTML = '<strong>GHOST DATA MATRIX</strong><button id="close-sidebar">✕</button>';
         document.getElementById('close-sidebar').addEventListener('click', () => { codeSidebar.classList.remove('open'); });
-        speakText(`Initialization complete. Welcome, ${currentUser}. I am Ghost, an autonomous AI engineered by Manoj Kumar. My capabilities include real-time Oracle web search, optical document parsing, browser control, and agentic code generation. Systems online.`);
+        speakText(`Initialization complete. Welcome, ${currentUser}. I am Ghost. Vision modules standby.`);
     }
 
     fetch('/api/auth', { 
@@ -77,6 +79,9 @@ disconnectBtn.addEventListener('click', () => {
         body: JSON.stringify({ user: currentUser, status: 'INACTIVE' }) 
     }).catch(e => console.log("Database offline."));
     
+    // Stop feeds on exit
+    stopVisionFeeds();
+
     speakText("Logging off. Securing terminal.");
     authLayer.classList.remove('hidden');
     disconnectBtn.classList.remove('visible');
@@ -88,6 +93,13 @@ disconnectBtn.addEventListener('click', () => {
     isAdminMode = false;
     setTheme(false);
 });
+
+function stopVisionFeeds() {
+    if (cameraStream) { cameraStream.getTracks().forEach(track => track.stop()); }
+    if (screenStream) { screenStream.getTracks().forEach(track => track.stop()); }
+    document.getElementById('camera-feed').classList.remove('active');
+    document.getElementById('screen-feed').classList.remove('active');
+}
 
 // --- 1. NON-STOP PARTICLE SWARM ---
 const container = document.getElementById('webgl-container');
@@ -301,9 +313,40 @@ async function sendToCore(message) {
     } catch (error) { speakText("Critical fault. Unable to reach core engine."); } finally { isProcessing = false; }
 }
 
+// 🛑 OPTICAL CAPTURE INTERCEPTORS 🛑
+async function startCamera() {
+    try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        const videoElement = document.getElementById('camera-feed');
+        videoElement.srcObject = cameraStream;
+        videoElement.classList.add('active');
+        statusIndicator.innerText = `GHOST // OPTICAL STREAM ACTIVE`;
+    } catch (err) { speakText("Camera access denied or hardware busy."); }
+}
+
+async function startScreenShare() {
+    try {
+        screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        const videoElement = document.getElementById('screen-feed');
+        videoElement.srcObject = screenStream;
+        videoElement.classList.add('active');
+        statusIndicator.innerText = `GHOST // SCREEN CAPTURE LIVE`;
+    } catch (err) { speakText("Screen synchronization canceled."); }
+}
+
 function handleGhostResponse(rawText) {
     let spokenText = rawText; 
     let sidebarData = "";
+
+    // 1. Check for Vision Requests
+    if (spokenText.toLowerCase().includes("[trigger_camera]")) {
+        startCamera();
+        spokenText = spokenText.replace(/\[trigger_camera\]/gi, '').trim();
+    }
+    if (spokenText.toLowerCase().includes("[trigger_screen]")) {
+        startScreenShare();
+        spokenText = spokenText.replace(/\[trigger_screen\]/gi, '').trim();
+    }
 
     const openRegex = new RegExp("<open>(.*?)</open>", "gi");
     let urlMatches = [...spokenText.matchAll(openRegex)];
