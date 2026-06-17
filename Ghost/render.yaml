@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: ghost-v2
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node src/server.js

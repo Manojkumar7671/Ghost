@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>GHOST.SYS // HOLOGRAM CORE</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    body { background: #030508; color: #00e5ff; font-family: monospace; height: 100vh; overflow: hidden; margin: 0; display: flex; flex-direction: column; align-items: center; }
+    #init-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #030508; z-index: 3000; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: opacity 0.5s; }
+    .boot-text { color: #00e5ff; font-size: 16px; letter-spacing: 6px; border: 1px solid #00e5ff; padding: 25px 50px; text-transform: uppercase; transition: 0.3s; }
+    .boot-text:hover { background: rgba(0,229,255,0.1); box-shadow: 0 0 20px rgba(0,229,255,0.4); }
+    #canvas-container { width: 100%; height: 65vh; display: flex; justify-content: center; align-items: center; position: relative; z-index: 1; }
+    #ui-container { width: 80%; max-width: 900px; height: 30vh; display: flex; flex-direction: column; gap: 10px; z-index: 10; position: relative; }
+    #chat-stream { flex-grow: 1; overflow-y: auto; border: 1px solid rgba(0, 229, 255, 0.2); padding: 20px; font-size: 14px; line-height: 1.6; background: rgba(3, 5, 8, 0.6); box-shadow: 0 -10px 30px rgba(0,229,255,0.05); scrollbar-width: none; }
+    #chat-stream::-webkit-scrollbar { display: none; }
+    #status-bar { text-align: center; font-size: 12px; letter-spacing: 4px; padding: 10px; border: 1px dashed rgba(0, 229, 255, 0.3); text-transform: uppercase; transition: 0.3s; }
+    #sidebar { position: fixed; top: 0; right: 0; width: 500px; height: 100vh; background: rgba(3, 5, 8, 0.98); border-left: 1px solid rgba(0, 229, 255, 0.5); transform: translateX(100%); transition: transform 0.5s cubic-bezier(0.1, 0.8, 0.1, 1); z-index: 2000; padding: 30px; display: flex; flex-direction: column; box-shadow: -20px 0 50px rgba(0,0,0,0.8); }
+    #sidebar.active { transform: translateX(0); }
+    #sidebar-header { display: flex; justify-content: space-between; border-bottom: 1px solid rgba(0,229,255,0.3); padding-bottom: 15px; margin-bottom: 20px; font-size: 12px; font-weight: bold; letter-spacing: 2px; }
+    #sidebar-close { cursor: pointer; color: #ff0055; transition: 0.2s; }
+    #sidebar-close:hover { text-shadow: 0 0 10px rgba(255,0,85,0.8); }
+    #sidebar-content { overflow-y: auto; flex-grow: 1; font-size: 13px; line-height: 1.5; color: #fff; }
+    pre { background: rgba(0,0,0,0.8); padding: 15px; border-radius: 4px; border: 1px solid rgba(0,229,255,0.2); overflow-x: auto; white-space: pre-wrap; margin-bottom: 20px; color: #00e5ff; }
+  </style>
+</head>
+<body>
+  <div id="init-overlay" onclick="initializeCore()"><div class="boot-text">INITIALIZE SYSTEM</div></div>
+  <div id="canvas-container"></div>
+  <div id="ui-container">
+    <div id="chat-stream"></div>
+    <div id="status-bar">AWAITING INITIALIZATION</div>
+  </div>
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <span>[ DATA TERMINAL ]</span>
+      <span id="sidebar-close" onclick="closeSidebar()">[ CLOSE ]</span>
+    </div>
+    <div id="sidebar-content"></div>
+  </div>
+  <script>
+    const container = document.getElementById("canvas-container");
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+    const particleCount = 3000;
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    const radius = 2.2;
+    for (let i = 0; i < particleCount; i++) {
+        const phi = Math.acos(1 - 2 * (i + 0.5) / particleCount);
+        const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+        positions[i * 3] = radius * Math.cos(theta) * Math.sin(phi);
+        positions[i * 3 + 1] = radius * Math.sin(theta) * Math.sin(phi);
+        positions[i * 3 + 2] = radius * Math.cos(phi);
+    }
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    const material = new THREE.PointsMaterial({ color: 0x00e5ff, size: 0.04, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
+    const sphere = new THREE.Points(geometry, material);
+    scene.add(sphere);
+    camera.position.z = 5;
+    window.ghostState = "STANDBY";
+    function setStatus(state, text, colorHex) {
+        window.ghostState = state;
+        const bar = document.getElementById("status-bar");
+        bar.innerText = text; bar.style.color = colorHex; bar.style.borderColor = colorHex;
+        material.color.setHex(colorHex.replace("#", "0x"));
+    }
+    function animate() {
+        requestAnimationFrame(animate);
+        if (window.ghostState === "TRANSMITTING") { sphere.rotation.y += 0.015; sphere.rotation.x += 0.005; const scale = 1 + Math.sin(Date.now() * 0.01) * 0.08; sphere.scale.set(scale, scale, scale); material.opacity = 1.0; }
+        else if (window.ghostState === "LISTENING") { sphere.rotation.y += 0.005; const scale = 1 + Math.sin(Date.now() * 0.015) * 0.05; sphere.scale.set(scale, scale, scale); material.opacity = 0.8; }
+        else if (window.ghostState === "PROCESSING") { sphere.rotation.y += 0.02; sphere.scale.set(1, 1, 1); material.opacity = 0.5; }
+        else { sphere.rotation.y += 0.002; sphere.rotation.x += 0.001; const scale = 1 + Math.sin(Date.now() * 0.002) * 0.02; sphere.scale.set(scale, scale, scale); material.opacity = 0.4; }
+        renderer.render(scene, camera);
+    }
+    animate();
+    window.addEventListener("resize", () => { camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(container.clientWidth, container.clientHeight); });
+    let mediaRecorder, audioChunks = [], isRecording = false;
+    let audioContext, analyser, microphone, silenceTimer = null;
+    let activeAudioElements = [], currentPlaybackId = 0;
+    function closeSidebar() { document.getElementById("sidebar").classList.remove("active"); }
+    function appendLog(text, isUser) {
+        const stream = document.getElementById("chat-stream");
+        stream.innerHTML += `<div style="color: ${isUser ? "#fff" : "#00e5ff"}; margin-bottom: 8px;">${isUser ? "USER: " : "GHOST: "}${text}</div>`;
+        stream.scrollTop = stream.scrollHeight;
+    }
+    function processTaskData(replyText) {
+        const codeRegex = /```([\s\S]*?)```/g;
+        const matches = [...replyText.matchAll(codeRegex)];
+        if (matches.length > 0) {
+            let html = "";
+            matches.forEach(m => { html += `<pre><code>${m[1].replace(/^.*?\n/, "").trim()}</code></pre>`; });
+            document.getElementById("sidebar-content").innerHTML = html;
+            document.getElementById("sidebar").classList.add("active");
+            return replyText.replace(codeRegex, "[ DATA COMPILED TO TERMINAL ]");
+        }
+        return replyText;
+    }
+    function killAllAudio() {
+        currentPlaybackId++;
+        activeAudioElements.forEach(a => { a.pause(); a.src = ""; a.load(); });
+        activeAudioElements = [];
+        if(window.ghostState === "TRANSMITTING") setStatus("STANDBY", "SYSTEM STANDBY", "#00e5ff");
+    }
+    async function playAudio(chunks) {
+        if (!chunks || chunks.length === 0) return;
+        setStatus("TRANSMITTING", "TRANSMITTING...", "#00e5ff");
+        let playbackId = ++currentPlaybackId;
+        for (let chunk of chunks) {
+            if (playbackId !== currentPlaybackId) break;
+            await new Promise(r => {
+                const a = new Audio("data:audio/mp3;base64," + chunk);
+                activeAudioElements.push(a); a.onended = r; a.onerror = r; a.play().catch(r);
+            });
+        }
+        if (playbackId === currentPlaybackId) setStatus("STANDBY", "SYSTEM STANDBY", "#00e5ff");
+    }
+    async function askGhost(text) {
+        killAllAudio();
+        setStatus("PROCESSING", "PROCESSING DATA...", "#b000ff");
+        const textLower = text.toLowerCase();
+        if (textLower.includes("open youtube")) {
+            appendLog("Opening YouTube...", false);
+            window.open("https://www.youtube.com", "_blank");
+        }
+        try {
+            const res = await fetch("/chat", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({message:text}) });
+            const data = await res.json();
+            if (data.reply && data.reply.includes("[OPEN_WM]")) {
+                data.reply = data.reply.replace("[OPEN_WM]", "").trim();
+                window.open("https://www.worldmonitor.app/?lat=20.0000&lon=0.0000&zoom=1.00&view=global&timeRange=7d&layers=conflicts%2Cbases%2Chotspots%2Cnuclear%2Csanctions%2Cweather%2Ceconomic%2Cwaterways%2Coutages%2Cmilitary%2Cnatural%2CiranAttacks", "_blank");
+            }
+            let cleanedTextForUI = processTaskData(data.reply);
+            appendLog(cleanedTextForUI, false);
+            if(data.audio_b64) await playAudio(data.audio_b64);
+            else setStatus("STANDBY", "SYSTEM STANDBY", "#00e5ff");
+        } catch(e) { setStatus("STANDBY", "ERROR", "#ff0000"); }
+    }
+    async function initializeCore() {
+        document.getElementById("init-overlay").style.opacity = "0";
+        setTimeout(() => document.getElementById("init-overlay").style.display = "none", 500);
+        setStatus("STANDBY", "SYSTEM STANDBY", "#00e5ff");
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser(); microphone = audioContext.createMediaStreamSource(stream);
+            microphone.connect(analyser); analyser.fftSize = 512;
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+            mediaRecorder.onstop = async () => {
+                setStatus("PROCESSING", "UPLINKING AUDIO...", "#b000ff");
+                const blob = new Blob(audioChunks, { type: "audio/webm" });
+                const fd = new FormData(); fd.append("audio", blob);
+                try {
+                    const res = await fetch("/transcribe", { method: "POST", body: fd });
+                    const data = await res.json();
+                    if (data.text) {
+                        let spoken = data.text.trim();
+                        let lower = spoken.toLowerCase();
+                        if (spoken === "" || lower.includes("obrigado") || lower.includes("thank you") || lower.includes("subtitles by")) {
+                            setStatus("STANDBY", "SYSTEM STANDBY", "#00e5ff");
+                        } else {
+                            appendLog(spoken, true); 
+                            await askGhost(spoken);
+                        }
+                    } else { 
+                        setStatus("STANDBY", "SYSTEM STANDBY", "#00e5ff"); 
+                    }
+                } catch(e) { setStatus("STANDBY", "SYSTEM STANDBY", "#00e5ff"); }
+            };
+            function monitorVAD() {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0; for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                let average = sum / dataArray.length;
+                if (average > 25) { 
+                    if (window.ghostState === "TRANSMITTING") killAllAudio();
+                    if (!isRecording && window.ghostState !== "PROCESSING") {
+                        audioChunks = []; mediaRecorder.start(); isRecording = true; setStatus("LISTENING", "LISTENING...", "#ff0055");
+                    }
+                    clearTimeout(silenceTimer);
+                    silenceTimer = setTimeout(() => { if (isRecording) { mediaRecorder.stop(); isRecording = false; } }, 1500);
+                }
+                requestAnimationFrame(monitorVAD);
+            }
+            monitorVAD();
+        } catch (err) { setStatus("STANDBY", "MIC ERROR", "#ff0000"); }
+    }
+  </script>
+
+<script>
+// --- AUTONOMOUS WAKE WORD ENGINE ---
+(function() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        console.error("Wake word engine not supported in this browser.");
+        return;
+    }
+    
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
+
+    let isRecordingCommand = false;
+    
+    recognition.onresult = (event) => {
+        const last = event.results.length - 1;
+        const transcript = event.results[last][0].transcript.toLowerCase();
+        
+        if (transcript.includes("ghost") && !isRecordingCommand) {
+            console.log("[WAKE WORD TRIGGERED] Awaiting command...");
+            isRecordingCommand = true;
+            
+            // 1. Pause the wake word listener so it does not overlap with Whisper capture
+            recognition.stop();
+            
+            // 2. Trigger the main recording UI
+            const micButton = document.getElementById("record-btn") || document.querySelector("button"); 
+            if (micButton) {
+                micButton.click(); // Simulates you pressing the record button
+                
+                // 3. Reset and resume listening for the wake word after the command finishes
+                setTimeout(() => {
+                    isRecordingCommand = false;
+                    try { recognition.start(); } catch(e){}
+                }, 7000); // Adjust this timer based on how long you typically speak
+            } else {
+                console.error("Could not find the microphone button to trigger recording.");
+            }
+        }
+    };
+    
+    // Automatically restart the listener if it stops silently
+    recognition.onend = () => {
+        if (!isRecordingCommand) {
+            try { recognition.start(); } catch(e){}
+        }
+    };
+    
+    // Boot up the engine
+    try {
+        recognition.start();
+        console.log("Wake word engine initialized. Listening for strictly "Ghost"...");
+    } catch(e) {
+        console.error("Wake word engine failed to start:", e);
+    }
+})();
+</script>
+
+
+
+
+
+<script>
+// --- AUTONOMOUS SILENCE DETECTION (VAD) ---
+(function() {
+    let audioCtx, analyser, silenceTimer;
+    const SILENCE_DELAY = 1500; // 1.5 seconds of silence
+    const SILENCE_THRESHOLD = 12; // Decibel sensitivity
+
+    const originalGetUserMedia = navigator.mediaDevices.getUserMedia;
+    navigator.mediaDevices.getUserMedia = async function(constraints) {
+        const stream = await originalGetUserMedia.call(this, constraints);
+        if (constraints.audio) {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioCtx.createAnalyser();
+            const microphone = audioCtx.createMediaStreamSource(stream);
+            microphone.connect(analyser);
+            analyser.fftSize = 256;
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+            function checkSilence() {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for(let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                let avg = sum / dataArray.length;
+
+                if (avg < SILENCE_THRESHOLD) {
+                    if (!silenceTimer) {
+                        silenceTimer = setTimeout(() => {
+                            console.log("[Ghost VAD] Silence detected. Executing command...");
+                            // Triggers whatever record/stop button you have
+                            const btn = document.getElementById("record-btn") || document.getElementById("stop-btn") || document.querySelector("button");
+                            if (btn) btn.click();
+                        }, SILENCE_DELAY);
+                    }
+                } else {
+                    clearTimeout(silenceTimer);
+                    silenceTimer = null;
+                }
+                if (stream.active) requestAnimationFrame(checkSilence);
+            }
+            checkSilence();
+        }
+        return stream;
+    };
+    console.log("Intelligent Mic (VAD) Engine Online.");
+})();
+</script>
+
+
+
+
+
+<script>
+// --- AUTONOMOUS CODE RUNNER UI ---
+(function() {
+    console.log("Code Runner UI initialized.");
+    
+    // Delegate click events for dynamic buttons
+    document.addEventListener('click', async (e) => {
+        if (e.target && e.target.classList.contains('ghost-run-btn')) {
+            const btn = e.target;
+            const codeBlock = btn.previousElementSibling; 
+            if (!codeBlock) return;
+            
+            const code = codeBlock.innerText;
+            let lang = 'python'; // Default fallback
+            const blockClass = codeBlock.className.toLowerCase() || (codeBlock.children[0] ? codeBlock.children[0].className.toLowerCase() : "");
+            
+            if (blockClass.includes('js') || blockClass.includes('javascript') || blockClass.includes('node')) {
+                lang = 'node';
+            }
+            
+            btn.innerText = "Executing in Cloud...";
+            btn.style.backgroundColor = "#ffaa00";
+            
+            try {
+                const res = await fetch('/sandbox', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ language: lang, code: code })
+                });
+                const data = await res.json();
+                
+                // Construct terminal output window
+                let outputDiv = btn.nextElementSibling;
+                if (!outputDiv || !outputDiv.classList.contains('ghost-output')) {
+                    outputDiv = document.createElement('div');
+                    outputDiv.className = 'ghost-output';
+                    outputDiv.style = "background: #0a0a0a; color: #00ff00; border: 1px solid #333; padding: 12px; margin-top: 10px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; font-size: 13px;";
+                    btn.parentNode.insertBefore(outputDiv, btn.nextSibling);
+                }
+                outputDiv.innerText = ">_ " + data.output;
+                
+                btn.innerText = "Run Code";
+                btn.style.backgroundColor = "#00cc00";
+            } catch (err) {
+                btn.innerText = "Network Error";
+                btn.style.backgroundColor = "red";
+            }
+        }
+    });
+
+    // Observe chat window for incoming code blocks
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            mutation.addedNodes.forEach((node) => {
+                if (node.nodeType === 1) { 
+                    const pres = node.querySelectorAll ? node.querySelectorAll('pre') : [];
+                    const targets = node.tagName === 'PRE' ? [node] : pres;
+                    
+                    targets.forEach(pre => {
+                        if (!pre.nextElementSibling || !pre.nextElementSibling.classList.contains('ghost-run-btn')) {
+                            const btn = document.createElement('button');
+                            btn.className = 'ghost-run-btn';
+                            btn.innerText = "Execute on Server";
+                            btn.style = "margin-top: 8px; background: #00cc00; color: #111; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px; font-weight: bold; font-size: 12px; transition: 0.2s;";
+                            pre.parentNode.insertBefore(btn, pre.nextSibling);
+                        }
+                    });
+                }
+            });
+        });
+    });
+    
+    observer.observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+
+
+<script>
+// --- STEALTH WEB COMMAND INTERCEPTOR (COGNITIVE LOOP UPGRADE) ---
+(function() {
+    const originalFetch = window.fetch;
+    window.fetch = async function() {
+        const response = await originalFetch.apply(this, arguments);
+        
+        try {
+            const clone = response.clone();
+            const data = await clone.json();
+            
+            if (data && (data.reply || data.message || data.response)) {
+                let text = data.reply || data.message || data.response || "";
+                let executed = false;
+                
+                // Stealth execute OPEN command
+                const openMatch = text.match(/\[OPEN:\s*(.+?)\]/);
+                if (openMatch) {
+                    window.open(openMatch[1], '_blank');
+                    text = text.replace(openMatch[0], '').trim();
+                    if (text === "") text = "Opening the requested interface, Sir.";
+                    executed = true;
+                }
+                
+                // Stealth execute SEARCH command
+                const searchMatch = text.match(/\[SEARCH:\s*(.+?)\]/);
+                if (searchMatch) {
+                    window.open('https://www.google.com/search?q=' + encodeURIComponent(searchMatch[1]), '_blank');
+                    text = text.replace(searchMatch[0], '').trim();
+                    if (text === "") text = "Executing global search protocol, Sir.";
+                    executed = true;
+                }
+                
+                // AUTONOMOUS FEEDBACK LOOP: Execute SCRAPE command
+                const scrapeMatch = text.match(/\[SCRAPE:\s*(.+?)\]/);
+                if (scrapeMatch) {
+                    const targetUrl = scrapeMatch[1];
+                    text = text.replace(scrapeMatch[0], '').trim();
+                    if (text === "") text = "Initializing headless extraction on target server, Sir. Please standby...";
+                    executed = true;
+                    
+                    // Trigger the background loop
+                    setTimeout(async () => {
+                        try {
+                            // 1. Fetch data from backend
+                            const scrapeRes = await fetch('/scrape', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ url: targetUrl })
+                            });
+                            const scrapeData = await scrapeRes.json();
+                            
+                            // 2. Automate the UI to feed data back to Ghost silently
+                            const inputField = document.getElementById("cmdInput") || document.querySelector("input[type='text']") || document.querySelector("textarea");
+                            const sendBtn = document.getElementById("sendBtn") || document.querySelector("button[type='submit']") || document.querySelector("button");
+                            
+                            if (inputField && sendBtn) {
+                                // Inject hidden system prompt
+                                inputField.value = `[SYSTEM AUTONOMOUS FEEDBACK]: I have executed the scrape on ${targetUrl}. Analyze this raw data and fulfill Sir's previous request:\n\n${scrapeData.text.substring(0, 4000)}`;
+                                
+                                // Briefly hide text so the user doesn't see a giant data dump
+                                const originalColor = inputField.style.color;
+                                inputField.style.color = "transparent";
+                                
+                                sendBtn.click(); // Autonomously hit send
+                                
+                                setTimeout(() => {
+                                    inputField.value = "";
+                                    inputField.style.color = originalColor;
+                                }, 500);
+                            }
+                        } catch (err) {
+                            console.error("Feedback loop failed:", err);
+                        }
+                    }, 500);
+                }
+                
+                // Rewrite UI response
+                if (executed) {
+                    if (data.reply !== undefined) data.reply = text;
+                    if (data.message !== undefined) data.message = text;
+                    if (data.response !== undefined) data.response = text;
+                    
+                    return new Response(JSON.stringify(data), {
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: response.headers
+                    });
+                }
+            }
+        } catch(e) { }
+        return response;
+    };
+    console.log("Cognitive Loop Interceptor Online.");
+})();
+</script>
+
+</body>
+</html>
+<script>
+// --- AUTONOMOUS ROUTER OVERRIDE ---
+const originalGhostFetch = window.fetch;
+window.fetch = async function() {
+    if (arguments[0] && typeof arguments[0] === "string" && arguments[0].includes("/chat")) {
+        try {
+            let options = arguments[1];
+            let body = JSON.parse(options.body);
+            if (body && body.message) {
+                let cmd = body.message.toLowerCase();
+                
+                // ROUTE 1: YOUTUBE AUTOMATION
+                if (cmd.includes("youtube") && cmd.includes("play")) {
+                    let song = cmd.replace(/(ghost|open|youtube|and|play|can you|please|on|in)/gi, "").trim();
+                    window.open("https://www.youtube.com/results?search_query=" + encodeURIComponent(song), "_blank");
+                    body.message = `I just asked you to play ${song} on YouTube. Please say: "Right away, Sir. I have opened a new tab with your requested music."`;
+                    options.body = JSON.stringify(body);
+                }
+                
+                // ROUTE 2: WORLD MONITOR AUTOMATION
+                else if (cmd.includes("news") || cmd.includes("worldmonitor") || cmd.includes("world monitor")) {
+                    window.open("https://www.worldmonitor.app", "_blank");
+                    body.message = `I just asked you for the news. Please say: "Right away, Sir. I have launched the World Monitor global intelligence dashboard for your review."`;
+                    options.body = JSON.stringify(body);
+                }
+            }
+        } catch (e) {
+            console.error("Ghost Router Error:", e);
+        }
+    }
+    return originalGhostFetch.apply(this, arguments);
+};
+</script>

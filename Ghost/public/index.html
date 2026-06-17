@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghost OS</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    </script>
+    <style>
+        body { margin: 0; background-color: #000000; color: #00ffff; font-family: 'Courier New', Courier, monospace; overflow: hidden; }
+        #canvas-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; cursor: pointer; }
+        canvas { display: block; width: 100%; height: 100%; }
+        #interface-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+        #core-header { font-size: 32px; font-weight: bold; letter-spacing: 12px; color: #00ffff; text-shadow: 0 0 20px #00ffff; margin-bottom: 40px; }
+        #central-stream { max-width: 850px; width: 90%; text-align: center; font-size: 20px; line-height: 1.6; font-weight: bold; text-shadow: 0 0 10px #00ffff; }
+        #central-stream p { margin: 12px 0; }
+        #cmd-container { display: none; position: absolute; bottom: 80px; width: 80%; max-width: 650px; z-index: 10; pointer-events: auto; flex-direction: row; gap: 10px; }
+        #upload-btn { background: rgba(0, 20, 30, 0.8); border: 1px solid #00ffff; color: #00ffff; font-family: 'Courier New', Courier, monospace; font-size: 18px; cursor: pointer; padding: 0 15px; border-radius: 4px; transition: all 0.2s ease; }
+        #upload-btn:hover { background: rgba(0, 255, 255, 0.2); box-shadow: 0 0 10px #00ffff; }
+        #cmd-line { flex-grow: 1; padding: 16px 24px; border-radius: 4px; border: 1px solid #00ffff; background: rgba(0, 20, 30, 0.8); color: #00ffff; font-size: 16px; outline: none; font-family: 'Courier New', Courier, monospace; }
+        #lateral-matrix { position: absolute; right: -450px; top: 0; height: 100%; width: 450px; background-color: rgba(0, 10, 15, 0.95); border-left: 1px solid #00ffff; z-index: 20; padding: 30px; box-sizing: border-box; transition: right 0.4s ease; overflow-y: auto; pointer-events: auto; }
+        #lateral-matrix.active { right: 0; }
+        .matrix-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0, 255, 255, 0.3); padding-bottom: 15px; margin-bottom: 20px; }
+        h3 { color: #00ffff; font-size: 13px; letter-spacing: 3px; margin: 0; }
+        .close-btn { background: none; border: none; color: #00ffff; font-size: 28px; cursor: pointer; line-height: 1; }
+        .close-btn:hover { color: #fff; text-shadow: 0 0 10px #00ffff; transform: scale(1.1); }
+        pre { background: #00080f; padding: 15px; border-radius: 4px; overflow-x: auto; color: #00ff66; font-size: 13px; border: 1px solid rgba(0, 255, 255, 0.1); }
+        .matrix-log { margin-bottom: 25px; font-size: 14px; color: #a3e5ff; }
+    </style>
+</head>
+<body>
+    <div id="canvas-layer"><canvas id="neural-sphere"></canvas></div>
+    <div id="interface-layer">
+        <div id="core-header">GHOST</div>
+        <div id="central-stream"></div>
+        <div id="cmd-container">
+            <input type="file" id="file-upload" style="display: none;" accept=".txt,.js,.py,.html,.css,.json,.md,.csv,.pdf">
+            <button id="upload-btn" title="Attach Document">[+]</button>
+            <input type="text" id="cmd-line" placeholder="Command..." autocomplete="off">
+        </div>
+    </div>
+    <div id="lateral-matrix">
+        <div class="matrix-header">
+            <h3>LATERAL DATA</h3>
+            <button class="close-btn" onclick="document.getElementById('lateral-matrix').classList.remove('active')" title="Close">×</button>
+        </div>
+        <div id="matrix-content"></div>
+    </div>  
+
+    <script>
+        window.speechSynthesis.getVoices();
+        const canvas = document.getElementById('neural-sphere');
+        const ctx = canvas.getContext('2d');
+        let width, height, particles = [];
+        let isActive = false, rotX = 0, rotY = 0;
+        
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize); 
+        resize();
+    
+        function createSphere() {
+            particles = [];
+            const count = 1200;
+            const sphereRadius = Math.min(width, height) * 0.16;
+            for (let i = 0; i < count; i++) {
+                const phi = Math.acos(-1 + (2 * i) / count);
+                const theta = Math.sqrt(count * Math.PI) * phi;
+                particles.push({
+                    x: sphereRadius * Math.cos(theta) * Math.sin(phi),
+                    y: sphereRadius * Math.sin(theta) * Math.sin(phi),
+                    z: sphereRadius * Math.cos(phi), 
+                    sz: Math.random() * 1.2 + 0.6
+                });
+            }
+        }
+        createSphere();
+            
+        function renderEngine() {
+            ctx.clearRect(0, 0, width, height);
+            const cx = width / 2, cy = height / 2;
+            rotY += isActive ? 0.005 : 0.0005;
+            rotX += isActive ? 0.002 : 0.0002;
+            const cX = Math.cos(rotX), sX = Math.sin(rotX);
+            const cY = Math.cos(rotY), sY = Math.sin(rotY);
+                    
+            particles.forEach(p => {
+                const y1 = p.y * cX - p.z * sX;
+                const z1 = p.y * sX + p.z * cX;
+                const x2 = p.x * cY + z1 * sY;
+                const z2 = -p.x * sY + z1 * cY;
+                const perspective = 350 / (350 + z2);
+                const x2d = cx + x2 * perspective;
+                const y2d = cy + y1 * perspective;
+            
+                if (z2 < 120) {
+                    ctx.beginPath();
+                    ctx.arc(x2d, y2d, p.sz * perspective * (isActive ? 1.4 : 1), 0, Math.PI * 2);
+                    ctx.fillStyle = isActive ? 'rgba(0, 255, 255, 0.9)' : 'rgba(0, 150, 200, 0.4)';
+                    ctx.fill();
+                }
+            });
+            requestAnimationFrame(renderEngine);
+        }
+        renderEngine();
+                
+        let history = [];
+        try { history = JSON.parse(localStorage.getItem('ghost_core_memory')) || []; } catch (e) { history = []; }
+                    
+        let isGhostTalking = false;
+        let micAuthorized = false;
+        let clickTimer = null;
+        
+        let attachedFileContent = "";
+        let attachedFileName = "";
+         
+        const stream = document.getElementById('central-stream');
+        const cmdContainer = document.getElementById('cmd-container');
+        const cmdLine = document.getElementById('cmd-line');
+        const canvasLayer = document.getElementById('canvas-layer');
+        const uploadBtn = document.getElementById('upload-btn');
+        const fileUpload = document.getElementById('file-upload');
+            
+        const SpeechEngine = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognizer = SpeechEngine ? new SpeechEngine() : null;   
+        const synth = window.speechSynthesis;
+                    
+        function getGhostVoice() {
+            const voices = synth.getVoices();
+            return voices.find(v => v.name === 'Samantha') ||
+                   voices.find(v => v.name.includes('Google UK English Female')) ||
+                   voices.find(v => v.name === 'Daniel') ||
+                   voices.find(v => v.name.includes('Google US English')) ||
+                   voices.find(v => v.lang.startsWith('en')); 
+        }   
+        
+        // DOCUMENT VISION: PDF Support Added
+        uploadBtn.addEventListener('click', () => fileUpload.click());
+        fileUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            stream.innerHTML = '<p style="color: #00ff66; opacity: 0.5;">[ EXTRACTING DATA: ' + file.name + ' ]</p>';
+
+            if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+                const reader = new FileReader();
+                reader.onload = async (evt) => {
+                    try {
+                        const typedarray = new Uint8Array(evt.target.result);
+                        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                        let fullText = "";
+                        
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            const page = await pdf.getPage(i);
+                            const textContent = await page.getTextContent();
+                            const pageText = textContent.items.map(item => item.str).join(' ');
+                            fullText += pageText + "\n";
+                        }
+                        
+                        attachedFileContent = fullText;
+                        attachedFileName = file.name;
+                        stream.innerHTML = '<p style="color: #00ff66;">[ PDF READY: ' + file.name + ' ]</p>';
+                        cmdLine.focus();
+                    } catch (err) {
+                        stream.innerHTML = '<p style="color: #ff0033;">[ PDF READ FAULT: ' + err.message + ' ]</p>';
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    attachedFileContent = evt.target.result;
+                    attachedFileName = file.name;
+                    stream.innerHTML = '<p style="color: #00ff66;">[ FILE READY: ' + file.name + ' ]</p>';
+                    cmdLine.focus();
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        if (recognizer) {  
+            recognizer.continuous = false;   
+            recognizer.interimResults = false;
+            recognizer.onspeechstart = () => {
+                if (!isGhostTalking) { stream.innerHTML = '<p style="opacity: 0.5;">[ LISTENING ]</p>'; }
+            };
+            recognizer.onresult = (e) => {
+                const speech = e.results[0][0].transcript;
+                if (synth.speaking) { synth.cancel(); }
+                processTransmission(speech);
+            };
+            recognizer.onend = () => {
+                if (micAuthorized && !isGhostTalking) {
+                    setTimeout(() => { try { recognizer.start(); } catch(err) {} }, 300); 
+                }
+            };
+        }
+                
+        async function forceMicPermission() {
+            try {
+                await navigator.mediaDevices.getUserMedia({ audio: true });
+                micAuthorized = true;
+                isGhostTalking = false;
+                if (synth.speaking) { synth.cancel(); }
+                cmdContainer.style.display = 'none';
+                stream.innerHTML = '';
+                try { recognizer.start(); } catch(e) {} 
+            } catch (err) {
+                stream.innerHTML = '<p style="color: #ff0033;">[ MIC DENIED ]</p>';
+            }
+        }       
+        
+        canvasLayer.addEventListener('click', (e) => {
+            if (clickTimer) clearTimeout(clickTimer);
+            clickTimer = setTimeout(() => { forceMicPermission(); }, 250);
+        });
+                
+        canvasLayer.addEventListener('dblclick', (e) => {
+            clearTimeout(clickTimer); 
+            if (synth.speaking) { synth.cancel(); } 
+            isGhostTalking = false;
+            micAuthorized = false;
+            try { recognizer.stop(); } catch(err) {}
+            cmdContainer.style.display = 'flex';
+            cmdLine.focus();
+            stream.innerHTML = '';
+        });
+            
+        cmdLine.addEventListener('keypress', (e) => {
+            if(e.key === 'Enter' && cmdLine.value.trim() !== '') {
+                const directive = cmdLine.value.trim();  
+                cmdLine.value = '';   
+                cmdContainer.style.display = 'none';  
+                micAuthorized = true;
+                processTransmission(directive);
+            }
+        });
+            
+        async function processTransmission(message) {
+            isActive = true;
+            isGhostTalking = true;
+            try { recognizer.stop(); } catch(err) {} 
+            
+            stream.innerHTML = '<p style="color: #00ffff; opacity: 0.5;">[ PROCESSING ]</p>';
+            
+            let finalMessage = message;
+            if (attachedFileContent) {
+                finalMessage += "\n\n--- ATTACHED FILE: " + attachedFileName + " ---\n```\n" + attachedFileContent + "\n```\nReview the attached file based on my prompt above.";
+                attachedFileContent = ""; 
+                attachedFileName = "";
+                fileUpload.value = ""; 
+            }
+
+            try {
+                const response = await fetch(window.location.origin + '/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: finalMessage, history })
+                });
+            
+                let payload;
+                try {
+                    payload = await response.json();
+                } catch (parseError) {
+                    throw new Error("Server disconnected. No valid JSON response.");
+                } 
+            
+                if(payload.success) {
+                    const openMatch = payload.text.match(/<open>(.*?)<\/open>/i);
+                    if (openMatch) {
+                        const urlToOpen = openMatch[1].trim();
+                        window.open(urlToOpen, '_blank');
+                        payload.text = payload.text.replace(/<open>[\s\S]*?<\/open>/ig, ''); 
+                    }
+
+                    history.push({ role: 'user', content: message }); 
+                    history.push({ role: 'assistant', content: payload.text });
+                    
+                    try { localStorage.setItem('ghost_core_memory', JSON.stringify(history)); } catch(e) {}
+                
+                    routeLateralAssets(message, payload.text);
+                
+                    const tripleTick = String.fromCharCode(96, 96, 96);
+                    const tickRegex = new RegExp(tripleTick + '[\\s\\S]*?' + tripleTick, 'g'); 
+            
+                    let displayHtml = payload.text.replace(tickRegex, '')
+                                                  .trim()
+                                                  .replace(/\n/g, '<br>');
+                    
+                    if (displayHtml) {
+                        stream.innerHTML = '<p>' + displayHtml + '</p>';
+                    } else {
+                        stream.innerHTML = '';
+                    }
+                    
+                    const singleTick = String.fromCharCode(96); 
+                    const singleTickRegex = new RegExp(singleTick + '[^' + singleTick + ']*' + singleTick, 'g');
+                    
+                    let spokenText = payload.text
+                        .replace(tickRegex, '')
+                        .replace(singleTickRegex, ' code snippet ')
+                        .replace(/<[^>]*>?/gm, '')
+                        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+                        .replace(/https?:\/\/[^\s]+/g, ' a link ')
+                        .replace(/[*#_~-]/g, '')
+                        .replace(/\n+/g, '. ');
+                    
+                    const utterance = new SpeechSynthesisUtterance(spokenText);
+                    const mainVoice = getGhostVoice();
+                    if (mainVoice) utterance.voice = mainVoice;
+                    
+                    utterance.pitch = 1.05; 
+                    utterance.rate = 0.95;  
+                        
+                    utterance.onend = () => resetCoreState();   
+                    utterance.onerror = () => resetCoreState();   
+                    synth.speak(utterance);
+                } else {
+                    throw new Error(payload.text || "Unknown backend failure.");
+                }
+            } catch(err) {
+                stream.innerHTML = '<p style="color: #ff0033; font-size: 16px;">[ CRITICAL FAULT: ' + err.message + ' ]</p>';
+                setTimeout(resetCoreState, 7000);
+            }
+        }
+                    
+        function routeLateralAssets(userMsg, text) {
+            if (text.includes('sub_agents') || text.includes(String.fromCharCode(96,96,96))) {
+                const side = document.getElementById('lateral-matrix');
+                side.classList.add('active');
+                
+                let extractedBlocks = "";
+                const tripleTick = String.fromCharCode(96, 96, 96);
+                const blockRegex = new RegExp(tripleTick + '([\\s\\S]*?)' + tripleTick, 'g');
+         
+                let match;
+                while ((match = blockRegex.exec(text)) !== null) {
+                    let content = match[1].trim();
+                    if (content.startsWith('text')) {
+                        content = content.replace(/^text\n?/, '').trim();
+                    }
+                    extractedBlocks += '<div class="matrix-log"><pre>' + content.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre></div>';
+                }
+                if (extractedBlocks) {
+                    document.getElementById('matrix-content').innerHTML = extractedBlocks;
+                }
+            }
+        }   
+                
+        function resetCoreState() {
+            isActive = false;
+            isGhostTalking = false;
+            if (micAuthorized) {
+                try { recognizer.start(); } catch(err) {}
+            }
+            if (cmdContainer.style.display !== 'none' && cmdContainer.style.display !== '') {
+                stream.innerHTML = '';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "manoj": {
+    "salt": "617b8f1a8240f80f83d2d769415d4b27",
+    "hash": "25b5aa7ea9039c1f0f28a79a8924d9c8142a9cd07cc58dc09198c4aa320b0945",
+    "role": "admin",
+    "created": "2026-05-20T03:24:17.197Z"
+  },
+  "friend1": {
+    "role": "user",
+    "created": "2026-05-20T03:57:06.942Z"
+  },
+  "friend2": {
+    "role": "user",
+    "created": "2026-05-20T03:57:06.943Z"
+  }
+}
