@@ -3,117 +3,139 @@ let currentUser = "Guest";
 let isAdminMode = false;
 let isGhostCodeActive = false;
 let targetImageBase64 = null;
+let isInputHidden = false;
 
+// DOM Elements
 const authLayer = document.getElementById('auth-layer');
 const authInput = document.getElementById('authInput');
+const hudContainer = document.getElementById('hud-container');
 const inputArea = document.getElementById('input-area');
 const chatInput = document.getElementById('chatInput');
 const disconnectBtn = document.getElementById('disconnect-btn');
 const ghostCodeBtn = document.getElementById('ghost-code-btn');
 const statusIndicator = document.getElementById('status-indicator');
 const micBtn = document.getElementById('mic-btn');
+const floatingMicBtn = document.getElementById('floating-mic-btn');
+const sidebar = document.getElementById('sidebar');
+const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
+const closeSidebarBtn = document.getElementById('close-sidebar');
+const chatHistory = document.getElementById('chat-history');
+const subtitleOverlay = document.getElementById('subtitle-overlay');
 
+// UI Controls
 function speakText(text) {
+    subtitleOverlay.innerText = text;
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
-        const msg = new SpeechSynthesisUtterance(text);
+        const msg = new SpeechSynthesisUtterance(text.replace(/```[\s\S]*?
+```/g, 'Executing code block.'));
         msg.rate = 1.0;
         window.speechSynthesis.speak(msg);
+        
+        msg.onend = () => { setTimeout(() => { subtitleOverlay.innerText = ""; }, 2000); };
     }
+}
+
+function appendToLog(sender, text) {
+    const div = document.createElement('div');
+    div.className = sender === 'user' ? 'msg-user' : 'msg-ghost';
+    
+    // Convert markdown code blocks to HTML for the sidebar
+    let formattedText = text.replace(/```python\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    formattedText = formattedText.replace(/```\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    
+    div.innerHTML = sender === 'user' ? `> ${text}` : formattedText;
+    chatHistory.appendChild(div);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
 }
 
 function setTheme(isAdmin) {
     const color = isAdmin ? '#ff0032' : '#00ffcc';
-    const subColor = isAdmin ? 'rgba(255,0,50,0.3)' : 'rgba(0,255,204,0.3)';
-    
     if (statusIndicator) {
         statusIndicator.style.color = color;
-        statusIndicator.innerText = isAdmin ? "ADMIN // MUTED (TEXT ONLY)" : "GHOST // ONLINE";
+        statusIndicator.innerText = isAdmin ? "ADMIN // ACTIVE" : "GHOST // ONLINE";
     }
-    if (disconnectBtn) {
-        disconnectBtn.style.color = color;
-        disconnectBtn.style.borderColor = subColor;
-    }
-    if (chatInput) {
-        chatInput.style.borderColor = subColor;
-        chatInput.style.color = color;
-    }
-    if (micBtn) {
-        micBtn.style.borderColor = subColor;
-        micBtn.style.color = color;
-    }
-    document.getElementById('attach-btn').style.borderColor = subColor;
-    document.getElementById('attach-btn').style.color = color;
+    document.getElementById('sidebar-title').style.color = color;
 }
 
-if (ghostCodeBtn) {
-    ghostCodeBtn.addEventListener('click', () => {
-        isGhostCodeActive = !isGhostCodeActive;
-        if (isGhostCodeActive) {
-            ghostCodeBtn.innerText = "[GHOST CODE: ON]";
-            ghostCodeBtn.style.color = "#cc00ff"; 
-            ghostCodeBtn.style.borderColor = "rgba(204,0,255,0.5)";
-            speakText("Ghost Code execution matrix activated.");
-        } else {
-            ghostCodeBtn.innerText = "[GHOST CODE: OFF]";
-            ghostCodeBtn.style.color = isAdminMode ? "#ff0032" : "#00ffcc";
-            ghostCodeBtn.style.borderColor = isAdminMode ? "rgba(255,0,50,0.4)" : "rgba(0,255,204,0.4)";
-            speakText("Ghost Code matrix offline.");
-        }
-    });
-}
+// Sidebar Toggles
+toggleSidebarBtn.addEventListener('click', () => sidebar.classList.add('open'));
+closeSidebarBtn.addEventListener('click', () => sidebar.classList.remove('open'));
 
-// MICROPHONE LOGIC (Web Speech API)
+// Ghost Code Toggle
+ghostCodeBtn.addEventListener('click', () => {
+    isGhostCodeActive = !isGhostCodeActive;
+    if (isGhostCodeActive) {
+        ghostCodeBtn.innerText = "[GHOST CODE: ON]";
+        ghostCodeBtn.classList.add('active');
+        speakText("Ghost Code execution matrix activated.");
+    } else {
+        ghostCodeBtn.innerText = "[GHOST CODE: OFF]";
+        ghostCodeBtn.classList.remove('active');
+        speakText("Ghost Code matrix offline.");
+    }
+});
+
+// Double-Tap Logic to Hide UI
+document.getElementById('bg-canvas').addEventListener('dblclick', () => {
+    if (authLayer.style.display !== 'none') return; // Don't trigger on lock screen
+    
+    isInputHidden = !isInputHidden;
+    if (isInputHidden) {
+        inputArea.style.display = 'none';
+        floatingMicBtn.style.display = 'flex';
+    } else {
+        inputArea.style.display = 'flex';
+        floatingMicBtn.style.display = 'none';
+        chatInput.focus();
+    }
+});
+
+// Microphone Logic (Web Speech API)
 let recognition;
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
     recognition.continuous = false;
-    recognition.interimResults = false;
     
     recognition.onstart = () => {
-        if (micBtn) micBtn.style.background = "rgba(204,0,255,0.3)";
+        micBtn.style.color = "#cc00ff";
+        floatingMicBtn.style.color = "#cc00ff";
+        floatingMicBtn.style.borderColor = "#cc00ff";
     };
 
     recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
         chatInput.value = transcript;
-        sendToCore(); // Auto-send when finished speaking
+        sendToCore(); 
     };
 
     recognition.onend = () => {
-        if (micBtn) micBtn.style.background = "transparent";
-    };
-    
-    recognition.onerror = () => {
-        if (micBtn) micBtn.style.background = "transparent";
-        speakText("Vocal input matrix fault.");
+        micBtn.style.color = "#00ffcc";
+        floatingMicBtn.style.color = "#00ffcc";
+        floatingMicBtn.style.borderColor = "#00ffcc";
     };
 }
 
-if (micBtn) {
-    micBtn.addEventListener('click', () => {
-        if (recognition) {
-            recognition.start();
-        } else {
-            speakText("Microphone not supported on this device.");
-        }
-    });
-}
+const startMic = () => {
+    if (recognition) recognition.start();
+    else speakText("Microphone offline.");
+};
+micBtn.addEventListener('click', startMic);
+floatingMicBtn.addEventListener('click', startMic);
 
+// Initialization Layer
 function initializeGhost() {
-    const inputVal = authInput ? authInput.value.trim() : "";
+    const inputVal = authInput.value.trim();
     if (!inputVal) return;
 
-    if (authLayer) authLayer.style.display = 'none'; 
-    if (disconnectBtn) disconnectBtn.style.display = 'inline-block';
-    if (inputArea) inputArea.style.display = 'flex'; 
-    if (ghostCodeBtn) ghostCodeBtn.style.display = 'inline-block'; // REVEAL FOR EVERYONE
-    
-    if (chatInput) {
-        chatInput.focus();
-        chatInput.value = "";
-    }
+    authLayer.style.display = 'none'; 
+    hudContainer.style.display = 'block';
+    disconnectBtn.style.display = 'inline-block';
+    ghostCodeBtn.style.display = 'inline-block';
+    toggleSidebarBtn.style.display = 'inline-block';
+    chatInput.focus();
+    chatInput.value = "";
 
     if (inputVal === MASTER_PASSCODE) {
         currentUser = "Master Manoj";
@@ -121,55 +143,49 @@ function initializeGhost() {
         setTheme(true);
         speakText("Admin access granted. High-power cognition online.");
     } else {
-        currentUser = inputVal;
+        currentUser = inputVal; // Recruiter/Guest Mode
         isAdminMode = false;
         setTheme(false);
-        speakText(`Welcome, ${currentUser}. Vision and execution modules online.`);
+        speakText(`Welcome, ${currentUser}. System initialized.`);
     }
 
     fetch('/api/auth', { 
         method: 'POST', headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ user: currentUser, status: 'ACTIVE' }) 
-    }).catch(e => console.log("Database offline."));
+    }).catch(() => {});
 }
 
-if (authInput) {
-    authInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') initializeGhost();
-    });
-}
+authInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') initializeGhost();
+});
 
-if (disconnectBtn) {
-    disconnectBtn.addEventListener('click', () => {
-        currentUser = "Guest";
-        isAdminMode = false;
-        isGhostCodeActive = false;
-        
-        if (authLayer) authLayer.style.display = 'block';
-        if (inputArea) inputArea.style.display = 'none'; 
-        if (disconnectBtn) disconnectBtn.style.display = 'none';
-        if (ghostCodeBtn) {
-            ghostCodeBtn.style.display = 'none';
-            ghostCodeBtn.innerText = "[GHOST CODE: OFF]";
-        }
-        
-        if (authInput) {
-            authInput.value = '';
-            authInput.focus();
-        }
-        setTheme(false);
-        if (statusIndicator) {
-            statusIndicator.innerText = "GHOST // STANDBY";
-        }
-        speakText("Matrix disconnected.");
-    });
-}
-
-async function sendToCore() {
-    if (!chatInput || chatInput.value.trim() === '') return;
-    const finalPayload = chatInput.value.trim();
+// Disconnect Protocol
+disconnectBtn.addEventListener('click', () => {
+    authLayer.style.display = 'block';
+    hudContainer.style.display = 'none'; 
+    disconnectBtn.style.display = 'none';
+    ghostCodeBtn.style.display = 'none';
+    toggleSidebarBtn.style.display = 'none';
+    sidebar.classList.remove('open');
+    chatHistory.innerHTML = '';
     
-    if (statusIndicator) statusIndicator.innerText = isAdminMode ? "ADMIN // TRANSMITTING..." : "GHOST // TRANSMITTING...";
+    authInput.value = '';
+    authInput.focus();
+    statusIndicator.innerText = "GHOST // STANDBY";
+    statusIndicator.style.color = "#00ffcc";
+    speakText("Matrix disconnected.");
+});
+
+// Transmission Engine
+async function sendToCore() {
+    if (!chatInput.value.trim()) return;
+    const finalPayload = chatInput.value.trim();
+    chatInput.value = "";
+    
+    appendToLog('user', finalPayload);
+    
+    const originalStatus = statusIndicator.innerText;
+    statusIndicator.innerText = "TRANSMITTING...";
     
     try {
         const response = await fetch('/api/chat', { 
@@ -185,20 +201,18 @@ async function sendToCore() {
         const data = await response.json();
         
         if (data.success) {
-            console.log(data.text); 
-            speakText("Task executed.");
+            appendToLog('ghost', data.text);
+            sidebar.classList.add('open'); // Auto-open sidebar to show results
+            speakText(data.text.replace(/\[.*?\]/g, '')); // Read output, skip bracket tags
         }
     } catch (e) {
-        speakText("System fault.");
+        speakText("System fault during transmission.");
     }
     
-    chatInput.value = "";
+    statusIndicator.innerText = originalStatus;
     targetImageBase64 = null;
-    setTheme(isAdminMode); 
 }
 
-if (chatInput) {
-    chatInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendToCore();
-    });
-}
+chatInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendToCore();
+});
