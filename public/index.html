@@ -1,9 +1,9 @@
-k<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ghost OS // Admin Matrix</title>
+    <title>Ghost OS // Matrix</title>
     <style>
         body { 
             margin: 0; 
@@ -14,29 +14,30 @@ k<!DOCTYPE html>
         }
         input:focus { outline: none; }
         
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #00ffcc; border-radius: 4px; }
     </style>
 </head>
 <body>
     
-    <div id="top-bar" style="position: absolute; top: 0; left: 0; width: 100%; padding: 15px; display: flex; align-items: center; box-sizing: border-box; z-index: 1000;">
-        <div id="status-indicator" style="font-weight: bold; letter-spacing: 1px;">GHOST // STANDBY</div>
+    <div id="top-bar" style="position: absolute; top: 0; left: 0; width: 100%; padding: 20px; display: flex; align-items: center; box-sizing: border-box; z-index: 1000;">
+        <div id="status-indicator" style="font-weight: bold; letter-spacing: 2px;">GHOST // STANDBY</div>
         
-        <button id="ghost-code-btn" style="display: none; margin-left: 15px; border: 1px solid #00ffcc; color: #00ffcc; background: rgba(0,255,204,0.1); padding: 5px 10px; cursor: pointer; border-radius: 4px; font-weight: bold; font-family: monospace; text-shadow: 0 0 5px #00ffcc; transition: 0.3s;">[GHOST CODE: OFF]</button>
+        <button id="ghost-code-btn" style="display: none; margin-left: 20px; border: 1px solid rgba(0,255,204,0.4); color: #00ffcc; background: transparent; padding: 6px 12px; cursor: pointer; border-radius: 4px; font-weight: bold; font-family: monospace; transition: 0.3s;">[GHOST CODE: OFF]</button>
         
-        <button id="disconnect-btn" style="display: none; margin-left: auto; border: 1px solid #ff0032; color: #ff0032; background: rgba(255,0,50,0.1); padding: 5px 10px; cursor: pointer; border-radius: 4px; font-weight: bold; font-family: monospace;">DISCONNECT</button>
+        <button id="disconnect-btn" style="display: none; margin-left: auto; border: 1px solid rgba(255,0,50,0.4); color: #ff0032; background: transparent; padding: 6px 12px; cursor: pointer; border-radius: 4px; font-weight: bold; font-family: monospace;">DISCONNECT</button>
     </div>
 
     <div id="auth-layer" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001; text-align: center;">
-        <input type="password" id="authInput" placeholder="Enter Passcode..." style="background: rgba(0,0,0,0.8); border: 1px solid #00ffcc; color: #00ffcc; padding: 15px; font-family: monospace; text-align: center; border-radius: 8px; width: 250px; box-shadow: 0 0 15px rgba(0,255,204,0.15);">
+        <input type="password" id="authInput" placeholder="Awaiting credentials..." style="background: transparent; border: none; border-bottom: 1px solid rgba(0,255,204,0.5); color: #00ffcc; padding: 10px; font-family: monospace; text-align: center; font-size: 14px; width: 220px; transition: 0.3s;">
     </div>
 
-    <div id="input-area" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 10px; z-index: 1000; width: 80%;">
+    <div id="input-area" style="position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 15px; z-index: 1000; width: 60%; max-width: 800px;">
         <input type="file" id="image-upload" style="display: none;">
-        <button id="attach-btn" style="background: rgba(0,0,0,0.8); border: 1px solid #00ffcc; color: #00ffcc; padding: 12px; border-radius: 50%; cursor: pointer; box-shadow: 0 0 10px rgba(0,255,204,0.1);">📎</button>
-        <input type="text" id="chatInput" placeholder="Double-tap screen to hide..." style="width: 100%; background: rgba(0,0,0,0.8); border: 1px solid #00ffcc; color: #00ffcc; padding: 12px 20px; border-radius: 20px; font-family: monospace; box-shadow: 0 0 10px rgba(0,255,204,0.1);">
+        <button id="attach-btn" style="background: transparent; border: 1px solid rgba(0,255,204,0.3); color: #00ffcc; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; transition: 0.3s; display: flex; justify-content: center; align-items: center;">📎</button>
+        <button id="mic-btn" style="background: transparent; border: 1px solid rgba(0,255,204,0.3); color: #00ffcc; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; transition: 0.3s; display: flex; justify-content: center; align-items: center;">🎙️</button>
+        <input type="text" id="chatInput" placeholder="Command Ghost..." style="width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(0,255,204,0.3); color: #00ffcc; padding: 10px; font-family: monospace; font-size: 14px; transition: 0.3s;">
     </div>
 
     <canvas id="bg-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none;"></canvas>
@@ -54,22 +55,23 @@ k<!DOCTYPE html>
         renderer.setPixelRatio(window.devicePixelRatio);
 
         const circleCanvas = document.createElement('canvas');
-        circleCanvas.width = 64;
-        circleCanvas.height = 64;
+        circleCanvas.width = 32;
+        circleCanvas.height = 32;
         const ctx = circleCanvas.getContext('2d');
         ctx.beginPath();
-        ctx.arc(32, 32, 30, 0, Math.PI * 2);
+        ctx.arc(16, 16, 14, 0, Math.PI * 2);
         ctx.fillStyle = '#ffffff';
         ctx.fill();
         const circleTexture = new THREE.CanvasTexture(circleCanvas);
 
-        const geometry = new THREE.SphereGeometry(14, 64, 64); 
+        // Highly ethereal, minimalistic Icosahedron structure
+        const geometry = new THREE.IcosahedronGeometry(15, 4); 
         const material = new THREE.PointsMaterial({
             color: 0x00ffcc, 
             size: 0.15,
             map: circleTexture,
             transparent: true,
-            opacity: 0.5,
+            opacity: 0.6,
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });
@@ -106,13 +108,12 @@ k<!DOCTYPE html>
             requestAnimationFrame(animate);
             const time = clock.getElapsedTime();
 
-            particleSphere.rotation.x = time * 0.05;
-            particleSphere.rotation.y = time * 0.08;
+            particleSphere.rotation.x = time * 0.03;
+            particleSphere.rotation.y = time * 0.05;
 
             for (let i = 0; i < positionAttribute.count; i++) {
                 const data = vertexData[i];
-                const wave = Math.sin(data.x * 0.5 + time) * Math.cos(data.y * 0.5 + time);
-                const pulse = 1 + (wave * 0.02); 
+                const pulse = 1 + Math.sin(time * 2 + data.phase) * 0.03;
                 positionAttribute.setXYZ(i, data.x * pulse, data.y * pulse, data.z * pulse);
             }
             positionAttribute.needsUpdate = true;

@@ -79,13 +79,13 @@ app.post('/api/chat', async (req, res) => {
         const textPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
         const visionPrompt = getVisionCore(isAdmin ? 'Master Manoj' : user);
         
-        // DYNAMIC POWER ROUTING: 70B for Admin, 8B for Guests
+        // DYNAMIC POWER ROUTING
         const activeModel = isAdmin ? 'llama-3.3-70b-versatile' : 'llama-3.1-8b-instant';
 
         let replyText = "";
 
-        if (ghostCodeMode && isAdmin) {
-            // NEMOCLAW EXECUTION MATRIX (E2B)
+        // GHOST CODE IS NOW UNLOCKED FOR EVERYONE (ADMIN AND GUESTS)
+        if (ghostCodeMode) {
             replyText = "Initiating NemoClaw Execution Matrix...\n\n";
             try {
                 const codePrompt = `You are an elite Senior Systems Engineer. Write a Python script to accomplish the user's task. 
@@ -106,17 +106,14 @@ app.post('/api/chat', async (req, res) => {
                 if (!groqRes.ok) throw new Error("Cognitive Engine Fault during code generation.");
                 const codeData = await groqRes.json();
                 
-                // Bulletproof Hex-encoded string replace to strip markdown formatting
                 const rawCode = codeData.choices[0].message.content.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
                 
                 replyText += `[Code Compiled Successfully]\n\x60\x60\x60python\n${rawCode}\n\x60\x60\x60\n\n`;
-
                 replyText += `[NemoClaw Virtual Machine Online. Executing Payload...]\n\n`;
                 
                 if (!E2B_API_KEY) throw new Error("NemoClaw API Key missing from environment variables.");
 
                 const sandbox = await CodeInterpreter.create({ apiKey: E2B_API_KEY });
-
                 const execution = await sandbox.notebook.execCell(rawCode);
 
                 if (execution.error) {
@@ -126,7 +123,6 @@ app.post('/api/chat', async (req, res) => {
                     if (execution.logs.stdout.length > 0) replyText += execution.logs.stdout.join('\n');
                     if (execution.results.length > 0) replyText += `\n` + execution.results.map(r => r.text).join('\n');
                 }
-
                 await sandbox.close();
 
             } catch (error) {
@@ -134,7 +130,6 @@ app.post('/api/chat', async (req, res) => {
             }
         } 
         else if (image) {
-            // ROUTE 2: VISUAL CORTEX (NVIDIA)
             const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
@@ -152,7 +147,6 @@ app.post('/api/chat', async (req, res) => {
             const data = await nvidiaRes.json();
             replyText = data.choices[0].message.content;
         } else {
-            // ROUTE 3: COGNITIVE CORE (GROQ)
             const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
@@ -172,7 +166,6 @@ app.post('/api/chat', async (req, res) => {
             replyText = data.choices[0].message.content;
         }
 
-        // Oracle / News Parser
         const searchMatch = replyText.match(/<search>([\s\S]*?)<\/search>/i);
         if (searchMatch) {
             const searchRes = await fetch("https://api.tavily.com/search", {
