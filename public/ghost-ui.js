@@ -4,9 +4,10 @@ let isAdminMode = false;
 let isGhostCodeActive = false;
 let targetImageBase64 = null;
 
-const authLayer = document.getElementById('auth-layer') || document.querySelector('.auth-layer');
-const authInput = document.getElementById('authInput') || document.querySelector('input[type="password"]');
-const chatInput = document.getElementById('chatInput') || document.querySelector('input[type="text"]');
+const authLayer = document.getElementById('auth-layer');
+const authInput = document.getElementById('authInput');
+const inputArea = document.getElementById('input-area'); // New logic hook
+const chatInput = document.getElementById('chatInput');
 const disconnectBtn = document.getElementById('disconnect-btn');
 const ghostCodeBtn = document.getElementById('ghost-code-btn');
 const statusIndicator = document.getElementById('status-indicator');
@@ -61,8 +62,11 @@ function initializeGhost() {
     const inputVal = authInput ? authInput.value.trim() : "";
     if (!inputVal) return;
 
+    // Hide the lock screen, reveal the disconnect button and the chat bar
     if (authLayer) authLayer.style.display = 'none'; 
     if (disconnectBtn) disconnectBtn.style.display = 'inline-block';
+    if (inputArea) inputArea.style.display = 'flex'; 
+    
     if (chatInput) {
         chatInput.focus();
         chatInput.value = "";
@@ -104,9 +108,13 @@ if (disconnectBtn) {
         currentUser = "Guest";
         isAdminMode = false;
         isGhostCodeActive = false;
+        
+        // Reset the UI strictly to lock screen
         if (authLayer) authLayer.style.display = 'block';
+        if (inputArea) inputArea.style.display = 'none'; 
         if (disconnectBtn) disconnectBtn.style.display = 'none';
         if (ghostCodeBtn) ghostCodeBtn.style.display = 'none';
+        
         if (authInput) {
             authInput.value = '';
             authInput.focus();

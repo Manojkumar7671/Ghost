@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+k<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -14,7 +14,6 @@
         }
         input:focus { outline: none; }
         
-        /* Custom scrollbar for matrix aesthetic */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #000; }
         ::-webkit-scrollbar-thumb { background: #00ffcc; border-radius: 4px; }
@@ -34,7 +33,7 @@
         <input type="password" id="authInput" placeholder="Enter Passcode..." style="background: rgba(0,0,0,0.8); border: 1px solid #00ffcc; color: #00ffcc; padding: 15px; font-family: monospace; text-align: center; border-radius: 8px; width: 250px; box-shadow: 0 0 15px rgba(0,255,204,0.15);">
     </div>
 
-    <div id="input-area" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; z-index: 1000; width: 80%;">
+    <div id="input-area" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 10px; z-index: 1000; width: 80%;">
         <input type="file" id="image-upload" style="display: none;">
         <button id="attach-btn" style="background: rgba(0,0,0,0.8); border: 1px solid #00ffcc; color: #00ffcc; padding: 12px; border-radius: 50%; cursor: pointer; box-shadow: 0 0 10px rgba(0,255,204,0.1);">📎</button>
         <input type="text" id="chatInput" placeholder="Double-tap screen to hide..." style="width: 100%; background: rgba(0,0,0,0.8); border: 1px solid #00ffcc; color: #00ffcc; padding: 12px 20px; border-radius: 20px; font-family: monospace; box-shadow: 0 0 10px rgba(0,255,204,0.1);">
@@ -54,7 +53,6 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
 
-        // 1. Dynamic Circular Texture Generation (Fixes the ugly square hyphens)
         const circleCanvas = document.createElement('canvas');
         circleCanvas.width = 64;
         circleCanvas.height = 64;
@@ -65,16 +63,15 @@
         ctx.fill();
         const circleTexture = new THREE.CanvasTexture(circleCanvas);
 
-        // 2. High-Density Holographic Sphere
         const geometry = new THREE.SphereGeometry(14, 64, 64); 
         const material = new THREE.PointsMaterial({
-            color: 0x00ffcc, // Ghost Default Cyan
+            color: 0x00ffcc, 
             size: 0.15,
-            map: circleTexture, // Applies the smooth glowing dot
+            map: circleTexture,
             transparent: true,
             opacity: 0.5,
             blending: THREE.AdditiveBlending,
-            depthWrite: false // Prevents particles from clipping into black squares
+            depthWrite: false
         });
 
         const particleSphere = new THREE.Points(geometry, material);
@@ -82,7 +79,6 @@
 
         camera.position.z = 30;
 
-        // Store baseline vertex data for fluid rippling
         const positionAttribute = geometry.getAttribute('position');
         const vertexData = [];
         for (let i = 0; i < positionAttribute.count; i++) {
@@ -94,7 +90,6 @@
             });
         }
 
-        // Color override for Admin/Guest shifts
         const observer = new MutationObserver(() => {
             const statusColor = document.getElementById('status-indicator').style.color;
             if (statusColor === 'rgb(255, 0, 50)' || statusColor === '#ff0032') {
@@ -107,16 +102,13 @@
 
         let clock = new THREE.Clock();
 
-        // Animation Loop
         function animate() {
             requestAnimationFrame(animate);
             const time = clock.getElapsedTime();
 
-            // Smooth base rotation
             particleSphere.rotation.x = time * 0.05;
             particleSphere.rotation.y = time * 0.08;
 
-            // Fluid oceanic ripple effect
             for (let i = 0; i < positionAttribute.count; i++) {
                 const data = vertexData[i];
                 const wave = Math.sin(data.x * 0.5 + time) * Math.cos(data.y * 0.5 + time);
@@ -130,7 +122,6 @@
 
         animate();
 
-        // Window resize handling
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
