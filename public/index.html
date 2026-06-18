@@ -3,126 +3,120 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ghost OS // Admin Matrix</title>
+    <title>Ghost OS // Core Matrix</title>
     <style>
-        body { 
-            margin: 0; 
-            background-color: #000; 
-            color: #00ffcc; 
-            font-family: monospace; 
-            overflow: hidden; 
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #050505; color: #00ffcc; font-family: 'Share Tech Mono', monospace; overflow: hidden; user-select: none; }
+        * { box-sizing: border-box; }
         input:focus { outline: none; }
+        button { cursor: pointer; font-family: 'Share Tech Mono', monospace; }
+
+        /* Background WebGL Canvas */
+        #bg-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+
+        /* UI Layer - Sits above the canvas */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; }
+        .pointer-enabled { pointer-events: auto; }
+
+        /* Top Navigation Bar */
+        #top-bar { padding: 20px; display: flex; align-items: center; justify-content: space-between; background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); }
+        #status-group { display: flex; align-items: center; gap: 20px; }
+        #status-indicator { font-size: 1.2rem; font-weight: bold; letter-spacing: 2px; text-shadow: 0 0 10px #00ffcc; }
         
-        /* Custom scrollbar for matrix aesthetic */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #000; }
-        ::-webkit-scrollbar-thumb { background: #00ffcc; border-radius: 4px; }
+        /* Cyberpunk Buttons */
+        .cyber-btn { background: rgba(0,255,204,0.05); border: 1px solid #00ffcc; color: #00ffcc; padding: 8px 16px; border-radius: 4px; font-weight: bold; font-size: 1rem; text-shadow: 0 0 5px #00ffcc; box-shadow: 0 0 10px rgba(0,255,204,0.2) inset; transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px; backdrop-filter: blur(5px); }
+        .cyber-btn:hover { background: rgba(0,255,204,0.2); box-shadow: 0 0 15px rgba(0,255,204,0.5) inset, 0 0 20px rgba(0,255,204,0.2); }
+        .cyber-btn.admin-mode { border-color: #ff0032; color: #ff0032; text-shadow: 0 0 5px #ff0032; box-shadow: 0 0 10px rgba(255,0,50,0.2) inset; background: rgba(255,0,50,0.05); }
+        .cyber-btn.admin-mode:hover { background: rgba(255,0,50,0.2); box-shadow: 0 0 15px rgba(255,0,50,0.5) inset, 0 0 20px rgba(255,0,50,0.2); }
+        .cyber-btn.ghost-code-on { border-color: #cc00ff; color: #cc00ff; text-shadow: 0 0 8px #cc00ff; box-shadow: 0 0 15px rgba(204,0,255,0.4) inset; background: rgba(204,0,255,0.15); }
+
+        /* Auth Overlay (Glassmorphism) */
+        #auth-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(10px); background: rgba(0,0,0,0.6); transition: opacity 0.5s ease; }
+        .auth-box { border: 1px solid rgba(0,255,204,0.3); background: rgba(0,0,0,0.7); padding: 40px; border-radius: 12px; box-shadow: 0 0 30px rgba(0,255,204,0.1); text-align: center; }
+        .auth-box h2 { margin-top: 0; font-size: 1.5rem; letter-spacing: 2px; text-shadow: 0 0 10px #00ffcc; margin-bottom: 25px; }
+        #authInput { background: rgba(0,255,204,0.05); border: 1px solid #00ffcc; color: #00ffcc; padding: 15px 25px; font-family: 'Share Tech Mono', monospace; font-size: 1.2rem; text-align: center; border-radius: 6px; width: 300px; box-shadow: 0 0 10px rgba(0,255,204,0.1) inset; transition: all 0.3s; }
+        #authInput:focus { background: rgba(0,255,204,0.1); box-shadow: 0 0 20px rgba(0,255,204,0.3) inset; }
+
+        /* Ghost Voice Subtitles */
+        #subtitle-container { position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%); width: 80%; max-width: 800px; text-align: center; z-index: 5; pointer-events: none; }
+        #ghost-subtitles { font-size: 1.5rem; line-height: 1.4; color: #fff; text-shadow: 0 0 15px #00ffcc, 0 0 5px #00ffcc; opacity: 0; transition: opacity 0.3s ease; }
+
+        /* Chat Matrix (Double Tap to Reveal) */
+        #chat-interface { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px); width: 60%; max-width: 800px; display: flex; gap: 15px; z-index: 20; opacity: 0; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        #chat-interface.visible { transform: translateX(-50%) translateY(0); opacity: 1; }
+        #chatInput { flex-grow: 1; background: rgba(0,0,0,0.8); border: 1px solid #00ffcc; color: #00ffcc; padding: 18px 25px; border-radius: 30px; font-family: 'Share Tech Mono', monospace; font-size: 1.1rem; box-shadow: 0 10px 30px rgba(0,0,0,0.5); backdrop-filter: blur(5px); transition: border-color 0.3s, box-shadow 0.3s; }
+        
+        #attach-btn { background: rgba(0,0,0,0.8); border: 1px solid #00ffcc; color: #00ffcc; width: 55px; height: 55px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; transition: all 0.3s; backdrop-filter: blur(5px); }
+        #attach-btn:hover { background: rgba(0,255,204,0.2); box-shadow: 0 0 15px #00ffcc; }
+
+        /* Sidebar Matrix */
+        #sidebar { position: absolute; top: 0; right: -400px; width: 380px; height: 100%; background: rgba(0,0,0,0.85); border-left: 1px solid #00ffcc; z-index: 50; backdrop-filter: blur(15px); box-shadow: -10px 0 30px rgba(0,0,0,0.8); transition: right 0.4s cubic-bezier(0.19, 1, 0.22, 1); display: flex; flex-direction: column; }
+        #sidebar.open { right: 0; }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid rgba(0,255,204,0.3); display: flex; justify-content: space-between; align-items: center; }
+        .sidebar-title { font-size: 1.2rem; font-weight: bold; text-shadow: 0 0 5px #00ffcc; }
+        #close-sidebar { background: none; border: none; color: #00ffcc; font-size: 1.5rem; text-shadow: 0 0 5px #00ffcc; transition: 0.2s; }
+        #close-sidebar:hover { color: #fff; transform: scale(1.1); }
+        .sidebar-content { padding: 20px; overflow-y: auto; flex-grow: 1; color: #ccc; font-size: 0.9rem; line-height: 1.5; }
+
+        /* Scrollbars */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.5); }
+        ::-webkit-scrollbar-thumb { background: #00ffcc; border-radius: 3px; }
+        
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
-    
-    <div id="top-bar" style="position: absolute; top: 0; left: 0; width: 100%; padding: 15px; display: flex; align-items: center; box-sizing: border-box; z-index: 1000;">
-        <div id="status-indicator" style="font-weight: bold; letter-spacing: 1px;">GHOST // STANDBY</div>
+
+    <canvas id="bg-canvas"></canvas>
+
+    <div id="subtitle-container">
+        <div id="ghost-subtitles">Systems standing by.</div>
+    </div>
+
+    <div id="ui-layer">
         
-        <button id="ghost-code-btn" style="display: none; margin-left: 15px; border: 1px solid #00ffcc; color: #00ffcc; background: rgba(0,255,204,0.1); padding: 5px 10px; cursor: pointer; border-radius: 4px; font-weight: bold; font-family: monospace; text-shadow: 0 0 5px #00ffcc; transition: 0.3s;">[GHOST CODE: OFF]</button>
-        
-        <button id="disconnect-btn" style="display: none; margin-left: auto; border: 1px solid #ff0032; color: #ff0032; background: rgba(255,0,50,0.1); padding: 5px 10px; cursor: pointer; border-radius: 4px; font-weight: bold; font-family: monospace;">DISCONNECT</button>
+        <div id="top-bar" class="pointer-enabled">
+            <div id="status-group">
+                <div id="status-indicator">GHOST // OFFLINE</div>
+                <button id="ghost-code-btn" class="cyber-btn hidden">[GHOST CODE: OFF]</button>
+            </div>
+            
+            <div id="action-group" style="display: flex; gap: 15px;">
+                <button id="sidebar-toggle" class="cyber-btn hidden">DATA MATRIX</button>
+                <button id="disconnect-btn" class="cyber-btn hidden">DISCONNECT</button>
+            </div>
+        </div>
+
+        <div id="chat-interface" class="pointer-enabled">
+            <input type="file" id="image-upload" class="hidden">
+            <button id="attach-btn">📎</button>
+            <input type="text" id="chatInput" placeholder="Command override... (Press Enter to send)" autocomplete="off">
+        </div>
+
     </div>
 
-    <div id="auth-layer" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001; text-align: center;">
-        <input type="password" id="authInput" placeholder="Enter Passcode..." style="background: rgba(0,0,0,0.7); border: 1px solid #00ffcc; color: #00ffcc; padding: 15px; font-family: monospace; text-align: center; border-radius: 8px; width: 250px;">
+    <div id="sidebar" class="pointer-enabled">
+        <div class="sidebar-header">
+            <div class="sidebar-title" id="sidebar-title-text">SYSTEM LOGS</div>
+            <button id="close-sidebar">✕</button>
+        </div>
+        <div class="sidebar-content" id="sidebar-content-area">
+            > Initializing cognitive framework...<br>
+            > Waiting for authentication...
+        </div>
     </div>
 
-    <div id="input-area" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; z-index: 1000; width: 80%;">
-        <input type="file" id="image-upload" style="display: none;">
-        <button id="attach-btn" style="background: rgba(0,0,0,0.7); border: 1px solid #555; color: #fff; padding: 12px; border-radius: 50%; cursor: pointer;">📎</button>
-        <input type="text" id="chatInput" placeholder="Double-tap screen to hide..." style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid #00ffcc; color: #00ffcc; padding: 12px 20px; border-radius: 20px; font-family: monospace;">
+    <div id="auth-overlay" class="pointer-enabled">
+        <div class="auth-box">
+            <h2 id="auth-title">AUTHORIZATION REQUIRED</h2>
+            <input type="password" id="authInput" placeholder="Enter Passcode..." autocomplete="off">
+        </div>
     </div>
-
-    <canvas id="bg-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none;"></canvas>
-
-    <script src="ghost-ui.js"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script>
-        const canvas = document.getElementById('bg-canvas');
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
-        
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
+    <script src="ghost-ui.js"></script>
 
-        // Using Icosahedron for an evenly distributed, organic point cloud
-        const geometry = new THREE.IcosahedronGeometry(14, 5); 
-        const material = new THREE.PointsMaterial({
-            color: 0x00ffcc, // Ghost Default Cyan
-            size: 0.1,
-            transparent: true,
-            opacity: 0.8,
-            blending: THREE.AdditiveBlending // Adds a natural glow where particles overlap
-        });
-
-        const particleSphere = new THREE.Points(geometry, material);
-        scene.add(particleSphere);
-
-        camera.position.z = 30;
-
-        // Store baseline vertex data for the breathing animation
-        const positionAttribute = geometry.getAttribute('position');
-        const vertexData = [];
-        for (let i = 0; i < positionAttribute.count; i++) {
-            vertexData.push({
-                x: positionAttribute.getX(i),
-                y: positionAttribute.getY(i),
-                z: positionAttribute.getZ(i),
-                phase: Math.random() * Math.PI * 2 
-            });
-        }
-
-        // Dynamic Color Listener (Syncs sphere color with Admin/Guest mode)
-        const observer = new MutationObserver(() => {
-            const statusColor = document.getElementById('status-indicator').style.color;
-            if (statusColor === 'rgb(255, 0, 50)' || statusColor === '#ff0032') {
-                material.color.setHex(0xff0032); // Admin Magenta/Red
-            } else {
-                material.color.setHex(0x00ffcc); // Guest Cyan
-            }
-        });
-        observer.observe(document.getElementById('status-indicator'), { attributes: true, attributeFilter: ['style'] });
-
-        let clock = new THREE.Clock();
-
-        // Animation Loop
-        function animate() {
-            requestAnimationFrame(animate);
-            const time = clock.getElapsedTime();
-
-            // Smooth rotation
-            particleSphere.rotation.x += 0.001;
-            particleSphere.rotation.y += 0.0015;
-
-            // Organic breathing calculation
-            for (let i = 0; i < positionAttribute.count; i++) {
-                const data = vertexData[i];
-                // Subtle sine wave pulse for fluid energy
-                const pulse = Math.sin(time * 1.5 + data.phase) * 0.02 + 1;
-                positionAttribute.setXYZ(i, data.x * pulse, data.y * pulse, data.z * pulse);
-            }
-            positionAttribute.needsUpdate = true;
-
-            renderer.render(scene, camera);
-        }
-
-        animate();
-
-        // Dynamic Window Resizing
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-    </script>
 </body>
 </html>
