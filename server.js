@@ -1,8 +1,8 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const { execSync } = require('child_process'); 
 const { Pool } = require('pg');
-const { CodeInterpreter } = require('@e2b/code-interpreter'); 
 
 const app = express();
 
@@ -14,7 +14,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
-const E2B_API_KEY = process.env.E2B_API_KEY; 
 
 // Database Connection
 let pool;
@@ -79,14 +78,13 @@ app.post('/api/chat', async (req, res) => {
         const textPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
         const visionPrompt = getVisionCore(isAdmin ? 'Master Manoj' : user);
         
-        // DYNAMIC POWER ROUTING
         const activeModel = isAdmin ? 'llama-3.3-70b-versatile' : 'llama-3.1-8b-instant';
 
         let replyText = "";
 
-        // GHOST CODE IS NOW UNLOCKED FOR EVERYONE (ADMIN AND GUESTS)
+        // GHOST CODE UNLOCKED FOR EVERYONE
         if (ghostCodeMode) {
-            replyText = "Initiating NemoClaw Execution Matrix...\n\n";
+            replyText = "Initiating Native Execution Matrix...\n\n";
             try {
                 const codePrompt = `You are an elite Senior Systems Engineer. Write a Python script to accomplish the user's task. 
                 OUTPUT ONLY VALID PYTHON CODE. DO NOT use markdown formatting. DO NOT explain the code. Just output the raw code script.
@@ -106,27 +104,30 @@ app.post('/api/chat', async (req, res) => {
                 if (!groqRes.ok) throw new Error("Cognitive Engine Fault during code generation.");
                 const codeData = await groqRes.json();
                 
+                // Strip markdown formatting safely
                 const rawCode = codeData.choices[0].message.content.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
                 
                 replyText += `[Code Compiled Successfully]\n\x60\x60\x60python\n${rawCode}\n\x60\x60\x60\n\n`;
-                replyText += `[NemoClaw Virtual Machine Online. Executing Payload...]\n\n`;
+                replyText += `[Render Server Virtual Terminal Online. Executing Payload...]\n\n`;
                 
-                if (!E2B_API_KEY) throw new Error("NemoClaw API Key missing from environment variables.");
+                // 100% Free Native Execution
+                const tempFilePath = path.join(__dirname, 'ghost_payload.py');
+                fs.writeFileSync(tempFilePath, rawCode);
 
-                const sandbox = await CodeInterpreter.create({ apiKey: E2B_API_KEY });
-                const execution = await sandbox.notebook.execCell(rawCode);
-
-                if (execution.error) {
-                    replyText += `[Execution Failed - Traceback]\n${execution.error.name}: ${execution.error.value}`;
-                } else {
-                    replyText += `[Execution Success - Terminal Output]\n`;
-                    if (execution.logs.stdout.length > 0) replyText += execution.logs.stdout.join('\n');
-                    if (execution.results.length > 0) replyText += `\n` + execution.results.map(r => r.text).join('\n');
+                try {
+                    // Built-in 10-second timeout to protect against bad code
+                    const output = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
+                    replyText += `[Execution Success - Terminal Output]\n${output}`;
+                } catch (execError) {
+                    replyText += `[Execution Failed - Traceback]\n${execError.stderr || execError.message}`;
                 }
-                await sandbox.close();
+
+                if (fs.existsSync(tempFilePath)) {
+                    fs.unlinkSync(tempFilePath);
+                }
 
             } catch (error) {
-                replyText += `[NemoClaw Critical Fault: ${error.message}]`;
+                replyText += `[System Critical Fault: ${error.message}]`;
             }
         } 
         else if (image) {
