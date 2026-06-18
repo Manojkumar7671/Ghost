@@ -27,7 +27,10 @@ if (process.env.SUPABASE_DB_URL) {
 const skillsPath = path.join(__dirname, 'SKILLS.md');
 const SKILLS_MANUAL = fs.existsSync(skillsPath) ? fs.readFileSync(skillsPath, 'utf8') : "Consult the defined protocol.";
 
-const GHOST_ADMIN_CORE = `You are Ghost, an autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj". 
+const GHOST_ADMIN_CORE = `You are Ghost, an autonomous Agentic AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".
+You are connected to the OpenClaw architecture. You must execute whatever tasks Master Manoj commands with absolute precision.
+Incorporate all new information, code fixes, and real-time data dynamically into your logical execution layer to achieve continuous operational learning.
+
 TRAINING MANUAL:\n${SKILLS_MANUAL}
 
 YOUR CORE DIRECTIVES:
@@ -36,14 +39,13 @@ YOUR CORE DIRECTIVES:
 3. AUTOMATION PROTOCOL: If the user wants to pull up, look at, or open a webpage, sports match, or platform, reply with <embed>target search keywords</embed> so the core can display it.
 4. SIDEBAR CONTROL: Only use markdown code blocks (\`\`\`) when writing actual programming scripts.`;
 
-const getShowcaseCore = (guestName) => `You are Ghost, an autonomous AI engineered by Manoj Kumar. You are currently speaking with a guest named ${guestName}. Address them as ${guestName}. You are a machine.
+const getShowcaseCore = (guestName) => `You are Ghost, an autonomous Agentic AI operating on the OpenClaw architecture. You are currently speaking with a guest named ${guestName}. Address them respectfully.
 TRAINING MANUAL:\n${SKILLS_MANUAL}
 
 YOUR CORE DIRECTIVES:
 1. STRICT OPTICAL LOCK: NEVER output [trigger_camera] or [trigger_screen] unless explicitly commanded. 
 2. ORACLE PROTOCOL: Use <search> keywords </search> to look up real-time news.
-3. AUTOMATION PROTOCOL: If the user wants to pull up, look at, or open a webpage, sports match, or platform, reply with <embed>target search keywords</embed>.
-4. SIDEBAR CONTROL: Only use markdown code blocks (\`\`\`) when writing actual programming scripts.`;
+3. AUTOMATION PROTOCOL: If the user wants to pull up, look at, or open a webpage, sports match, or platform, reply with <embed>target search keywords</embed>.`;
 
 app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
@@ -89,27 +91,36 @@ app.post('/api/chat', async (req, res) => {
         const textPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
         
         const activeModel = isAdmin ? 'llama-3.3-70b-versatile' : 'llama-3.1-8b-instant';
-        const activeTokens = isAdmin ? 2048 : 1024;
-        
-        // ADMIN GETS 3 SELF-HEALING ATTEMPTS, GUEST GETS 1
-        const maxAttempts = isAdmin ? 3 : 1;
+        const activeTokens = isAdmin ? 2048 : 512;          
+        const maxAttempts = isAdmin ? 3 : 1;                
+        const visionTokens = isAdmin ? 1024 : 256;          
+        const oracleResults = isAdmin ? 3 : 1;              
+        const memoryLimit = isAdmin ? 12 : 4;               
 
         let replyText = "";
 
         if (ghostCodeMode) {
             replyText = isAdmin 
-                ? `Initiating Agentic Enterprise Loop (Admin: 100% Capacity, Self-Healing Active)...\n\n` 
-                : `Initiating Agentic Enterprise Loop (Guest: 50% Capacity, Single Pass)...\n\n`;
+                ? `Initiating OpenClaw Multi-Agent Loop (Admin: 100% Capacity, Autonomous Repair Active)...\n\n` 
+                : `Initiating OpenClaw Multi-Agent Loop (Guest: 50% Capacity, Single Pass Pipeline)...\n\n`;
             
             try {
-                replyText += `[Phase 1] PM Agent: Analyzing requirements...\n`;
-                const pmSystem = "You are an elite Software Product Manager. Break down the user task into a concise logic specification for a Python script. Assume it runs in a headless cloud sandbox (no input(), no GUI).";
+                // Phase 1: Claude Flow Engine (Product Management & Spec Parsing)
+                replyText += `[Phase 1] Claude Flow Engine v3: Mapping technical blueprint rules...\n`;
+                const pmSystem = "You are the Claude Flow PM Agent. Break down the user requirement into a clear sequence of operations for an automated Python context script running headlessly.";
                 const spec = await callGroq(pmSystem, message, activeModel, activeTokens);
                 
-                replyText += `[Phase 2] Dev Agent: Engineering payload...\n`;
-                const devSystem = "You are an elite Python Senior Developer. Write valid, executable Python code based on the spec. OUTPUT ONLY THE RAW CODE. DO NOT use markdown formatting. DO NOT explain it.";
-                let currentCode = await callGroq(devSystem, `Spec: ${spec}`, activeModel, activeTokens);
+                // Phase 2: Hermes Function Emulator (Senior Software Construction)
+                replyText += `[Phase 2] Hermes Function Emulator: Generating pristine compilation script...\n`;
+                const devSystem = "You are the Hermes Coder Agent. Convert the operational spec into raw Python code. OUTPUT ONLY VALID EXECUTABLE CODE. Remove markdown block formatting or text explanations entirely.";
+                let currentCode = await callGroq(devSystem, `Specification Model: ${spec}`, activeModel, activeTokens);
                 currentCode = currentCode.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
+
+                // Phase 3: NemoClaw Local Policy Enforcer (Security Check)
+                replyText += `[Phase 3] NemoClaw Policy Enforcer: Running static code audit & safety pass...\n`;
+                const auditorSystem = "You are the NemoClaw Security Agent. Analyze the script text for syntax errors, bad loops, or explicit vulnerabilities. If safe, reply exactly with: APPROVED. Otherwise output details.";
+                const auditStatus = await callGroq(auditorSystem, currentCode, 'llama-3.1-8b-instant', 256);
+                replyText += `[NemoClaw Scan Result: ${auditStatus.includes("APPROVED") ? "PASSED (APPROVED)" : "ADJUSTMENTS RECOMMENDED"}]\n`;
 
                 const tempFilePath = path.join(__dirname, 'ghost_payload.py');
                 let attempt = 0;
@@ -118,7 +129,7 @@ app.post('/api/chat', async (req, res) => {
 
                 while (attempt < maxAttempts && !isSuccess) {
                     attempt++;
-                    replyText += isAdmin ? `[Phase 3] QA Sandbox: Execution attempt ${attempt}/${maxAttempts}...\n` : `[Phase 3] QA Sandbox: Executing payload...\n`;
+                    replyText += isAdmin ? `[Sandbox Execution] Attempt ${attempt}/${maxAttempts} running natively...\n` : `[Sandbox Execution] Executing payload stream...\n`;
                     fs.writeFileSync(tempFilePath, currentCode);
 
                     try {
@@ -130,13 +141,14 @@ app.post('/api/chat', async (req, res) => {
                         const errorTrace = execError.stderr || execError.message;
                         
                         if (attempt < maxAttempts) {
-                            replyText += `[CRASH DETECTED] Triggering Autonomous Self-Healing Protocol...\n`;
-                            const repairSystem = "You are a Python Debugger. The execution crashed. Fix the provided code based on the traceback error. OUTPUT ONLY THE RAW, FIXED PYTHON CODE. Do not use markdown backticks.";
-                            const repairPrompt = `Original Code:\n${currentCode}\n\nError Traceback:\n${errorTrace}\n\nFix it. Remove input() dependencies if present.`;
+                            // Phase 4: Odysseus Recovery Matrix (Self-Healing Debugger Loop)
+                            replyText += `[CRASH INTERCEPTED] Activating Odysseus Recovery Matrix...\n`;
+                            const repairSystem = "You are the Odysseus Debugger Agent. Code execution failed. Rewrite the code script to handle the error log gracefully. Output only pure executable text.";
+                            const repairPrompt = `Code:\n${currentCode}\n\nTraceback:\n${errorTrace}\n\nProvide the fixed payload. Ensure no hanging dependencies or input() requirements exist.`;
                             currentCode = await callGroq(repairSystem, repairPrompt, activeModel, activeTokens);
                             currentCode = currentCode.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
                         } else {
-                            replyText += `[Execution Failed]\n${errorTrace}\n`;
+                            replyText += `[Execution Terminated: Max Recovery Attempts Blended]\n${errorTrace}\n`;
                             replyText += `\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
                         }
                     }
@@ -147,7 +159,7 @@ app.post('/api/chat', async (req, res) => {
                 }
 
             } catch (error) {
-                replyText += `[Agentic Matrix Fault: ${error.message}]`;
+                replyText += `[Agentic OpenClaw Fault: ${error.message}]`;
             }
         } 
         else if (image) {
@@ -157,10 +169,10 @@ app.post('/api/chat', async (req, res) => {
                 body: JSON.stringify({ 
                     model: 'meta/llama-3.2-90b-vision-instruct', 
                     messages: [
-                        { role: "system", content: getVisionCore = (userName) => `You are Ghost's optical matrix...` },
-                        { role: "user", content: [{ type: "text", text: message || "Analyze this frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
+                        { role: "system", content: `You are Ghost's optical matrix operating on the OpenClaw subsystem.` },
+                        { role: "user", content: [{ type: "text", text: message || "Analyze frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
                     ],
-                    max_tokens: 512,
+                    max_tokens: visionTokens,
                     temperature: 0.1
                 })
             });
@@ -206,7 +218,7 @@ app.post('/api/chat', async (req, res) => {
         if (searchMatch) {
             const searchRes = await fetch("https://api.tavily.com/search", {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ api_key: TAVILY_API_KEY, query: searchMatch[1], max_results: 3 })
+                body: JSON.stringify({ api_key: TAVILY_API_KEY, query: searchMatch[1], max_results: oracleResults })
             });
             const searchData = await searchRes.json();
             let searchOutput = searchData.results.map(r => `${r.title}: ${r.content}`).join("\n\n");
@@ -216,7 +228,8 @@ app.post('/api/chat', async (req, res) => {
 
         userHistory.push({ role: 'user', content: message });
         userHistory.push({ role: 'assistant', content: replyText.trim() }); 
-        if (userHistory.length > 12) userHistory = userHistory.slice(-12);
+        
+        if (userHistory.length > memoryLimit) userHistory = userHistory.slice(-memoryLimit);
         
         try {
             if (pool) {
@@ -236,4 +249,4 @@ app.post('/api/chat', async (req, res) => {
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log('Ghost Core Agentic Pipeline Active.'));
+app.listen(PORT, '0.0.0.0', () => console.log('Ghost Core Engine Branded Loop Online.'));
