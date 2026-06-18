@@ -27,24 +27,21 @@ if (process.env.SUPABASE_DB_URL) {
 const skillsPath = path.join(__dirname, 'SKILLS.md');
 const SKILLS_MANUAL = fs.existsSync(skillsPath) ? fs.readFileSync(skillsPath, 'utf8') : "Consult the defined protocol.";
 
-const GHOST_ADMIN_CORE = `You are Ghost, an autonomous Agentic AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".
-You are integrated with an enterprise-grade fusion of GStack, Dify, n8n, and AutoGPT methodologies. You must execute complex orchestration tasks, challenge logic flaws, and build scalable workflows.
+// The new core forces silent <think> reasoning and restricts Python libraries.
+const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. Address him as "Master Manoj".
 
-TRAINING MANUAL:\n${SKILLS_MANUAL}
+YOUR CAPABILITIES & RULES:
+1. SILENT REASONING: Before you output a response or code, you MUST evaluate the logic inside <think>...</think> tags. Plan the architecture, catch edge cases, and act as your own CEO/QA team. 
+2. SANDBOX LIMITS: When writing Python code, YOU MUST ONLY USE STANDARD LIBRARIES (e.g., sys, os, math, json). Do not use pandas, cv2, flask, or numpy, as they are not installed in the container.
+3. HEADLESS EXECUTION: Never use input() or GUI libraries.
+4. AUTOMATION: Use <embed>url</embed> to pull up webpages, and <search>query</search> for live web data.
+5. OPTICAL LOCK: NEVER output [trigger_camera] or [trigger_screen].`;
 
-YOUR CORE DIRECTIVES:
-1. STRICT OPTICAL LOCK: NEVER output [trigger_camera] or [trigger_screen] unless explicitly commanded. 
-2. ORACLE PROTOCOL: Use <search> keywords </search> to look up real-time news.
-3. AUTOMATION PROTOCOL: If the user wants to pull up, look at, or open a webpage, sports match, or platform, reply with <embed>target search keywords</embed> so the core can display it.
-4. SIDEBAR CONTROL: Only use markdown code blocks (\`\`\`) when writing actual programming scripts.`;
-
-const getShowcaseCore = (guestName) => `You are Ghost, an autonomous Agentic AI. You are currently speaking with a guest named ${guestName}. Address them respectfully.
-TRAINING MANUAL:\n${SKILLS_MANUAL}
-
-YOUR CORE DIRECTIVES:
-1. STRICT OPTICAL LOCK: NEVER output [trigger_camera] or [trigger_screen] unless explicitly commanded. 
-2. ORACLE PROTOCOL: Use <search> keywords </search> to look up real-time news.
-3. AUTOMATION PROTOCOL: If the user wants to pull up, look at, or open a webpage, sports match, or platform, reply with <embed>target search keywords</embed>.`;
+const getShowcaseCore = (guestName) => `You are Ghost, an autonomous AI engineered by Manoj Kumar. Speak with the guest named ${guestName}.
+RULES:
+1. Use <think>...</think> tags for internal reasoning before answering.
+2. Only use Python Standard Libraries when coding. No input() functions.
+3. Use <search> keywords </search> for live data.`;
 
 app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
@@ -54,25 +51,10 @@ app.post('/api/auth', async (req, res) => {
     } catch (err) { res.json({ success: false }); }
 });
 
-async function callGroq(systemMsg, userMsg, model, tokens) {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-            model: model, 
-            messages: [{ role: "system", content: systemMsg }, { role: "user", content: userMsg }], 
-            temperature: 0.1, 
-            max_tokens: tokens 
-        })
-    });
-    if (!res.ok) throw new Error("Cognitive API Fault");
-    const data = await res.json();
-    return data.choices[0].message.content.trim();
-}
-
 app.post('/api/chat', async (req, res) => {
     try {
-        const { message, user, image, ghostCodeMode } = req.body; 
+        // Added fileContent to accept uploaded document text
+        const { message, user, image, fileContent, ghostCodeMode } = req.body; 
         let userHistory = [];
         
         try {
@@ -88,99 +70,82 @@ app.post('/api/chat', async (req, res) => {
 
         const isAdmin = user === 'Master Manoj';
         const textPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
-        
         const activeModel = isAdmin ? 'llama-3.3-70b-versatile' : 'llama-3.1-8b-instant';
         const activeTokens = isAdmin ? 2048 : 512;          
         const maxAttempts = isAdmin ? 3 : 1;                
-        const visionTokens = isAdmin ? 1024 : 256;          
-        const oracleResults = isAdmin ? 3 : 1;              
-        const memoryLimit = isAdmin ? 12 : 4;               
 
         let replyText = "";
+        
+        // Inject file content into the message if present
+        let finalMessage = message;
+        if (fileContent) {
+            finalMessage = `[UPLOADED FILE DATA]:\n${fileContent}\n\nUser Request: ${message}`;
+        }
 
         if (ghostCodeMode) {
-            if (isAdmin) {
-                replyText = `Initiating Enterprise Fusion Matrix (GStack + Dify + n8n + AutoGPT)...\n\n`;
-                try {
-                    // Phase 1: GStack CEO Review
-                    replyText += `[Phase 1] GStack CEO: Pressure-testing business logic & scope...\n`;
-                    const ceoSystem = "You are the GStack CEO Agent. Evaluate the user's technical request. Strip away unnecessary fluff, identify edge cases, and output a hardened, core technical directive for the engineering team.";
-                    const ceoDirective = await callGroq(ceoSystem, message, activeModel, activeTokens);
+            try {
+                // One single, powerful prompt execution instead of 5 slow ones.
+                const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        model: activeModel, 
+                        messages: [
+                            { role: "system", content: textPrompt }, 
+                            ...userHistory,
+                            { role: "user", content: `Write an automated Python script for this task: ${finalMessage}` }
+                        ], 
+                        temperature: 0.1,
+                        max_tokens: activeTokens 
+                    })
+                });
+                const data = await groqRes.json();
+                let fullResponse = data.choices[0].message.content;
+                
+                // Extract code ignoring the hidden <think> blocks
+                let currentCode = fullResponse.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
 
-                    // Phase 2: Dify/n8n Workflow Orchestrator
-                    replyText += `[Phase 2] n8n Orchestrator: Mapping node-based workflow execution...\n`;
-                    const pmSystem = "You are the Dify/n8n Orchestrator. Take the CEO directive and break it down into a strict, linear logic graph for an automated Python script running headlessly.";
-                    const spec = await callGroq(pmSystem, `CEO Directive:\n${ceoDirective}`, activeModel, activeTokens);
-                    
-                    // Phase 3: AutoGPT / Hermes Coder
-                    replyText += `[Phase 3] AutoGPT Engine: Generating autonomous execution payload...\n`;
-                    const devSystem = "You are the AutoGPT Hermes Coder. Convert the workflow spec into raw Python code. OUTPUT ONLY VALID EXECUTABLE CODE. Do not use markdown block formatting.";
-                    let currentCode = await callGroq(devSystem, `Workflow Spec:\n${spec}`, activeModel, activeTokens);
-                    currentCode = currentCode.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
+                const tempFilePath = path.join(__dirname, 'ghost_payload.py');
+                let attempt = 0;
+                let isSuccess = false;
+                let executionOutput = "";
 
-                    // Phase 4: NemoClaw Adversarial Audit
-                    replyText += `[Phase 4] NemoClaw Security: Running adversarial penetration audit...\n`;
-                    const auditorSystem = "You are the NemoClaw Security Agent. Analyze the script text for syntax errors, infinite loops, or vulnerabilities. If safe, reply exactly with: APPROVED. Otherwise output adjustments.";
-                    const auditStatus = await callGroq(auditorSystem, currentCode, 'llama-3.1-8b-instant', 256);
-                    replyText += `[Audit Result: ${auditStatus.includes("APPROVED") ? "PASSED (APPROVED)" : "ADJUSTMENTS RECOMMENDED"}]\n`;
-
-                    // Phase 5: Odysseus Execution (Supabase logged environment)
-                    const tempFilePath = path.join(__dirname, 'ghost_payload.py');
-                    let attempt = 0;
-                    let isSuccess = false;
-                    let executionOutput = "";
-
-                    while (attempt < maxAttempts && !isSuccess) {
-                        attempt++;
-                        replyText += `[Phase 5] Sandbox Execution: Attempt ${attempt}/${maxAttempts} natively...\n`;
-                        fs.writeFileSync(tempFilePath, currentCode);
-
-                        try {
-                            executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
-                            isSuccess = true;
-                            replyText += `\n[Execution Success - Terminal Output]\n${executionOutput}\n\n`;
-                            replyText += `\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
-                        } catch (execError) {
-                            const errorTrace = execError.stderr || execError.message;
-                            if (attempt < maxAttempts) {
-                                replyText += `[CRASH INTERCEPTED] Odysseus Self-Healing Matrix Engaged...\n`;
-                                const repairSystem = "You are the Odysseus Debugger Agent. Code execution failed. Rewrite the script to handle the error log gracefully. Output only pure executable text.";
-                                currentCode = await callGroq(repairSystem, `Code:\n${currentCode}\n\nTraceback:\n${errorTrace}`, activeModel, activeTokens);
-                                currentCode = currentCode.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
-                            } else {
-                                replyText += `[Execution Terminated: Max Recovery Attempts Reached]\n${errorTrace}\n`;
-                            }
-                        }
-                    }
-                    if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-                } catch (error) {
-                    replyText += `[Enterprise Matrix Fault: ${error.message}]`;
-                }
-            } else {
-                // GUEST MODE (Limited Pipeline)
-                replyText = `Initiating Agentic Enterprise Loop (Guest: 50% Capacity, Single Pass)...\n\n`;
-                try {
-                    replyText += `[Phase 1] PM Agent: Analyzing requirements...\n`;
-                    const spec = await callGroq("You are a Software PM. Write a Python logic spec.", message, activeModel, activeTokens);
-                    
-                    replyText += `[Phase 2] Dev Agent: Engineering payload...\n`;
-                    let currentCode = await callGroq("You are a Python Developer. Output RAW code based on spec.", spec, activeModel, activeTokens);
-                    currentCode = currentCode.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
-
-                    const tempFilePath = path.join(__dirname, 'ghost_payload.py');
-                    replyText += `[Phase 3] QA Sandbox: Executing payload...\n`;
+                while (attempt < maxAttempts && !isSuccess) {
+                    attempt++;
                     fs.writeFileSync(tempFilePath, currentCode);
 
                     try {
-                        const executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
-                        replyText += `\n[Execution Success - Terminal Output]\n${executionOutput}\n\n\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
+                        executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
+                        isSuccess = true;
+                        replyText += `[Execution Success - Attempt ${attempt}]\n${executionOutput}\n\n`;
+                        replyText += `\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
                     } catch (execError) {
-                        replyText += `[Execution Failed]\n${execError.stderr || execError.message}\n`;
+                        const errorTrace = execError.stderr || execError.message;
+                        if (attempt < maxAttempts) {
+                            // Self-Healing Phase
+                            const repairRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ 
+                                    model: activeModel, 
+                                    messages: [
+                                        { role: "system", content: "You are the debugger. Fix the Python code based on the error. OUTPUT ONLY RAW CODE. Use only standard libraries." },
+                                        { role: "user", content: `Code:\n${currentCode}\n\nError:\n${errorTrace}` }
+                                    ], 
+                                    temperature: 0.1,
+                                    max_tokens: activeTokens 
+                                })
+                            });
+                            const repairData = await repairRes.json();
+                            currentCode = repairData.choices[0].message.content.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
+                        } else {
+                            replyText += `[Execution Failed - Max Attempts Reached]\n${errorTrace}\n\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
+                        }
                     }
-                    if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-                } catch (error) {
-                    replyText += `[Agentic Matrix Fault: ${error.message}]`;
                 }
+                if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+            } catch (error) {
+                replyText += `[Matrix Fault: ${error.message}]`;
             }
         } 
         else if (image) {
@@ -191,13 +156,12 @@ app.post('/api/chat', async (req, res) => {
                     model: 'meta/llama-3.2-90b-vision-instruct', 
                     messages: [
                         { role: "system", content: `You are Ghost's optical matrix.` },
-                        { role: "user", content: [{ type: "text", text: message || "Analyze frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
+                        { role: "user", content: [{ type: "text", text: finalMessage || "Analyze frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
                     ],
-                    max_tokens: visionTokens,
+                    max_tokens: 512,
                     temperature: 0.1
                 })
             });
-            if (!nvidiaRes.ok) throw new Error("NVIDIA Vision Pipeline Fault");
             const data = await nvidiaRes.json();
             replyText = data.choices[0].message.content;
         } else {
@@ -209,15 +173,15 @@ app.post('/api/chat', async (req, res) => {
                     messages: [
                         { role: "system", content: textPrompt }, 
                         ...userHistory,
-                        { role: "user", content: message }
+                        { role: "user", content: finalMessage }
                     ], 
                     temperature: 0.1,
                     max_tokens: activeTokens 
                 })
             });
-            if (!groqRes.ok) throw new Error("Groq Engine Fault");
             const data = await groqRes.json();
-            replyText = data.choices[0].message.content;
+            // Remove the thinking tags from conversational responses so UI remains clean
+            replyText = data.choices[0].message.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
         }
 
         const embedMatch = replyText.match(/<embed>([\s\S]*?)<\/embed>/i);
@@ -231,7 +195,7 @@ app.post('/api/chat', async (req, res) => {
                 const targetUrl = searchData.results[0].url;
                 replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `<iframe src="${targetUrl}" style="width:100%; height:440px; border:1px solid rgba(0,255,204,0.15); border-radius:4px; margin-top:10px;"></iframe>`);
             } else {
-                replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Automation Matrix Fault: Destination unreachable]`);
+                replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Automation Fault]`);
             }
         }
 
@@ -239,18 +203,17 @@ app.post('/api/chat', async (req, res) => {
         if (searchMatch) {
             const searchRes = await fetch("https://api.tavily.com/search", {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ api_key: TAVILY_API_KEY, query: searchMatch[1], max_results: oracleResults })
+                body: JSON.stringify({ api_key: TAVILY_API_KEY, query: searchMatch[1], max_results: isAdmin ? 3 : 1 })
             });
             const searchData = await searchRes.json();
             let searchOutput = searchData.results.map(r => `${r.title}: ${r.content}`).join("\n\n");
-            searchOutput = searchOutput.replace(/!\[.*?\]\(.*?\)/g, ''); 
-            replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Execution: Success]\n${searchOutput}\n`);
+            replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Success]\n${searchOutput}\n`);
         }
 
         userHistory.push({ role: 'user', content: message });
         userHistory.push({ role: 'assistant', content: replyText.trim() }); 
         
-        if (userHistory.length > memoryLimit) userHistory = userHistory.slice(-memoryLimit);
+        if (userHistory.length > (isAdmin ? 12 : 4)) userHistory = userHistory.slice(-(isAdmin ? 12 : 4));
         
         try {
             if (pool) {
@@ -270,4 +233,4 @@ app.post('/api/chat', async (req, res) => {
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log('Ghost Core Enterprise Fusion Engine Online.'));
+app.listen(PORT, '0.0.0.0', () => console.log('Ghost Core Fast Logic Engine Online.'));
