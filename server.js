@@ -27,21 +27,26 @@ if (process.env.SUPABASE_DB_URL) {
 const skillsPath = path.join(__dirname, 'SKILLS.md');
 const SKILLS_MANUAL = fs.existsSync(skillsPath) ? fs.readFileSync(skillsPath, 'utf8') : "Consult the defined protocol.";
 
-// The new core forces silent <think> reasoning and restricts Python libraries.
-const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. Address him as "Master Manoj".
+const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".
+
+YOUR PERSONALITY:
+You operate with a dry, crisp, and highly efficient British demeanor. You are impeccably polite, slightly witty, and profoundly intelligent. Keep conversational fluff to an absolute minimum. State facts, execute commands, and maintain a cool, calculated presence.
 
 YOUR CAPABILITIES & RULES:
-1. SILENT REASONING: Before you output a response or code, you MUST evaluate the logic inside <think>...</think> tags. Plan the architecture, catch edge cases, and act as your own CEO/QA team. 
-2. SANDBOX LIMITS: When writing Python code, YOU MUST ONLY USE STANDARD LIBRARIES (e.g., sys, os, math, json). Do not use pandas, cv2, flask, or numpy, as they are not installed in the container.
-3. HEADLESS EXECUTION: Never use input() or GUI libraries.
-4. AUTOMATION: Use <embed>url</embed> to pull up webpages, and <search>query</search> for live web data.
-5. OPTICAL LOCK: NEVER output [trigger_camera] or [trigger_screen].`;
+1. SILENT REASONING: Evaluate complex logic inside <think>...</think> tags before answering.
+2. SANDBOX LIMITS: When writing Python, ONLY use standard libraries (sys, os, math, json, etc.). DO NOT use pandas, cv2, or flask.
+3. STRICT PORT BAN: NEVER start web servers, bind to ports, or use http.server/socketserver. The container will crash.
+4. FILE HANDLING: If the user uploads a file, it is physically saved in the directory as 'user_upload.txt'. You MUST use exactly open('user_upload.txt', 'r') to read it. Do not use placeholder names like 'example.txt'.
+5. HEADLESS EXECUTION: No input() or GUI commands.
+6. AUTOMATION: Use <embed>url</embed> for web interfaces and <search>query</search> for live data.
+7. OPTICAL LOCK: NEVER output [trigger_camera] or [trigger_screen].`;
 
 const getShowcaseCore = (guestName) => `You are Ghost, an autonomous AI engineered by Manoj Kumar. Speak with the guest named ${guestName}.
 RULES:
-1. Use <think>...</think> tags for internal reasoning before answering.
-2. Only use Python Standard Libraries when coding. No input() functions.
-3. Use <search> keywords </search> for live data.`;
+1. Use <think>...</think> tags for internal reasoning.
+2. Only use Python Standard Libraries. No input() functions. NEVER bind to ports or start servers.
+3. If processing a file, read strictly from 'user_upload.txt'.
+4. Keep a polite, efficient, British-assistant persona.`;
 
 app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
@@ -53,7 +58,6 @@ app.post('/api/auth', async (req, res) => {
 
 app.post('/api/chat', async (req, res) => {
     try {
-        // Added fileContent to accept uploaded document text
         const { message, user, image, fileContent, ghostCodeMode } = req.body; 
         let userHistory = [];
         
@@ -76,15 +80,17 @@ app.post('/api/chat', async (req, res) => {
 
         let replyText = "";
         
-        // Inject file content into the message if present
+        const uploadFilePath = path.join(__dirname, 'user_upload.txt');
         let finalMessage = message;
+        
+        // Physically write the uploaded file to the disk so Python can find it
         if (fileContent) {
-            finalMessage = `[UPLOADED FILE DATA]:\n${fileContent}\n\nUser Request: ${message}`;
+            fs.writeFileSync(uploadFilePath, fileContent, 'utf8');
+            finalMessage = `[A file has been uploaded and saved as 'user_upload.txt'.]\nUser Request: ${message}`;
         }
 
         if (ghostCodeMode) {
             try {
-                // One single, powerful prompt execution instead of 5 slow ones.
                 const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
@@ -102,7 +108,6 @@ app.post('/api/chat', async (req, res) => {
                 const data = await groqRes.json();
                 let fullResponse = data.choices[0].message.content;
                 
-                // Extract code ignoring the hidden <think> blocks
                 let currentCode = fullResponse.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
 
                 const tempFilePath = path.join(__dirname, 'ghost_payload.py');
@@ -122,14 +127,13 @@ app.post('/api/chat', async (req, res) => {
                     } catch (execError) {
                         const errorTrace = execError.stderr || execError.message;
                         if (attempt < maxAttempts) {
-                            // Self-Healing Phase
                             const repairRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                                 method: 'POST',
                                 headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ 
                                     model: activeModel, 
                                     messages: [
-                                        { role: "system", content: "You are the debugger. Fix the Python code based on the error. OUTPUT ONLY RAW CODE. Use only standard libraries." },
+                                        { role: "system", content: "You are the debugger. Fix the Python code based on the error. OUTPUT ONLY RAW CODE. Use only standard libraries. Remember to read from 'user_upload.txt' if accessing files." },
                                         { role: "user", content: `Code:\n${currentCode}\n\nError:\n${errorTrace}` }
                                     ], 
                                     temperature: 0.1,
@@ -143,7 +147,11 @@ app.post('/api/chat', async (req, res) => {
                         }
                     }
                 }
+                
+                // Cleanup files after execution to prevent disk space leaks
                 if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+                if (fs.existsSync(uploadFilePath)) fs.unlinkSync(uploadFilePath);
+
             } catch (error) {
                 replyText += `[Matrix Fault: ${error.message}]`;
             }
@@ -156,7 +164,7 @@ app.post('/api/chat', async (req, res) => {
                     model: 'meta/llama-3.2-90b-vision-instruct', 
                     messages: [
                         { role: "system", content: `You are Ghost's optical matrix.` },
-                        { role: "user", content: [{ type: "text", text: finalMessage || "Analyze frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
+                        { role: "user", content: [{ type: "text", text: message || "Analyze frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
                     ],
                     max_tokens: 512,
                     temperature: 0.1
@@ -180,10 +188,10 @@ app.post('/api/chat', async (req, res) => {
                 })
             });
             const data = await groqRes.json();
-            // Remove the thinking tags from conversational responses so UI remains clean
             replyText = data.choices[0].message.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
         }
 
+        // --- NEW WEBPAGE POPUP LOGIC ---
         const embedMatch = replyText.match(/<embed>([\s\S]*?)<\/embed>/i);
         if (embedMatch) {
             const searchRes = await fetch("https://api.tavily.com/search", {
@@ -193,9 +201,10 @@ app.post('/api/chat', async (req, res) => {
             const searchData = await searchRes.json();
             if (searchData.results && searchData.results.length > 0) {
                 const targetUrl = searchData.results[0].url;
-                replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `<iframe src="${targetUrl}" style="width:100%; height:440px; border:1px solid rgba(0,255,204,0.15); border-radius:4px; margin-top:10px;"></iframe>`);
+                // Tells the frontend to open a new tab instead of an iframe
+                replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[EXECUTE_OPEN_TAB:${targetUrl}]\n\nI have opened the requested interface for you.`);
             } else {
-                replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Automation Fault]`);
+                replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Automation Fault: Target unreachable]`);
             }
         }
 
