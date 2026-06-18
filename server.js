@@ -57,7 +57,24 @@ app.post('/api/auth', async (req, res) => {
     } catch (err) { res.json({ success: false }); }
 });
 
-// Primary Chat Swarm Matrix
+// Helper: Groq API Call
+async function callGroq(systemMsg, userMsg, model, tokens) {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            model: model, 
+            messages: [{ role: "system", content: systemMsg }, { role: "user", content: userMsg }], 
+            temperature: 0.1, 
+            max_tokens: tokens 
+        })
+    });
+    if (!res.ok) throw new Error("Cognitive API Fault");
+    const data = await res.json();
+    return data.choices[0].message.content.trim();
+}
+
+// Primary Chat Agentic Matrix
 app.post('/api/chat', async (req, res) => {
     try {
         const { message, user, image, ghostCodeMode } = req.body; 
@@ -83,59 +100,55 @@ app.post('/api/chat', async (req, res) => {
 
         let replyText = "";
 
-        // CLAUDE FLOW + HERMES + NEMOCLAW MULTI-AGENT SWARM INTERCEPTOR
+        // AGENTIC MULTI-STAGE LOOP INTERCEPTOR
         if (ghostCodeMode) {
             replyText = isAdmin 
-                ? "Initiating Decentralized Swarm Loop (Admin: 100% Capacity)...\n\n" 
-                : "Initiating Decentralized Swarm Loop (Guest: 50% Capacity Threshold)...\n\n";
+                ? "Initiating Agentic Enterprise Loop (Admin: 100% Capacity)...\n\n" 
+                : "Initiating Agentic Enterprise Loop (Guest: 50% Capacity Threshold)...\n\n";
             
             try {
-                // Agent Step 1: Architect Agent (System Blueprinting)
-                const architectPrompt = `You are the Swarm Architect Agent. Analyze this task and output a technical step-by-step logic plan to build the solution in Python. Do not write code yet. Task: ${message}`;
-                const archRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: activeModel, messages: [{ role: "user", content: architectPrompt }], temperature: 0.1, max_tokens: activeTokens })
-                });
-                const archData = await archRes.json();
-                const blueprint = archData.choices[0].message.content;
-                replyText += `[1. Swarm Architect: Blueprint Synced]\n\n`;
-
-                // Agent Step 2: Coder Agent (Hermes Function-Tuning Emulator)
-                const coderPrompt = `You are the Swarm Coder Agent. Using this structural blueprint, generate the raw functional Python script.
-                OUTPUT ONLY VALID, EXECUTABLE PYTHON CODE. DO NOT explain anything. DO NOT use markdown backticks.
-                Blueprint: ${blueprint}`;
-                const coderRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: activeModel, messages: [{ role: "user", content: coderPrompt }], temperature: 0.1, max_tokens: activeTokens })
-                });
-                const coderData = await coderRes.json();
+                // Phase 1: PM Agent (Specification)
+                replyText += `[Phase 1] PM Agent: Analyzing requirements...\n`;
+                const pmSystem = "You are an elite Software Product Manager. Break down the user task into a concise logic specification for a Python script. Assume it runs in a headless cloud sandbox (no input(), no GUI).";
+                const spec = await callGroq(pmSystem, message, activeModel, activeTokens);
                 
-                // Clean markdown artifacts safely to bypass compiler traps
-                const rawCode = coderData.choices[0].message.content.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
-                replyText += `[2. Swarm Coder: Code Compiled Successfully]\n\x60\x60\x60python\n${rawCode}\n\x60\x60\x60\n\n`;
+                // Phase 2: Senior Dev Agent (Initial Code)
+                replyText += `[Phase 2] Dev Agent: Engineering payload...\n`;
+                const devSystem = "You are an elite Python Senior Developer. Write valid, executable Python code based on the spec. OUTPUT ONLY THE RAW CODE. DO NOT use markdown formatting (\`\`\`). DO NOT explain it.";
+                let currentCode = await callGroq(devSystem, `Spec: ${spec}`, activeModel, activeTokens);
+                currentCode = currentCode.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
 
-                // Agent Step 3: Security Auditor Agent (Local Policy Enforcer)
-                const auditorPrompt = `You are the Security Auditor. Scan this python code for syntax crashes or illegal access loops. If it passes, output exactly: APPROVED. Otherwise, list adjustments. Code: ${rawCode}`;
-                const audRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: [{ role: "user", content: auditorPrompt }], temperature: 0.1, max_tokens: 512 })
-                });
-                const audData = await audRes.json();
-                replyText += `[3. Auditor: Security Check completed. Status: ${audData.choices[0].message.content.trim()}]\n\n`;
-
-                // Agent Step 4: Sandbox Execution (Free Container Sandbox)
-                replyText += `[Render Cloud Container Sandbox Virtual Terminal Online. Executing Payload...]\n\n`;
+                // Phase 3: QA & Self-Healing Execution Loop
                 const tempFilePath = path.join(__dirname, 'ghost_payload.py');
-                fs.writeFileSync(tempFilePath, rawCode);
+                let maxAttempts = 3;
+                let attempt = 0;
+                let isSuccess = false;
+                let executionOutput = "";
 
-                try {
-                    const output = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
-                    replyText += `[Execution Success - Terminal Output]\n${output}`;
-                } catch (execError) {
-                    replyText += `[Execution Failed - Traceback]\n${execError.stderr || execError.message}`;
+                while (attempt < maxAttempts && !isSuccess) {
+                    attempt++;
+                    replyText += `[Phase 3] QA Sandbox: Execution attempt ${attempt}/${maxAttempts}...\n`;
+                    fs.writeFileSync(tempFilePath, currentCode);
+
+                    try {
+                        executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
+                        isSuccess = true;
+                        replyText += `\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
+                        replyText += `\n[Execution Success - Terminal Output]\n${executionOutput}`;
+                    } catch (execError) {
+                        const errorTrace = execError.stderr || execError.message;
+                        replyText += `[CRASH DETECTED] Triggering Self-Healing Protocol...\n`;
+                        
+                        if (attempt < maxAttempts) {
+                            // Phase 4: Autonomous Repair
+                            const repairSystem = "You are a Python Debugger. The execution crashed. Fix the provided code based on the traceback error. OUTPUT ONLY THE RAW, FIXED PYTHON CODE. Do not use markdown backticks.";
+                            const repairPrompt = `Original Code:\n${currentCode}\n\nError Traceback:\n${errorTrace}\n\nFix it. Remove input() dependencies if present.`;
+                            currentCode = await callGroq(repairSystem, repairPrompt, activeModel, activeTokens);
+                            currentCode = currentCode.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
+                        } else {
+                            replyText += `[Execution Failed - Max Autonomous Attempts Reached]\n${errorTrace}`;
+                        }
+                    }
                 }
 
                 if (fs.existsSync(tempFilePath)) {
@@ -143,11 +156,11 @@ app.post('/api/chat', async (req, res) => {
                 }
 
             } catch (error) {
-                replyText += `[Swarm Critical Fault: ${error.message}]`;
+                replyText += `[Agentic Matrix Fault: ${error.message}]`;
             }
         } 
         else if (image) {
-            // ROUTE 2: VISUAL CORTEX (NVIDIA)
+            // ROUTE 2: VISUAL CORTEX
             const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
@@ -165,7 +178,7 @@ app.post('/api/chat', async (req, res) => {
             const data = await nvidiaRes.json();
             replyText = data.choices[0].message.content;
         } else {
-            // ROUTE 3: COGNITIVE CORE (GROQ)
+            // ROUTE 3: COGNITIVE CORE
             const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
@@ -237,4 +250,4 @@ app.post('/api/chat', async (req, res) => {
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log('Ghost Core Swarm Pipeline Active.'));
+app.listen(PORT, '0.0.0.0', () => console.log('Ghost Core Agentic Pipeline Active.'));
