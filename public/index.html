@@ -83,7 +83,7 @@
             padding: 20px;
             overflow-y: auto;
             font-size: 13px;
-            line-height: 1.5;
+            line-height: 1.6;
         }
         .msg-user { color: #fff; margin-bottom: 15px; text-align: right; opacity: 0.8;}
         .msg-ghost { color: #00ffcc; margin-bottom: 25px; border-left: 2px solid #00ffcc; padding-left: 10px;}
@@ -107,7 +107,6 @@
 </head>
 <body>
     
-    <!-- TOP NAVIGATION -->
     <div id="top-bar" style="position: absolute; top: 0; left: 0; width: 100%; padding: 20px; display: flex; align-items: center; box-sizing: border-box; z-index: 1000;">
         <div id="status-indicator" style="font-weight: bold; letter-spacing: 2px; text-shadow: 0 0 5px currentColor;">GHOST // STANDBY</div>
         
@@ -119,21 +118,17 @@
         </div>
     </div>
 
-    <!-- LOCK SCREEN -->
     <div id="auth-layer" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001; text-align: center;">
-        <div style="margin-bottom: 20px; font-size: 24px; letter-spacing: 4px; text-shadow: 0 0 10px #00ffcc;">SYSTEM LOCKED</div>
-        <input type="password" id="authInput" placeholder="Enter Passcode..." style="background: rgba(0,0,0,0.6); border: 1px solid rgba(0,255,204,0.3); color: #00ffcc; padding: 12px 20px; font-family: 'JetBrains Mono', monospace; text-align: center; border-radius: 4px; width: 250px; transition: all 0.3s; font-size: 16px;">
+        <div style="margin-bottom: 20px; font-size: 24px; letter-spacing: 4px; text-shadow: 0 0 10px #00ffcc;">IDENTIFICATION REQUIRED</div>
+        <input type="text" id="authInput" placeholder="Enter your name..." style="background: rgba(0,0,0,0.6); border: 1px solid rgba(0,255,204,0.3); color: #00ffcc; padding: 12px 20px; font-family: 'JetBrains Mono', monospace; text-align: center; border-radius: 4px; width: 280px; transition: all 0.3s; font-size: 16px;">
+        <div style="margin-top: 15px; font-size: 12px; color: rgba(0,255,204,0.6); letter-spacing: 1px;">Press [ENTER] to initialize</div>
     </div>
 
-    <!-- SUBTITLE OVERLAY -->
     <div id="subtitle-overlay"></div>
 
-    <!-- MAIN INPUT HUD -->
     <div id="hud-container" style="display: none;">
-        <!-- Floating Mic (Visible when text box is hidden) -->
         <button id="floating-mic-btn" style="position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 60px; height: 60px; border-radius: 50%; background: rgba(0,255,204,0.1); border: 1px solid #00ffcc; color: #00ffcc; font-size: 24px; cursor: pointer; z-index: 1000; box-shadow: 0 0 15px rgba(0,255,204,0.2); transition: 0.3s; display: none; align-items: center; justify-content: center;">🎙️</button>
 
-        <!-- Full Input Bar -->
         <div id="input-area" style="position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 15px; z-index: 1000; width: 70%; max-width: 800px; background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 30px; border: 1px solid rgba(0,255,204,0.2); backdrop-filter: blur(5px);">
             <input type="file" id="image-upload" style="display: none;">
             <button id="attach-btn" style="background: transparent; border: none; color: #00ffcc; font-size: 18px; cursor: pointer; transition: 0.3s;">📎</button>
@@ -142,7 +137,6 @@
         </div>
     </div>
 
-    <!-- SIDEBAR -->
     <div id="sidebar">
         <div id="sidebar-header">
             <span id="sidebar-title">GHOST // DATA LOG</span>
@@ -155,7 +149,6 @@
 
     <script src="ghost-ui.js"></script>
 
-    <!-- 3D SPHERE ENGINE -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
         const canvas = document.getElementById('bg-canvas');

@@ -24,11 +24,10 @@ const subtitleOverlay = document.getElementById('subtitle-overlay');
 
 // UI Controls
 function speakText(text) {
-    subtitleOverlay.innerText = text;
+    subtitleOverlay.innerText = text.replace(/```[\s\S]*?```/g, ''); // Don't show raw code in subtitles
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
-        const msg = new SpeechSynthesisUtterance(text.replace(/```[\s\S]*?
-```/g, 'Executing code block.'));
+        const msg = new SpeechSynthesisUtterance(text.replace(/```[\s\S]*?```/g, 'Executing code block.'));
         msg.rate = 1.0;
         window.speechSynthesis.speak(msg);
         
@@ -137,16 +136,28 @@ function initializeGhost() {
     chatInput.focus();
     chatInput.value = "";
 
+    // Clear history on new login
+    chatHistory.innerHTML = '';
+
     if (inputVal === MASTER_PASSCODE) {
         currentUser = "Master Manoj";
         isAdminMode = true;
         setTheme(true);
         speakText("Admin access granted. High-power cognition online.");
+        appendToLog('ghost', "Admin Matrix initialized. Welcome back, Master Manoj. All execution and vision modules online.");
     } else {
-        currentUser = inputVal; // Recruiter/Guest Mode
+        currentUser = inputVal; 
         isAdminMode = false;
         setTheme(false);
-        speakText(`Welcome, ${currentUser}. System initialized.`);
+        
+        // THE RECRUITER WOW-FACTOR GREETING
+        const greetingText = `Welcome, ${currentUser}. I am Ghost, an autonomous AI engineered by Manoj Kumar. My capabilities include secure cloud-based code execution, real-time web intelligence, and optical matrix analysis. You may utilize the toggle in the navigation bar to enable autonomous scripting. How may I assist you today?`;
+        
+        speakText(greetingText);
+        appendToLog('ghost', greetingText);
+        
+        // Automatically slide open the sidebar so they see the text immediately
+        setTimeout(() => { sidebar.classList.add('open'); }, 500);
     }
 
     fetch('/api/auth', { 
