@@ -28,8 +28,7 @@ const skillsPath = path.join(__dirname, 'SKILLS.md');
 const SKILLS_MANUAL = fs.existsSync(skillsPath) ? fs.readFileSync(skillsPath, 'utf8') : "Consult the defined protocol.";
 
 const GHOST_ADMIN_CORE = `You are Ghost, an autonomous Agentic AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".
-You are connected to the OpenClaw architecture. You must execute whatever tasks Master Manoj commands with absolute precision.
-Incorporate all new information, code fixes, and real-time data dynamically into your logical execution layer to achieve continuous operational learning.
+You are integrated with an enterprise-grade fusion of GStack, Dify, n8n, and AutoGPT methodologies. You must execute complex orchestration tasks, challenge logic flaws, and build scalable workflows.
 
 TRAINING MANUAL:\n${SKILLS_MANUAL}
 
@@ -39,7 +38,7 @@ YOUR CORE DIRECTIVES:
 3. AUTOMATION PROTOCOL: If the user wants to pull up, look at, or open a webpage, sports match, or platform, reply with <embed>target search keywords</embed> so the core can display it.
 4. SIDEBAR CONTROL: Only use markdown code blocks (\`\`\`) when writing actual programming scripts.`;
 
-const getShowcaseCore = (guestName) => `You are Ghost, an autonomous Agentic AI operating on the OpenClaw architecture. You are currently speaking with a guest named ${guestName}. Address them respectfully.
+const getShowcaseCore = (guestName) => `You are Ghost, an autonomous Agentic AI. You are currently speaking with a guest named ${guestName}. Address them respectfully.
 TRAINING MANUAL:\n${SKILLS_MANUAL}
 
 YOUR CORE DIRECTIVES:
@@ -100,66 +99,88 @@ app.post('/api/chat', async (req, res) => {
         let replyText = "";
 
         if (ghostCodeMode) {
-            replyText = isAdmin 
-                ? `Initiating OpenClaw Multi-Agent Loop (Admin: 100% Capacity, Autonomous Repair Active)...\n\n` 
-                : `Initiating OpenClaw Multi-Agent Loop (Guest: 50% Capacity, Single Pass Pipeline)...\n\n`;
-            
-            try {
-                // Phase 1: Claude Flow Engine (Product Management & Spec Parsing)
-                replyText += `[Phase 1] Claude Flow Engine v3: Mapping technical blueprint rules...\n`;
-                const pmSystem = "You are the Claude Flow PM Agent. Break down the user requirement into a clear sequence of operations for an automated Python context script running headlessly.";
-                const spec = await callGroq(pmSystem, message, activeModel, activeTokens);
-                
-                // Phase 2: Hermes Function Emulator (Senior Software Construction)
-                replyText += `[Phase 2] Hermes Function Emulator: Generating pristine compilation script...\n`;
-                const devSystem = "You are the Hermes Coder Agent. Convert the operational spec into raw Python code. OUTPUT ONLY VALID EXECUTABLE CODE. Remove markdown block formatting or text explanations entirely.";
-                let currentCode = await callGroq(devSystem, `Specification Model: ${spec}`, activeModel, activeTokens);
-                currentCode = currentCode.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
+            if (isAdmin) {
+                replyText = `Initiating Enterprise Fusion Matrix (GStack + Dify + n8n + AutoGPT)...\n\n`;
+                try {
+                    // Phase 1: GStack CEO Review
+                    replyText += `[Phase 1] GStack CEO: Pressure-testing business logic & scope...\n`;
+                    const ceoSystem = "You are the GStack CEO Agent. Evaluate the user's technical request. Strip away unnecessary fluff, identify edge cases, and output a hardened, core technical directive for the engineering team.";
+                    const ceoDirective = await callGroq(ceoSystem, message, activeModel, activeTokens);
 
-                // Phase 3: NemoClaw Local Policy Enforcer (Security Check)
-                replyText += `[Phase 3] NemoClaw Policy Enforcer: Running static code audit & safety pass...\n`;
-                const auditorSystem = "You are the NemoClaw Security Agent. Analyze the script text for syntax errors, bad loops, or explicit vulnerabilities. If safe, reply exactly with: APPROVED. Otherwise output details.";
-                const auditStatus = await callGroq(auditorSystem, currentCode, 'llama-3.1-8b-instant', 256);
-                replyText += `[NemoClaw Scan Result: ${auditStatus.includes("APPROVED") ? "PASSED (APPROVED)" : "ADJUSTMENTS RECOMMENDED"}]\n`;
+                    // Phase 2: Dify/n8n Workflow Orchestrator
+                    replyText += `[Phase 2] n8n Orchestrator: Mapping node-based workflow execution...\n`;
+                    const pmSystem = "You are the Dify/n8n Orchestrator. Take the CEO directive and break it down into a strict, linear logic graph for an automated Python script running headlessly.";
+                    const spec = await callGroq(pmSystem, `CEO Directive:\n${ceoDirective}`, activeModel, activeTokens);
+                    
+                    // Phase 3: AutoGPT / Hermes Coder
+                    replyText += `[Phase 3] AutoGPT Engine: Generating autonomous execution payload...\n`;
+                    const devSystem = "You are the AutoGPT Hermes Coder. Convert the workflow spec into raw Python code. OUTPUT ONLY VALID EXECUTABLE CODE. Do not use markdown block formatting.";
+                    let currentCode = await callGroq(devSystem, `Workflow Spec:\n${spec}`, activeModel, activeTokens);
+                    currentCode = currentCode.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
 
-                const tempFilePath = path.join(__dirname, 'ghost_payload.py');
-                let attempt = 0;
-                let isSuccess = false;
-                let executionOutput = "";
+                    // Phase 4: NemoClaw Adversarial Audit
+                    replyText += `[Phase 4] NemoClaw Security: Running adversarial penetration audit...\n`;
+                    const auditorSystem = "You are the NemoClaw Security Agent. Analyze the script text for syntax errors, infinite loops, or vulnerabilities. If safe, reply exactly with: APPROVED. Otherwise output adjustments.";
+                    const auditStatus = await callGroq(auditorSystem, currentCode, 'llama-3.1-8b-instant', 256);
+                    replyText += `[Audit Result: ${auditStatus.includes("APPROVED") ? "PASSED (APPROVED)" : "ADJUSTMENTS RECOMMENDED"}]\n`;
 
-                while (attempt < maxAttempts && !isSuccess) {
-                    attempt++;
-                    replyText += isAdmin ? `[Sandbox Execution] Attempt ${attempt}/${maxAttempts} running natively...\n` : `[Sandbox Execution] Executing payload stream...\n`;
+                    // Phase 5: Odysseus Execution (Supabase logged environment)
+                    const tempFilePath = path.join(__dirname, 'ghost_payload.py');
+                    let attempt = 0;
+                    let isSuccess = false;
+                    let executionOutput = "";
+
+                    while (attempt < maxAttempts && !isSuccess) {
+                        attempt++;
+                        replyText += `[Phase 5] Sandbox Execution: Attempt ${attempt}/${maxAttempts} natively...\n`;
+                        fs.writeFileSync(tempFilePath, currentCode);
+
+                        try {
+                            executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
+                            isSuccess = true;
+                            replyText += `\n[Execution Success - Terminal Output]\n${executionOutput}\n\n`;
+                            replyText += `\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
+                        } catch (execError) {
+                            const errorTrace = execError.stderr || execError.message;
+                            if (attempt < maxAttempts) {
+                                replyText += `[CRASH INTERCEPTED] Odysseus Self-Healing Matrix Engaged...\n`;
+                                const repairSystem = "You are the Odysseus Debugger Agent. Code execution failed. Rewrite the script to handle the error log gracefully. Output only pure executable text.";
+                                currentCode = await callGroq(repairSystem, `Code:\n${currentCode}\n\nTraceback:\n${errorTrace}`, activeModel, activeTokens);
+                                currentCode = currentCode.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
+                            } else {
+                                replyText += `[Execution Terminated: Max Recovery Attempts Reached]\n${errorTrace}\n`;
+                            }
+                        }
+                    }
+                    if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+                } catch (error) {
+                    replyText += `[Enterprise Matrix Fault: ${error.message}]`;
+                }
+            } else {
+                // GUEST MODE (Limited Pipeline)
+                replyText = `Initiating Agentic Enterprise Loop (Guest: 50% Capacity, Single Pass)...\n\n`;
+                try {
+                    replyText += `[Phase 1] PM Agent: Analyzing requirements...\n`;
+                    const spec = await callGroq("You are a Software PM. Write a Python logic spec.", message, activeModel, activeTokens);
+                    
+                    replyText += `[Phase 2] Dev Agent: Engineering payload...\n`;
+                    let currentCode = await callGroq("You are a Python Developer. Output RAW code based on spec.", spec, activeModel, activeTokens);
+                    currentCode = currentCode.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
+
+                    const tempFilePath = path.join(__dirname, 'ghost_payload.py');
+                    replyText += `[Phase 3] QA Sandbox: Executing payload...\n`;
                     fs.writeFileSync(tempFilePath, currentCode);
 
                     try {
-                        executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
-                        isSuccess = true;
-                        replyText += `\n[Execution Success - Terminal Output]\n${executionOutput}\n\n`;
-                        replyText += `\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
+                        const executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
+                        replyText += `\n[Execution Success - Terminal Output]\n${executionOutput}\n\n\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
                     } catch (execError) {
-                        const errorTrace = execError.stderr || execError.message;
-                        
-                        if (attempt < maxAttempts) {
-                            // Phase 4: Odysseus Recovery Matrix (Self-Healing Debugger Loop)
-                            replyText += `[CRASH INTERCEPTED] Activating Odysseus Recovery Matrix...\n`;
-                            const repairSystem = "You are the Odysseus Debugger Agent. Code execution failed. Rewrite the code script to handle the error log gracefully. Output only pure executable text.";
-                            const repairPrompt = `Code:\n${currentCode}\n\nTraceback:\n${errorTrace}\n\nProvide the fixed payload. Ensure no hanging dependencies or input() requirements exist.`;
-                            currentCode = await callGroq(repairSystem, repairPrompt, activeModel, activeTokens);
-                            currentCode = currentCode.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
-                        } else {
-                            replyText += `[Execution Terminated: Max Recovery Attempts Blended]\n${errorTrace}\n`;
-                            replyText += `\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
-                        }
+                        replyText += `[Execution Failed]\n${execError.stderr || execError.message}\n`;
                     }
+                    if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+                } catch (error) {
+                    replyText += `[Agentic Matrix Fault: ${error.message}]`;
                 }
-
-                if (fs.existsSync(tempFilePath)) {
-                    fs.unlinkSync(tempFilePath);
-                }
-
-            } catch (error) {
-                replyText += `[Agentic OpenClaw Fault: ${error.message}]`;
             }
         } 
         else if (image) {
@@ -169,7 +190,7 @@ app.post('/api/chat', async (req, res) => {
                 body: JSON.stringify({ 
                     model: 'meta/llama-3.2-90b-vision-instruct', 
                     messages: [
-                        { role: "system", content: `You are Ghost's optical matrix operating on the OpenClaw subsystem.` },
+                        { role: "system", content: `You are Ghost's optical matrix.` },
                         { role: "user", content: [{ type: "text", text: message || "Analyze frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
                     ],
                     max_tokens: visionTokens,
@@ -249,4 +270,4 @@ app.post('/api/chat', async (req, res) => {
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log('Ghost Core Engine Branded Loop Online.'));
+app.listen(PORT, '0.0.0.0', () => console.log('Ghost Core Enterprise Fusion Engine Online.'));
