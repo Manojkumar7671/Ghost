@@ -4,6 +4,7 @@ let isAdminMode = false;
 let isGhostCodeActive = false;
 let targetImageBase64 = null;
 let isInputHidden = false;
+let isHandsFree = false; // Hands-Free Matrix State
 
 // DOM Elements
 const authLayer = document.getElementById('auth-layer');
@@ -22,16 +23,43 @@ const closeSidebarBtn = document.getElementById('close-sidebar');
 const chatHistory = document.getElementById('chat-history');
 const subtitleOverlay = document.getElementById('subtitle-overlay');
 
+// --- VOICE MATRIX INITIALIZATION ---
+let ghostVoice = null;
+function loadVoices() {
+    const voices = window.speechSynthesis.getVoices();
+    // Hunt for a British/Jarvis style voice
+    ghostVoice = voices.find(v => v.name.includes('Daniel') || v.name.includes('Google UK English Male') || (v.lang === 'en-GB' && v.name.includes('Male'))) 
+                 || voices.find(v => v.lang === 'en-GB') 
+                 || voices[0];
+}
+window.speechSynthesis.onvoiceschanged = loadVoices;
+// Run once in case voices are already loaded
+loadVoices();
+
 // UI Controls
 function speakText(text) {
-    subtitleOverlay.innerText = text.replace(/```[\s\S]*?```/g, ''); // Don't show raw code in subtitles
+    subtitleOverlay.innerText = text.replace(/```[\s\S]*?```/g, ''); 
+    
     if ('speechSynthesis' in window) {
+        // Temporarily kill mic so Ghost doesn't hear himself
+        if (isHandsFree && recognition) {
+            try { recognition.abort(); } catch(e){}
+        }
+
         window.speechSynthesis.cancel();
         const msg = new SpeechSynthesisUtterance(text.replace(/```[\s\S]*?```/g, 'Executing code block.'));
+        if (ghostVoice) msg.voice = ghostVoice;
         msg.rate = 1.0;
+        msg.pitch = 0.9; // Slightly deeper tone
         window.speechSynthesis.speak(msg);
         
-        msg.onend = () => { setTimeout(() => { subtitleOverlay.innerText = ""; }, 2000); };
+        msg.onend = () => { 
+            setTimeout(() => { subtitleOverlay.innerText = ""; }, 2000); 
+            // Auto-resume mic when Ghost stops speaking
+            if (isHandsFree && recognition) {
+                try { recognition.start(); } catch(e){}
+            }
+        };
     }
 }
 
@@ -39,7 +67,6 @@ function appendToLog(sender, text) {
     const div = document.createElement('div');
     div.className = sender === 'user' ? 'msg-user' : 'msg-ghost';
     
-    // Convert markdown code blocks to HTML for the sidebar
     let formattedText = text.replace(/```python\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
     formattedText = formattedText.replace(/```\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
     
@@ -50,11 +77,27 @@ function appendToLog(sender, text) {
 
 function setTheme(isAdmin) {
     const color = isAdmin ? '#ff0032' : '#00ffcc';
+    const subColor = isAdmin ? 'rgba(255,0,50,0.3)' : 'rgba(0,255,204,0.3)';
+    
     if (statusIndicator) {
         statusIndicator.style.color = color;
         statusIndicator.innerText = isAdmin ? "ADMIN // ACTIVE" : "GHOST // ONLINE";
     }
     document.getElementById('sidebar-title').style.color = color;
+    if (disconnectBtn) {
+        disconnectBtn.style.color = color;
+        disconnectBtn.style.borderColor = subColor;
+    }
+    if (chatInput) {
+        chatInput.style.borderColor = subColor;
+        chatInput.style.color = color;
+    }
+    if (micBtn) {
+        micBtn.style.borderColor = subColor;
+        micBtn.style.color = color;
+    }
+    document.getElementById('attach-btn').style.borderColor = subColor;
+    document.getElementById('attach-btn').style.color = color;
 }
 
 // Sidebar Toggles
@@ -77,7 +120,7 @@ ghostCodeBtn.addEventListener('click', () => {
 
 // Double-Tap Logic to Hide UI
 document.getElementById('bg-canvas').addEventListener('dblclick', () => {
-    if (authLayer.style.display !== 'none') return; // Don't trigger on lock screen
+    if (authLayer.style.display !== 'none') return; 
     
     isInputHidden = !isInputHidden;
     if (isInputHidden) {
@@ -90,12 +133,12 @@ document.getElementById('bg-canvas').addEventListener('dblclick', () => {
     }
 });
 
-// Microphone Logic (Web Speech API)
+// --- MICROPHONE MATRIX (HANDS-FREE ENGINE) ---
 let recognition;
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
-    recognition.continuous = false;
+    recognition.continuous = false; 
     
     recognition.onstart = () => {
         micBtn.style.color = "#cc00ff";
@@ -110,18 +153,39 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     };
 
     recognition.onend = () => {
-        micBtn.style.color = "#00ffcc";
-        floatingMicBtn.style.color = "#00ffcc";
-        floatingMicBtn.style.borderColor = "#00ffcc";
+        micBtn.style.color = isAdminMode ? "#ff0032" : "#00ffcc";
+        floatingMicBtn.style.color = isAdminMode ? "#ff0032" : "#00ffcc";
+        floatingMicBtn.style.borderColor = isAdminMode ? "rgba(255,0,50,0.4)" : "rgba(0,255,204,0.4)";
+        
+        // Keep mic alive if hands-free is active and Ghost isn't currently speaking
+        if (isHandsFree && !window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
+            try { recognition.start(); } catch(e){}
+        }
     };
 }
 
-const startMic = () => {
-    if (recognition) recognition.start();
-    else speakText("Microphone offline.");
+const toggleMic = () => {
+    if (!recognition) {
+        speakText("Microphone offline.");
+        return;
+    }
+    
+    isHandsFree = !isHandsFree;
+    if (isHandsFree) {
+        speakText("Hands-free matrix online.");
+        micBtn.style.background = "rgba(204,0,255,0.2)";
+        floatingMicBtn.style.background = "rgba(204,0,255,0.2)";
+        setTimeout(() => { try { recognition.start(); } catch(e){} }, 1500);
+    } else {
+        speakText("Hands-free matrix offline.");
+        micBtn.style.background = "transparent";
+        floatingMicBtn.style.background = "rgba(0,255,204,0.1)";
+        try { recognition.abort(); } catch(e){}
+    }
 };
-micBtn.addEventListener('click', startMic);
-floatingMicBtn.addEventListener('click', startMic);
+
+micBtn.addEventListener('click', toggleMic);
+floatingMicBtn.addEventListener('click', toggleMic);
 
 // Initialization Layer
 function initializeGhost() {
@@ -136,7 +200,6 @@ function initializeGhost() {
     chatInput.focus();
     chatInput.value = "";
 
-    // Clear history on new login
     chatHistory.innerHTML = '';
 
     if (inputVal === MASTER_PASSCODE) {
@@ -150,13 +213,10 @@ function initializeGhost() {
         isAdminMode = false;
         setTheme(false);
         
-        // THE RECRUITER WOW-FACTOR GREETING
         const greetingText = `Welcome, ${currentUser}. I am Ghost, an autonomous AI engineered by Manoj Kumar. My capabilities include secure cloud-based code execution, real-time web intelligence, and optical matrix analysis. You may utilize the toggle in the navigation bar to enable autonomous scripting. How may I assist you today?`;
         
         speakText(greetingText);
         appendToLog('ghost', greetingText);
-        
-        // Automatically slide open the sidebar so they see the text immediately
         setTimeout(() => { sidebar.classList.add('open'); }, 500);
     }
 
@@ -180,6 +240,11 @@ disconnectBtn.addEventListener('click', () => {
     sidebar.classList.remove('open');
     chatHistory.innerHTML = '';
     
+    isHandsFree = false;
+    try { recognition.abort(); } catch(e){}
+    micBtn.style.background = "transparent";
+    floatingMicBtn.style.background = "rgba(0,255,204,0.1)";
+
     authInput.value = '';
     authInput.focus();
     statusIndicator.innerText = "GHOST // STANDBY";
@@ -213,8 +278,8 @@ async function sendToCore() {
         
         if (data.success) {
             appendToLog('ghost', data.text);
-            sidebar.classList.add('open'); // Auto-open sidebar to show results
-            speakText(data.text.replace(/\[.*?\]/g, '')); // Read output, skip bracket tags
+            sidebar.classList.add('open'); 
+            speakText(data.text.replace(/\[.*?\]/g, '')); 
         }
     } catch (e) {
         speakText("System fault during transmission.");
