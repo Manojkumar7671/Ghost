@@ -7,37 +7,88 @@
     <style>
         body { margin: 0; background-color: #000; color: #00ffcc; font-family: monospace; overflow: hidden; }
         input:focus { outline: none; }
-        /* Any custom CSS you had previously goes here */
+        
+        /* Custom scrollbar for matrix aesthetic */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #00ffcc; border-radius: 4px; }
     </style>
 </head>
 <body>
     
-    <!-- TOP NAVIGATION BAR -->
     <div id="top-bar" style="position: absolute; top: 0; left: 0; width: 100%; padding: 15px; display: flex; align-items: center; box-sizing: border-box; z-index: 1000;">
         <div id="status-indicator" style="font-weight: bold; letter-spacing: 1px;">GHOST // STANDBY</div>
         
-        <!-- GHOST CODE EXECUTION TOGGLE -->
         <button id="ghost-code-btn" style="display: none; margin-left: 15px; border: 1px solid #00ffcc; color: #00ffcc; background: rgba(0,255,204,0.1); padding: 5px 10px; cursor: pointer; border-radius: 4px; font-weight: bold; font-family: monospace; text-shadow: 0 0 5px #00ffcc; transition: 0.3s;">[GHOST CODE: OFF]</button>
         
         <button id="disconnect-btn" style="display: none; margin-left: auto; border: 1px solid #ff0032; color: #ff0032; background: rgba(255,0,50,0.1); padding: 5px 10px; cursor: pointer; border-radius: 4px; font-weight: bold; font-family: monospace;">DISCONNECT</button>
     </div>
 
-    <!-- AUTHENTICATION OVERLAY -->
     <div id="auth-layer" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001; text-align: center;">
         <input type="password" id="authInput" placeholder="Enter Passcode..." style="background: rgba(0,0,0,0.7); border: 1px solid #00ffcc; color: #00ffcc; padding: 15px; font-family: monospace; text-align: center; border-radius: 8px; width: 250px;">
     </div>
 
-    <!-- INPUT MATRIX -->
     <div id="input-area" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; z-index: 1000; width: 80%;">
         <input type="file" id="image-upload" style="display: none;">
         <button id="attach-btn" style="background: rgba(0,0,0,0.7); border: 1px solid #555; color: #fff; padding: 12px; border-radius: 50%; cursor: pointer;">📎</button>
         <input type="text" id="chatInput" placeholder="Double-tap screen to hide..." style="width: 100%; background: rgba(0,0,0,0.7); border: 1px solid #00ffcc; color: #00ffcc; padding: 12px 20px; border-radius: 20px; font-family: monospace;">
     </div>
 
-    <!-- RETAIN YOUR 3D SPHERE CANVAS AND SCRIPTS BELOW THIS LINE -->
     <canvas id="bg-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none;"></canvas>
 
     <script src="ghost-ui.js"></script>
-    <!-- Your Three.js scripts go here -->
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        const canvas = document.getElementById('bg-canvas');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+        
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+
+        // Generate the structural points of the sphere
+        const geometry = new THREE.SphereGeometry(14, 48, 48);
+        const material = new THREE.PointsMaterial({
+            color: 0x00ffcc, // Ghost Default Cyan
+            size: 0.15,
+            transparent: true,
+            opacity: 0.8
+        });
+
+        const particleSphere = new THREE.Points(geometry, material);
+        scene.add(particleSphere);
+
+        camera.position.z = 30;
+
+        // Dynamic Color Listener (Syncs sphere color with Admin/Guest mode)
+        const observer = new MutationObserver(() => {
+            const statusColor = document.getElementById('status-indicator').style.color;
+            if (statusColor === 'rgb(255, 0, 50)' || statusColor === '#ff0032') {
+                material.color.setHex(0xff0032); // Admin Magenta/Red
+            } else {
+                material.color.setHex(0x00ffcc); // Guest Cyan
+            }
+        });
+        observer.observe(document.getElementById('status-indicator'), { attributes: true, attributeFilter: ['style'] });
+
+        // Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            particleSphere.rotation.x += 0.001;
+            particleSphere.rotation.y += 0.002;
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // Dynamic Window Resizing
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
 </body>
 </html>
