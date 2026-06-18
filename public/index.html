@@ -5,242 +5,190 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ghost OS // Matrix</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        /* Base Cyber-Matrix Theme */
+        body { background-color: #050505; color: #00ffcc; font-family: monospace; margin: 0; overflow: hidden; display: flex; height: 100vh; }
         
-        body { 
-            margin: 0; 
-            background-color: #050505; 
-            color: #00ffcc; 
-            font-family: 'JetBrains Mono', monospace; 
-            overflow: hidden; 
-            user-select: none;
-        }
-        input:focus, button:focus { outline: none; }
+        /* 3D Sphere Container - Do not touch this, your Three.js attaches here */
+        #canvas-container { flex: 1; position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; } 
         
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
-        ::-webkit-scrollbar-thumb { background: #00ffcc; border-radius: 3px; }
-
-        /* Glowing Ghost Code Button */
-        #ghost-code-btn {
-            background: rgba(0, 255, 204, 0.05);
-            border: 1px solid #00ffcc;
-            box-shadow: 0 0 10px rgba(0, 255, 204, 0.2), inset 0 0 5px rgba(0, 255, 204, 0.1);
-            color: #00ffcc;
-            padding: 8px 16px;
-            cursor: pointer;
-            border-radius: 4px;
-            font-weight: bold;
-            font-family: 'JetBrains Mono', monospace;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            transition: all 0.3s ease;
-        }
-        #ghost-code-btn.active {
-            color: #cc00ff;
-            border-color: #cc00ff;
-            box-shadow: 0 0 15px rgba(204, 0, 255, 0.4), inset 0 0 10px rgba(204, 0, 255, 0.2);
-            background: rgba(204, 0, 255, 0.1);
-        }
-
-        /* Sidebar Matrix */
-        #sidebar {
-            position: fixed;
-            top: 0;
-            right: -450px;
-            width: 400px;
-            height: 100%;
-            background: rgba(10, 10, 10, 0.85);
-            backdrop-filter: blur(10px);
-            border-left: 1px solid rgba(0, 255, 204, 0.2);
-            transition: right 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            z-index: 2000;
-            display: flex;
-            flex-direction: column;
-            box-shadow: -5px 0 20px rgba(0,0,0,0.5);
-        }
-        #sidebar.open { right: 0; }
-        #sidebar-header {
-            padding: 20px;
-            border-bottom: 1px solid rgba(0, 255, 204, 0.2);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-weight: bold;
-            letter-spacing: 1px;
-        }
-        #close-sidebar {
-            background: transparent;
-            border: none;
-            color: #00ffcc;
-            font-size: 20px;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-        #close-sidebar:hover { color: #ff0032; }
-        #chat-history {
-            flex-grow: 1;
-            padding: 20px;
-            overflow-y: auto;
-            font-size: 13px;
-            line-height: 1.6;
-        }
-        .msg-user { color: #fff; margin-bottom: 15px; text-align: right; opacity: 0.8;}
-        .msg-ghost { color: #00ffcc; margin-bottom: 25px; border-left: 2px solid #00ffcc; padding-left: 10px;}
-        pre { background: rgba(0,0,0,0.5); padding: 10px; border-radius: 4px; overflow-x: auto; border: 1px solid rgba(0,255,204,0.1); color: #fff;}
-
-        /* Live Subtitles */
-        #subtitle-overlay {
-            position: absolute;
-            bottom: 120px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 80%;
-            text-align: center;
-            pointer-events: none;
-            z-index: 999;
-            font-size: 16px;
-            text-shadow: 0 0 8px rgba(0,0,0,0.8);
-            min-height: 24px;
-        }
+        /* Sidebar Styling */
+        #dataLogSidebar { width: 350px; background: #0a0a0a; border-left: 1px solid #00ffcc; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+        .message { padding: 10px; border-radius: 4px; border: 1px solid rgba(0, 255, 204, 0.2); word-wrap: break-word; }
+        .user-style { background: rgba(0, 255, 204, 0.05); color: #fff; border-color: rgba(255, 255, 255, 0.2); }
+        .ghost-style { background: rgba(0, 255, 204, 0.1); color: #00ffcc; }
+        .error-style { background: rgba(255, 0, 0, 0.1); color: #ff3333; border-color: #ff3333; }
+        pre { white-space: pre-wrap; background: #000; padding: 8px; border: 1px solid rgba(0,255,204,0.3); border-radius: 4px; overflow-x: auto; }
+        
+        /* Input Bar Styling */
+        #input-area { position: absolute; bottom: 30px; display: flex; gap: 10px; background: #111; padding: 12px 20px; border-radius: 30px; border: 1px solid #00ffcc; width: 60%; max-width: 800px; box-shadow: 0 0 15px rgba(0, 255, 204, 0.1); }
+        input[type="text"] { flex: 1; background: transparent; border: none; color: #00ffcc; outline: none; font-family: monospace; font-size: 14px; }
+        input[type="text"]::placeholder { color: rgba(0, 255, 204, 0.4); }
+        button { background: transparent; border: none; color: #00ffcc; cursor: pointer; font-family: monospace; font-size: 16px; transition: 0.2s; }
+        button:hover { text-shadow: 0 0 8px #00ffcc; transform: scale(1.1); }
+        
+        /* Top Status Bar */
+        .status-bar { position: absolute; top: 20px; left: 20px; display: flex; gap: 15px; align-items: center; font-weight: bold; }
+        .admin-tag { color: #ff3333; text-shadow: 0 0 5px #ff3333; }
+        .mode-tag { border: 1px solid #cc00ff; color: #cc00ff; padding: 4px 8px; border-radius: 4px; text-shadow: 0 0 5px #cc00ff; box-shadow: 0 0 5px rgba(204, 0, 255, 0.3); }
     </style>
 </head>
 <body>
+
+<div id="canvas-container">
+    <div class="status-bar">
+        <span class="admin-tag">ADMIN // ACTIVE</span>
+        <span class="mode-tag">[GHOST CODE: ON]</span>
+    </div>
     
-    <div id="top-bar" style="position: absolute; top: 0; left: 0; width: 100%; padding: 20px; display: flex; align-items: center; box-sizing: border-box; z-index: 1000;">
-        <div id="status-indicator" style="font-weight: bold; letter-spacing: 2px; text-shadow: 0 0 5px currentColor;">GHOST // STANDBY</div>
-        
-        <button id="ghost-code-btn" style="display: none; margin-left: 30px;">[GHOST CODE: OFF]</button>
-        
-        <div style="margin-left: auto; display: flex; gap: 15px;">
-            <button id="toggle-sidebar-btn" style="display: none; border: 1px solid rgba(0,255,204,0.4); color: #00ffcc; background: transparent; padding: 6px 12px; cursor: pointer; border-radius: 4px;">DATA LOG</button>
-            <button id="disconnect-btn" style="display: none; border: 1px solid rgba(255,0,50,0.5); color: #ff0032; background: rgba(255,0,50,0.05); padding: 6px 12px; cursor: pointer; border-radius: 4px; font-weight: bold; font-family: monospace;">DISCONNECT</button>
-        </div>
+    <div id="input-area">
+        <button id="attachBtn" title="Upload File or Image">📎</button>
+        <button id="voiceBtn" title="Voice Command">🎙️</button>
+        <input type="file" id="attachmentInput" style="display: none;" />
+        <input type="text" id="userInput" placeholder="Command Ghost... (Double-tap screen to hide)" autocomplete="off" />
+        <button id="sendBtn">ENTER</button>
     </div>
+</div>
 
-    <div id="auth-layer" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001; text-align: center;">
-        <div style="margin-bottom: 20px; font-size: 24px; letter-spacing: 4px; text-shadow: 0 0 10px #00ffcc;">IDENTIFICATION REQUIRED</div>
-        <input type="text" id="authInput" placeholder="Enter your name..." style="background: rgba(0,0,0,0.6); border: 1px solid rgba(0,255,204,0.3); color: #00ffcc; padding: 12px 20px; font-family: 'JetBrains Mono', monospace; text-align: center; border-radius: 4px; width: 280px; transition: all 0.3s; font-size: 16px;">
-        <div style="margin-top: 15px; font-size: 12px; color: rgba(0,255,204,0.6); letter-spacing: 1px;">Press [ENTER] to initialize</div>
+<div id="dataLogSidebar">
+    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #00ffcc; padding-bottom: 10px; margin-bottom: 10px; font-weight: bold; font-size: 14px;">
+        <span>GHOST // DATA LOG</span>
+        <span style="cursor:pointer;" onclick="document.getElementById('dataLogSidebar').innerHTML=''">X</span>
     </div>
-
-    <div id="subtitle-overlay"></div>
-
-    <div id="hud-container" style="display: none;">
-        <button id="floating-mic-btn" style="position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 60px; height: 60px; border-radius: 50%; background: rgba(0,255,204,0.1); border: 1px solid #00ffcc; color: #00ffcc; font-size: 24px; cursor: pointer; z-index: 1000; box-shadow: 0 0 15px rgba(0,255,204,0.2); transition: 0.3s; display: none; align-items: center; justify-content: center;">🎙️</button>
-
-        <div id="input-area" style="position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 15px; z-index: 1000; width: 70%; max-width: 800px; background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 30px; border: 1px solid rgba(0,255,204,0.2); backdrop-filter: blur(5px);">
-            <input type="file" id="image-upload" style="display: none;">
-            <button id="attach-btn" style="background: transparent; border: none; color: #00ffcc; font-size: 18px; cursor: pointer; transition: 0.3s;">📎</button>
-            <button id="mic-btn" style="background: transparent; border: none; color: #00ffcc; font-size: 18px; cursor: pointer; transition: 0.3s;">🎙️</button>
-            <input type="text" id="chatInput" placeholder="Command Ghost... (Double-tap screen to hide)" style="width: 100%; background: transparent; border: none; color: #00ffcc; padding: 10px; font-family: 'JetBrains Mono', monospace; font-size: 15px;">
-        </div>
+    <div class="message ghost-style">
+        <strong>Ghost:</strong><br> Online. Awaiting your command, Master Manoj.
     </div>
+</div>
 
-    <div id="sidebar">
-        <div id="sidebar-header">
-            <span id="sidebar-title">GHOST // DATA LOG</span>
-            <button id="close-sidebar">✕</button>
-        </div>
-        <div id="chat-history"></div>
-    </div>
+<script>
+    // --- GLOBAL BUFFERS ---
+    let uploadedFileText = "";
+    let uploadedImageBase64 = "";
 
-    <canvas id="bg-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;"></canvas>
+    // --- DOM ELEMENTS ---
+    const attachmentInput = document.getElementById('attachmentInput');
+    const attachBtn = document.getElementById('attachBtn');
+    const userInput = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const logContainer = document.getElementById('dataLogSidebar');
 
-    <script src="ghost-ui.js"></script>
+    // --- ATTACHMENT LISTENER ---
+    attachBtn.addEventListener('click', () => attachmentInput.click());
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script>
-        const canvas = document.getElementById('bg-canvas');
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
-        
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    if (attachmentInput) {
+        attachmentInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
 
-        // Create glowing circular particles
-        const circleCanvas = document.createElement('canvas');
-        circleCanvas.width = 32;
-        circleCanvas.height = 32;
-        const ctx = circleCanvas.getContext('2d');
-        ctx.beginPath();
-        ctx.arc(16, 16, 14, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.fill();
-        const circleTexture = new THREE.CanvasTexture(circleCanvas);
+            const reader = new FileReader();
 
-        // Calculate surface points for a perfect sphere
-        const particleCount = 2000;
-        const radius = 15;
-        const positions = new Float32Array(particleCount * 3);
-        const phases = new Float32Array(particleCount);
-
-        for (let i = 0; i < particleCount; i++) {
-            const phi = Math.acos(-1 + (2 * i) / particleCount);
-            const theta = Math.sqrt(particleCount * Math.PI) * phi;
-            
-            positions[i * 3] = radius * Math.cos(theta) * Math.sin(phi);
-            positions[i * 3 + 1] = radius * Math.sin(theta) * Math.sin(phi);
-            positions[i * 3 + 2] = radius * Math.cos(phi);
-            
-            phases[i] = Math.random() * Math.PI * 2;
-        }
-
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        geometry.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
-
-        const material = new THREE.PointsMaterial({
-            color: 0x00ffcc, 
-            size: 0.25,
-            map: circleTexture,
-            transparent: true,
-            opacity: 0.8,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
-        });
-
-        const particleSphere = new THREE.Points(geometry, material);
-        scene.add(particleSphere);
-        camera.position.z = 35;
-
-        // Color Sync
-        const observer = new MutationObserver(() => {
-            const statusColor = document.getElementById('status-indicator').style.color;
-            if (statusColor === 'rgb(255, 0, 50)' || statusColor === '#ff0032') {
-                material.color.setHex(0xff0032); 
-            } else {
-                material.color.setHex(0x00ffcc); 
+            // Route 1: It's an image for the NVIDIA Vision Matrix
+            if (file.type.startsWith('image/')) {
+                reader.onload = (event) => {
+                    uploadedImageBase64 = event.target.result.split(',')[1]; 
+                    appendMessageToUI("System", `Optical data loaded: ${file.name}`, "ghost-style");
+                };
+                reader.readAsDataURL(file);
+            } 
+            // Route 2: It's a text/csv/code file for the Execution Sandbox
+            else {
+                reader.onload = (event) => {
+                    uploadedFileText = event.target.result;
+                    appendMessageToUI("System", `Document text loaded: ${file.name}`, "ghost-style");
+                };
+                reader.readAsText(file);
             }
         });
-        observer.observe(document.getElementById('status-indicator'), { attributes: true, attributeFilter: ['style'] });
+    }
 
-        const clock = new THREE.Clock();
+    // --- SEND LOGIC ---
+    sendBtn.addEventListener('click', triggerSend);
+    userInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') triggerSend();
+    });
 
-        function animate() {
-            requestAnimationFrame(animate);
-            const time = clock.getElapsedTime();
+    function triggerSend() {
+        const text = userInput.value.trim();
+        // Prevent sending if everything is empty
+        if (!text && !uploadedImageBase64 && !uploadedFileText) return; 
+        sendToGhost(text);
+        userInput.value = "";
+    }
 
-            particleSphere.rotation.y = time * 0.05;
-            particleSphere.rotation.x = time * 0.02;
+    // --- CORE COMMUNICATION PIPELINE ---
+    async function sendToGhost(userMessage) {
+        // 1. Display User Message in UI
+        appendMessageToUI("Master Manoj", userMessage || "[File Uploaded]", "user-style");
 
-            const posAttr = geometry.attributes.position;
-            const phaseAttr = geometry.attributes.phase;
+        // 2. Build the Payload for the backend
+        const payload = {
+            message: userMessage,
+            user: 'Master Manoj', 
+            ghostCodeMode: true, // Assuming Admin is active
+            image: uploadedImageBase64 || null,
+            fileContent: uploadedFileText || null
+        };
+
+        // 3. Clear buffers instantly
+        uploadedFileText = "";
+        uploadedImageBase64 = "";
+        if (attachmentInput) attachmentInput.value = ""; 
+
+        try {
+            // 4. Ping the Fast Logic Engine
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
             
-            // Subtle breathing effect
-            const scale = 1 + Math.sin(time * 2) * 0.02;
-            particleSphere.scale.set(scale, scale, scale);
+            if (data.success) {
+                let ghostReply = data.text;
 
-            renderer.render(scene, camera);
+                // --- 5. THE WEBPAGE POPUP INTERCEPTOR ---
+                if (ghostReply.includes("[EXECUTE_OPEN_TAB:")) {
+                    const urlMatch = ghostReply.match(/\[EXECUTE_OPEN_TAB:(.*?)\]/);
+                    if (urlMatch && urlMatch[1]) {
+                        // Physically open the tab in the browser
+                        window.open(urlMatch[1].trim(), '_blank'); 
+                        // Erase the command string from the UI
+                        ghostReply = ghostReply.replace(urlMatch[0], '').trim(); 
+                    }
+                }
+
+                // 6. Display Ghost's final text
+                appendMessageToUI("Ghost", ghostReply, "ghost-style");
+
+            } else {
+                appendMessageToUI("System", "Matrix fault: Backend rejected payload.", "error-style");
+            }
+
+        } catch (error) {
+            appendMessageToUI("System", "Matrix offline: Connection severed.", "error-style");
         }
-        animate();
+    }
 
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-    </script>
+    // --- UI FORMATTING HELPER ---
+    function appendMessageToUI(sender, text, cssClass) {
+        if (!logContainer) return;
+
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message ${cssClass}`;
+        
+        // Format markdown code blocks
+        let formattedText = text.replace(/```python([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+        formattedText = formattedText.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+        
+        // Format line breaks
+        formattedText = formattedText.replace(/\n/g, '<br>');
+        
+        msgDiv.innerHTML = `<strong>${sender}:</strong><br> ${formattedText}`;
+        logContainer.appendChild(msgDiv);
+        
+        // Auto-scroll to bottom
+        logContainer.scrollTop = logContainer.scrollHeight;
+    }
+</script>
 </body>
 </html>
