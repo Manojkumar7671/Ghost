@@ -5,7 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ghost OS // Admin Matrix</title>
     <style>
-        body { margin: 0; background-color: #000; color: #00ffcc; font-family: monospace; overflow: hidden; }
+        body { 
+            margin: 0; 
+            background-color: #000; 
+            color: #00ffcc; 
+            font-family: monospace; 
+            overflow: hidden; 
+        }
         input:focus { outline: none; }
         
         /* Custom scrollbar for matrix aesthetic */
@@ -48,19 +54,32 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
 
-        // Generate the structural points of the sphere
-        const geometry = new THREE.SphereGeometry(14, 48, 48);
+        // Using Icosahedron for an evenly distributed, organic point cloud
+        const geometry = new THREE.IcosahedronGeometry(14, 5); 
         const material = new THREE.PointsMaterial({
             color: 0x00ffcc, // Ghost Default Cyan
-            size: 0.15,
+            size: 0.1,
             transparent: true,
-            opacity: 0.8
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending // Adds a natural glow where particles overlap
         });
 
         const particleSphere = new THREE.Points(geometry, material);
         scene.add(particleSphere);
 
         camera.position.z = 30;
+
+        // Store baseline vertex data for the breathing animation
+        const positionAttribute = geometry.getAttribute('position');
+        const vertexData = [];
+        for (let i = 0; i < positionAttribute.count; i++) {
+            vertexData.push({
+                x: positionAttribute.getX(i),
+                y: positionAttribute.getY(i),
+                z: positionAttribute.getZ(i),
+                phase: Math.random() * Math.PI * 2 
+            });
+        }
 
         // Dynamic Color Listener (Syncs sphere color with Admin/Guest mode)
         const observer = new MutationObserver(() => {
@@ -73,11 +92,26 @@
         });
         observer.observe(document.getElementById('status-indicator'), { attributes: true, attributeFilter: ['style'] });
 
+        let clock = new THREE.Clock();
+
         // Animation Loop
         function animate() {
             requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+
+            // Smooth rotation
             particleSphere.rotation.x += 0.001;
-            particleSphere.rotation.y += 0.002;
+            particleSphere.rotation.y += 0.0015;
+
+            // Organic breathing calculation
+            for (let i = 0; i < positionAttribute.count; i++) {
+                const data = vertexData[i];
+                // Subtle sine wave pulse for fluid energy
+                const pulse = Math.sin(time * 1.5 + data.phase) * 0.02 + 1;
+                positionAttribute.setXYZ(i, data.x * pulse, data.y * pulse, data.z * pulse);
+            }
+            positionAttribute.needsUpdate = true;
+
             renderer.render(scene, camera);
         }
 
