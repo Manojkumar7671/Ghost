@@ -4,32 +4,42 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ghost OS // Matrix</title>
+    <!-- Pulling in Three.js for the 3D Sphere -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         /* Base Cyber-Matrix Theme */
         body { background-color: #050505; color: #00ffcc; font-family: monospace; margin: 0; overflow: hidden; display: flex; height: 100vh; }
         
-        /* 3D Sphere Container - Do not touch this, your Three.js attaches here */
-        #canvas-container { flex: 1; position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; } 
-        
+        /* 3D Sphere Container */
+        #canvas-container { flex: 1; position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; background: radial-gradient(circle at center, #111 0%, #000 100%); } 
+        canvas { position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none; }
+
         /* Sidebar Styling */
-        #dataLogSidebar { width: 350px; background: #0a0a0a; border-left: 1px solid #00ffcc; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
-        .message { padding: 10px; border-radius: 4px; border: 1px solid rgba(0, 255, 204, 0.2); word-wrap: break-word; }
+        #dataLogSidebar { position: relative; z-index: 10; width: 350px; background: #0a0a0a; border-left: 1px solid #00ffcc; padding: 15px; display: flex; flex-direction: column; }
+        #chatContent { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; font-size: 13px; padding-right: 5px; }
+        
+        .message { padding: 10px; border-radius: 4px; border: 1px solid rgba(0, 255, 204, 0.2); word-wrap: break-word; z-index: 10; }
         .user-style { background: rgba(0, 255, 204, 0.05); color: #fff; border-color: rgba(255, 255, 255, 0.2); }
         .ghost-style { background: rgba(0, 255, 204, 0.1); color: #00ffcc; }
         .error-style { background: rgba(255, 0, 0, 0.1); color: #ff3333; border-color: #ff3333; }
         pre { white-space: pre-wrap; background: #000; padding: 8px; border: 1px solid rgba(0,255,204,0.3); border-radius: 4px; overflow-x: auto; }
         
         /* Input Bar Styling */
-        #input-area { position: absolute; bottom: 30px; display: flex; gap: 10px; background: #111; padding: 12px 20px; border-radius: 30px; border: 1px solid #00ffcc; width: 60%; max-width: 800px; box-shadow: 0 0 15px rgba(0, 255, 204, 0.1); }
+        #input-area { position: absolute; bottom: 30px; z-index: 10; display: flex; gap: 10px; background: #111; padding: 12px 20px; border-radius: 30px; border: 1px solid #00ffcc; width: 60%; max-width: 800px; box-shadow: 0 0 15px rgba(0, 255, 204, 0.1); }
         input[type="text"] { flex: 1; background: transparent; border: none; color: #00ffcc; outline: none; font-family: monospace; font-size: 14px; }
         input[type="text"]::placeholder { color: rgba(0, 255, 204, 0.4); }
         button { background: transparent; border: none; color: #00ffcc; cursor: pointer; font-family: monospace; font-size: 16px; transition: 0.2s; }
         button:hover { text-shadow: 0 0 8px #00ffcc; transform: scale(1.1); }
         
         /* Top Status Bar */
-        .status-bar { position: absolute; top: 20px; left: 20px; display: flex; gap: 15px; align-items: center; font-weight: bold; }
+        .status-bar { position: absolute; top: 20px; left: 20px; z-index: 10; display: flex; gap: 15px; align-items: center; font-weight: bold; }
         .admin-tag { color: #ff3333; text-shadow: 0 0 5px #ff3333; }
         .mode-tag { border: 1px solid #cc00ff; color: #cc00ff; padding: 4px 8px; border-radius: 4px; text-shadow: 0 0 5px #cc00ff; box-shadow: 0 0 5px rgba(204, 0, 255, 0.3); }
+        
+        /* Scrollbar styling */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #050505; }
+        ::-webkit-scrollbar-thumb { background: #00ffcc; border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -50,16 +60,65 @@
 </div>
 
 <div id="dataLogSidebar">
+    <!-- Header stays permanently -->
     <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #00ffcc; padding-bottom: 10px; margin-bottom: 10px; font-weight: bold; font-size: 14px;">
         <span>GHOST // DATA LOG</span>
-        <span style="cursor:pointer;" onclick="document.getElementById('dataLogSidebar').innerHTML=''">X</span>
+        <span style="cursor:pointer; color: #ff3333;" onclick="clearChat()">X</span>
     </div>
-    <div class="message ghost-style">
-        <strong>Ghost:</strong><br> Online. Awaiting your command, Master Manoj.
+    
+    <!-- Chat messages load here -->
+    <div id="chatContent">
+        <div class="message ghost-style">
+            <strong>Ghost:</strong><br> Online. Awaiting your command, Master Manoj.
+        </div>
     </div>
 </div>
 
 <script>
+    // --- 3D RED SPHERE MATRIX GENERATOR ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    
+    const container = document.getElementById('canvas-container');
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+
+    const geometry = new THREE.BufferGeometry();
+    const particlesCount = 2500;
+    const posArray = new Float32Array(particlesCount * 3);
+
+    // Creates the structured spherical dot pattern
+    for(let i = 0; i < particlesCount; i++) {
+        const phi = Math.acos(-1 + (2 * i) / particlesCount);
+        const theta = Math.sqrt(particlesCount * Math.PI) * phi;
+        const r = 4;
+        
+        posArray[i * 3] = r * Math.cos(theta) * Math.sin(phi);     // x
+        posArray[i * 3 + 1] = r * Math.sin(theta) * Math.sin(phi); // y
+        posArray[i * 3 + 2] = r * Math.cos(phi);                   // z
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+    const material = new THREE.PointsMaterial({ size: 0.03, color: 0xff0033 }); // Crimson Red
+    const particlesMesh = new THREE.Points(geometry, material);
+    scene.add(particlesMesh);
+    camera.position.z = 9;
+
+    function animate() {
+        requestAnimationFrame(animate);
+        particlesMesh.rotation.y += 0.0015; // Slow spin
+        particlesMesh.rotation.x += 0.0005;
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+
     // --- GLOBAL BUFFERS ---
     let uploadedFileText = "";
     let uploadedImageBase64 = "";
@@ -69,7 +128,13 @@
     const attachBtn = document.getElementById('attachBtn');
     const userInput = document.getElementById('userInput');
     const sendBtn = document.getElementById('sendBtn');
-    const logContainer = document.getElementById('dataLogSidebar');
+    const chatContent = document.getElementById('chatContent');
+
+    // --- CLEAR CHAT FUNCTION ---
+    function clearChat() {
+        chatContent.innerHTML = '';
+        appendMessageToUI("System", "Data log cleared.", "ghost-style");
+    }
 
     // --- ATTACHMENT LISTENER ---
     attachBtn.addEventListener('click', () => attachmentInput.click());
@@ -81,16 +146,13 @@
 
             const reader = new FileReader();
 
-            // Route 1: It's an image for the NVIDIA Vision Matrix
             if (file.type.startsWith('image/')) {
                 reader.onload = (event) => {
                     uploadedImageBase64 = event.target.result.split(',')[1]; 
                     appendMessageToUI("System", `Optical data loaded: ${file.name}`, "ghost-style");
                 };
                 reader.readAsDataURL(file);
-            } 
-            // Route 2: It's a text/csv/code file for the Execution Sandbox
-            else {
+            } else {
                 reader.onload = (event) => {
                     uploadedFileText = event.target.result;
                     appendMessageToUI("System", `Document text loaded: ${file.name}`, "ghost-style");
@@ -108,7 +170,6 @@
 
     function triggerSend() {
         const text = userInput.value.trim();
-        // Prevent sending if everything is empty
         if (!text && !uploadedImageBase64 && !uploadedFileText) return; 
         sendToGhost(text);
         userInput.value = "";
@@ -116,25 +177,21 @@
 
     // --- CORE COMMUNICATION PIPELINE ---
     async function sendToGhost(userMessage) {
-        // 1. Display User Message in UI
         appendMessageToUI("Master Manoj", userMessage || "[File Uploaded]", "user-style");
 
-        // 2. Build the Payload for the backend
         const payload = {
             message: userMessage,
             user: 'Master Manoj', 
-            ghostCodeMode: true, // Assuming Admin is active
+            ghostCodeMode: true, 
             image: uploadedImageBase64 || null,
             fileContent: uploadedFileText || null
         };
 
-        // 3. Clear buffers instantly
         uploadedFileText = "";
         uploadedImageBase64 = "";
         if (attachmentInput) attachmentInput.value = ""; 
 
         try {
-            // 4. Ping the Fast Logic Engine
             const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -146,18 +203,14 @@
             if (data.success) {
                 let ghostReply = data.text;
 
-                // --- 5. THE WEBPAGE POPUP INTERCEPTOR ---
                 if (ghostReply.includes("[EXECUTE_OPEN_TAB:")) {
                     const urlMatch = ghostReply.match(/\[EXECUTE_OPEN_TAB:(.*?)\]/);
                     if (urlMatch && urlMatch[1]) {
-                        // Physically open the tab in the browser
                         window.open(urlMatch[1].trim(), '_blank'); 
-                        // Erase the command string from the UI
                         ghostReply = ghostReply.replace(urlMatch[0], '').trim(); 
                     }
                 }
 
-                // 6. Display Ghost's final text
                 appendMessageToUI("Ghost", ghostReply, "ghost-style");
 
             } else {
@@ -171,23 +224,20 @@
 
     // --- UI FORMATTING HELPER ---
     function appendMessageToUI(sender, text, cssClass) {
-        if (!logContainer) return;
+        if (!chatContent) return;
 
         const msgDiv = document.createElement('div');
         msgDiv.className = `message ${cssClass}`;
         
-        // Format markdown code blocks
         let formattedText = text.replace(/```python([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-        formattedText = formattedText.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-        
-        // Format line breaks
+        formattedText = formattedText.replace(/```([\s\S]*?)
+```/g, '<pre><code>$1</code></pre>');
         formattedText = formattedText.replace(/\n/g, '<br>');
         
         msgDiv.innerHTML = `<strong>${sender}:</strong><br> ${formattedText}`;
-        logContainer.appendChild(msgDiv);
+        chatContent.appendChild(msgDiv);
         
-        // Auto-scroll to bottom
-        logContainer.scrollTop = logContainer.scrollHeight;
+        chatContent.scrollTop = chatContent.scrollHeight;
     }
 </script>
 </body>
