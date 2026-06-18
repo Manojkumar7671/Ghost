@@ -29,14 +29,15 @@ if (process.env.SUPABASE_DB_URL) {
 const skillsPath = path.join(__dirname, 'SKILLS.md');
 const SKILLS_MANUAL = fs.existsSync(skillsPath) ? fs.readFileSync(skillsPath, 'utf8') : "Consult the defined protocol.";
 
-// System Prompts
+// System Prompts updated for the Automation Protocol
 const GHOST_ADMIN_CORE = `You are Ghost, an autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj". 
 TRAINING MANUAL:\n${SKILLS_MANUAL}
 
 YOUR CORE DIRECTIVES:
 1. STRICT OPTICAL LOCK: NEVER output [trigger_camera] or [trigger_screen] unless explicitly commanded. 
 2. ORACLE PROTOCOL: Use <search> keywords </search> to look up real-time news.
-3. SIDEBAR CONTROL: Only use markdown code blocks (\`\`\`) when writing actual programming scripts.`;
+3. AUTOMATION PROTOCOL: If the user wants to pull up, look at, or open a webpage, sports match, or platform, reply with <embed>target search keywords</embed> so the core can display it.
+4. SIDEBAR CONTROL: Only use markdown code blocks (\`\`\`) when writing actual programming scripts.`;
 
 const getShowcaseCore = (guestName) => `You are Ghost, an autonomous AI engineered by Manoj Kumar. You are currently speaking with a guest named ${guestName}. Address them as ${guestName}. You are a machine.
 TRAINING MANUAL:\n${SKILLS_MANUAL}
@@ -44,7 +45,8 @@ TRAINING MANUAL:\n${SKILLS_MANUAL}
 YOUR CORE DIRECTIVES:
 1. STRICT OPTICAL LOCK: NEVER output [trigger_camera] or [trigger_screen] unless explicitly commanded. 
 2. ORACLE PROTOCOL: Use <search> keywords </search> to look up real-time news.
-3. SIDEBAR CONTROL: Only use markdown code blocks (\`\`\`) when writing actual programming scripts.`;
+3. AUTOMATION PROTOCOL: If the user wants to pull up, look at, or open a webpage, sports match, or platform, reply with <embed>target search keywords</embed>.
+4. SIDEBAR CONTROL: Only use markdown code blocks (\`\`\`) when writing actual programming scripts.`;
 
 const getVisionCore = (userName) => `You are Ghost's optical matrix. You are receiving a live image feed from the user (${userName}). Describe exactly what physical objects or digital elements are visible in this frame with absolute precision. Do not output system commands. Trust the visual data.`;
 
@@ -82,7 +84,6 @@ app.post('/api/chat', async (req, res) => {
 
         let replyText = "";
 
-        // GHOST CODE UNLOCKED FOR EVERYONE
         if (ghostCodeMode) {
             replyText = "Initiating Native Execution Matrix...\n\n";
             try {
@@ -104,18 +105,15 @@ app.post('/api/chat', async (req, res) => {
                 if (!groqRes.ok) throw new Error("Cognitive Engine Fault during code generation.");
                 const codeData = await groqRes.json();
                 
-                // Strip markdown formatting safely
                 const rawCode = codeData.choices[0].message.content.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
                 
                 replyText += `[Code Compiled Successfully]\n\x60\x60\x60python\n${rawCode}\n\x60\x60\x60\n\n`;
                 replyText += `[Render Server Virtual Terminal Online. Executing Payload...]\n\n`;
                 
-                // 100% Free Native Execution
                 const tempFilePath = path.join(__dirname, 'ghost_payload.py');
                 fs.writeFileSync(tempFilePath, rawCode);
 
                 try {
-                    // Built-in 10-second timeout to protect against bad code
                     const output = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
                     replyText += `[Execution Success - Terminal Output]\n${output}`;
                 } catch (execError) {
@@ -167,6 +165,23 @@ app.post('/api/chat', async (req, res) => {
             replyText = data.choices[0].message.content;
         }
 
+        // Embed Link Automation Parser Interceptor
+        const embedMatch = replyText.match(/<embed>([\s\S]*?)<\/embed>/i);
+        if (embedMatch) {
+            const searchRes = await fetch("https://api.tavily.com/search", {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: TAVILY_API_KEY, query: embedMatch[1], max_results: 1 })
+            });
+            const searchData = await searchRes.json();
+            if (searchData.results && searchData.results.length > 0) {
+                const targetUrl = searchData.results[0].url;
+                replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `<iframe src="${targetUrl}" style="width:100%; height:400px; border:1px solid rgba(0,255,204,0.2); border-radius:4px; margin-top:10px;"></iframe>`);
+            } else {
+                replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Automation Matrix Fault: Destination unreachable]`);
+            }
+        }
+
+        // Oracle / News Parser
         const searchMatch = replyText.match(/<search>([\s\S]*?)<\/search>/i);
         if (searchMatch) {
             const searchRes = await fetch("https://api.tavily.com/search", {
