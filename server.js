@@ -14,8 +14,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN; // OpenClaw Bridge Token
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;     // OpenClaw Chat ID
 
 // Database Connection
 let pool;
@@ -50,18 +48,6 @@ YOUR CORE DIRECTIVES:
 3. AUTOMATION PROTOCOL: If the user wants to pull up, look at, or open a webpage, sports match, or platform, reply with <embed>target search keywords</embed>.
 4. SIDEBAR CONTROL: Only use markdown code blocks (\`\`\`) when writing actual programming scripts.`;
 
-// OpenClaw Telegram Notification Engine ($0.00 Mobile Bridge)
-async function sendTelegramAlert(chatId, token, messageText) {
-    if (!chatId || !token) return;
-    try {
-        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, text: messageText, parse_mode: "Markdown" })
-        });
-    } catch (e) { console.log("OpenClaw Bridge routing delayed."); }
-}
-
 // Authentication Endpoint
 app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
@@ -90,20 +76,26 @@ app.post('/api/chat', async (req, res) => {
 
         const isAdmin = user === 'Master Manoj';
         const textPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
+        
+        // 50% GUEST LIMIT THROTTLE
         const activeModel = isAdmin ? 'llama-3.3-70b-versatile' : 'llama-3.1-8b-instant';
+        const activeTokens = isAdmin ? 2048 : 1024;
 
         let replyText = "";
 
         // CLAUDE FLOW + HERMES + NEMOCLAW MULTI-AGENT SWARM INTERCEPTOR
         if (ghostCodeMode) {
-            replyText = "Initiating Decentralized Swarm Loop (Claude Flow Engine v3)...\n\n";
+            replyText = isAdmin 
+                ? "Initiating Decentralized Swarm Loop (Admin: 100% Capacity)...\n\n" 
+                : "Initiating Decentralized Swarm Loop (Guest: 50% Capacity Threshold)...\n\n";
+            
             try {
                 // Agent Step 1: Architect Agent (System Blueprinting)
                 const architectPrompt = `You are the Swarm Architect Agent. Analyze this task and output a technical step-by-step logic plan to build the solution in Python. Do not write code yet. Task: ${message}`;
                 const archRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: "user", content: architectPrompt }], temperature: 0.1 })
+                    body: JSON.stringify({ model: activeModel, messages: [{ role: "user", content: architectPrompt }], temperature: 0.1, max_tokens: activeTokens })
                 });
                 const archData = await archRes.json();
                 const blueprint = archData.choices[0].message.content;
@@ -116,7 +108,7 @@ app.post('/api/chat', async (req, res) => {
                 const coderRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: "user", content: coderPrompt }], temperature: 0.1 })
+                    body: JSON.stringify({ model: activeModel, messages: [{ role: "user", content: coderPrompt }], temperature: 0.1, max_tokens: activeTokens })
                 });
                 const coderData = await coderRes.json();
                 
@@ -124,38 +116,30 @@ app.post('/api/chat', async (req, res) => {
                 const rawCode = coderData.choices[0].message.content.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
                 replyText += `[2. Swarm Coder: Code Compiled Successfully]\n\x60\x60\x60python\n${rawCode}\n\x60\x60\x60\n\n`;
 
-                // Agent Step 3: Security Auditor Agent (NemoClaw Local Policy Enforcer)
-                const auditorPrompt = `You are the NemoClaw Security Auditor. Scan this python code for syntax crashes or illegal access loops. If it passes, output exactly: APPROVED. Otherwise, list adjustments. Code: ${rawCode}`;
+                // Agent Step 3: Security Auditor Agent (Local Policy Enforcer)
+                const auditorPrompt = `You are the Security Auditor. Scan this python code for syntax crashes or illegal access loops. If it passes, output exactly: APPROVED. Otherwise, list adjustments. Code: ${rawCode}`;
                 const audRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: [{ role: "user", content: auditorPrompt }], temperature: 0.1 })
+                    body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: [{ role: "user", content: auditorPrompt }], temperature: 0.1, max_tokens: 512 })
                 });
                 const audData = await audRes.json();
-                replyText += `[3. NemoClaw Auditor: Security Check completed. Status: ${audData.choices[0].message.content.trim()}]\n\n`;
+                replyText += `[3. Auditor: Security Check completed. Status: ${audData.choices[0].message.content.trim()}]\n\n`;
 
                 // Agent Step 4: Sandbox Execution (Free Container Sandbox)
                 replyText += `[Render Cloud Container Sandbox Virtual Terminal Online. Executing Payload...]\n\n`;
                 const tempFilePath = path.join(__dirname, 'ghost_payload.py');
                 fs.writeFileSync(tempFilePath, rawCode);
 
-                let executionOutput = "";
                 try {
-                    executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
-                    replyText += `[Execution Success - Terminal Output]\n${executionOutput}`;
+                    const output = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
+                    replyText += `[Execution Success - Terminal Output]\n${output}`;
                 } catch (execError) {
-                    executionOutput = execError.stderr || execError.message;
-                    replyText += `[Execution Failed - Traceback]\n${executionOutput}`;
+                    replyText += `[Execution Failed - Traceback]\n${execError.stderr || execError.message}`;
                 }
 
                 if (fs.existsSync(tempFilePath)) {
                     fs.unlinkSync(tempFilePath);
-                }
-
-                // OpenClaw Mobile Bridge Trigger (Async Text to your phone)
-                if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
-                    const statusText = executionOutput.includes("Failed") ? "❌ Execution Failed" : "✅ Execution Success";
-                    sendTelegramAlert(TELEGRAM_CHAT_ID, TELEGRAM_BOT_TOKEN, `*Ghost OS Swarm Alert*\nUser: ${user}\nTask: ${message}\nStatus: ${statusText}\nOutput:\n\`\`\`\n${executionOutput.substring(0, 500)}\n\`\`\``);
                 }
 
             } catch (error) {
@@ -193,7 +177,7 @@ app.post('/api/chat', async (req, res) => {
                         { role: "user", content: message }
                     ], 
                     temperature: 0.1,
-                    max_tokens: 2048 
+                    max_tokens: activeTokens 
                 })
             });
             if (!groqRes.ok) throw new Error("Groq Engine Fault");
