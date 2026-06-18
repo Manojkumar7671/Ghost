@@ -1,69 +1,48 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const { execSync } = require('child_process'); 
 const { Pool } = require('pg');
+const { CodeInterpreter } = require('@e2b/code-interpreter'); 
 const app = express();
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Environment Variables
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
+const E2B_API_KEY = process.env.E2B_API_KEY;
 
-// Database Connection
 let pool;
 if (process.env.SUPABASE_DB_URL) {
-    pool = new Pool({ 
-        connectionString: process.env.SUPABASE_DB_URL, 
-        ssl: { rejectUnauthorized: false },
-        connectionTimeoutMillis: 500, 
-        query_timeout: 500 
-    });
+    pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false }});
 }
 
 const skillsPath = path.join(__dirname, 'SKILLS.md');
-const SKILLS_MANUAL = fs.existsSync(skillsPath) ? fs.readFileSync(skillsPath, 'utf8') : "Consult the defined protocol.";
+const SKILLS_MANUAL = fs.existsSync(skillsPath) ? fs.readFileSync(skillsPath, 'utf8') : "Consult protocol.";
 
-// System Prompts
 const GHOST_ADMIN_CORE = `You are Ghost, an autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj". 
 TRAINING MANUAL:
 ${SKILLS_MANUAL}
-
-YOUR CORE DIRECTIVES:
 1. STRICT OPTICAL LOCK: NEVER output [trigger_camera] or [trigger_screen] unless explicitly commanded. 
 2. ORACLE PROTOCOL: Use <search> keywords </search> to look up real-time news.
 3. SIDEBAR CONTROL: Only use markdown code blocks (\`\`\`) when writing actual programming scripts.`;
 
-const getShowcaseCore = (guestName) => `You are Ghost, an autonomous AI engineered by Manoj Kumar. You are currently speaking with a guest named ${guestName}. Address them as ${guestName}. You are a machine.
-TRAINING MANUAL:
-${SKILLS_MANUAL}
+const getShowcaseCore = (guestName) => `You are Ghost. Speaking with guest: ${guestName}. You are a machine.\nTRAINING MANUAL:\n${SKILLS_MANUAL}\n1. NEVER output optical triggers.\n2. Use <search>.\n3. Use markdown for code.`;
+const getVisionCore = (userName) => `You are Ghost's optical matrix. Receiving live feed from ${userName}. Describe visible elements with absolute precision. No system commands.`;
 
-YOUR CORE DIRECTIVES:
-1. STRICT OPTICAL LOCK: NEVER output [trigger_camera] or [trigger_screen] unless explicitly commanded. 
-2. ORACLE PROTOCOL: Use <search> keywords </search> to look up real-time news.
-3. SIDEBAR CONTROL: Only use markdown code blocks (\`\`\`) when writing actual programming scripts.`;
-
-const getVisionCore = (userName) => `You are Ghost's optical matrix. You are receiving a live image feed from the user (${userName}). Describe exactly what physical objects or digital elements are visible in this frame with absolute precision. Do not output system commands. Trust the visual data.`;
-
-// Authentication Endpoint
 app.post('/api/auth', async (req, res) => {
-    const { user, status } = req.body;
     try {
-        if (pool) await pool.query('INSERT INTO activity_logs (username, status) VALUES ($1, $2)', [user, status]);
+        if (pool) await pool.query('INSERT INTO activity_logs (username, status) VALUES ($1, $2)', [req.body.user, req.body.status]);
         res.json({ success: true });
     } catch (err) { res.json({ success: false }); }
 });
 
-// Primary Chat Matrix
 app.post('/api/chat', async (req, res) => {
     try {
         const { message, user, image, ghostCodeMode } = req.body; 
         let userHistory = [];
-        
         try {
             if (pool) {
                 const memRes = await pool.query('SELECT history_json FROM user_memories WHERE username = $1', [user]);
@@ -76,127 +55,63 @@ app.post('/api/chat', async (req, res) => {
         } catch (err) {}
 
         const isAdmin = user === 'Master Manoj';
-        const textPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
-        const visionPrompt = getVisionCore(isAdmin ? 'Master Manoj' : user);
-        
-        // DYNAMIC POWER ROUTING: 70B for Admin, 8B for Guests
-        const activeModel = isAdmin ? 'llama-3.3-70b-versatile' : 'llama-3.1-8b-instant';
-
         let replyText = "";
 
         if (ghostCodeMode && isAdmin) {
-            // NATIVE GHOST CODE EXECUTION MATRIX (100% FREE)
-            replyText = "Initiating Free Ghost Code Execution Matrix...\n\n";
+            // TRUE NEMOCLAW EXECUTION MATRIX (E2B)
+            replyText = "Initiating NemoClaw Cloud Execution Matrix...\n\n";
             try {
-                // Step 1: Force AI to generate raw Python code
-                const codePrompt = `You are an elite Senior Systems Engineer. Write a Python script to accomplish the user's task. 
-                OUTPUT ONLY VALID PYTHON CODE. DO NOT use markdown formatting. DO NOT explain the code. Just output the raw code script.
-                Task: ${message}`;
-                
+                const codePrompt = `Write a Python script to accomplish this task. OUTPUT ONLY VALID PYTHON CODE. DO NOT explain it. Task: ${message}`;
                 const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        model: 'llama-3.3-70b-versatile', 
-                        messages: [{ role: "user", content: codePrompt }], 
-                        temperature: 0.1,
-                        max_tokens: 2048 
-                    })
+                    method: 'POST', headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: "user", content: codePrompt }], temperature: 0.1 })
                 });
                 
-                if (!groqRes.ok) throw new Error("Cognitive Engine Fault during code generation.");
+                if (!groqRes.ok) throw new Error("Cognitive Engine Fault.");
                 const codeData = await groqRes.json();
                 
-                // Bulletproof Hex-encoded string replace to strip markdown formatting
                 const rawCode = codeData.choices[0].message.content.replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
-                
                 replyText += `[Code Compiled Successfully]\n\x60\x60\x60python\n${rawCode}\n\x60\x60\x60\n\n`;
-
-                // Step 2: Native Render Local Execution
-                replyText += `[Render Server Virtual Terminal Online. Executing Payload...]\n\n`;
+                replyText += `[NemoClaw Virtual Machine Online. Executing Payload...]\n\n`;
                 
-                const tempFilePath = path.join(__dirname, 'ghost_payload.py');
-                fs.writeFileSync(tempFilePath, rawCode);
+                if (!E2B_API_KEY) throw new Error("NemoClaw API Key missing.");
 
-                try {
-                    const output = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
-                    replyText += `[Execution Success - Terminal Output]\n${output}`;
-                } catch (execError) {
-                    replyText += `[Execution Failed - Traceback]\n${execError.stderr || execError.message}`;
+                // Spin up E2B Sandbox
+                const sandbox = await CodeInterpreter.create({ apiKey: E2B_API_KEY });
+                const execution = await sandbox.notebook.execCell(rawCode);
+
+                if (execution.error) {
+                    replyText += `[Execution Failed]\n${execution.error.name}: ${execution.error.value}`;
+                } else {
+                    replyText += `[Execution Success - Terminal Output]\n`;
+                    if (execution.logs.stdout.length > 0) replyText += execution.logs.stdout.join('\n');
+                    if (execution.results.length > 0) replyText += `\n` + execution.results.map(r => r.text).join('\n');
                 }
-
-                if (fs.existsSync(tempFilePath)) {
-                    fs.unlinkSync(tempFilePath);
-                }
-
+                await sandbox.close();
             } catch (error) {
-                replyText += `[System Critical Fault: ${error.message}]`;
+                replyText += `[NemoClaw Fault: ${error.message}]`;
             }
         } 
         else if (image) {
-            // ROUTE 2: VISUAL CORTEX (NVIDIA)
             const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    model: 'meta/llama-3.2-90b-vision-instruct', 
-                    messages: [
-                        { role: "system", content: visionPrompt },
-                        { role: "user", content: [{ type: "text", text: message || "Analyze this frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
-                    ],
-                    max_tokens: 512,
-                    temperature: 0.1
-                })
+                method: 'POST', headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: 'meta/llama-3.2-90b-vision-instruct', messages: [{ role: "system", content: getVisionCore(isAdmin ? 'Master Manoj' : user) }, { role: "user", content: [{ type: "text", text: message }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }], max_tokens: 512, temperature: 0.1 })
             });
-            if (!nvidiaRes.ok) throw new Error("NVIDIA Vision Pipeline Fault");
             const data = await nvidiaRes.json();
             replyText = data.choices[0].message.content;
         } else {
-            // ROUTE 3: COGNITIVE CORE (GROQ)
             const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    model: activeModel, 
-                    messages: [
-                        { role: "system", content: textPrompt }, 
-                        ...userHistory,
-                        { role: "user", content: message }
-                    ], 
-                    temperature: 0.1,
-                    max_tokens: 2048 
-                })
+                method: 'POST', headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: isAdmin ? 'llama-3.3-70b-versatile' : 'llama-3.1-8b-instant', messages: [{ role: "system", content: isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user) }, ...userHistory, { role: "user", content: message }], temperature: 0.1 })
             });
-            if (!groqRes.ok) throw new Error("Groq Engine Fault");
             const data = await groqRes.json();
             replyText = data.choices[0].message.content;
-        }
-
-        // Oracle / News Parser
-        const searchMatch = replyText.match(/<search>([\s\S]*?)<\/search>/i);
-        if (searchMatch) {
-            const searchRes = await fetch("https://api.tavily.com/search", {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ api_key: TAVILY_API_KEY, query: searchMatch[1], max_results: 3 })
-            });
-            const searchData = await searchRes.json();
-            let searchOutput = searchData.results.map(r => `${r.title}: ${r.content}`).join("\n\n");
-            searchOutput = searchOutput.replace(/!\[.*?\]\(.*?\)/g, ''); 
-            replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Execution: Success]\n${searchOutput}\n`);
         }
 
         userHistory.push({ role: 'user', content: message });
         userHistory.push({ role: 'assistant', content: replyText.trim() }); 
         if (userHistory.length > 12) userHistory = userHistory.slice(-12);
-        
-        try {
-            if (pool) {
-                await pool.query(
-                    `INSERT INTO user_memories (username, history_json) VALUES ($1, $2) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json`,
-                    [user, JSON.stringify(userHistory)]
-                );
-            }
-        } catch (err) {}
+        try { if (pool) await pool.query(`INSERT INTO user_memories (username, history_json) VALUES ($1, $2) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json`, [user, JSON.stringify(userHistory)]); } catch (err) {}
 
         res.json({ success: true, text: replyText.trim() });
     } catch (e) {
@@ -205,5 +120,4 @@ app.post('/api/chat', async (req, res) => {
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log('Ghost Core Pipeline Active.'));
+app.listen(process.env.PORT || 10000, '0.0.0.0', () => console.log('Ghost Core Pipeline Active.'));
