@@ -124,7 +124,161 @@ app.post('/api/chat', async (req, res) => {
                 let fullResponse = data.choices[0].message.content;
                 
                 let currentCode = "";
-                const codeRegex = /
-http://googleusercontent.com/immersive_entry_chip/0
+                // Safe hex code parsing to prevent Node.js crashes
+                const codeRegex = /[\x60]{3}(?:python)?\n([\s\S]*?)[\x60]{3}/i;
+                const match = fullResponse.match(codeRegex);
 
-Once the Render build is green, attach the text file as outlined above and run the `Omni-Matrix System Diagnostic` command. You will finally hear Ghost speak the confirmation to you clearly while executing the most complex task possible. Ensure you have your system volume up!
+                if (match && match[1]) {
+                    currentCode = match[1].trim();
+                } else {
+                    currentCode = fullResponse.replace(/<think>[\s\S]*?<\/think>/g, '')
+                                              .replace(/<search>[\s\S]*?<\/search>/g, '')
+                                              .replace(/[\x60]{3}python/ig, '')
+                                              .replace(/[\x60]{3}/g, '')
+                                              .trim();
+                }
+
+                const tempFilePath = path.join(__dirname, 'ghost_payload.py');
+                let attempt = 0;
+                let isSuccess = false;
+                let executionOutput = "";
+                let formattedLog = "";
+
+                while (attempt < maxAttempts && !isSuccess) {
+                    attempt++;
+                    fs.writeFileSync(tempFilePath, currentCode);
+
+                    try {
+                        executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
+                        isSuccess = true;
+                        formattedLog = `Script Execution Success:\n\x60\x60\x60terminal\n${executionOutput}\n\x60\x60\x60\n\nGenerated Source Code:\n\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
+                    } catch (execError) {
+                        const errorTrace = execError.stderr || execError.message;
+                        if (attempt < maxAttempts) {
+                            const repairRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ 
+                                    model: activeModel, 
+                                    messages: [
+                                        { role: "system", content: "You are the debugger. Fix the Python code based on the error. OUTPUT ONLY RAW CODE. Use only standard libraries. Remember to read from 'user_upload.txt' if accessing files." },
+                                        { role: "user", content: `Code:\n${currentCode}\n\nError:\n${errorTrace}` }
+                                    ], 
+                                    temperature: 0.1,
+                                    max_tokens: activeTokens 
+                                })
+                            });
+                            const repairData = await repairRes.json();
+                            currentCode = repairData.choices[0].message.content.replace(/<think>[\s\S]*?<\/think>/g, '')
+                                                                               .replace(/[\x60]{3}python/ig, '')
+                                                                               .replace(/[\x60]{3}/g, '')
+                                                                               .trim();
+                        } else {
+                            formattedLog = `Script Execution Failed:\n\x60\x60\x60terminal\n${errorTrace}\n\x60\x60\x60\n\nFailed Source Code:\n\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
+                        }
+                    }
+                }
+                
+                if (match) {
+                    replyText = fullResponse.replace(match[0], formattedLog);
+                } else {
+                    replyText = fullResponse + "\n\n" + formattedLog;
+                }
+
+                if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+                if (fs.existsSync(uploadFilePath)) fs.unlinkSync(uploadFilePath);
+
+            } catch (error) {
+                replyText += `[Matrix Fault: ${error.message}]`;
+            }
+        } 
+        // NVIDIA VISION MATRIX
+        else if (image) {
+            const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    model: 'meta/llama-3.2-90b-vision-instruct', 
+                    messages: [
+                        { role: "system", content: `You are Ghost's optical matrix.` },
+                        { role: "user", content: [{ type: "text", text: message || "Analyze frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
+                    ],
+                    max_tokens: 512,
+                    temperature: 0.1
+                })
+            });
+            const data = await nvidiaRes.json();
+            replyText = data.choices[0].message.content;
+        } 
+        // STANDARD LOGIC ROUTING
+        else {
+            const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    model: activeModel, 
+                    messages: [
+                        { role: "system", content: textPrompt }, 
+                        ...userHistory,
+                        { role: "user", content: finalMessage }
+                    ], 
+                    temperature: 0.1,
+                    max_tokens: activeTokens 
+                })
+            });
+            const data = await groqRes.json();
+            replyText = data.choices[0].message.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+        }
+
+        // TAVILY WEB EMBED/SEARCH PARSERS
+        const embedMatch = replyText.match(/<embed>([\s\S]*?)<\/embed>/i);
+        if (embedMatch) {
+            const searchRes = await fetch("https://api.tavily.com/search", {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: TAVILY_API_KEY, query: embedMatch[1], max_results: 1 })
+            });
+            const searchData = await searchRes.json();
+            if (searchData.results && searchData.results.length > 0) {
+                const targetUrl = searchData.results[0].url;
+                replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[EXECUTE_OPEN_TAB:${targetUrl}]\n\nI have opened the requested interface for you.`);
+            } else {
+                replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Automation Fault: Target unreachable]`);
+            }
+        }
+
+        const searchMatch = replyText.match(/<search>([\s\S]*?)<\/search>/i);
+        if (searchMatch) {
+            const searchRes = await fetch("https://api.tavily.com/search", {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: TAVILY_API_KEY, query: searchMatch[1], max_results: isAdmin ? 3 : 1 })
+            });
+            const searchData = await searchRes.json();
+            let searchOutput = searchData.results.map(r => `${r.title}: ${r.content}`).join("\n\n");
+            replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Success]\n${searchOutput}\n`);
+        }
+
+        // SAVE MEMORY
+        userHistory.push({ role: 'user', content: message });
+        userHistory.push({ role: 'assistant', content: replyText.trim() }); 
+        if (userHistory.length > (isAdmin ? 12 : 4)) userHistory = userHistory.slice(-(isAdmin ? 12 : 4));
+        
+        try {
+            if (pool) {
+                await pool.query(
+                    `INSERT INTO user_memories (username, history_json) VALUES ($1, $2) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json`,
+                    [user, JSON.stringify(userHistory)]
+                );
+            }
+        } catch (err) {}
+
+        res.json({ success: true, text: replyText.trim() });
+    } catch (e) {
+        console.error("Core Fault:", e);
+        res.json({ success: false, text: "System error: Matrix routing fault." });
+    }
+});
+
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
+
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, '0.0.0.0', () => console.log(`Ghost Core Fast Logic Engine Online on port ${PORT}.`));
