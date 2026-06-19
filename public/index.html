@@ -43,7 +43,7 @@
             background: transparent; border: none;
             border-bottom: 2px solid rgba(0, 243, 255, 0.3);
             color: #fff; font-size: 18px; text-align: center;
-            padding: 10px; width: 300px; outline: none;
+            padding: 10px; width: 350px; outline: none;
             font-family: inherit; letter-spacing: 0.1em;
             transition: border-color 0.3s, box-shadow 0.3s;
         }
@@ -77,7 +77,14 @@
             box-shadow: 0 0 15px rgba(0, 243, 255, 0.1) inset;
         }
         .tag.admin { border-color: var(--alert); color: var(--alert); box-shadow: 0 0 15px rgba(255, 46, 77, 0.1) inset; }
-        .tag.ghost-code { border-color: var(--violet); color: var(--violet); box-shadow: 0 0 15px rgba(177, 75, 255, 0.1) inset; }
+        
+        /* Interactive Ghost Code Button */
+        .tag.ghost-code { 
+            border-color: var(--violet); color: var(--violet); box-shadow: 0 0 15px rgba(177, 75, 255, 0.1) inset;
+            cursor: pointer; transition: all 0.3s ease;
+        }
+        .tag.ghost-code:hover { box-shadow: 0 0 25px rgba(177, 75, 255, 0.3) inset; }
+        .tag.ghost-code.off { opacity: 0.4; box-shadow: none; border-color: rgba(177, 75, 255, 0.3); }
         
         .dot { width: 6px; height: 6px; border-radius: 50%; animation: pulse 2s infinite; }
         .dot.cyan { background: var(--core-cyan); box-shadow: 0 0 8px var(--core-cyan); }
@@ -155,7 +162,7 @@
 
 <div id="loginOverlay">
     <h1>GHOST OS</h1>
-    <input type="password" id="authInput" placeholder="Awaiting Authorization..." autocomplete="off" autofocus />
+    <input type="text" id="authInput" placeholder="Identify yourself..." autocomplete="off" autofocus />
 </div>
 
 <div id="os-container">
@@ -163,7 +170,7 @@
         <div class="status-bar">
             <span class="tag" id="userTag"><span class="dot cyan"></span>GUEST // ACTIVE</span>
             <span class="tag"><span class="dot cyan" id="micIndicator"></span>MIC // LISTENING</span>
-            <span class="tag ghost-code">[ GHOST CODE: ON ]</span>
+            <span class="tag ghost-code" id="ghostCodeBtn">[ GHOST CODE: ON ]</span>
         </div>
 
         <div id="subtitle-hud">Ghost systems initialized. Awaiting voice protocol.</div>
@@ -191,25 +198,49 @@
     const authInput = document.getElementById('authInput');
     const osContainer = document.getElementById('os-container');
     const userTag = document.getElementById('userTag');
+    
+    let masterUser = "Guest";
 
     authInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
-            const pass = authInput.value.trim().toLowerCase();
-            if (pass === 'knightfall') {
+            const inputVal = authInput.value.trim();
+            if (!inputVal) return;
+
+            if (inputVal.toLowerCase() === 'knightfall') {
+                // ADMIN PROTOCOL
                 userTag.innerHTML = `<span class="dot red"></span>ADMIN // ACTIVE`;
                 userTag.classList.add('admin');
                 masterUser = "Master Manoj";
+                speakResponse("Welcome back, Master Manoj. Ghost OS online. All subsystems operating at maximum capacity.");
             } else {
-                userTag.innerHTML = `<span class="dot cyan"></span>GUEST // ACTIVE`;
-                masterUser = "Guest";
+                // GUEST PROTOCOL
+                userTag.innerHTML = `<span class="dot cyan"></span>GUEST // ${inputVal.toUpperCase()}`;
+                masterUser = inputVal;
+                speakResponse(`Greetings, ${inputVal}. I am Ghost, an autonomous AI engineered by Manoj Kumar. I can assist you with web routing, vision analysis, and logic. Guest mode limits resources to 50 percent. Speak my name to command me, or double-tap the screen to type.`);
             }
+            
             loginOverlay.style.opacity = '0';
             loginOverlay.style.visibility = 'hidden';
             osContainer.classList.add('active');
             
-            // Start voice recognition after login
             setTimeout(startContinuousListening, 1000);
-            speakResponse("Ghost online. Systems ready.");
+        }
+    });
+
+    // --- 1.5 INTERACTIVE GHOST CODE TOGGLE ---
+    let isGhostCodeActive = true;
+    const ghostCodeBtn = document.getElementById('ghostCodeBtn');
+    
+    ghostCodeBtn.addEventListener('click', () => {
+        isGhostCodeActive = !isGhostCodeActive;
+        if (isGhostCodeActive) {
+            ghostCodeBtn.classList.remove('off');
+            ghostCodeBtn.innerText = "[ GHOST CODE: ON ]";
+            speakResponse("Ghost Code execution module activated.");
+        } else {
+            ghostCodeBtn.classList.add('off');
+            ghostCodeBtn.innerText = "[ GHOST CODE: OFF ]";
+            speakResponse("Ghost Code execution module offline.");
         }
     });
 
@@ -224,7 +255,6 @@
     renderer.domElement.style.zIndex = '1';
     canvasContainer.appendChild(renderer.domElement);
 
-    // Create dense particle sphere
     const particleCount = 8000;
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
@@ -262,7 +292,6 @@
     const sphereMesh = new THREE.Points(geometry, material);
     scene.add(sphereMesh);
 
-    // Inner core glow
     const coreGeo = new THREE.SphereGeometry(4.5, 32, 32);
     const coreMat = new THREE.MeshBasicMaterial({ color: 0x0055ff, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending });
     const coreMesh = new THREE.Mesh(coreGeo, coreMat);
@@ -293,7 +322,6 @@
     });
 
     // --- 3. UI INTERACTIONS ---
-    let masterUser = "Guest";
     let inputVisible = false;
     let lastTap = 0;
     const inputArea = document.getElementById('input-area');
@@ -375,7 +403,7 @@
                 if (command.length > 2) {
                     processCommand(command);
                 } else {
-                    speakResponse("Yes, sir?");
+                    speakResponse("Yes?");
                 }
             }
         };
@@ -438,11 +466,13 @@
         document.getElementById('userInput').value = "";
         inputArea.classList.remove('visible'); inputVisible = false;
 
+        // Payload includes the exact state of the Ghost Code toggle
         const payload = {
             message: textCommand,
             user: masterUser,
             image: uploadedImageBase64 || null,
-            fileContent: uploadedFileText || null
+            fileContent: uploadedFileText || null,
+            ghostCodeMode: isGhostCodeActive 
         };
 
         uploadedFileText = ""; uploadedImageBase64 = ""; attachmentInput.value = "";
