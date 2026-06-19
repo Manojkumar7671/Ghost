@@ -160,11 +160,13 @@
 </head>
 <body>
 
+<!-- AUTHENTICATION LAYER -->
 <div id="loginOverlay">
     <h1>GHOST OS</h1>
     <input type="text" id="authInput" placeholder="Identify yourself..." autocomplete="off" autofocus />
 </div>
 
+<!-- MAIN OS INTERFACE -->
 <div id="os-container">
     <div id="canvas-container">
         <div class="status-bar">
@@ -183,6 +185,7 @@
         </div>
     </div>
 
+    <!-- CODE SIDEBAR -->
     <div id="code-sidebar">
         <div id="sidebar-header">
             <span>COMPILED CODE DATA</span>
@@ -213,10 +216,10 @@
                 masterUser = "Master Manoj";
                 speakResponse("Welcome back, Master Manoj. Ghost OS online. All subsystems operating at maximum capacity.");
             } else {
-                // GUEST PROTOCOL
+                // COOL GUEST PROTOCOL FOR SHOWCASE
                 userTag.innerHTML = `<span class="dot cyan"></span>GUEST // ${inputVal.toUpperCase()}`;
                 masterUser = inputVal;
-                speakResponse(`Greetings, ${inputVal}. I am Ghost, an autonomous AI engineered by Manoj Kumar. I can assist you with web routing, vision analysis, and logic. Guest mode limits resources to 50 percent. Speak my name to command me, or double-tap the screen to type.`);
+                speakResponse(`Welcome, ${inputVal}. I am Ghost, a proprietary AI architecture engineered by Manoj Kumar. My logic, vision, and execution modules are currently at your disposal. Speak my name to initiate a voice command, or double-tap the interface for manual entry.`);
             }
             
             loginOverlay.style.opacity = '0';
@@ -466,7 +469,6 @@
         document.getElementById('userInput').value = "";
         inputArea.classList.remove('visible'); inputVisible = false;
 
-        // Payload includes the exact state of the Ghost Code toggle
         const payload = {
             message: textCommand,
             user: masterUser,
@@ -501,7 +503,8 @@
 
     // --- 7. PARSE RESPONSE ---
     function handleGhostResponse(fullText) {
-        const codeRegex = /```[\s\S]*?```/g;
+        const codeRegex = /```[\s\S]*?
+```/g;
         const codeBlocks = fullText.match(codeRegex);
         
         let spokenText = fullText.replace(codeRegex, '').trim();
