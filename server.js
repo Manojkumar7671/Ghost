@@ -6,16 +6,15 @@ import pkg from 'pg';
 import { fileURLToPath } from 'url';
 
 const { Pool } = pkg;
-const app = reportApp(express());
+
+// FIX: Define directory paths FIRST before using them in Express
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-function reportApp(expressApp) {
-    expressApp.use(express.json({ limit: '50mb' }));
-    expressApp.use(express.urlencoded({ limit: '50mb', extended: true }));
-    expressApp.use(express.static(path.join(__dirname, 'public')));
-    return expressApp;
-}
+const app = express();
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // API KEYS
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
