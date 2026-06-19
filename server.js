@@ -17,6 +17,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // API KEYS
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
 
@@ -55,6 +57,51 @@ const getShowcaseCore = (guestName) => `You are Ghost, an autonomous AI engineer
 MULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags to assist the guest.
 ${GHOST_CAPABILITIES}`;
 
+// CASCADING FALLBACK MATRIX
+async function callLLM(messages, maxTokens) {
+    // 1. Primary Engine: GROQ
+    try {
+        if (!GROQ_API_KEY) throw new Error("No Groq Key");
+        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: 'POST', headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages, temperature: 0.1, max_tokens: maxTokens })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+        return data.choices[0].message.content;
+    } catch (e1) {
+        console.log(`[Matrix Switch]: Groq offline (${e1.message}). Rerouting to OpenRouter...`);
+        
+        // 2. Secondary Engine: OPENROUTER
+        try {
+            if (!OPENROUTER_API_KEY) throw new Error("No OpenRouter Key");
+            const res2 = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: 'POST', headers: { 'Authorization': `Bearer ${OPENROUTER_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: 'meta-llama/llama-3.3-70b-instruct', messages, temperature: 0.1, max_tokens: maxTokens })
+            });
+            const data2 = await res2.json();
+            if (data2.error) throw new Error(data2.error.message);
+            return data2.choices[0].message.content;
+        } catch (e2) {
+            console.log(`[Matrix Switch]: OpenRouter offline (${e2.message}). Rerouting to Gemini...`);
+            
+            // 3. Tertiary Engine: GEMINI (via OpenAI compatible endpoint)
+            try {
+                if (!GEMINI_API_KEY) throw new Error("No Gemini Key");
+                const res3 = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+                    method: 'POST', headers: { 'Authorization': `Bearer ${GEMINI_API_KEY}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: 'gemini-1.5-pro', messages, temperature: 0.1, max_tokens: maxTokens })
+                });
+                const data3 = await res3.json();
+                if (data3.error) throw new Error(data3.error.message);
+                return data3.choices[0].message.content;
+            } catch (e3) {
+                throw new Error("Critical System Failure: Groq, OpenRouter, and Gemini are all unreachable.");
+            }
+        }
+    }
+}
+
 // ROUTES
 app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
@@ -82,8 +129,6 @@ app.post('/api/chat', async (req, res) => {
 
         const isAdmin = user === 'Master Manoj';
         const textPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
-        
-        const activeModel = 'llama-3.3-70b-versatile';
         const activeTokens = isAdmin ? 2048 : 1024;          
         
         let finalMessage = message;
@@ -107,14 +152,13 @@ app.post('/api/chat', async (req, res) => {
                     ],
                     max_tokens: activeTokens,
                     temperature: 0.1
-                })
+                });
             });
             const data = await nvidiaRes.json();
             if (data.error) throw new Error(`Vision Matrix Error: ${data.error.message || JSON.stringify(data.error)}`);
-            if (!data.choices || !data.choices[0]) throw new Error("Vision Matrix returned an empty response.");
             fullResponse = data.choices[0].message.content;
         } 
-        // 2. CORE LOGIC ENGINE
+        // 2. CORE LOGIC ENGINE (WITH FALLBACKS)
         else {
             messagesArray = [
                 { role: "system", content: textPrompt }, 
@@ -122,15 +166,7 @@ app.post('/api/chat', async (req, res) => {
                 { role: "user", content: finalMessage }
             ];
 
-            const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: activeModel, messages: messagesArray, temperature: 0.1, max_tokens: activeTokens })
-            });
-            const data = await groqRes.json();
-            if (data.error) throw new Error(`Logic Engine Error: ${data.error.message || JSON.stringify(data.error)}`);
-            if (!data.choices || !data.choices[0]) throw new Error("Logic Engine returned an empty response.");
-            fullResponse = data.choices[0].message.content;
+            fullResponse = await callLLM(messagesArray, activeTokens);
 
             // 3. DUAL-TURN ORACLE SEARCH
             const searchMatch = fullResponse.match(/<search>([\s\S]*?)<\/search>/i);
@@ -145,15 +181,8 @@ app.post('/api/chat', async (req, res) => {
                 messagesArray.push({ role: "assistant", content: fullResponse });
                 messagesArray.push({ role: "user", content: `[SYSTEM ORACLE DATA RETURNED FOR YOUR SEARCH]:\n${searchOutput}\n\nBased on this live data, synthesize a final answer for the user.` });
 
-                const secondGroqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: activeModel, messages: messagesArray, temperature: 0.1, max_tokens: activeTokens })
-                });
-                const secondData = await secondGroqRes.json();
-                if (secondData.error) throw new Error(`Oracle Error: ${secondData.error.message || JSON.stringify(secondData.error)}`);
-                if (!secondData.choices || !secondData.choices[0]) throw new Error("Oracle returned an empty response.");
-                fullResponse = secondData.choices[0].message.content;
+                // Second pass through the Fail-Safe Router
+                fullResponse = await callLLM(messagesArray, activeTokens);
             }
         }
 
@@ -214,7 +243,6 @@ app.post('/api/chat', async (req, res) => {
         res.json({ success: true, text: replyText.trim() });
     } catch (e) {
         console.error("Core Fault:", e);
-        // Safely pass the actual error message to the frontend so you can see what went wrong without crashing the canvas
         res.json({ success: true, text: `[System Warning]: The Matrix encountered an interference pattern. ${e.message}` });
     }
 });
