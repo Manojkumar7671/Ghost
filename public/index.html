@@ -4,119 +4,232 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ghost OS // Matrix</title>
-    <!-- Pulling in Three.js for the 3D Sphere -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        /* Base Cyber-Matrix Theme */
-        body { background-color: #050505; color: #00ffcc; font-family: monospace; margin: 0; overflow: hidden; display: flex; height: 100vh; }
-        
-        /* 3D Sphere Container */
-        #canvas-container { flex: 1; position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; background: radial-gradient(circle at center, #111 0%, #000 100%); } 
-        canvas { position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none; }
+        :root {
+            --core: #00ffcc;
+            --core-dim: rgba(0,255,204,0.4);
+            --alert: #ff2e4d;
+            --violet: #b14bff;
+            --void: #030304;
+            --panel: rgba(8,10,12,0.78);
+        }
+        * { box-sizing: border-box; }
+        body {
+            background: var(--void);
+            color: var(--core);
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            margin: 0; overflow: hidden; display: flex; height: 100vh;
+            letter-spacing: 0.02em;
+        }
 
-        /* Sidebar Styling */
-        #dataLogSidebar { position: relative; z-index: 10; width: 350px; background: #0a0a0a; border-left: 1px solid #00ffcc; padding: 15px; display: flex; flex-direction: column; }
-        #chatContent { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; font-size: 13px; padding-right: 5px; }
-        
-        .message { padding: 10px; border-radius: 4px; border: 1px solid rgba(0, 255, 204, 0.2); word-wrap: break-word; z-index: 10; }
-        .user-style { background: rgba(0, 255, 204, 0.05); color: #fff; border-color: rgba(255, 255, 255, 0.2); }
-        .ghost-style { background: rgba(0, 255, 204, 0.1); color: #00ffcc; }
-        .error-style { background: rgba(255, 0, 0, 0.1); color: #ff3333; border-color: #ff3333; }
-        pre { white-space: pre-wrap; background: #000; padding: 8px; border: 1px solid rgba(0,255,204,0.3); border-radius: 4px; overflow-x: auto; }
-        
-        /* Input Bar Styling */
-        #input-area { position: absolute; bottom: 30px; z-index: 10; display: flex; gap: 10px; background: #111; padding: 12px 20px; border-radius: 30px; border: 1px solid #00ffcc; width: 60%; max-width: 800px; box-shadow: 0 0 15px rgba(0, 255, 204, 0.1); }
-        input[type="text"] { flex: 1; background: transparent; border: none; color: #00ffcc; outline: none; font-family: monospace; font-size: 14px; }
-        input[type="text"]::placeholder { color: rgba(0, 255, 204, 0.4); }
-        button { background: transparent; border: none; color: #00ffcc; cursor: pointer; font-family: monospace; font-size: 16px; transition: 0.2s; }
-        button:hover { text-shadow: 0 0 8px #00ffcc; transform: scale(1.1); }
-        
-        /* Top Status Bar */
-        .status-bar { position: absolute; top: 20px; left: 20px; z-index: 10; display: flex; gap: 15px; align-items: center; font-weight: bold; }
-        .admin-tag { color: #ff3333; text-shadow: 0 0 5px #ff3333; }
-        .mode-tag { border: 1px solid #cc00ff; color: #cc00ff; padding: 4px 8px; border-radius: 4px; text-shadow: 0 0 5px #cc00ff; box-shadow: 0 0 5px rgba(204, 0, 255, 0.3); }
-        
-        /* Scrollbar styling */
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-track { background: #050505; }
-        ::-webkit-scrollbar-thumb { background: #00ffcc; border-radius: 5px; }
+        /* ambient scan grid */
+        #canvas-container {
+            flex: 1; position: relative;
+            background:
+                radial-gradient(circle at 50% 45%, rgba(0,255,204,0.06) 0%, rgba(0,0,0,0) 55%),
+                repeating-linear-gradient(0deg, rgba(255,255,255,0.018) 0px, rgba(255,255,255,0.018) 1px, transparent 1px, transparent 38px),
+                repeating-linear-gradient(90deg, rgba(255,255,255,0.018) 0px, rgba(255,255,255,0.018) 1px, transparent 1px, transparent 38px),
+                #030304;
+        }
+        #canvas-container::before {
+            /* vignette */
+            content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+            background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.65) 100%);
+        }
+        #canvas-container::after {
+            content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 11;
+            background: repeating-linear-gradient(0deg, rgba(0,0,0,0.10) 0px, rgba(0,0,0,0.10) 1px, transparent 1px, transparent 3px);
+            opacity: 0.35;
+        }
+
+        /* HUD corner brackets */
+        .corner { position: absolute; width: 26px; height: 26px; border: 2px solid var(--core-dim); z-index: 12; opacity: 0.6; }
+        .corner.tl { top: 18px; left: 18px; border-right: none; border-bottom: none; }
+        .corner.tr { top: 18px; right: 368px; border-left: none; border-bottom: none; }
+        .corner.bl { bottom: 18px; left: 18px; border-right: none; border-top: none; }
+        .corner.br { bottom: 18px; right: 368px; border-left: none; border-top: none; }
+
+        #dataLogSidebar {
+            position: relative; z-index: 10; width: 350px;
+            background: var(--panel);
+            backdrop-filter: blur(14px);
+            border-left: 1px solid rgba(0,255,204,0.25);
+            box-shadow: -20px 0 40px rgba(0,0,0,0.5);
+            padding: 18px; display: flex; flex-direction: column;
+        }
+        #sidebarHeader {
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid rgba(0,255,204,0.25);
+            padding-bottom: 12px; margin-bottom: 14px;
+            font-weight: 700; font-size: 12px; letter-spacing: 0.18em;
+            color: var(--core); text-shadow: 0 0 8px rgba(0,255,204,0.5);
+        }
+        #sidebarHeader span:last-child {
+            cursor: pointer; color: var(--alert); font-size: 14px;
+            transition: text-shadow 0.2s;
+        }
+        #sidebarHeader span:last-child:hover { text-shadow: 0 0 10px var(--alert); }
+
+        #chatContent { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; padding-right: 4px; line-height: 1.5; }
+
+        .message {
+            padding: 11px 13px; border-radius: 6px;
+            border: 1px solid rgba(0, 255, 204, 0.18);
+            word-wrap: break-word; z-index: 10;
+            animation: slideIn 0.25s ease-out;
+        }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+        .message strong { font-size: 10px; letter-spacing: 0.12em; opacity: 0.65; display: block; margin-bottom: 4px; text-transform: uppercase; }
+        .user-style { background: rgba(255, 255, 255, 0.03); color: #eee; border-color: rgba(255, 255, 255, 0.15); }
+        .ghost-style { background: rgba(0, 255, 204, 0.06); color: var(--core); border-color: rgba(0,255,204,0.25); box-shadow: 0 0 14px rgba(0,255,204,0.05) inset; }
+        .error-style { background: rgba(255, 46, 77, 0.08); color: var(--alert); border-color: var(--alert); }
+        pre { white-space: pre-wrap; background: #000; padding: 9px; border: 1px solid rgba(0,255,204,0.25); border-radius: 4px; overflow-x: auto; margin: 6px 0 0; }
+
+        #input-area {
+            position: absolute; bottom: 34px; left: 50%; transform: translateX(-50%); z-index: 12;
+            display: flex; align-items: center; gap: 12px;
+            background: rgba(10,12,13,0.85);
+            backdrop-filter: blur(10px);
+            padding: 13px 22px; border-radius: 32px;
+            border: 1px solid rgba(0,255,204,0.45);
+            width: 58%; max-width: 760px;
+            box-shadow: 0 0 0 1px rgba(0,255,204,0.06), 0 0 30px rgba(0, 255, 204, 0.12), 0 10px 30px rgba(0,0,0,0.5);
+            transition: box-shadow 0.3s, opacity 0.25s, transform 0.25s;
+        }
+        #input-area:focus-within { box-shadow: 0 0 0 1px rgba(0,255,204,0.15), 0 0 42px rgba(0,255,204,0.22), 0 10px 30px rgba(0,0,0,0.5); }
+
+        input[type="text"] { flex: 1; background: transparent; border: none; color: var(--core); outline: none; font-family: inherit; font-size: 13.5px; letter-spacing: 0.01em; }
+        input[type="text"]::placeholder { color: rgba(0, 255, 204, 0.35); }
+
+        button { background: transparent; border: none; color: var(--core); cursor: pointer; font-family: inherit; font-size: 15px; transition: 0.2s; opacity: 0.8; }
+        button:hover { text-shadow: 0 0 10px var(--core); transform: scale(1.12); opacity: 1; }
+        #sendBtn { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; border: 1px solid rgba(0,255,204,0.4); border-radius: 18px; padding: 7px 16px; }
+        #sendBtn:hover { background: rgba(0,255,204,0.08); box-shadow: 0 0 14px rgba(0,255,204,0.25); }
+
+        .status-bar { position: absolute; top: 22px; left: 22px; z-index: 12; display: flex; gap: 12px; align-items: center; font-weight: 700; font-size: 11px; }
+        .admin-tag {
+            color: var(--alert); text-shadow: 0 0 8px var(--alert);
+            display: flex; align-items: center; gap: 7px; letter-spacing: 0.12em;
+            background: rgba(255,46,77,0.06); border: 1px solid rgba(255,46,77,0.35);
+            padding: 6px 12px; border-radius: 4px;
+        }
+        .admin-tag .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--alert); box-shadow: 0 0 8px var(--alert); animation: pulse 1.6s infinite; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        .mode-tag {
+            border: 1px solid rgba(177,75,255,0.5); color: var(--violet);
+            padding: 6px 12px; border-radius: 4px; letter-spacing: 0.12em;
+            text-shadow: 0 0 8px var(--violet); box-shadow: 0 0 10px rgba(177, 75, 255, 0.18);
+            background: rgba(177,75,255,0.05);
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(0,255,204,0.4); border-radius: 5px; }
     </style>
 </head>
 <body>
 
 <div id="canvas-container">
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+
     <div class="status-bar">
-        <span class="admin-tag">ADMIN // ACTIVE</span>
-        <span class="mode-tag">[GHOST CODE: ON]</span>
+        <span class="admin-tag"><span class="dot"></span>ADMIN // ACTIVE</span>
+        <span class="mode-tag">[ GHOST CODE: ON ]</span>
     </div>
-    
+
     <div id="input-area">
         <button id="attachBtn" title="Upload File or Image">📎</button>
         <button id="voiceBtn" title="Voice Command">🎙️</button>
         <input type="file" id="attachmentInput" style="display: none;" />
-        <input type="text" id="userInput" placeholder="Command Ghost... (Double-tap screen to hide)" autocomplete="off" />
+        <input type="text" id="userInput" placeholder="Command Ghost..." autocomplete="off" />
         <button id="sendBtn">ENTER</button>
     </div>
 </div>
 
 <div id="dataLogSidebar">
-    <!-- Header stays permanently -->
-    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #00ffcc; padding-bottom: 10px; margin-bottom: 10px; font-weight: bold; font-size: 14px;">
+    <div id="sidebarHeader">
         <span>GHOST // DATA LOG</span>
-        <span style="cursor:pointer; color: #ff3333;" onclick="clearChat()">X</span>
+        <span onclick="clearChat()">✕</span>
     </div>
-    
-    <!-- Chat messages load here -->
     <div id="chatContent">
         <div class="message ghost-style">
-            <strong>Ghost:</strong><br> Online. Awaiting your command, Master Manoj.
+            <strong>Ghost</strong> Online. Awaiting your command, Master Manoj.
         </div>
     </div>
 </div>
 
 <script>
-    // --- 3D RED SPHERE MATRIX GENERATOR ---
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    
-    const container = document.getElementById('canvas-container');
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    container.appendChild(renderer.domElement);
+    // --- FORCED WINDOW-SIZE 3D GENERATOR ---
+    window.addEventListener('load', () => {
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
 
-    const geometry = new THREE.BufferGeometry();
-    const particlesCount = 2500;
-    const posArray = new Float32Array(particlesCount * 3);
+        const renderWidth = window.innerWidth - 350;
+        const renderHeight = window.innerHeight;
 
-    // Creates the structured spherical dot pattern
-    for(let i = 0; i < particlesCount; i++) {
-        const phi = Math.acos(-1 + (2 * i) / particlesCount);
-        const theta = Math.sqrt(particlesCount * Math.PI) * phi;
-        const r = 4;
-        
-        posArray[i * 3] = r * Math.cos(theta) * Math.sin(phi);     // x
-        posArray[i * 3 + 1] = r * Math.sin(theta) * Math.sin(phi); // y
-        posArray[i * 3 + 2] = r * Math.cos(phi);                   // z
-    }
+        const camera = new THREE.PerspectiveCamera(75, renderWidth / renderHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
 
-    geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-    const material = new THREE.PointsMaterial({ size: 0.03, color: 0xff0033 }); // Crimson Red
-    const particlesMesh = new THREE.Points(geometry, material);
-    scene.add(particlesMesh);
-    camera.position.z = 9;
+        renderer.setSize(renderWidth, renderHeight);
+        renderer.domElement.style.position = 'absolute';
+        renderer.domElement.style.top = '0';
+        renderer.domElement.style.left = '0';
+        renderer.domElement.style.zIndex = '5';
+        renderer.domElement.style.pointerEvents = 'none';
 
-    function animate() {
-        requestAnimationFrame(animate);
-        particlesMesh.rotation.y += 0.0015; // Slow spin
-        particlesMesh.rotation.x += 0.0005;
-        renderer.render(scene, camera);
-    }
-    animate();
+        container.appendChild(renderer.domElement);
 
-    window.addEventListener('resize', () => {
-        camera.aspect = container.clientWidth / container.clientHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(container.clientWidth, container.clientHeight);
+        const geometry = new THREE.BufferGeometry();
+        const particlesCount = 2800;
+        const posArray = new Float32Array(particlesCount * 3);
+
+        for(let i = 0; i < particlesCount; i++) {
+            const phi = Math.acos(-1 + (2 * i) / particlesCount);
+            const theta = Math.sqrt(particlesCount * Math.PI) * phi;
+            const r = 4;
+
+            posArray[i * 3] = r * Math.cos(theta) * Math.sin(phi);
+            posArray[i * 3 + 1] = r * Math.sin(theta) * Math.sin(phi);
+            posArray[i * 3 + 2] = r * Math.cos(phi);
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const material = new THREE.PointsMaterial({ size: 0.028, color: 0xff2e4d, transparent: true, opacity: 0.85 });
+        const particlesMesh = new THREE.Points(geometry, material);
+        scene.add(particlesMesh);
+
+        // soft core glow sprite
+        const glowGeo = new THREE.SphereGeometry(1.1, 32, 32);
+        const glowMat = new THREE.MeshBasicMaterial({ color: 0xff2e4d, transparent: true, opacity: 0.06 });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        scene.add(glowMesh);
+
+        camera.position.z = 9;
+
+        let t = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+            t += 0.01;
+            particlesMesh.rotation.y += 0.0016;
+            particlesMesh.rotation.x += 0.0006;
+            const breathe = 1 + Math.sin(t) * 0.04;
+            glowMesh.scale.set(breathe, breathe, breathe);
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            const newWidth = window.innerWidth - 350;
+            camera.aspect = newWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(newWidth, window.innerHeight);
+        });
     });
 
     // --- GLOBAL BUFFERS ---
@@ -143,12 +256,11 @@
         attachmentInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
 
             if (file.type.startsWith('image/')) {
                 reader.onload = (event) => {
-                    uploadedImageBase64 = event.target.result.split(',')[1]; 
+                    uploadedImageBase64 = event.target.result.split(',')[1];
                     appendMessageToUI("System", `Optical data loaded: ${file.name}`, "ghost-style");
                 };
                 reader.readAsDataURL(file);
@@ -170,7 +282,7 @@
 
     function triggerSend() {
         const text = userInput.value.trim();
-        if (!text && !uploadedImageBase64 && !uploadedFileText) return; 
+        if (!text && !uploadedImageBase64 && !uploadedFileText) return;
         sendToGhost(text);
         userInput.value = "";
     }
@@ -181,15 +293,15 @@
 
         const payload = {
             message: userMessage,
-            user: 'Master Manoj', 
-            ghostCodeMode: true, 
+            user: 'Master Manoj',
+            ghostCodeMode: true,
             image: uploadedImageBase64 || null,
             fileContent: uploadedFileText || null
         };
 
         uploadedFileText = "";
         uploadedImageBase64 = "";
-        if (attachmentInput) attachmentInput.value = ""; 
+        if (attachmentInput) attachmentInput.value = "";
 
         try {
             const response = await fetch('/api/chat', {
@@ -199,15 +311,15 @@
             });
 
             const data = await response.json();
-            
+
             if (data.success) {
                 let ghostReply = data.text;
 
                 if (ghostReply.includes("[EXECUTE_OPEN_TAB:")) {
                     const urlMatch = ghostReply.match(/\[EXECUTE_OPEN_TAB:(.*?)\]/);
                     if (urlMatch && urlMatch[1]) {
-                        window.open(urlMatch[1].trim(), '_blank'); 
-                        ghostReply = ghostReply.replace(urlMatch[0], '').trim(); 
+                        window.open(urlMatch[1].trim(), '_blank');
+                        ghostReply = ghostReply.replace(urlMatch[0], '').trim();
                     }
                 }
 
@@ -222,21 +334,106 @@
         }
     }
 
+    // --- JARVIS MODE: WAKE WORD VOICE LISTENING ---
+    let recognition;
+    let isAwaitingCommand = false;
+    const WAKE_WORD = "ghost";
+
+    function startListening() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            appendMessageToUI("System", "Voice recognition not supported in this browser.", "error-style");
+            return;
+        }
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        recognition.onresult = (event) => {
+            const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
+
+            if (isAwaitingCommand) {
+                isAwaitingCommand = false;
+                triggerVoiceCommand(transcript);
+                return;
+            }
+
+            if (transcript.includes(WAKE_WORD)) {
+                const afterWake = transcript.split(WAKE_WORD).pop().trim();
+                if (afterWake.length > 2) {
+                    triggerVoiceCommand(afterWake);
+                } else {
+                    isAwaitingCommand = true;
+                    appendMessageToUI("System", "Listening...", "ghost-style");
+                }
+            }
+        };
+
+        recognition.onend = () => {
+            try { recognition.start(); } catch (e) {}
+        };
+
+        recognition.onerror = (e) => {
+            if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+                appendMessageToUI("System", "Mic access denied. Enable microphone permission.", "error-style");
+            }
+        };
+
+        try { recognition.start(); } catch (e) {}
+    }
+
+    function triggerVoiceCommand(text) {
+        if (!text) return;
+        sendToGhost(text);
+    }
+
+    window.addEventListener('load', () => {
+        startListening();
+    });
+
+    const voiceBtn = document.getElementById('voiceBtn');
+    voiceBtn.addEventListener('click', () => {
+        isAwaitingCommand = true;
+        appendMessageToUI("System", "Listening...", "ghost-style");
+    });
+
+    // --- DOUBLE-TAP TO TOGGLE INPUT BAR ---
+    let inputVisible = true;
+    let lastTap = 0;
+    const inputArea = document.getElementById('input-area');
+    const canvasContainer = document.getElementById('canvas-container');
+
+    function toggleInputBar() {
+        inputVisible = !inputVisible;
+        inputArea.style.opacity = inputVisible ? '1' : '0';
+        inputArea.style.pointerEvents = inputVisible ? 'auto' : 'none';
+        inputArea.style.transform = inputVisible ? 'translateX(-50%) translateY(0)' : 'translateX(-50%) translateY(24px)';
+    }
+
+    function handleTap() {
+        const now = Date.now();
+        if (now - lastTap < 300) toggleInputBar();
+        lastTap = now;
+    }
+
+    canvasContainer.addEventListener('click', handleTap);
+    canvasContainer.addEventListener('touchend', handleTap);
+
     // --- UI FORMATTING HELPER ---
     function appendMessageToUI(sender, text, cssClass) {
         if (!chatContent) return;
 
         const msgDiv = document.createElement('div');
         msgDiv.className = `message ${cssClass}`;
-        
+
         let formattedText = text.replace(/```python([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-        formattedText = formattedText.replace(/```([\s\S]*?)
-```/g, '<pre><code>$1</code></pre>');
+        formattedText = formattedText.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
         formattedText = formattedText.replace(/\n/g, '<br>');
-        
-        msgDiv.innerHTML = `<strong>${sender}:</strong><br> ${formattedText}`;
+
+        msgDiv.innerHTML = `<strong>${sender}</strong>${formattedText}`;
         chatContent.appendChild(msgDiv);
-        
+
         chatContent.scrollTop = chatContent.scrollHeight;
     }
 </script>
