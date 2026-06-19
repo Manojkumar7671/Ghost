@@ -64,7 +64,6 @@ app.post('/api/auth', async (req, res) => {
 
 app.post('/api/chat', async (req, res) => {
     try {
-        // Fallback ghostCodeMode to true if the payload doesn't send it, since the UI tag is ON
         const { message, user, image, fileContent, ghostCodeMode = true } = req.body; 
         let userHistory = [];
         
@@ -128,8 +127,9 @@ app.post('/api/chat', async (req, res) => {
                     try {
                         executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
                         isSuccess = true;
-                        replyText += `[Execution Success - Attempt ${attempt}]\n${executionOutput}\n\n`;
-                        replyText += `\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
+                        // FIX: Wrapped the terminal output in backticks so it goes to the sidebar, not the subtitle HUD
+                        replyText += `Script Execution Success:\n\x60\x60\x60terminal\n${executionOutput}\n\x60\x60\x60\n\n`;
+                        replyText += `Generated Source Code:\n\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
                     } catch (execError) {
                         const errorTrace = execError.stderr || execError.message;
                         if (attempt < maxAttempts) {
@@ -149,7 +149,9 @@ app.post('/api/chat', async (req, res) => {
                             const repairData = await repairRes.json();
                             currentCode = repairData.choices[0].message.content.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
                         } else {
-                            replyText += `[Execution Failed - Max Attempts Reached]\n${errorTrace}\n\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
+                            // FIX: Wrap error output as well
+                            replyText += `Script Execution Failed:\n\x60\x60\x60terminal\n${errorTrace}\n\x60\x60\x60\n`;
+                            replyText += `Failed Source Code:\n\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
                         }
                     }
                 }
