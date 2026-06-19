@@ -370,18 +370,29 @@ document.addEventListener('DOMContentLoaded', () => {
         subtitleTimeout = setTimeout(() => { subtitleHud.style.opacity = '0'; }, Math.max(3000, text.length * 50));
     }
 
-    // --- 4. VOICE SYNTHESIS ---
+    // --- 4. VOICE SYNTHESIS (AUDIO FIX APPLIED) ---
     function speakResponse(text) {
         if (!window.speechSynthesis) return;
+        
+        // Ensure Ghost doesn't read raw HTML, Python, or backend <think> tags out loud
+        let cleanText = text.replace(/[\x60]{3}[\s\S]*?[\x60]{3}/g, '')
+                            .replace(/<think>[\s\S]*?<\/think>/g, '')
+                            .replace(/<search>[\s\S]*?<\/search>/g, '')
+                            .replace(/\[.*?\]/g, '')
+                            .trim();
+
+        // If the entire message was code/tags, default to a verbal confirmation
+        if (!cleanText) cleanText = "Protocol complete, Master Manoj.";
+
         window.speechSynthesis.cancel(); 
         
-        const utterance = new SpeechSynthesisUtterance(text);
+        const utterance = new SpeechSynthesisUtterance(cleanText);
         const voices = window.speechSynthesis.getVoices();
         utterance.voice = voices.find(v => v.name.includes('UK English Male') || v.name.includes('Google UK English')) || voices[0];
         utterance.rate = 1.05;
         utterance.pitch = 0.9;
         
-        showSubtitle(text);
+        showSubtitle(cleanText);
         window.speechSynthesis.speak(utterance);
     }
 
@@ -513,9 +524,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const codeRegex = /[\x60]{3}[\s\S]*?[\x60]{3}/g;
         const codeBlocks = fullText.match(codeRegex);
         
-        let spokenText = fullText.replace(codeRegex, '').trim();
-        spokenText = spokenText.replace(/[*#_]/g, ''); 
-
         if (codeBlocks && codeBlocks.length > 0) {
             codeContent.innerHTML = ''; 
             codeBlocks.forEach(block => {
@@ -524,11 +532,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 codeContent.innerHTML += safeBlock;
             });
             codeSidebar.classList.add('open');
-            
-            if(!spokenText) spokenText = "Code compiled and displayed in the sidebar, sir.";
         }
 
-        speakResponse(spokenText || "Task complete.");
+        // Send full text to the speech engine (it will clean out the code internally)
+        speakResponse(fullText);
     }
 
     window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
