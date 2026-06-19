@@ -56,56 +56,70 @@ YOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witt
 MULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags.
 ${GHOST_CAPABILITIES}`;
 
-// ULTIMATE 4-TIER CASCADING FALLBACK MATRIX
+// THE INTERNAL GATEWAY MATRIX (Clean Array Routing)
+const PROVIDER_MATRIX = [
+    {
+        name: 'Groq',
+        endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+        model: 'llama-3.3-70b-versatile',
+        apiKey: GROQ_API_KEY
+    },
+    {
+        name: 'Nvidia NIM',
+        endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions',
+        model: 'nvidia/llama-3.3-nemotron-super-49b-v1',
+        apiKey: NVIDIA_API_KEY
+    },
+    {
+        name: 'OpenRouter',
+        endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+        model: 'meta-llama/llama-3.3-70b-instruct',
+        apiKey: OPENROUTER_API_KEY
+    },
+    {
+        name: 'Gemini',
+        endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+        model: 'gemini-1.5-pro',
+        apiKey: GEMINI_API_KEY
+    }
+];
+
 async function callLLM(messages, maxTokens) {
-    try {
-        if (!GROQ_API_KEY) throw new Error("No Groq Key");
-        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: 'POST', headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages, temperature: 0.1, max_tokens: maxTokens })
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error.message);
-        return data.choices[0].message.content;
-    } catch (e1) {
-        console.log(`[Matrix Switch]: Groq offline (${e1.message}). Rerouting to Nvidia Nemotron...`);
+    for (const provider of PROVIDER_MATRIX) {
+        if (!provider.apiKey) {
+            console.log(`[Gateway Skip]: ${provider.name} skipped (No API Key).`);
+            continue;
+        }
+
         try {
-            if (!NVIDIA_API_KEY) throw new Error("No Nvidia Key");
-            const res2 = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-                method: 'POST', headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: 'nvidia/llama-3.3-nemotron-super-49b-v1', messages, temperature: 0.1, max_tokens: maxTokens })
+            const res = await fetch(provider.endpoint, {
+                method: 'POST', 
+                headers: { 
+                    'Authorization': `Bearer ${provider.apiKey}`, 
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({ 
+                    model: provider.model, 
+                    messages, 
+                    temperature: 0.1, 
+                    max_tokens: maxTokens 
+                })
             });
-            const data2 = await res2.json();
-            if (data2.error) throw new Error(data2.error.message || JSON.stringify(data2.error));
-            return data2.choices[0].message.content;
-        } catch (e2) {
-            console.log(`[Matrix Switch]: Nvidia offline (${e2.message}). Rerouting to OpenRouter...`);
-            try {
-                if (!OPENROUTER_API_KEY) throw new Error("No OpenRouter Key");
-                const res3 = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                    method: 'POST', headers: { 'Authorization': `Bearer ${OPENROUTER_API_KEY}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: 'meta-llama/llama-3.3-70b-instruct', messages, temperature: 0.1, max_tokens: maxTokens })
-                });
-                const data3 = await res3.json();
-                if (data3.error) throw new Error(data3.error.message);
-                return data3.choices[0].message.content;
-            } catch (e3) {
-                console.log(`[Matrix Switch]: OpenRouter offline (${e3.message}). Rerouting to Gemini...`);
-                try {
-                    if (!GEMINI_API_KEY) throw new Error("No Gemini Key");
-                    const res4 = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
-                        method: 'POST', headers: { 'Authorization': `Bearer ${GEMINI_API_KEY}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ model: 'gemini-1.5-pro', messages, temperature: 0.1, max_tokens: maxTokens })
-                    });
-                    const data4 = await res4.json();
-                    if (data4.error) throw new Error(data4.error.message);
-                    return data4.choices[0].message.content;
-                } catch (e4) {
-                    throw new Error("Critical System Failure: Groq, Nvidia, OpenRouter, and Gemini are all unreachable.");
-                }
+            const data = await res.json();
+            
+            if (data.error) {
+                throw new Error(data.error.message || JSON.stringify(data.error));
             }
+            
+            console.log(`[Gateway Success]: Routed successfully through ${provider.name}`);
+            return data.choices[0].message.content;
+            
+        } catch (e) {
+            console.log(`[Gateway Failover]: ${provider.name} failed (${e.message}). Rerouting to next provider...`);
         }
     }
+    
+    throw new Error("Critical Gateway Failure: All LLM providers in the matrix are currently unreachable.");
 }
 
 // ROUTES
@@ -167,7 +181,7 @@ app.post('/api/chat', async (req, res) => {
             if (data.error) throw new Error(`Vision Matrix Error: ${data.error.message || JSON.stringify(data.error)}`);
             fullResponse = data.choices[0].message.content;
         } 
-        // 2. CORE LOGIC ENGINE
+        // 2. CORE LOGIC ENGINE (USING ARRAY GATEWAY)
         else {
             messagesArray = [
                 { role: "system", content: textPrompt }, 
@@ -177,7 +191,7 @@ app.post('/api/chat', async (req, res) => {
 
             fullResponse = await callLLM(messagesArray, activeTokens);
 
-            // 3. DUAL-TURN ORACLE SEARCH (With Null Armor)
+            // 3. DUAL-TURN ORACLE SEARCH
             const searchMatch = fullResponse ? fullResponse.match(/<search>([\s\S]*?)<\/search>/i) : null;
             if (searchMatch) {
                 const searchRes = await fetch("https://api.tavily.com/search", {
@@ -196,7 +210,7 @@ app.post('/api/chat', async (req, res) => {
 
         let replyText = fullResponse || "System anomaly: Empty matrix response.";
 
-        // 4. SMART PYTHON EXECUTION INTERCEPT (With Null Armor)
+        // 4. SMART PYTHON EXECUTION INTERCEPT
         const codeRegex = /[\x60]{3}(?:python)?\n([\s\S]*?)[\x60]{3}/i;
         const match = fullResponse ? fullResponse.match(codeRegex) : null;
 
@@ -221,7 +235,7 @@ app.post('/api/chat', async (req, res) => {
             if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         }
 
-        // TAVILY WEB EMBED (With Null Armor)
+        // TAVILY WEB EMBED 
         const embedMatch = replyText ? replyText.match(/<embed>([\s\S]*?)<\/embed>/i) : null;
         if (embedMatch) {
             const searchRes = await fetch("https://api.tavily.com/search", {
