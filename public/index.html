@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ghost OS // Core</title>
-    <script src="[https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js](https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js)"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         :root {
             --core-cyan: #00f3ff;
@@ -160,13 +160,11 @@
 </head>
 <body>
 
-<!-- AUTHENTICATION LAYER -->
 <div id="loginOverlay">
     <h1>GHOST OS</h1>
     <input type="text" id="authInput" placeholder="Identify yourself..." autocomplete="off" autofocus />
 </div>
 
-<!-- MAIN OS INTERFACE -->
 <div id="os-container">
     <div id="canvas-container">
         <div class="status-bar">
@@ -185,7 +183,6 @@
         </div>
     </div>
 
-    <!-- CODE SIDEBAR -->
     <div id="code-sidebar">
         <div id="sidebar-header">
             <span>COMPILED CODE DATA</span>
@@ -196,6 +193,11 @@
 </div>
 
 <script>
+// Wrap everything in DOMContentLoaded so HTML elements are parsed before the script fires
+document.addEventListener('DOMContentLoaded', () => {
+
+    console.log("Ghost Matrix Shell Initializing...");
+
     // --- 1. AUTHENTICATION LOGIC ---
     const loginOverlay = document.getElementById('loginOverlay');
     const authInput = document.getElementById('authInput');
@@ -216,7 +218,7 @@
                 masterUser = "Master Manoj";
                 speakResponse("Welcome back, Master Manoj. Ghost OS online. All subsystems operating at maximum capacity.");
             } else {
-                // COOL GUEST PROTOCOL FOR SHOWCASE
+                // GUEST PROTOCOL 
                 userTag.innerHTML = `<span class="dot cyan"></span>GUEST // ${inputVal.toUpperCase()}`;
                 masterUser = inputVal;
                 speakResponse(`Welcome, ${inputVal}. I am Ghost, a proprietary AI architecture engineered by Manoj Kumar. My logic, vision, and execution modules are currently at your disposal. Speak my name to initiate a voice command, or double-tap the interface for manual entry.`);
@@ -248,81 +250,85 @@
     });
 
     // --- 2. THE J.A.R.V.I.S SPHERE (Three.js) ---
-    const canvasContainer = document.getElementById('canvas-container');
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.domElement.style.position = 'absolute';
-    renderer.domElement.style.zIndex = '1';
-    canvasContainer.appendChild(renderer.domElement);
-
-    const particleCount = 8000;
-    const geometry = new THREE.BufferGeometry();
-    const positions = new Float32Array(particleCount * 3);
-    const colors = new Float32Array(particleCount * 3);
-
-    const colorCyan = new THREE.Color('#00f3ff');
-    const colorBlue = new THREE.Color('#0055ff');
-
-    for(let i = 0; i < particleCount; i++) {
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.acos((Math.random() * 2) - 1);
-        const radius = 5 + (Math.random() * 0.5); 
-
-        positions[i*3] = radius * Math.sin(phi) * Math.cos(theta);
-        positions[i*3+1] = radius * Math.sin(phi) * Math.sin(theta);
-        positions[i*3+2] = radius * Math.cos(phi);
-
-        const mixedColor = Math.random() > 0.5 ? colorCyan : colorBlue;
-        colors[i*3] = mixedColor.r;
-        colors[i*3+1] = mixedColor.g;
-        colors[i*3+2] = mixedColor.b;
-    }
-
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-    const material = new THREE.PointsMaterial({
-        size: 0.03,
-        vertexColors: true,
-        transparent: true,
-        opacity: 0.8,
-        blending: THREE.AdditiveBlending
-    });
-
-    const sphereMesh = new THREE.Points(geometry, material);
-    scene.add(sphereMesh);
-
-    const coreGeo = new THREE.SphereGeometry(4.5, 32, 32);
-    const coreMat = new THREE.MeshBasicMaterial({ color: 0x0055ff, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending });
-    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
-    scene.add(coreMesh);
-
-    camera.position.z = 12;
-
-    let time = 0;
-    function animateSphere() {
-        requestAnimationFrame(animateSphere);
-        time += 0.005;
+    if (typeof THREE !== 'undefined') {
+        const canvasContainer = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
         
-        sphereMesh.rotation.y += 0.002;
-        sphereMesh.rotation.x = Math.sin(time) * 0.2; 
-        
-        const scale = 1 + Math.sin(time * 2) * 0.02;
-        sphereMesh.scale.set(scale, scale, scale);
-        coreMesh.scale.set(scale, scale, scale);
-
-        renderer.render(scene, camera);
-    }
-    animateSphere();
-
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+        renderer.domElement.style.position = 'absolute';
+        renderer.domElement.style.zIndex = '1';
+        canvasContainer.appendChild(renderer.domElement);
+
+        const particleCount = 8000;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const colors = new Float32Array(particleCount * 3);
+
+        const colorCyan = new THREE.Color('#00f3ff');
+        const colorBlue = new THREE.Color('#0055ff');
+
+        for(let i = 0; i < particleCount; i++) {
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos((Math.random() * 2) - 1);
+            const radius = 5 + (Math.random() * 0.5); 
+
+            positions[i*3] = radius * Math.sin(phi) * Math.cos(theta);
+            positions[i*3+1] = radius * Math.sin(phi) * Math.sin(theta);
+            positions[i*3+2] = radius * Math.cos(phi);
+
+            const mixedColor = Math.random() > 0.5 ? colorCyan : colorBlue;
+            colors[i*3] = mixedColor.r;
+            colors[i*3+1] = mixedColor.g;
+            colors[i*3+2] = mixedColor.b;
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        const material = new THREE.PointsMaterial({
+            size: 0.03,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending
+        });
+
+        const sphereMesh = new THREE.Points(geometry, material);
+        scene.add(sphereMesh);
+
+        const coreGeo = new THREE.SphereGeometry(4.5, 32, 32);
+        const coreMat = new THREE.MeshBasicMaterial({ color: 0x0055ff, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending });
+        const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+        scene.add(coreMesh);
+
+        camera.position.z = 12;
+
+        let time = 0;
+        function animateSphere() {
+            requestAnimationFrame(animateSphere);
+            time += 0.005;
+            
+            sphereMesh.rotation.y += 0.002;
+            sphereMesh.rotation.x = Math.sin(time) * 0.2; 
+            
+            const scale = 1 + Math.sin(time * 2) * 0.02;
+            sphereMesh.scale.set(scale, scale, scale);
+            coreMesh.scale.set(scale, scale, scale);
+
+            renderer.render(scene, camera);
+        }
+        animateSphere();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    } else {
+        console.error("Matrix Error: Three.js engine failed to load.");
+    }
 
     // --- 3. UI INTERACTIONS ---
     let inputVisible = false;
@@ -526,6 +532,8 @@
     }
 
     window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
+
+}); // End of DOMContentLoaded
 </script>
 </body>
 </html>
