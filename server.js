@@ -83,7 +83,6 @@ app.post('/api/chat', async (req, res) => {
         const isAdmin = user === 'Master Manoj';
         const textPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
         
-        // Unified Engine: Both use Llama 70b, Guest is slightly capped on output tokens (65% capacity equivalent)
         const activeModel = 'llama-3.3-70b-versatile';
         const activeTokens = isAdmin ? 2048 : 1024;          
         
@@ -111,6 +110,8 @@ app.post('/api/chat', async (req, res) => {
                 })
             });
             const data = await nvidiaRes.json();
+            if (data.error) throw new Error(`Vision Matrix Error: ${data.error.message || JSON.stringify(data.error)}`);
+            if (!data.choices || !data.choices[0]) throw new Error("Vision Matrix returned an empty response.");
             fullResponse = data.choices[0].message.content;
         } 
         // 2. CORE LOGIC ENGINE
@@ -127,6 +128,8 @@ app.post('/api/chat', async (req, res) => {
                 body: JSON.stringify({ model: activeModel, messages: messagesArray, temperature: 0.1, max_tokens: activeTokens })
             });
             const data = await groqRes.json();
+            if (data.error) throw new Error(`Logic Engine Error: ${data.error.message || JSON.stringify(data.error)}`);
+            if (!data.choices || !data.choices[0]) throw new Error("Logic Engine returned an empty response.");
             fullResponse = data.choices[0].message.content;
 
             // 3. DUAL-TURN ORACLE SEARCH
@@ -137,7 +140,7 @@ app.post('/api/chat', async (req, res) => {
                     body: JSON.stringify({ api_key: TAVILY_API_KEY, query: searchMatch[1], max_results: 3 })
                 });
                 const searchData = await searchRes.json();
-                let searchOutput = searchData.results.map(r => `${r.title}: ${r.content}`).join("\n");
+                let searchOutput = searchData.results ? searchData.results.map(r => `${r.title}: ${r.content}`).join("\n") : "No results found.";
                 
                 messagesArray.push({ role: "assistant", content: fullResponse });
                 messagesArray.push({ role: "user", content: `[SYSTEM ORACLE DATA RETURNED FOR YOUR SEARCH]:\n${searchOutput}\n\nBased on this live data, synthesize a final answer for the user.` });
@@ -148,6 +151,8 @@ app.post('/api/chat', async (req, res) => {
                     body: JSON.stringify({ model: activeModel, messages: messagesArray, temperature: 0.1, max_tokens: activeTokens })
                 });
                 const secondData = await secondGroqRes.json();
+                if (secondData.error) throw new Error(`Oracle Error: ${secondData.error.message || JSON.stringify(secondData.error)}`);
+                if (!secondData.choices || !secondData.choices[0]) throw new Error("Oracle returned an empty response.");
                 fullResponse = secondData.choices[0].message.content;
             }
         }
@@ -209,7 +214,8 @@ app.post('/api/chat', async (req, res) => {
         res.json({ success: true, text: replyText.trim() });
     } catch (e) {
         console.error("Core Fault:", e);
-        res.json({ success: false, text: "System error: Matrix routing fault." });
+        // Safely pass the actual error message to the frontend so you can see what went wrong without crashing the canvas
+        res.json({ success: true, text: `[System Warning]: The Matrix encountered an interference pattern. ${e.message}` });
     }
 });
 
