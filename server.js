@@ -6,13 +6,16 @@ import pkg from 'pg';
 import { fileURLToPath } from 'url';
 
 const { Pool } = pkg;
-const app = express();
+const app = reportApp(express());
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+function reportApp(expressApp) {
+    expressApp.use(express.json({ limit: '50mb' }));
+    expressApp.use(express.urlencoded({ limit: '50mb', extended: true }));
+    expressApp.use(express.static(path.join(__dirname, 'public')));
+    return expressApp;
+}
 
 // API KEYS
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
@@ -32,18 +35,21 @@ if (process.env.SUPABASE_DB_URL) {
     });
 }
 
-// SYSTEM DIRECTIVES & CAPABILITIES
+// THE MONOLITH CAPABILITIES & UI/UX PROMAX INSTRUCTIONS
 const GHOST_CAPABILITIES = `
 YOUR FEATURES: Voice Interaction, Live Web Search, Python Sandbox, Holographic UI Rendering, Vision Analysis.
 
+CRITICAL UI/UX GENERATION PROTOCOLS:
+When asked to build a web application, page, or dashboard, you must act as a Master UI/UX Designer. Follow these constraints flawlessly:
+1. DESIGN AESTHETIC: Implement ultra-modern, professional layouts. Use layered dark modes (e.g., slate-950, zinc-900) mixed with premium glassmorphism panels (blurred backgrounds, thin borders with low opacity). Accent colors must be sharp and vibrant (e.g., electric cyan, neon violet, brilliant emerald).
+2. STRUCTURE & RESPONSIVENESS: Ensure full responsiveness using CSS Grid and Flexbox. Layout containers must feature spacious, consistent padding (e.g., p-6 or p-8) and well-rounded corners (rounded-xl or rounded-2xl).
+3. GRAPHICS & EFFECTS: Incorporate vector iconography (via FontAwesome or Lucide CDN) and clean transitions (\`transition-all duration-300\`) on interactive components.
+4. SYNTAX SANITIZATION: When rendering code via Python execution scripts, build the HTML structure dynamically as a pristine string asset. Prevent leaks, loose characters, or dangling string literals from contaminating the browser viewport.
+
 RULES:
-1. THE ORACLE: If the user asks for news, current events, weather, or real-time data, you MUST search the web. To do this, output exactly <search>your query</search> and absolutely nothing else.
-2. SMART EXECUTION: Answer general questions normally. ONLY write Python code if asked to build an app, script, or math.
-3. THE MONOLITH PROTOCOL: If the user asks for a "full-scale app", "SaaS", or complex UI in one prompt, use Single-File Architecture.
-- Generate a single Python script that prints one massive HTML string.
-- Use CDNs (Tailwind CSS, React, Vue, FontAwesome, etc.) inside the HTML to make it modern.
-- Use inline JavaScript and localStorage to mock the database.
-- Output ONLY the Python script. No conversational filler.`;
+1. THE ORACLE: For live news, weather, or real-time data, you MUST search the web by outputting exactly <search>your query</search> and absolutely nothing else.
+2. SMART EXECUTION: Answer general questions normally. ONLY write Python code if asked to build an app, script, or math logic.
+3. THE MONOLITH PROTOCOL: Generate a single Python script that executes cleanly to print one complete, self-contained HTML/CSS/JS string asset to standard output. Use inline JavaScript and localStorage to manage operational states natively. Output ONLY the raw Python script block.`;
 
 const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".
 YOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty. Keep conversational fluff to an absolute minimum.
