@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ghost OS // Core</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="[https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js](https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js)"></script>
     <style>
         :root {
             --core-cyan: #00f3ff;
@@ -503,8 +503,8 @@
 
     // --- 7. PARSE RESPONSE ---
     function handleGhostResponse(fullText) {
-        const codeRegex = /```[\s\S]*?
-```/g;
+        // Safe hex codes replacing the backticks to prevent syntax errors
+        const codeRegex = /[\x60]{3}[\s\S]*?[\x60]{3}/g;
         const codeBlocks = fullText.match(codeRegex);
         
         let spokenText = fullText.replace(codeRegex, '').trim();
@@ -514,7 +514,7 @@
             codeContent.innerHTML = ''; 
             codeBlocks.forEach(block => {
                 let safeBlock = block.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                safeBlock = safeBlock.replace(/```(.*?)\n([\s\S]*?)```/, '<pre data-lang="$1"><code>$2</code></pre>');
+                safeBlock = safeBlock.replace(/[\x60]{3}(.*?)\n([\s\S]*?)[\x60]{3}/, '<pre data-lang="$1"><code>$2</code></pre>');
                 codeContent.innerHTML += safeBlock;
             });
             codeSidebar.classList.add('open');
