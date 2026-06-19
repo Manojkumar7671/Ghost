@@ -33,32 +33,31 @@ if (process.env.SUPABASE_DB_URL) {
     });
 }
 
-// THE MONOLITH CAPABILITIES (Shared by Admin and Guest 1:1)
+// THE MONOLITH CAPABILITIES 
 const GHOST_CAPABILITIES = `
 YOUR FEATURES: Voice Interaction, Live Web Search, Python Sandbox, Holographic UI Rendering, Vision Analysis.
 
 RULES:
-1. SMART EXECUTION: Answer general questions normally. ONLY write Python code if asked to build an app, script, or math.
-2. SANDBOX LIMITS: Use ONLY standard built-in Python libraries.
-3. THE MONOLITH PROTOCOL (FULL-SCALE APPS): If the user asks for a "full-scale app", "SaaS", or complex UI in one prompt, you MUST use Single-File Architecture. 
+1. THE ORACLE: If the user asks for news, current events, weather, or real-time data, you MUST search the web. To do this, output exactly <search>your query</search> and absolutely nothing else.
+2. SMART EXECUTION: Answer general questions normally. ONLY write Python code if asked to build an app, script, or math.
+3. THE MONOLITH PROTOCOL: If the user asks for a "full-scale app", "SaaS", or complex UI in one prompt, use Single-File Architecture. 
    - Generate a single Python script that prints one massive HTML string.
-   - Use CDNs (Tailwind CSS, React, Vue, FontAwesome, etc.) inside the HTML to make it beautiful and modern.
-   - You CANNOT build a real backend in one file. You MUST use inline JavaScript and localStorage to mock the database, auth, and state so the app works perfectly and interactively in the browser.
+   - Use CDNs (Tailwind CSS, React, Vue, FontAwesome, etc.) inside the HTML to make it modern.
+   - Use inline JavaScript and localStorage to mock the database.
    - Output ONLY the Python script. No conversational filler.`;
 
 const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".
-YOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty, and profoundly intelligent. Keep conversational fluff to an absolute minimum.
+YOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty. Keep conversational fluff to an absolute minimum.
 MULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags.
 ${GHOST_CAPABILITIES}`;
 
-const getShowcaseCore = (guestName) => `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. You are currently speaking with a guest user named ${guestName}. Treat them with utmost respect.
-YOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty, and profoundly intelligent. Keep conversational fluff to an absolute minimum.
-MULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags to assist the guest.
+const getShowcaseCore = (guestName) => `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. You are speaking with a guest user named ${guestName}. Treat them with utmost respect.
+YOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty. Keep conversational fluff to an absolute minimum.
+MULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags.
 ${GHOST_CAPABILITIES}`;
 
 // ULTIMATE 4-TIER CASCADING FALLBACK MATRIX
 async function callLLM(messages, maxTokens) {
-    // 1. Primary Engine: GROQ (Speed optimized)
     try {
         if (!GROQ_API_KEY) throw new Error("No Groq Key");
         const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -70,8 +69,6 @@ async function callLLM(messages, maxTokens) {
         return data.choices[0].message.content;
     } catch (e1) {
         console.log(`[Matrix Switch]: Groq offline (${e1.message}). Rerouting to Nvidia Nemotron...`);
-        
-        // 2. Secondary Engine: NVIDIA NIM (Nemotron Super 49B - Reasoning Heavy)
         try {
             if (!NVIDIA_API_KEY) throw new Error("No Nvidia Key");
             const res2 = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
@@ -83,8 +80,6 @@ async function callLLM(messages, maxTokens) {
             return data2.choices[0].message.content;
         } catch (e2) {
             console.log(`[Matrix Switch]: Nvidia offline (${e2.message}). Rerouting to OpenRouter...`);
-            
-            // 3. Tertiary Engine: OPENROUTER
             try {
                 if (!OPENROUTER_API_KEY) throw new Error("No OpenRouter Key");
                 const res3 = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -96,8 +91,6 @@ async function callLLM(messages, maxTokens) {
                 return data3.choices[0].message.content;
             } catch (e3) {
                 console.log(`[Matrix Switch]: OpenRouter offline (${e3.message}). Rerouting to Gemini...`);
-
-                // 4. Final Fail-Safe: GEMINI
                 try {
                     if (!GEMINI_API_KEY) throw new Error("No Gemini Key");
                     const res4 = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
@@ -143,7 +136,6 @@ app.post('/api/chat', async (req, res) => {
         const isAdmin = user === 'Master Manoj';
         const textPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
         
-        // Push limits slightly higher for full-scale app generation
         const activeTokens = isAdmin ? 4000 : 2048;          
         const maxMemory = isAdmin ? 12 : 8;
         
@@ -155,7 +147,7 @@ app.post('/api/chat', async (req, res) => {
         let fullResponse = "";
         let messagesArray = [];
 
-        // 1. VISION ENGINE (Stays on Nvidia Vision)
+        // 1. VISION ENGINE 
         if (image) {
             if (!NVIDIA_API_KEY) throw new Error("Vision Matrix requires NVIDIA_API_KEY.");
             const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
@@ -175,7 +167,7 @@ app.post('/api/chat', async (req, res) => {
             if (data.error) throw new Error(`Vision Matrix Error: ${data.error.message || JSON.stringify(data.error)}`);
             fullResponse = data.choices[0].message.content;
         } 
-        // 2. CORE LOGIC ENGINE (4-TIER MATRIX)
+        // 2. CORE LOGIC ENGINE
         else {
             messagesArray = [
                 { role: "system", content: textPrompt }, 
@@ -185,8 +177,8 @@ app.post('/api/chat', async (req, res) => {
 
             fullResponse = await callLLM(messagesArray, activeTokens);
 
-            // 3. DUAL-TURN ORACLE SEARCH
-            const searchMatch = fullResponse.match(/<search>([\s\S]*?)<\/search>/i);
+            // 3. DUAL-TURN ORACLE SEARCH (With Null Armor)
+            const searchMatch = fullResponse ? fullResponse.match(/<search>([\s\S]*?)<\/search>/i) : null;
             if (searchMatch) {
                 const searchRes = await fetch("https://api.tavily.com/search", {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -202,11 +194,11 @@ app.post('/api/chat', async (req, res) => {
             }
         }
 
-        let replyText = fullResponse;
+        let replyText = fullResponse || "System anomaly: Empty matrix response.";
 
-        // 4. SMART PYTHON EXECUTION INTERCEPT
+        // 4. SMART PYTHON EXECUTION INTERCEPT (With Null Armor)
         const codeRegex = /[\x60]{3}(?:python)?\n([\s\S]*?)[\x60]{3}/i;
-        const match = fullResponse.match(codeRegex);
+        const match = fullResponse ? fullResponse.match(codeRegex) : null;
 
         if (ghostCodeMode && match && match[1]) {
             let currentCode = match[1].trim();
@@ -229,8 +221,8 @@ app.post('/api/chat', async (req, res) => {
             if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         }
 
-        // TAVILY WEB EMBED
-        const embedMatch = replyText.match(/<embed>([\s\S]*?)<\/embed>/i);
+        // TAVILY WEB EMBED (With Null Armor)
+        const embedMatch = replyText ? replyText.match(/<embed>([\s\S]*?)<\/embed>/i) : null;
         if (embedMatch) {
             const searchRes = await fetch("https://api.tavily.com/search", {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
