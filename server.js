@@ -16,8 +16,8 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // API KEYS
-const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
@@ -56,33 +56,33 @@ YOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witt
 MULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags to assist the guest.
 ${GHOST_CAPABILITIES}`;
 
-// CASCADING FALLBACK MATRIX (NVIDIA NOW PRIMARY)
+// ULTIMATE 4-TIER CASCADING FALLBACK MATRIX
 async function callLLM(messages, maxTokens) {
-    // 1. Primary Engine: NVIDIA NIM (Llama 3.1 405B)
+    // 1. Primary Engine: GROQ (Speed optimized)
     try {
-        if (!NVIDIA_API_KEY) throw new Error("No Nvidia Key");
-        const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-            method: 'POST', headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'meta/llama-3.1-405b-instruct', messages, temperature: 0.1, max_tokens: maxTokens })
+        if (!GROQ_API_KEY) throw new Error("No Groq Key");
+        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: 'POST', headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages, temperature: 0.1, max_tokens: maxTokens })
         });
         const data = await res.json();
-        if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+        if (data.error) throw new Error(data.error.message);
         return data.choices[0].message.content;
     } catch (e1) {
-        console.log(`[Matrix Switch]: Nvidia offline (${e1.message}). Rerouting to Groq...`);
+        console.log(`[Matrix Switch]: Groq offline (${e1.message}). Rerouting to Nvidia Nemotron...`);
         
-        // 2. Secondary Engine: GROQ
+        // 2. Secondary Engine: NVIDIA NIM (Nemotron Super 49B - Reasoning Heavy)
         try {
-            if (!GROQ_API_KEY) throw new Error("No Groq Key");
-            const res2 = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                method: 'POST', headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages, temperature: 0.1, max_tokens: maxTokens })
+            if (!NVIDIA_API_KEY) throw new Error("No Nvidia Key");
+            const res2 = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+                method: 'POST', headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: 'nvidia/llama-3.3-nemotron-super-49b-v1', messages, temperature: 0.1, max_tokens: maxTokens })
             });
             const data2 = await res2.json();
-            if (data2.error) throw new Error(data2.error.message);
+            if (data2.error) throw new Error(data2.error.message || JSON.stringify(data2.error));
             return data2.choices[0].message.content;
         } catch (e2) {
-            console.log(`[Matrix Switch]: Groq offline (${e2.message}). Rerouting to OpenRouter...`);
+            console.log(`[Matrix Switch]: Nvidia offline (${e2.message}). Rerouting to OpenRouter...`);
             
             // 3. Tertiary Engine: OPENROUTER
             try {
@@ -95,6 +95,8 @@ async function callLLM(messages, maxTokens) {
                 if (data3.error) throw new Error(data3.error.message);
                 return data3.choices[0].message.content;
             } catch (e3) {
+                console.log(`[Matrix Switch]: OpenRouter offline (${e3.message}). Rerouting to Gemini...`);
+
                 // 4. Final Fail-Safe: GEMINI
                 try {
                     if (!GEMINI_API_KEY) throw new Error("No Gemini Key");
@@ -106,7 +108,7 @@ async function callLLM(messages, maxTokens) {
                     if (data4.error) throw new Error(data4.error.message);
                     return data4.choices[0].message.content;
                 } catch (e4) {
-                    throw new Error("Critical System Failure: All API matrices are unreachable.");
+                    throw new Error("Critical System Failure: Groq, Nvidia, OpenRouter, and Gemini are all unreachable.");
                 }
             }
         }
@@ -155,6 +157,7 @@ app.post('/api/chat', async (req, res) => {
 
         // 1. VISION ENGINE (Stays on Nvidia Vision)
         if (image) {
+            if (!NVIDIA_API_KEY) throw new Error("Vision Matrix requires NVIDIA_API_KEY.");
             const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
@@ -172,7 +175,7 @@ app.post('/api/chat', async (req, res) => {
             if (data.error) throw new Error(`Vision Matrix Error: ${data.error.message || JSON.stringify(data.error)}`);
             fullResponse = data.choices[0].message.content;
         } 
-        // 2. CORE LOGIC ENGINE (NVIDIA PRIMARY)
+        // 2. CORE LOGIC ENGINE (4-TIER MATRIX)
         else {
             messagesArray = [
                 { role: "system", content: textPrompt }, 
