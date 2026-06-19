@@ -1,4 +1,4 @@
-k<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -129,7 +129,7 @@ k<!DOCTYPE html>
 
         /* --- CODE SIDEBAR --- */
         #code-sidebar {
-            position: absolute; right: -500px; top: 0; bottom: 0; width: 450px; z-index: 30;
+            position: absolute; right: -500px; top: 0; bottom: 0; width: 400px; z-index: 30;
             background: var(--panel); backdrop-filter: blur(20px);
             border-left: 1px solid rgba(0, 243, 255, 0.3);
             box-shadow: -20px 0 50px rgba(0,0,0,0.8);
@@ -154,6 +154,29 @@ k<!DOCTYPE html>
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(0, 243, 255, 0.3); border-radius: 5px; }
+
+        /* --- LIVE APP PREVIEW WINDOW --- */
+        #app-viewer {
+            position: absolute; top: 50%; left: 45%; transform: translate(-50%, -45%);
+            width: 70vw; height: 75vh; z-index: 40;
+            background: rgba(5, 8, 12, 0.95); backdrop-filter: blur(25px);
+            border: 1px solid var(--core-cyan); border-radius: 12px;
+            box-shadow: 0 0 50px rgba(0, 243, 255, 0.15), 0 20px 60px rgba(0,0,0,0.9);
+            display: flex; flex-direction: column; overflow: hidden;
+            opacity: 0; pointer-events: none; transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        #app-viewer.open { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%); }
+        
+        #app-header {
+            padding: 15px 20px; background: rgba(0, 243, 255, 0.05);
+            border-bottom: 1px solid rgba(0, 243, 255, 0.3);
+            display: flex; justify-content: space-between; align-items: center;
+            font-weight: bold; font-size: 13px; letter-spacing: 0.2em; color: var(--core-cyan);
+        }
+        #closeAppViewer { cursor: pointer; color: var(--alert); font-size: 18px; transition: 0.3s;}
+        #closeAppViewer:hover { text-shadow: 0 0 10px var(--alert); transform: scale(1.2); }
+        
+        #app-iframe { flex: 1; width: 100%; height: 100%; border: none; background: #fff; }
 
     </style>
 </head>
@@ -182,6 +205,14 @@ k<!DOCTYPE html>
         </div>
     </div>
 
+    <div id="app-viewer">
+        <div id="app-header">
+            <span>LIVE MATRIX PREVIEW</span>
+            <span id="closeAppViewer">✕</span>
+        </div>
+        <iframe id="app-iframe"></iframe>
+    </div>
+
     <div id="code-sidebar">
         <div id="sidebar-header">
             <span>COMPILED CODE DATA</span>
@@ -196,11 +227,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     console.log("Ghost Matrix Shell Initializing...");
 
-    // PRE-LOAD VOICES TO AVOID INDIAN DEFAULT FALLBACK
+    // PRE-LOAD VOICES 
     let availableVoices = [];
-    window.speechSynthesis.onvoiceschanged = () => {
-        availableVoices = window.speechSynthesis.getVoices();
-    };
+    window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); };
     availableVoices = window.speechSynthesis.getVoices();
 
     // --- 1. AUTHENTICATION LOGIC ---
@@ -334,9 +363,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const codeSidebar = document.getElementById('code-sidebar');
     const codeContent = document.getElementById('code-content');
     const subtitleHud = document.getElementById('subtitle-hud');
+    const appViewer = document.getElementById('app-viewer');
+    const appIframe = document.getElementById('app-iframe');
 
     function handleDoubleTap(e) {
-        if(e.target.closest('#input-area') || e.target.closest('#code-sidebar')) return;
+        if(e.target.closest('#input-area') || e.target.closest('#code-sidebar') || e.target.closest('#app-viewer')) return;
         const currentTime = new Date().getTime();
         const tapLength = currentTime - lastTap;
         if (tapLength < 300 && tapLength > 0) {
@@ -354,9 +385,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('dblclick', (e) => { lastTap = new Date().getTime() - 100; handleDoubleTap(e); });
     document.addEventListener('touchend', handleDoubleTap);
 
-    document.getElementById('closeSidebar').addEventListener('click', () => {
-        codeSidebar.classList.remove('open');
-    });
+    document.getElementById('closeSidebar').addEventListener('click', () => { codeSidebar.classList.remove('open'); });
+    document.getElementById('closeAppViewer').addEventListener('click', () => { appViewer.classList.remove('open'); setTimeout(()=> {appIframe.srcdoc = "";}, 500); });
 
     let subtitleTimeout;
     function showSubtitle(text) {
@@ -366,7 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
         subtitleTimeout = setTimeout(() => { subtitleHud.style.opacity = '0'; }, Math.max(3000, text.length * 50));
     }
 
-    // --- 4. VOICE SYNTHESIS (AUDIO CUT-OUT AND ACCENT FIX) ---
+    // --- 4. VOICE SYNTHESIS ---
     function speakResponse(text) {
         if (!window.speechSynthesis) return;
         
@@ -379,54 +409,42 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!cleanText) cleanText = "Protocol complete, Master Manoj.";
 
         showSubtitle(cleanText);
-        window.speechSynthesis.cancel(); // Stop old audio
+        window.speechSynthesis.cancel(); 
         
-        // BUG FIX: Split text into sentences to bypass the Chrome 15-second cut-out limit
         const sentences = cleanText.match(/[^.!?]+[.!?]+/g) || [cleanText];
 
         sentences.forEach((sentence) => {
             const utterance = new SpeechSynthesisUtterance(sentence.trim());
             
-            // AGGRESSIVE BRITISH VOICE HUNT
             if (availableVoices.length === 0) availableVoices = window.speechSynthesis.getVoices();
-            
             let ukVoice = availableVoices.find(v => v.lang === 'en-GB' || v.name.includes('Google UK English Male') || v.name.includes('UK English'));
-            if (!ukVoice) ukVoice = availableVoices.find(v => v.lang.includes('en')); // Fallback to any English if UK is missing
+            if (!ukVoice) ukVoice = availableVoices.find(v => v.lang.includes('en')); 
             
             if (ukVoice) utterance.voice = ukVoice;
-            
             utterance.rate = 1.05;
             utterance.pitch = 0.9;
-            
             window.speechSynthesis.speak(utterance);
         });
     }
 
-    // --- 5. CONTINUOUS VOICE RECOGNITION (HEARING FIX) ---
+    // --- 5. CONTINUOUS VOICE RECOGNITION ---
     const micIndicator = document.getElementById('micIndicator');
     let recognition;
     let isProcessingCommand = false;
 
     function startContinuousListening() {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            showSubtitle("Microphone hardware not supported in this browser.");
-            return;
-        }
+        if (!SpeechRecognition) return;
 
         recognition = new SpeechRecognition();
         recognition.continuous = true;
-        // BUG FIX: Set lang to en-IN to perfectly understand Indian English accents
         recognition.lang = 'en-IN'; 
         
         recognition.onstart = () => { micIndicator.classList.add('cyan'); micIndicator.classList.remove('red'); };
         
         recognition.onresult = (event) => {
             const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
-            
-            // Make the trigger word slightly more forgiving for recognition
             if ((transcript.includes("ghost") || transcript.includes("host") || transcript.includes("cost")) && !isProcessingCommand) {
-                // Extract everything after the trigger word
                 let command = transcript.split(/ghost|host|cost/).pop().trim();
                 if (command.length > 2) {
                     processCommand(command);
@@ -526,22 +544,46 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- 7. PARSE RESPONSE ---
+    // --- 7. PARSE RESPONSE & LIVE RENDERER ---
     function handleGhostResponse(fullText) {
         const codeRegex = /[\x60]{3}[\s\S]*?[\x60]{3}/g;
         const codeBlocks = fullText.match(codeRegex);
         
+        let foundHtml = false;
+        let htmlContentToRender = "";
+
         if (codeBlocks && codeBlocks.length > 0) {
             codeContent.innerHTML = ''; 
             codeBlocks.forEach(block => {
+                // Add to sidebar
                 let safeBlock = block.replace(/</g, "&lt;").replace(/>/g, "&gt;");
                 safeBlock = safeBlock.replace(/[\x60]{3}(.*?)\n([\s\S]*?)[\x60]{3}/, '<pre data-lang="$1"><code>$2</code></pre>');
                 codeContent.innerHTML += safeBlock;
+
+                // Strip backticks to analyze raw content
+                let rawContent = block.replace(/[\x60]{3}[\w]*\n?/i, '').replace(/[\x60]{3}$/, '').trim();
+                
+                // If the Python execution log dumped raw HTML, intercept it
+                if (rawContent.includes('<!DOCTYPE html>') || (rawContent.includes('<html') && rawContent.includes('</html>'))) {
+                    foundHtml = true;
+                    // Extract just the HTML part from the terminal log
+                    let htmlStartIndex = rawContent.indexOf('<!DOCTYPE html>');
+                    if (htmlStartIndex === -1) htmlStartIndex = rawContent.indexOf('<html');
+                    htmlContentToRender = rawContent.substring(htmlStartIndex);
+                }
             });
             codeSidebar.classList.add('open');
         }
 
-        speakResponse(fullText);
+        // TRIGGER THE LIVE APP VIEWER IF HTML WAS DETECTED
+        if (foundHtml && htmlContentToRender) {
+            appIframe.srcdoc = htmlContentToRender;
+            appViewer.classList.add('open');
+            // Give Ghost a custom spoken response for rendering UI
+            speakResponse("Interface compiled and rendered, Master Manoj.");
+        } else {
+            speakResponse(fullText);
+        }
     }
 }); 
 </script>
