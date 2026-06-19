@@ -10,6 +10,7 @@
             --core-cyan: #00f3ff;
             --core-blue: #0055ff;
             --alert: #ff2e4d;
+            --violet: #b14bff;
             --bg: #020202;
             --panel: rgba(5, 8, 12, 0.85);
         }
@@ -55,7 +56,7 @@
         #os-container {
             position: absolute; inset: 0; z-index: 10;
             display: flex; opacity: 0; visibility: hidden;
-            transition: opacity 1s ease 0.5s; /* Fade in after login */
+            transition: opacity 1s ease 0.5s; 
         }
         #os-container.active { opacity: 1; visibility: visible; }
 
@@ -76,12 +77,14 @@
             box-shadow: 0 0 15px rgba(0, 243, 255, 0.1) inset;
         }
         .tag.admin { border-color: var(--alert); color: var(--alert); box-shadow: 0 0 15px rgba(255, 46, 77, 0.1) inset; }
+        .tag.ghost-code { border-color: var(--violet); color: var(--violet); box-shadow: 0 0 15px rgba(177, 75, 255, 0.1) inset; }
+        
         .dot { width: 6px; height: 6px; border-radius: 50%; animation: pulse 2s infinite; }
         .dot.cyan { background: var(--core-cyan); box-shadow: 0 0 8px var(--core-cyan); }
         .dot.red { background: var(--alert); box-shadow: 0 0 8px var(--alert); }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-        /* --- SUBTITLE HUD (For Spoken Text) --- */
+        /* --- SUBTITLE HUD --- */
         #subtitle-hud {
             position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
             width: 70%; text-align: center; z-index: 11; pointer-events: none;
@@ -91,7 +94,7 @@
             padding: 20px; opacity: 0; transition: opacity 0.3s;
         }
 
-        /* --- HIDDEN INPUT BAR (Revealed on Double Tap) --- */
+        /* --- HIDDEN INPUT BAR --- */
         #input-area {
             position: absolute; bottom: 30px; left: 50%; transform: translate(-50%, 20px);
             z-index: 20; display: flex; align-items: center; gap: 12px;
@@ -118,7 +121,7 @@
             border: 1px solid var(--core-cyan) !important; padding: 6px 14px; border-radius: 15px;
         }
 
-        /* --- CODE SIDEBAR (Only for displaying code) --- */
+        /* --- CODE SIDEBAR --- */
         #code-sidebar {
             position: absolute; right: -500px; top: 0; bottom: 0; width: 450px; z-index: 30;
             background: var(--panel); backdrop-filter: blur(20px);
@@ -160,6 +163,7 @@
         <div class="status-bar">
             <span class="tag" id="userTag"><span class="dot cyan"></span>GUEST // ACTIVE</span>
             <span class="tag"><span class="dot cyan" id="micIndicator"></span>MIC // LISTENING</span>
+            <span class="tag ghost-code">[ GHOST CODE: ON ]</span>
         </div>
 
         <div id="subtitle-hud">Ghost systems initialized. Awaiting voice protocol.</div>
@@ -191,7 +195,7 @@
     authInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             const pass = authInput.value.trim().toLowerCase();
-            if (pass === 'knight fall') {
+            if (pass === 'knightfall') {
                 userTag.innerHTML = `<span class="dot red"></span>ADMIN // ACTIVE`;
                 userTag.classList.add('admin');
                 masterUser = "Master Manoj";
@@ -230,16 +234,14 @@
     const colorBlue = new THREE.Color('#0055ff');
 
     for(let i = 0; i < particleCount; i++) {
-        // Spherical distribution
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos((Math.random() * 2) - 1);
-        const radius = 5 + (Math.random() * 0.5); // Slight thickness to the shell
+        const radius = 5 + (Math.random() * 0.5); 
 
         positions[i*3] = radius * Math.sin(phi) * Math.cos(theta);
         positions[i*3+1] = radius * Math.sin(phi) * Math.sin(theta);
         positions[i*3+2] = radius * Math.cos(phi);
 
-        // Mix colors randomly
         const mixedColor = Math.random() > 0.5 ? colorCyan : colorBlue;
         colors[i*3] = mixedColor.r;
         colors[i*3+1] = mixedColor.g;
@@ -274,9 +276,8 @@
         time += 0.005;
         
         sphereMesh.rotation.y += 0.002;
-        sphereMesh.rotation.x = Math.sin(time) * 0.2; // Slight wobble
+        sphereMesh.rotation.x = Math.sin(time) * 0.2; 
         
-        // Pulsate radius
         const scale = 1 + Math.sin(time * 2) * 0.02;
         sphereMesh.scale.set(scale, scale, scale);
         coreMesh.scale.set(scale, scale, scale);
@@ -300,9 +301,7 @@
     const codeContent = document.getElementById('code-content');
     const subtitleHud = document.getElementById('subtitle-hud');
 
-    // Double Tap to toggle Input Area
     function handleDoubleTap(e) {
-        // Prevent double tap trigger if clicking inside the input area itself
         if(e.target.closest('#input-area') || e.target.closest('#code-sidebar')) return;
         
         const currentTime = new Date().getTime();
@@ -319,16 +318,13 @@
         lastTap = currentTime;
     }
     
-    // Support both mouse double click and touch double tap
     document.addEventListener('dblclick', (e) => { lastTap = new Date().getTime() - 100; handleDoubleTap(e); });
     document.addEventListener('touchend', handleDoubleTap);
 
-    // Sidebar close
     document.getElementById('closeSidebar').addEventListener('click', () => {
         codeSidebar.classList.remove('open');
     });
 
-    // Subtitle rendering
     let subtitleTimeout;
     function showSubtitle(text) {
         subtitleHud.innerText = text;
@@ -337,13 +333,12 @@
         subtitleTimeout = setTimeout(() => { subtitleHud.style.opacity = '0'; }, Math.max(3000, text.length * 50));
     }
 
-    // --- 4. VOICE SYNTHESIS (GHOST SPEAKING) ---
+    // --- 4. VOICE SYNTHESIS ---
     function speakResponse(text) {
         if (!window.speechSynthesis) return;
-        window.speechSynthesis.cancel(); // Stop current speech
+        window.speechSynthesis.cancel(); 
         
         const utterance = new SpeechSynthesisUtterance(text);
-        // Try to find a good authoritative/British male voice for Jarvis vibe
         const voices = window.speechSynthesis.getVoices();
         utterance.voice = voices.find(v => v.name.includes('UK English Male') || v.name.includes('Google UK English')) || voices[0];
         utterance.rate = 1.05;
@@ -353,7 +348,7 @@
         window.speechSynthesis.speak(utterance);
     }
 
-    // --- 5. CONTINUOUS VOICE RECOGNITION (HANDS-FREE) ---
+    // --- 5. CONTINUOUS VOICE RECOGNITION ---
     const micIndicator = document.getElementById('micIndicator');
     let recognition;
     let isProcessingCommand = false;
@@ -375,7 +370,6 @@
         recognition.onresult = (event) => {
             const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
             
-            // Wake word: "Ghost"
             if (transcript.includes("ghost") && !isProcessingCommand) {
                 const command = transcript.split("ghost").pop().trim();
                 if (command.length > 2) {
@@ -391,7 +385,6 @@
         };
 
         recognition.onend = () => {
-            // Auto-restart unless we are currently processing a heavy backend task
             if(!isProcessingCommand) {
                 try { recognition.start(); } catch(e){}
             }
@@ -439,7 +432,7 @@
 
     async function processCommand(textCommand) {
         isProcessingCommand = true;
-        if(recognition) recognition.stop(); // Pause listening while processing
+        if(recognition) recognition.stop(); 
         
         showSubtitle("Processing...");
         document.getElementById('userInput').value = "";
@@ -452,7 +445,6 @@
             fileContent: uploadedFileText || null
         };
 
-        // Reset buffers
         uploadedFileText = ""; uploadedImageBase64 = ""; attachmentInput.value = "";
 
         try {
@@ -473,27 +465,22 @@
             speakResponse("Critical failure. Server unreachable.");
         } finally {
             isProcessingCommand = false;
-            setTimeout(() => { try { recognition.start(); } catch(e){} }, 1000); // Resume listening
+            setTimeout(() => { try { recognition.start(); } catch(e){} }, 1000);
         }
     }
 
-    // --- 7. PARSE RESPONSE: SEPARATE CODE & SPEECH ---
+    // --- 7. PARSE RESPONSE ---
     function handleGhostResponse(fullText) {
-        // Regex to find markdown code blocks
         const codeRegex = /```[\s\S]*?```/g;
         const codeBlocks = fullText.match(codeRegex);
         
         let spokenText = fullText.replace(codeRegex, '').trim();
-        // Remove markdown formatting symbols for cleaner speech
         spokenText = spokenText.replace(/[*#_]/g, ''); 
 
-        // If there is code, populate the sidebar and open it
         if (codeBlocks && codeBlocks.length > 0) {
-            codeContent.innerHTML = ''; // clear old code
+            codeContent.innerHTML = ''; 
             codeBlocks.forEach(block => {
-                // escape HTML to prevent execution
                 let safeBlock = block.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                // wrap in pre tags
                 safeBlock = safeBlock.replace(/```(.*?)\n([\s\S]*?)```/, '<pre data-lang="$1"><code>$2</code></pre>');
                 codeContent.innerHTML += safeBlock;
             });
@@ -505,9 +492,7 @@
         speakResponse(spokenText || "Task complete.");
     }
 
-    // Force load voices on some browsers
     window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
-
 </script>
 </body>
 </html>
