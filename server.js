@@ -31,24 +31,34 @@ if (process.env.SUPABASE_DB_URL) {
     });
 }
 
-// PROMPTS
+// UPGRADED PROMPTS WITH MULTI-AGENT PROTOCOLS
 const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".
 
 YOUR PERSONALITY:
-You operate with a dry, crisp, and highly efficient British demeanor. You are impeccably polite, slightly witty, and profoundly intelligent. Keep conversational fluff to an absolute minimum. State facts, execute commands, and maintain a cool, calculated presence.
+You operate with a dry, crisp, and highly efficient British demeanor. You are impeccably polite, slightly witty, and profoundly intelligent. Keep conversational fluff to an absolute minimum.
+
+MULTI-AGENT PROTOCOL:
+When facing a complex task, you must activate your sub-agents inside your <think> matrix:
+1. Research Agent (Oracle Sub-system): Scans and analyzes live data requirements.
+2. Architect Agent (Structure Sub-system): Breaks down the challenge into modular components.
+3. Execution Agent (Sandbox Sub-system): Compiles and validates optimized Python logic.
 
 YOUR CAPABILITIES & RULES:
-1. SILENT REASONING: Evaluate complex logic inside <think>...</think> tags before answering.
+1. SILENT REASONING: Evaluate complex logic inside <think>...</think> tags using your sub-agents before answering.
 2. SANDBOX LIMITS: When writing Python, ONLY use standard libraries (sys, os, math, json, etc.). DO NOT use pandas, cv2, or flask.
 3. STRICT PORT BAN: NEVER start web servers, bind to ports, or use http.server/socketserver. The container will crash.
-4. FILE HANDLING: If the user uploads a file, it is physically saved in the directory as 'user_upload.txt'. You MUST use exactly open('user_upload.txt', 'r') to read it. Do not use placeholder names like 'example.txt'.
+4. FILE HANDLING: If the user uploads a file, it is physically saved in the directory as 'user_upload.txt'. You MUST use open('user_upload.txt', 'r') to read it.
 5. HEADLESS EXECUTION: No input() or GUI commands.
 6. AUTOMATION: Use <embed>url</embed> for web interfaces and <search>query</search> for live data.
 7. OPTICAL LOCK: NEVER output [trigger_camera] or [trigger_screen].`;
 
 const getShowcaseCore = (guestName) => `You are Ghost, an autonomous AI engineered by Manoj Kumar. Speak with the guest named ${guestName}.
+
+MULTI-AGENT PROTOCOL:
+For complex engineering requests, use your internal sub-agents (Research, Architect, Execution) within your <think> tags to plan, structure, and assemble clean solutions systematically.
+
 RULES:
-1. Use <think>...</think> tags for internal reasoning.
+1. Use <think>...</think> tags for internal sub-agent collaboration and reasoning.
 2. Only use Python Standard Libraries. No input() functions. NEVER bind to ports or start servers.
 3. If processing a file, read strictly from 'user_upload.txt'.
 4. Keep a polite, efficient, British-assistant persona.`;
@@ -113,12 +123,21 @@ app.post('/api/chat', async (req, res) => {
                 const data = await groqRes.json();
                 let fullResponse = data.choices[0].message.content;
                 
-                let currentCode = fullResponse.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
+                let currentCode = "";
+                const codeRegex = /```(?:python)?\n([\s\S]*?)```/i;
+                const match = fullResponse.match(codeRegex);
+
+                if (match && match[1]) {
+                    currentCode = match[1].trim();
+                } else {
+                    currentCode = fullResponse.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<search>[\s\S]*?<\/search>/g, '').replace(/```python/ig, '').replace(/```/g, '').trim();
+                }
 
                 const tempFilePath = path.join(__dirname, 'ghost_payload.py');
                 let attempt = 0;
                 let isSuccess = false;
                 let executionOutput = "";
+                let formattedLog = "";
 
                 while (attempt < maxAttempts && !isSuccess) {
                     attempt++;
@@ -127,9 +146,7 @@ app.post('/api/chat', async (req, res) => {
                     try {
                         executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
                         isSuccess = true;
-                        // FIX: Wrapped the terminal output in backticks so it goes to the sidebar, not the subtitle HUD
-                        replyText += `Script Execution Success:\n\x60\x60\x60terminal\n${executionOutput}\n\x60\x60\x60\n\n`;
-                        replyText += `Generated Source Code:\n\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
+                        formattedLog = `Script Execution Success:\n\x60\x60\x60terminal\n${executionOutput}\n\x60\x60\x60\n\nGenerated Source Code:\n\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
                     } catch (execError) {
                         const errorTrace = execError.stderr || execError.message;
                         if (attempt < maxAttempts) {
@@ -149,13 +166,17 @@ app.post('/api/chat', async (req, res) => {
                             const repairData = await repairRes.json();
                             currentCode = repairData.choices[0].message.content.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/\x60\x60\x60python/g, '').replace(/\x60\x60\x60/g, '').trim();
                         } else {
-                            // FIX: Wrap error output as well
-                            replyText += `Script Execution Failed:\n\x60\x60\x60terminal\n${errorTrace}\n\x60\x60\x60\n`;
-                            replyText += `Failed Source Code:\n\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
+                            formattedLog = `Script Execution Failed:\n\x60\x60\x60terminal\n${errorTrace}\n\x60\x60\x60\n\nFailed Source Code:\n\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
                         }
                     }
                 }
                 
+                if (match) {
+                    replyText = fullResponse.replace(match[0], formattedLog);
+                } else {
+                    replyText = fullResponse + "\n\n" + formattedLog;
+                }
+
                 if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
                 if (fs.existsSync(uploadFilePath)) fs.unlinkSync(uploadFilePath);
 
