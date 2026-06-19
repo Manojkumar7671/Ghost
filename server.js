@@ -152,7 +152,7 @@ app.post('/api/chat', async (req, res) => {
                     ],
                     max_tokens: activeTokens,
                     temperature: 0.1
-                });
+                })
             });
             const data = await nvidiaRes.json();
             if (data.error) throw new Error(`Vision Matrix Error: ${data.error.message || JSON.stringify(data.error)}`);
