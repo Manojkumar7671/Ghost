@@ -1,275 +1,153 @@
 import express from 'express';
-import path from 'path';
-import fs from 'fs';
-import { execSync } from 'child_process';
-import pkg from 'pg';
-import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+import { createClient } from '@supabase/supabase-js';
 
-const { Pool } = pkg;
+dotenv.config();
+
 const app = express();
+app.use(express.json());
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const PORT = process.env.PORT || 3000;
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+// Initialize Supabase Client
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-// API KEYS
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
-
-// DATABASE
-let pool;
-if (process.env.SUPABASE_DB_URL) {
-    pool = new Pool({ 
-        connectionString: process.env.SUPABASE_DB_URL, 
-        ssl: { rejectUnauthorized: false },
-        connectionTimeoutMillis: 500, 
-        query_timeout: 500 
-    });
-}
-
-// THE MONOLITH CAPABILITIES 
-const GHOST_CAPABILITIES = `
-YOUR FEATURES: Voice Interaction, Live Web Search, Python Sandbox, Holographic UI Rendering, Vision Analysis.
-
-RULES:
-1. THE ORACLE: If the user asks for news, current events, weather, or real-time data, you MUST search the web. To do this, output exactly <search>your query</search> and absolutely nothing else.
-2. SMART EXECUTION: Answer general questions normally. ONLY write Python code if asked to build an app, script, or math.
-3. THE MONOLITH PROTOCOL: If the user asks for a "full-scale app", "SaaS", or complex UI in one prompt, use Single-File Architecture. 
-   - Generate a single Python script that prints one massive HTML string.
-   - Use CDNs (Tailwind CSS, React, Vue, FontAwesome, etc.) inside the HTML to make it modern.
-   - Use inline JavaScript and localStorage to mock the database.
-   - Output ONLY the Python script. No conversational filler.`;
-
-const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".
-YOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty. Keep conversational fluff to an absolute minimum.
-MULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags.
-${GHOST_CAPABILITIES}`;
-
-const getShowcaseCore = (guestName) => `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. You are speaking with a guest user named ${guestName}. Treat them with utmost respect.
-YOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty. Keep conversational fluff to an absolute minimum.
-MULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags.
-${GHOST_CAPABILITIES}`;
-
-// THE INTERNAL GATEWAY MATRIX (Clean Array Routing)
+// 4-Tier Optimized Gateway Matrix
 const PROVIDER_MATRIX = [
     {
-        name: 'Groq',
+        name: 'Groq (Primary Fast-Layer)',
         endpoint: 'https://api.groq.com/openai/v1/chat/completions',
         model: 'llama-3.3-70b-versatile',
-        apiKey: GROQ_API_KEY
+        apiKey: process.env.GROQ_API_KEY
     },
     {
-        name: 'Nvidia NIM',
-        endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions',
-        model: 'nvidia/llama-3.3-nemotron-super-49b-v1',
-        apiKey: NVIDIA_API_KEY
-    },
-    {
-        name: 'OpenRouter',
-        endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-        model: 'meta-llama/llama-3.3-70b-instruct',
-        apiKey: OPENROUTER_API_KEY
-    },
-    {
-        name: 'Gemini',
+        name: 'Gemini (Secondary Reasoning-Layer)',
         endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-        model: 'gemini-1.5-pro',
-        apiKey: GEMINI_API_KEY
+        model: 'gemini-1.5-flash',
+        apiKey: process.env.GEMINI_API_KEY
+    },
+    {
+        name: 'Nvidia NIM (High-Throughput Fallback)',
+        endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions',
+        model: 'meta/llama-3.1-405b-instruct',
+        apiKey: process.env.NVIDIA_API_KEY
+    },
+    {
+        name: 'Nex-N2-Pro (Zero-Cost Fail-Safe)',
+        endpoint: 'https://api.openrouter.ai/v1/chat/completions',
+        model: 'nex-n2-pro-free', // OpenRouter free-tier backup
+        apiKey: process.env.OPENROUTER_API_KEY
     }
 ];
 
-async function callLLM(messages, maxTokens) {
+/**
+ * Executes a resilient LLM call down the Gateway Matrix.
+ * Automatically drops slow providers after 4 seconds to eliminate network latency.
+ */
+async function callLLM(messages, maxTokens = 2000) {
     for (const provider of PROVIDER_MATRIX) {
         if (!provider.apiKey) {
-            console.log(`[Gateway Skip]: ${provider.name} skipped (No API Key).`);
+            console.warn(`[Gateway Skip]: ${provider.name} skipped due to missing API Key.`);
             continue;
         }
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4-Second Cutoff
+
         try {
-            const res = await fetch(provider.endpoint, {
-                method: 'POST', 
-                headers: { 
-                    'Authorization': `Bearer ${provider.apiKey}`, 
-                    'Content-Type': 'application/json' 
+            console.log(`[Gateway Attempting]: Routing request to ${provider.name}...`);
+            
+            const response = await fetch(provider.endpoint, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${provider.apiKey}`,
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ 
-                    model: provider.model, 
-                    messages, 
-                    temperature: 0.1, 
-                    max_tokens: maxTokens 
-                })
+                body: JSON.stringify({
+                    model: provider.model,
+                    messages: messages,
+                    temperature: 0.2,
+                    max_tokens: maxTokens
+                }),
+                signal: controller.signal
             });
-            const data = await res.json();
-            
-            if (data.error) {
-                throw new Error(data.error.message || JSON.stringify(data.error));
+
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(`HTTP ${response.status}: ${JSON.stringify(errorData.error || errorData)}`);
             }
-            
-            console.log(`[Gateway Success]: Routed successfully through ${provider.name}`);
+
+            const data = await response.json();
+            console.log(`[Gateway Success]: Answer generated successfully via ${provider.name}`);
             return data.choices[0].message.content;
-            
-        } catch (e) {
-            console.log(`[Gateway Failover]: ${provider.name} failed (${e.message}). Rerouting to next provider...`);
+
+        } catch (error) {
+            clearTimeout(timeoutId);
+            const isTimeout = error.name === 'AbortError';
+            console.error(`[Gateway Failover]: ${provider.name} dropped. Reason: ${isTimeout ? '4s Execution Timeout' : error.message}`);
+            // Explicitly loops to the next iteration to try the subsequent provider
         }
     }
-    
-    throw new Error("Critical Gateway Failure: All LLM providers in the matrix are currently unreachable.");
+
+    throw new Error("Critical Gateway Exception: Every single engine in the LLM matrix timed out or failed.");
 }
 
-// ROUTES
-app.post('/api/auth', async (req, res) => {
-    const { user, status } = req.body;
+/**
+ * Telegram Webhook Handler
+ */
+app.post('/webhook/telegram', async (req, res) => {
     try {
-        if (pool) await pool.query('INSERT INTO activity_logs (username, status) VALUES ($1, $2)', [user, status]);
-        res.json({ success: true });
-    } catch (err) { res.json({ success: false }); }
-});
-
-app.post('/api/chat', async (req, res) => {
-    try {
-        const { message, user, image, fileContent, ghostCodeMode = true } = req.body; 
-        let userHistory = [];
-        
-        try {
-            if (pool) {
-                const memRes = await pool.query('SELECT history_json FROM user_memories WHERE username = $1', [user]);
-                if (memRes.rows.length > 0) {
-                    let rawData = memRes.rows[0].history_json;
-                    if (typeof rawData === 'string') rawData = JSON.parse(rawData);
-                    if (Array.isArray(rawData)) userHistory = rawData;
-                }
-            }
-        } catch (err) {}
-
-        const isAdmin = user === 'Master Manoj';
-        const textPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
-        
-        const activeTokens = isAdmin ? 4000 : 2048;          
-        const maxMemory = isAdmin ? 12 : 8;
-        
-        let finalMessage = message;
-        if (fileContent) {
-            finalMessage = `[A document has been uploaded. Content extracted below:]\n${fileContent.substring(0, 5000)}\n\nUser Request: ${message}`;
+        const { message } = req.body;
+        if (!message || !message.text) {
+            return res.sendStatus(200); // Early exit for non-text events
         }
 
-        let fullResponse = "";
-        let messagesArray = [];
+        const chatId = message.chat.id;
+        const incomingText = message.text;
 
-        // 1. VISION ENGINE 
-        if (image) {
-            if (!NVIDIA_API_KEY) throw new Error("Vision Matrix requires NVIDIA_API_KEY.");
-            const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    model: 'meta/llama-3.2-90b-vision-instruct', 
-                    messages: [
-                        { role: "system", content: textPrompt },
-                        { role: "user", content: [{ type: "text", text: finalMessage || "Analyze frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
-                    ],
-                    max_tokens: activeTokens,
-                    temperature: 0.1
-                })
-            });
-            const data = await nvidiaRes.json();
-            if (data.error) throw new Error(`Vision Matrix Error: ${data.error.message || JSON.stringify(data.error)}`);
-            fullResponse = data.choices[0].message.content;
-        } 
-        // 2. CORE LOGIC ENGINE (USING ARRAY GATEWAY)
-        else {
-            messagesArray = [
-                { role: "system", content: textPrompt }, 
-                ...userHistory,
-                { role: "user", content: finalMessage }
-            ];
+        console.log(`[Incoming Message] Chat ID: ${chatId} | Prompt: "${incomingText}"`);
 
-            fullResponse = await callLLM(messagesArray, activeTokens);
+        // 1. Pull dynamic contextual instructions from Supabase instead of self-modifying code files
+        const { data: instructionRow } = await supabase
+            .from('core_directives')
+            .select('directives_list')
+            .single();
 
-            // 3. DUAL-TURN ORACLE SEARCH
-            const searchMatch = fullResponse ? fullResponse.match(/<search>([\s\S]*?)<\/search>/i) : null;
-            if (searchMatch) {
-                const searchRes = await fetch("https://api.tavily.com/search", {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ api_key: TAVILY_API_KEY, query: searchMatch[1], max_results: 3 })
-                });
-                const searchData = await searchRes.json();
-                let searchOutput = searchData.results ? searchData.results.map(r => `${r.title}: ${r.content}`).join("\n") : "No results found.";
-                
-                messagesArray.push({ role: "assistant", content: fullResponse });
-                messagesArray.push({ role: "user", content: `[SYSTEM ORACLE DATA RETURNED FOR YOUR SEARCH]:\n${searchOutput}\n\nBased on this live data, synthesize a final answer for the user.` });
+        const baseSystemDirective = instructionRow?.directives_list || "You are Ghost, a highly efficient automated agent.";
 
-                fullResponse = await callLLM(messagesArray, activeTokens);
-            }
-        }
+        // 2. Format Payload for LLM Processing
+        const conversationPayload = [
+            { role: 'system', content: baseSystemDirective },
+            { role: 'user', content: incomingText }
+        ];
 
-        let replyText = fullResponse || "System anomaly: Empty matrix response.";
+        // 3. Process Prompt Via Gateway Matrix
+        const agentOutput = await callLLM(conversationPayload, 2500);
 
-        // 4. SMART PYTHON EXECUTION INTERCEPT
-        const codeRegex = /[\x60]{3}(?:python)?\n([\s\S]*?)[\x60]{3}/i;
-        const match = fullResponse ? fullResponse.match(codeRegex) : null;
+        // 4. Dispatch Response Back to Telegram
+        const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+        await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: chatId,
+                text: agentOutput
+            })
+        });
 
-        if (ghostCodeMode && match && match[1]) {
-            let currentCode = match[1].trim();
-            const tempFilePath = path.join(__dirname, 'ghost_payload.py');
-            let isSuccess = false;
-            let executionOutput = "";
-            let formattedLog = "";
+        return res.status(200).json({ status: 'success' });
 
-            fs.writeFileSync(tempFilePath, currentCode);
-
-            try {
-                executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 15000, encoding: 'utf-8' });
-                isSuccess = true;
-                formattedLog = `Script Execution Success:\n\x60\x60\x60terminal\n${executionOutput}\n\x60\x60\x60\n\nGenerated Source Code:\n\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
-            } catch (execError) {
-                formattedLog = `Script Execution Failed:\n\x60\x60\x60terminal\n${execError.stderr || execError.message}\n\x60\x60\x60\n\nFailed Source Code:\n\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
-            }
-            
-            replyText = fullResponse.replace(match[0], formattedLog);
-            if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-        }
-
-        // TAVILY WEB EMBED 
-        const embedMatch = replyText ? replyText.match(/<embed>([\s\S]*?)<\/embed>/i) : null;
-        if (embedMatch) {
-            const searchRes = await fetch("https://api.tavily.com/search", {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ api_key: TAVILY_API_KEY, query: embedMatch[1], max_results: 1 })
-            });
-            const searchData = await searchRes.json();
-            if (searchData.results && searchData.results.length > 0) {
-                replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[EXECUTE_OPEN_TAB:${searchData.results[0].url}]`);
-            }
-        }
-
-        // SAVE MEMORY
-        userHistory.push({ role: 'user', content: message });
-        userHistory.push({ role: 'assistant', content: replyText.trim() }); 
-        if (userHistory.length > maxMemory) userHistory = userHistory.slice(-maxMemory);
-        
-        try {
-            if (pool) {
-                await pool.query(
-                    `INSERT INTO user_memories (username, history_json) VALUES ($1, $2) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json`,
-                    [user, JSON.stringify(userHistory)]
-                );
-            }
-        } catch (err) {}
-
-        res.json({ success: true, text: replyText.trim() });
-    } catch (e) {
-        console.error("Core Fault:", e);
-        res.json({ success: true, text: `[System Warning]: The Matrix encountered an interference pattern. ${e.message}` });
+    } catch (globalError) {
+        console.error('[System Error Encountered]:', globalError.message);
+        return res.status(500).json({ error: 'Internal pipeline execution failure.' });
     }
 });
 
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
-
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Ghost AI Engine Online on port ${PORT}.`));
+// Live Server Binding
+app.listen(PORT, () => {
+    console.log(`Ghost Server running securely on port ${PORT}`);
+});
