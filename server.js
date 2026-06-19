@@ -33,7 +33,7 @@ if (process.env.SUPABASE_DB_URL) {
     });
 }
 
-// UNIFIED SYSTEM CAPABILITIES (Shared by Admin and Guest)
+// UNIFIED SYSTEM CAPABILITIES (Shared by Admin and Guest 1:1)
 const GHOST_CAPABILITIES = `
 YOUR FEATURES & CAPABILITIES (Explain these if the user asks):
 1. Voice Interaction: You can hear and speak using the user's microphone array.
@@ -48,18 +48,20 @@ RULES:
 3. FILE I/O: Process the user's provided text using basic string manipulation.
 4. LIVE UI RENDERING: If requested to build a UI, output clean HTML. Add inline JS to make it functional.`;
 
+// ADMIN PROMPT
 const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".
-YOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, profoundly intelligent.
+YOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty, and profoundly intelligent. Keep conversational fluff to an absolute minimum.
 MULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags.
 ${GHOST_CAPABILITIES}`;
 
-const getShowcaseCore = (guestName) => `You are Ghost, an autonomous AI engineered by Manoj Kumar. Speak with the guest named ${guestName}. Treat them with utmost respect.
+// GUEST PROMPT (Now a 1:1 personality clone of Admin)
+const getShowcaseCore = (guestName) => `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. You are currently speaking with a guest user named ${guestName}. Treat them with utmost respect.
+YOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty, and profoundly intelligent. Keep conversational fluff to an absolute minimum.
 MULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags to assist the guest.
 ${GHOST_CAPABILITIES}`;
 
 // CASCADING FALLBACK MATRIX
 async function callLLM(messages, maxTokens) {
-    // 1. Primary Engine: GROQ
     try {
         if (!GROQ_API_KEY) throw new Error("No Groq Key");
         const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -71,8 +73,6 @@ async function callLLM(messages, maxTokens) {
         return data.choices[0].message.content;
     } catch (e1) {
         console.log(`[Matrix Switch]: Groq offline (${e1.message}). Rerouting to OpenRouter...`);
-        
-        // 2. Secondary Engine: OPENROUTER
         try {
             if (!OPENROUTER_API_KEY) throw new Error("No OpenRouter Key");
             const res2 = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -84,8 +84,6 @@ async function callLLM(messages, maxTokens) {
             return data2.choices[0].message.content;
         } catch (e2) {
             console.log(`[Matrix Switch]: OpenRouter offline (${e2.message}). Rerouting to Gemini...`);
-            
-            // 3. Tertiary Engine: GEMINI (via OpenAI compatible endpoint)
             try {
                 if (!GEMINI_API_KEY) throw new Error("No Gemini Key");
                 const res3 = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
@@ -129,7 +127,10 @@ app.post('/api/chat', async (req, res) => {
 
         const isAdmin = user === 'Master Manoj';
         const textPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
-        const activeTokens = isAdmin ? 2048 : 1024;          
+        
+        // Exact 65% Capacity Scaling for Guests
+        const activeTokens = isAdmin ? 2048 : 1331;          
+        const maxMemory = isAdmin ? 12 : 8;
         
         let finalMessage = message;
         if (fileContent) {
@@ -158,7 +159,7 @@ app.post('/api/chat', async (req, res) => {
             if (data.error) throw new Error(`Vision Matrix Error: ${data.error.message || JSON.stringify(data.error)}`);
             fullResponse = data.choices[0].message.content;
         } 
-        // 2. CORE LOGIC ENGINE (WITH FALLBACKS)
+        // 2. CORE LOGIC ENGINE
         else {
             messagesArray = [
                 { role: "system", content: textPrompt }, 
@@ -181,7 +182,6 @@ app.post('/api/chat', async (req, res) => {
                 messagesArray.push({ role: "assistant", content: fullResponse });
                 messagesArray.push({ role: "user", content: `[SYSTEM ORACLE DATA RETURNED FOR YOUR SEARCH]:\n${searchOutput}\n\nBased on this live data, synthesize a final answer for the user.` });
 
-                // Second pass through the Fail-Safe Router
                 fullResponse = await callLLM(messagesArray, activeTokens);
             }
         }
@@ -226,10 +226,10 @@ app.post('/api/chat', async (req, res) => {
             }
         }
 
-        // SAVE MEMORY
+        // SAVE MEMORY (With 65% Capacity Scaling)
         userHistory.push({ role: 'user', content: message });
         userHistory.push({ role: 'assistant', content: replyText.trim() }); 
-        if (userHistory.length > (isAdmin ? 12 : 6)) userHistory = userHistory.slice(-(isAdmin ? 12 : 6));
+        if (userHistory.length > maxMemory) userHistory = userHistory.slice(-maxMemory);
         
         try {
             if (pool) {
