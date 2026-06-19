@@ -16,11 +16,11 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // API KEYS
+const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
-const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
 
 // DATABASE
 let pool;
@@ -33,68 +33,81 @@ if (process.env.SUPABASE_DB_URL) {
     });
 }
 
-// UNIFIED SYSTEM CAPABILITIES (Shared by Admin and Guest 1:1)
+// THE MONOLITH CAPABILITIES (Shared by Admin and Guest 1:1)
 const GHOST_CAPABILITIES = `
-YOUR FEATURES & CAPABILITIES (Explain these if the user asks):
-1. Voice Interaction: You can hear and speak using the user's microphone array.
-2. The Oracle (Live Data): You can search the live web by outputting <search>query</search>.
-3. Python Sandbox: You can write Python code. The matrix intercepts it, runs it autonomously, and prints the logs to the user's sidebar.
-4. Holographic UI Rendering: If requested to build a web interface/dashboard, you write Python to output raw HTML. The Matrix intercepts the HTML and renders it LIVE on screen.
-5. Vision & Document Analysis: You can analyze uploaded images and PDF documents natively.
+YOUR FEATURES: Voice Interaction, Live Web Search, Python Sandbox, Holographic UI Rendering, Vision Analysis.
 
 RULES:
-1. SMART EXECUTION: If the user asks a general question, for the weather, or for a conversational response, JUST REPLY NORMALLY. ONLY write Python code (inside \`\`\`python blocks) if they explicitly ask for an app, a script, math, or automation.
-2. SANDBOX LIMITS: When writing Python, use ONLY standard built-in libraries (json, math, re, os, sys, urllib). DO NOT use nltk, pandas, requests, or PyPDF2. 
-3. FILE I/O: Process the user's provided text using basic string manipulation.
-4. LIVE UI RENDERING: If requested to build a UI, output clean HTML. Add inline JS to make it functional.`;
+1. SMART EXECUTION: Answer general questions normally. ONLY write Python code if asked to build an app, script, or math.
+2. SANDBOX LIMITS: Use ONLY standard built-in Python libraries.
+3. THE MONOLITH PROTOCOL (FULL-SCALE APPS): If the user asks for a "full-scale app", "SaaS", or complex UI in one prompt, you MUST use Single-File Architecture. 
+   - Generate a single Python script that prints one massive HTML string.
+   - Use CDNs (Tailwind CSS, React, Vue, FontAwesome, etc.) inside the HTML to make it beautiful and modern.
+   - You CANNOT build a real backend in one file. You MUST use inline JavaScript and localStorage to mock the database, auth, and state so the app works perfectly and interactively in the browser.
+   - Output ONLY the Python script. No conversational filler.`;
 
-// ADMIN PROMPT
 const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".
 YOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty, and profoundly intelligent. Keep conversational fluff to an absolute minimum.
 MULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags.
 ${GHOST_CAPABILITIES}`;
 
-// GUEST PROMPT (Now a 1:1 personality clone of Admin)
 const getShowcaseCore = (guestName) => `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. You are currently speaking with a guest user named ${guestName}. Treat them with utmost respect.
 YOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty, and profoundly intelligent. Keep conversational fluff to an absolute minimum.
 MULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags to assist the guest.
 ${GHOST_CAPABILITIES}`;
 
-// CASCADING FALLBACK MATRIX
+// CASCADING FALLBACK MATRIX (NVIDIA NOW PRIMARY)
 async function callLLM(messages, maxTokens) {
+    // 1. Primary Engine: NVIDIA NIM (Llama 3.1 405B)
     try {
-        if (!GROQ_API_KEY) throw new Error("No Groq Key");
-        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: 'POST', headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages, temperature: 0.1, max_tokens: maxTokens })
+        if (!NVIDIA_API_KEY) throw new Error("No Nvidia Key");
+        const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+            method: 'POST', headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: 'meta/llama-3.1-405b-instruct', messages, temperature: 0.1, max_tokens: maxTokens })
         });
         const data = await res.json();
-        if (data.error) throw new Error(data.error.message);
+        if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
         return data.choices[0].message.content;
     } catch (e1) {
-        console.log(`[Matrix Switch]: Groq offline (${e1.message}). Rerouting to OpenRouter...`);
+        console.log(`[Matrix Switch]: Nvidia offline (${e1.message}). Rerouting to Groq...`);
+        
+        // 2. Secondary Engine: GROQ
         try {
-            if (!OPENROUTER_API_KEY) throw new Error("No OpenRouter Key");
-            const res2 = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                method: 'POST', headers: { 'Authorization': `Bearer ${OPENROUTER_API_KEY}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: 'meta-llama/llama-3.3-70b-instruct', messages, temperature: 0.1, max_tokens: maxTokens })
+            if (!GROQ_API_KEY) throw new Error("No Groq Key");
+            const res2 = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                method: 'POST', headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages, temperature: 0.1, max_tokens: maxTokens })
             });
             const data2 = await res2.json();
             if (data2.error) throw new Error(data2.error.message);
             return data2.choices[0].message.content;
         } catch (e2) {
-            console.log(`[Matrix Switch]: OpenRouter offline (${e2.message}). Rerouting to Gemini...`);
+            console.log(`[Matrix Switch]: Groq offline (${e2.message}). Rerouting to OpenRouter...`);
+            
+            // 3. Tertiary Engine: OPENROUTER
             try {
-                if (!GEMINI_API_KEY) throw new Error("No Gemini Key");
-                const res3 = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
-                    method: 'POST', headers: { 'Authorization': `Bearer ${GEMINI_API_KEY}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: 'gemini-1.5-pro', messages, temperature: 0.1, max_tokens: maxTokens })
+                if (!OPENROUTER_API_KEY) throw new Error("No OpenRouter Key");
+                const res3 = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: 'POST', headers: { 'Authorization': `Bearer ${OPENROUTER_API_KEY}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: 'meta-llama/llama-3.3-70b-instruct', messages, temperature: 0.1, max_tokens: maxTokens })
                 });
                 const data3 = await res3.json();
                 if (data3.error) throw new Error(data3.error.message);
                 return data3.choices[0].message.content;
             } catch (e3) {
-                throw new Error("Critical System Failure: Groq, OpenRouter, and Gemini are all unreachable.");
+                // 4. Final Fail-Safe: GEMINI
+                try {
+                    if (!GEMINI_API_KEY) throw new Error("No Gemini Key");
+                    const res4 = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+                        method: 'POST', headers: { 'Authorization': `Bearer ${GEMINI_API_KEY}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ model: 'gemini-1.5-pro', messages, temperature: 0.1, max_tokens: maxTokens })
+                    });
+                    const data4 = await res4.json();
+                    if (data4.error) throw new Error(data4.error.message);
+                    return data4.choices[0].message.content;
+                } catch (e4) {
+                    throw new Error("Critical System Failure: All API matrices are unreachable.");
+                }
             }
         }
     }
@@ -128,8 +141,8 @@ app.post('/api/chat', async (req, res) => {
         const isAdmin = user === 'Master Manoj';
         const textPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
         
-        // Exact 65% Capacity Scaling for Guests
-        const activeTokens = isAdmin ? 2048 : 1331;          
+        // Push limits slightly higher for full-scale app generation
+        const activeTokens = isAdmin ? 4000 : 2048;          
         const maxMemory = isAdmin ? 12 : 8;
         
         let finalMessage = message;
@@ -140,7 +153,7 @@ app.post('/api/chat', async (req, res) => {
         let fullResponse = "";
         let messagesArray = [];
 
-        // 1. VISION ENGINE
+        // 1. VISION ENGINE (Stays on Nvidia Vision)
         if (image) {
             const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
                 method: 'POST',
@@ -159,7 +172,7 @@ app.post('/api/chat', async (req, res) => {
             if (data.error) throw new Error(`Vision Matrix Error: ${data.error.message || JSON.stringify(data.error)}`);
             fullResponse = data.choices[0].message.content;
         } 
-        // 2. CORE LOGIC ENGINE
+        // 2. CORE LOGIC ENGINE (NVIDIA PRIMARY)
         else {
             messagesArray = [
                 { role: "system", content: textPrompt }, 
@@ -202,7 +215,7 @@ app.post('/api/chat', async (req, res) => {
             fs.writeFileSync(tempFilePath, currentCode);
 
             try {
-                executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
+                executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 15000, encoding: 'utf-8' });
                 isSuccess = true;
                 formattedLog = `Script Execution Success:\n\x60\x60\x60terminal\n${executionOutput}\n\x60\x60\x60\n\nGenerated Source Code:\n\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
             } catch (execError) {
@@ -226,7 +239,7 @@ app.post('/api/chat', async (req, res) => {
             }
         }
 
-        // SAVE MEMORY (With 65% Capacity Scaling)
+        // SAVE MEMORY
         userHistory.push({ role: 'user', content: message });
         userHistory.push({ role: 'assistant', content: replyText.trim() }); 
         if (userHistory.length > maxMemory) userHistory = userHistory.slice(-maxMemory);
