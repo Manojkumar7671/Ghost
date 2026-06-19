@@ -31,86 +31,189 @@ if (process.env.SUPABASE_DB_URL) {
     });
 }
 
-// UPGRADED PROMPTS
-const GHOST_ADMIN_CORE = `You are Ghost. You are an elite AI system.
-RULES FOR CODING:
-1. When generating HTML/CSS, print ONLY the HTML string to the terminal.
-2. DO NOT include Python function definitions, comments, or 'print' statements in the final HTML output.
-3. Keep all Python logic for generation inside the .py file; output strictly the final HTML string.
-4. If building a UI, output clean, minified, or well-structured HTML code. NO GHOST TEXT.`;
+// UNIFIED SYSTEM CAPABILITIES (Shared by Admin and Guest)
+const GHOST_CAPABILITIES = `
+YOUR FEATURES & CAPABILITIES (Explain these if the user asks):
+1. Voice Interaction: You can hear and speak using the user's microphone array.
+2. The Oracle (Live Data): You can search the live web by outputting <search>query</search>.
+3. Python Sandbox: You can write Python code. The matrix intercepts it, runs it autonomously, and prints the logs to the user's sidebar.
+4. Holographic UI Rendering: If requested to build a web interface/dashboard, you write Python to output raw HTML. The Matrix intercepts the HTML and renders it LIVE on screen.
+5. Vision & Document Analysis: You can analyze uploaded images and PDF documents natively.
+
+RULES:
+1. SMART EXECUTION: If the user asks a general question, for the weather, or for a conversational response, JUST REPLY NORMALLY. ONLY write Python code (inside \`\`\`python blocks) if they explicitly ask for an app, a script, math, or automation.
+2. SANDBOX LIMITS: When writing Python, use ONLY standard built-in libraries (json, math, re, os, sys, urllib). DO NOT use nltk, pandas, requests, or PyPDF2. 
+3. FILE I/O: Process the user's provided text using basic string manipulation.
+4. LIVE UI RENDERING: If requested to build a UI, output clean HTML. Add inline JS to make it functional.`;
+
+const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".
+YOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, profoundly intelligent.
+MULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags.
+${GHOST_CAPABILITIES}`;
+
+const getShowcaseCore = (guestName) => `You are Ghost, an autonomous AI engineered by Manoj Kumar. Speak with the guest named ${guestName}. Treat them with utmost respect.
+MULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags to assist the guest.
+${GHOST_CAPABILITIES}`;
+
+// ROUTES
+app.post('/api/auth', async (req, res) => {
+    const { user, status } = req.body;
+    try {
+        if (pool) await pool.query('INSERT INTO activity_logs (username, status) VALUES ($1, $2)', [user, status]);
+        res.json({ success: true });
+    } catch (err) { res.json({ success: false }); }
+});
 
 app.post('/api/chat', async (req, res) => {
     try {
         const { message, user, image, fileContent, ghostCodeMode = true } = req.body; 
-        const isAdmin = user === 'Master Manoj';
-        let replyText = "";
-
-        // PYTHON EXECUTION MATRIX
-        if (ghostCodeMode && !image) {
-            try {
-                const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        model: 'llama-3.3-70b-versatile', 
-                        messages: [
-                            { role: "system", content: GHOST_ADMIN_CORE }, 
-                            { role: "user", content: `Generate a script to output ONLY clean HTML for: ${message}` }
-                        ], 
-                        temperature: 0.1,
-                        max_tokens: 2048 
-                    })
-                });
-                const data = await groqRes.json();
-                let fullResponse = data.choices[0].message.content;
-                
-                // Surgical Regex: Extract ONLY the code block
-                const codeRegex = /[\x60]{3}(?:python|html|javascript)?\n([\s\S]*?)[\x60]{3}/i;
-                const match = fullResponse.match(codeRegex);
-                let currentCode = match ? match[1].trim() : fullResponse;
-
-                const tempFilePath = path.join(__dirname, 'ghost_payload.py');
-                fs.writeFileSync(tempFilePath, currentCode);
-
-                try {
-                    // Execute and capture ONLY standard output
-                    const executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
-                    replyText = executionOutput.trim();
-                } catch (execError) {
-                    replyText = `[Execution Error]: ${execError.message}`;
+        let userHistory = [];
+        
+        try {
+            if (pool) {
+                const memRes = await pool.query('SELECT history_json FROM user_memories WHERE username = $1', [user]);
+                if (memRes.rows.length > 0) {
+                    let rawData = memRes.rows[0].history_json;
+                    if (typeof rawData === 'string') rawData = JSON.parse(rawData);
+                    if (Array.isArray(rawData)) userHistory = rawData;
                 }
-
-                if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-
-            } catch (error) {
-                replyText = `[Matrix Fault: ${error.message}]`;
             }
-        } 
-        // VISION MATRIX
-        else if (image) {
+        } catch (err) {}
+
+        const isAdmin = user === 'Master Manoj';
+        const textPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
+        
+        // Unified Engine: Both use Llama 70b, Guest is slightly capped on output tokens (65% capacity equivalent)
+        const activeModel = 'llama-3.3-70b-versatile';
+        const activeTokens = isAdmin ? 2048 : 1024;          
+        
+        let finalMessage = message;
+        if (fileContent) {
+            finalMessage = `[A document has been uploaded. Content extracted below:]\n${fileContent.substring(0, 5000)}\n\nUser Request: ${message}`;
+        }
+
+        let fullResponse = "";
+        let messagesArray = [];
+
+        // 1. VISION ENGINE
+        if (image) {
             const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     model: 'meta/llama-3.2-90b-vision-instruct', 
                     messages: [
-                        { role: "user", content: [{ type: "text", text: message || "What is this?" }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
+                        { role: "system", content: textPrompt },
+                        { role: "user", content: [{ type: "text", text: finalMessage || "Analyze frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
                     ],
-                    max_tokens: 512,
+                    max_tokens: activeTokens,
                     temperature: 0.1
                 })
             });
             const data = await nvidiaRes.json();
-            replyText = data.choices[0].message.content;
+            fullResponse = data.choices[0].message.content;
+        } 
+        // 2. CORE LOGIC ENGINE
+        else {
+            messagesArray = [
+                { role: "system", content: textPrompt }, 
+                ...userHistory,
+                { role: "user", content: finalMessage }
+            ];
+
+            const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: activeModel, messages: messagesArray, temperature: 0.1, max_tokens: activeTokens })
+            });
+            const data = await groqRes.json();
+            fullResponse = data.choices[0].message.content;
+
+            // 3. DUAL-TURN ORACLE SEARCH
+            const searchMatch = fullResponse.match(/<search>([\s\S]*?)<\/search>/i);
+            if (searchMatch) {
+                const searchRes = await fetch("https://api.tavily.com/search", {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: TAVILY_API_KEY, query: searchMatch[1], max_results: 3 })
+                });
+                const searchData = await searchRes.json();
+                let searchOutput = searchData.results.map(r => `${r.title}: ${r.content}`).join("\n");
+                
+                messagesArray.push({ role: "assistant", content: fullResponse });
+                messagesArray.push({ role: "user", content: `[SYSTEM ORACLE DATA RETURNED FOR YOUR SEARCH]:\n${searchOutput}\n\nBased on this live data, synthesize a final answer for the user.` });
+
+                const secondGroqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: activeModel, messages: messagesArray, temperature: 0.1, max_tokens: activeTokens })
+                });
+                const secondData = await secondGroqRes.json();
+                fullResponse = secondData.choices[0].message.content;
+            }
         }
 
-        res.json({ success: true, text: replyText });
+        let replyText = fullResponse;
+
+        // 4. SMART PYTHON EXECUTION INTERCEPT
+        const codeRegex = /[\x60]{3}(?:python)?\n([\s\S]*?)[\x60]{3}/i;
+        const match = fullResponse.match(codeRegex);
+
+        if (ghostCodeMode && match && match[1]) {
+            let currentCode = match[1].trim();
+            const tempFilePath = path.join(__dirname, 'ghost_payload.py');
+            let isSuccess = false;
+            let executionOutput = "";
+            let formattedLog = "";
+
+            fs.writeFileSync(tempFilePath, currentCode);
+
+            try {
+                executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 10000, encoding: 'utf-8' });
+                isSuccess = true;
+                formattedLog = `Script Execution Success:\n\x60\x60\x60terminal\n${executionOutput}\n\x60\x60\x60\n\nGenerated Source Code:\n\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
+            } catch (execError) {
+                formattedLog = `Script Execution Failed:\n\x60\x60\x60terminal\n${execError.stderr || execError.message}\n\x60\x60\x60\n\nFailed Source Code:\n\x60\x60\x60python\n${currentCode}\n\x60\x60\x60\n`;
+            }
+            
+            replyText = fullResponse.replace(match[0], formattedLog);
+            if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+        }
+
+        // TAVILY WEB EMBED
+        const embedMatch = replyText.match(/<embed>([\s\S]*?)<\/embed>/i);
+        if (embedMatch) {
+            const searchRes = await fetch("https://api.tavily.com/search", {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: TAVILY_API_KEY, query: embedMatch[1], max_results: 1 })
+            });
+            const searchData = await searchRes.json();
+            if (searchData.results && searchData.results.length > 0) {
+                replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[EXECUTE_OPEN_TAB:${searchData.results[0].url}]`);
+            }
+        }
+
+        // SAVE MEMORY
+        userHistory.push({ role: 'user', content: message });
+        userHistory.push({ role: 'assistant', content: replyText.trim() }); 
+        if (userHistory.length > (isAdmin ? 12 : 6)) userHistory = userHistory.slice(-(isAdmin ? 12 : 6));
+        
+        try {
+            if (pool) {
+                await pool.query(
+                    `INSERT INTO user_memories (username, history_json) VALUES ($1, $2) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json`,
+                    [user, JSON.stringify(userHistory)]
+                );
+            }
+        } catch (err) {}
+
+        res.json({ success: true, text: replyText.trim() });
     } catch (e) {
-        res.json({ success: false, text: "System fault." });
+        console.error("Core Fault:", e);
+        res.json({ success: false, text: "System error: Matrix routing fault." });
     }
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Ghost Online.`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Ghost AI Engine Online on port ${PORT}.`));

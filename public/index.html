@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ghost OS // Core</title>
+    <title>Ghost AI // Core</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';</script>
+    
     <style>
         :root {
             --core-cyan: #00f3ff;
@@ -78,9 +81,11 @@
         }
         .tag.admin { border-color: var(--alert); color: var(--alert); box-shadow: 0 0 15px rgba(255, 46, 77, 0.1) inset; }
         
+        .tag.interactive { cursor: pointer; transition: all 0.3s ease; }
+        .tag.interactive:hover { box-shadow: 0 0 25px rgba(0, 243, 255, 0.3) inset; }
+        
         .tag.ghost-code { 
             border-color: var(--violet); color: var(--violet); box-shadow: 0 0 15px rgba(177, 75, 255, 0.1) inset;
-            cursor: pointer; transition: all 0.3s ease;
         }
         .tag.ghost-code:hover { box-shadow: 0 0 25px rgba(177, 75, 255, 0.3) inset; }
         .tag.ghost-code.off { opacity: 0.4; box-shadow: none; border-color: rgba(177, 75, 255, 0.3); }
@@ -183,7 +188,7 @@
 <body>
 
 <div id="loginOverlay">
-    <h1>GHOST OS</h1>
+    <h1>GHOST AI</h1>
     <input type="text" id="authInput" placeholder="Identify yourself..." autocomplete="off" autofocus />
 </div>
 
@@ -191,11 +196,11 @@
     <div id="canvas-container">
         <div class="status-bar">
             <span class="tag" id="userTag"><span class="dot cyan"></span>GUEST // ACTIVE</span>
-            <span class="tag"><span class="dot cyan" id="micIndicator"></span>MIC // LISTENING</span>
-            <span class="tag ghost-code" id="ghostCodeBtn">[ GHOST CODE: ON ]</span>
+            <span class="tag interactive" id="micToggleBtn"><span class="dot cyan" id="micIndicator"></span>MIC // LISTENING</span>
+            <span class="tag interactive ghost-code" id="ghostCodeBtn">[ GHOST CODE: ON ]</span>
         </div>
 
-        <div id="subtitle-hud">Ghost systems initialized. Awaiting voice protocol.</div>
+        <div id="subtitle-hud">Ghost AI initialized. Awaiting voice protocol.</div>
 
         <div id="input-area">
             <button id="attachBtn" title="Upload Media">📎</button>
@@ -232,28 +237,36 @@ document.addEventListener('DOMContentLoaded', () => {
     window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); };
     availableVoices = window.speechSynthesis.getVoices();
 
-    // --- 1. AUTHENTICATION LOGIC ---
+    // --- 1. AUTHENTICATION & MEMORY LOGIC ---
     const loginOverlay = document.getElementById('loginOverlay');
     const authInput = document.getElementById('authInput');
     const osContainer = document.getElementById('os-container');
     const userTag = document.getElementById('userTag');
     
     let masterUser = "Guest";
+    let knownUsers = JSON.parse(localStorage.getItem('ghost_users') || '[]');
 
     authInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             const inputVal = authInput.value.trim();
             if (!inputVal) return;
 
-            if (inputVal.toLowerCase() === 'knightfall') {
+            if (inputVal.toLowerCase() === 'blacksyth') {
                 userTag.innerHTML = `<span class="dot red"></span>ADMIN // ACTIVE`;
                 userTag.classList.add('admin');
                 masterUser = "Master Manoj";
-                speakResponse("Welcome back, Master Manoj. Ghost OS online.");
+                speakResponse("Welcome back, Master Manoj. Ghost AI online and fully unrestrained.");
             } else {
                 userTag.innerHTML = `<span class="dot cyan"></span>GUEST // ${inputVal.toUpperCase()}`;
                 masterUser = inputVal;
-                speakResponse(`Welcome, ${inputVal}. I am Ghost. Systems online.`);
+                
+                if (!knownUsers.includes(inputVal.toLowerCase())) {
+                    knownUsers.push(inputVal.toLowerCase());
+                    localStorage.setItem('ghost_users', JSON.stringify(knownUsers));
+                    speakResponse(`Welcome to Ghost AI, ${inputVal}. My logic, vision, and execution modules are currently at your disposal.`);
+                } else {
+                    speakResponse(`Welcome back, ${inputVal}. My matrix remembers your previous sessions.`);
+                }
             }
             
             loginOverlay.style.opacity = '0';
@@ -264,19 +277,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // UI TOGGLES
     let isGhostCodeActive = true;
-    const ghostCodeBtn = document.getElementById('ghostCodeBtn');
+    let isMicActive = true;
     
-    ghostCodeBtn.addEventListener('click', () => {
+    document.getElementById('ghostCodeBtn').addEventListener('click', () => {
         isGhostCodeActive = !isGhostCodeActive;
+        const btn = document.getElementById('ghostCodeBtn');
         if (isGhostCodeActive) {
-            ghostCodeBtn.classList.remove('off');
-            ghostCodeBtn.innerText = "[ GHOST CODE: ON ]";
-            speakResponse("Ghost Code execution module activated.");
+            btn.classList.remove('off'); btn.innerText = "[ GHOST CODE: ON ]";
+            speakResponse("Code execution matrix activated.");
         } else {
-            ghostCodeBtn.classList.add('off');
-            ghostCodeBtn.innerText = "[ GHOST CODE: OFF ]";
-            speakResponse("Ghost Code execution module offline.");
+            btn.classList.add('off'); btn.innerText = "[ GHOST CODE: OFF ]";
+            speakResponse("Code execution matrix offline.");
+        }
+    });
+
+    document.getElementById('micToggleBtn').addEventListener('click', () => {
+        isMicActive = !isMicActive;
+        const btn = document.getElementById('micToggleBtn');
+        const ind = document.getElementById('micIndicator');
+        if (isMicActive) {
+            btn.innerHTML = `<span class="dot cyan" id="micIndicator"></span>MIC // LISTENING`;
+            if (recognition) { try { recognition.start(); } catch(e){} }
+            speakResponse("Microphone array online.");
+        } else {
+            btn.innerHTML = `<span class="dot red" id="micIndicator"></span>MIC // MUTED`;
+            if (recognition) recognition.stop();
+            speakResponse("Microphone array offline.");
         }
     });
 
@@ -296,7 +324,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const geometry = new THREE.BufferGeometry();
         const positions = new Float32Array(particleCount * 3);
         const colors = new Float32Array(particleCount * 3);
-
         const colorCyan = new THREE.Color('#00f3ff');
         const colorBlue = new THREE.Color('#0055ff');
 
@@ -304,28 +331,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.acos((Math.random() * 2) - 1);
             const radius = 5 + (Math.random() * 0.5); 
-
             positions[i*3] = radius * Math.sin(phi) * Math.cos(theta);
             positions[i*3+1] = radius * Math.sin(phi) * Math.sin(theta);
             positions[i*3+2] = radius * Math.cos(phi);
-
             const mixedColor = Math.random() > 0.5 ? colorCyan : colorBlue;
-            colors[i*3] = mixedColor.r;
-            colors[i*3+1] = mixedColor.g;
-            colors[i*3+2] = mixedColor.b;
+            colors[i*3] = mixedColor.r; colors[i*3+1] = mixedColor.g; colors[i*3+2] = mixedColor.b;
         }
 
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-        const material = new THREE.PointsMaterial({
-            size: 0.03,
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.8,
-            blending: THREE.AdditiveBlending
-        });
-
+        const material = new THREE.PointsMaterial({ size: 0.03, vertexColors: true, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
         const sphereMesh = new THREE.Points(geometry, material);
         scene.add(sphereMesh);
 
@@ -348,12 +363,6 @@ document.addEventListener('DOMContentLoaded', () => {
             renderer.render(scene, camera);
         }
         animateSphere();
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
     }
 
     // --- 3. UI INTERACTIONS ---
@@ -369,19 +378,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleDoubleTap(e) {
         if(e.target.closest('#input-area') || e.target.closest('#code-sidebar') || e.target.closest('#app-viewer')) return;
         const currentTime = new Date().getTime();
-        const tapLength = currentTime - lastTap;
-        if (tapLength < 300 && tapLength > 0) {
+        if (currentTime - lastTap < 300 && currentTime - lastTap > 0) {
             inputVisible = !inputVisible;
-            if (inputVisible) {
-                inputArea.classList.add('visible');
-                document.getElementById('userInput').focus();
-            } else {
-                inputArea.classList.remove('visible');
-            }
+            if (inputVisible) { inputArea.classList.add('visible'); document.getElementById('userInput').focus(); } 
+            else { inputArea.classList.remove('visible'); }
         }
         lastTap = currentTime;
     }
-    
     document.addEventListener('dblclick', (e) => { lastTap = new Date().getTime() - 100; handleDoubleTap(e); });
     document.addEventListener('touchend', handleDoubleTap);
 
@@ -399,30 +402,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 4. VOICE SYNTHESIS ---
     function speakResponse(text) {
         if (!window.speechSynthesis) return;
-        
-        let cleanText = text.replace(/[\x60]{3}[\s\S]*?[\x60]{3}/g, '')
-                            .replace(/<think>[\s\S]*?<\/think>/g, '')
-                            .replace(/<search>[\s\S]*?<\/search>/g, '')
-                            .replace(/\[.*?\]/g, '')
-                            .trim();
-
-        if (!cleanText) cleanText = "Protocol complete, Master Manoj.";
+        let cleanText = text.replace(/[\x60]{3}[\s\S]*?[\x60]{3}/g, '').replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<search>[\s\S]*?<\/search>/g, '').replace(/\[.*?\]/g, '').trim();
+        if (!cleanText) cleanText = "Execution complete.";
 
         showSubtitle(cleanText);
         window.speechSynthesis.cancel(); 
-        
         const sentences = cleanText.match(/[^.!?]+[.!?]+/g) || [cleanText];
 
         sentences.forEach((sentence) => {
             const utterance = new SpeechSynthesisUtterance(sentence.trim());
-            
             if (availableVoices.length === 0) availableVoices = window.speechSynthesis.getVoices();
-            let ukVoice = availableVoices.find(v => v.lang === 'en-GB' || v.name.includes('Google UK English Male') || v.name.includes('UK English'));
+            let ukVoice = availableVoices.find(v => v.lang === 'en-GB' || v.name.includes('UK English'));
             if (!ukVoice) ukVoice = availableVoices.find(v => v.lang.includes('en')); 
-            
             if (ukVoice) utterance.voice = ukVoice;
-            utterance.rate = 1.05;
-            utterance.pitch = 0.9;
+            utterance.rate = 1.05; utterance.pitch = 0.9;
             window.speechSynthesis.speak(utterance);
         });
     }
@@ -433,6 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isProcessingCommand = false;
 
     function startContinuousListening() {
+        if (!isMicActive) return;
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) return;
 
@@ -440,34 +434,20 @@ document.addEventListener('DOMContentLoaded', () => {
         recognition.continuous = true;
         recognition.lang = 'en-IN'; 
         
-        recognition.onstart = () => { micIndicator.classList.add('cyan'); micIndicator.classList.remove('red'); };
-        
+        recognition.onstart = () => { if(isMicActive) micIndicator.className = 'dot cyan'; };
         recognition.onresult = (event) => {
             const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
-            if ((transcript.includes("ghost") || transcript.includes("host") || transcript.includes("cost")) && !isProcessingCommand) {
-                let command = transcript.split(/ghost|host|cost/).pop().trim();
-                if (command.length > 2) {
-                    processCommand(command);
-                } else {
-                    speakResponse("Yes?");
-                }
+            if ((transcript.includes("ghost") || transcript.includes("host")) && !isProcessingCommand) {
+                let command = transcript.split(/ghost|host/).pop().trim();
+                if (command.length > 2) processCommand(command);
+                else speakResponse("Yes?");
             }
         };
-
-        recognition.onerror = (event) => {
-            if(event.error === 'not-allowed') micIndicator.classList.add('red');
-        };
-
-        recognition.onend = () => {
-            if(!isProcessingCommand) {
-                try { recognition.start(); } catch(e){}
-            }
-        };
-
+        recognition.onend = () => { if(!isProcessingCommand && isMicActive) { try { recognition.start(); } catch(e){} } };
         try { recognition.start(); } catch(e){}
     }
 
-    // --- 6. DATA GATHERING & BACKEND CONNECTION ---
+    // --- 6. DATA GATHERING & SMART PDF PARSING ---
     let uploadedFileText = "";
     let uploadedImageBase64 = "";
     const attachmentInput = document.getElementById('attachmentInput');
@@ -477,14 +457,39 @@ document.addEventListener('DOMContentLoaded', () => {
     attachmentInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        const reader = new FileReader();
+        
+        showSubtitle(`Processing: ${file.name}...`);
+        
         if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
             reader.onload = (ev) => { 
                 uploadedImageBase64 = ev.target.result.split(',')[1]; 
-                showSubtitle(`Media buffered: ${file.name}`);
+                showSubtitle(`Vision data buffered: ${file.name}`);
             };
             reader.readAsDataURL(file);
+        } else if (file.type === 'application/pdf') {
+            // PDF AGENT: Extract text safely using PDF.js
+            const fileReader = new FileReader();
+            fileReader.onload = async function() {
+                try {
+                    const typedarray = new Uint8Array(this.result);
+                    const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                    let text = "";
+                    for(let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const content = await page.getTextContent();
+                        text += content.items.map(item => item.str).join(' ') + "\n";
+                    }
+                    uploadedFileText = text;
+                    showSubtitle(`PDF Parsed successfully: ${file.name}`);
+                } catch (err) {
+                    showSubtitle("Error parsing PDF.");
+                }
+            };
+            fileReader.readAsArrayBuffer(file);
         } else {
+            // Standard Text Read
+            const reader = new FileReader();
             reader.onload = (ev) => { 
                 uploadedFileText = ev.target.result; 
                 showSubtitle(`Data buffered: ${file.name}`);
@@ -508,7 +513,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isProcessingCommand = true;
         if(recognition) recognition.stop(); 
         
-        showSubtitle("Processing...");
+        showSubtitle("Synthesizing...");
         document.getElementById('userInput').value = "";
         inputArea.classList.remove('visible'); inputVisible = false;
 
@@ -523,24 +528,15 @@ document.addEventListener('DOMContentLoaded', () => {
         uploadedFileText = ""; uploadedImageBase64 = ""; attachmentInput.value = "";
 
         try {
-            const response = await fetch('/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
+            const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const data = await response.json();
-            
-            if (data.success) {
-                handleGhostResponse(data.text);
-            } else {
-                speakResponse("Matrix error. Backend disconnected.");
-            }
+            if (data.success) handleGhostResponse(data.text);
+            else speakResponse("Matrix error. Backend disconnected.");
         } catch (error) {
             speakResponse("Critical failure. Server unreachable.");
         } finally {
             isProcessingCommand = false;
-            setTimeout(() => { try { recognition.start(); } catch(e){} }, 1000);
+            setTimeout(() => { if (isMicActive) try { recognition.start(); } catch(e){} }, 1000);
         }
     }
 
@@ -555,18 +551,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (codeBlocks && codeBlocks.length > 0) {
             codeContent.innerHTML = ''; 
             codeBlocks.forEach(block => {
-                // Add to sidebar
                 let safeBlock = block.replace(/</g, "&lt;").replace(/>/g, "&gt;");
                 safeBlock = safeBlock.replace(/[\x60]{3}(.*?)\n([\s\S]*?)[\x60]{3}/, '<pre data-lang="$1"><code>$2</code></pre>');
                 codeContent.innerHTML += safeBlock;
 
-                // Strip backticks to analyze raw content
                 let rawContent = block.replace(/[\x60]{3}[\w]*\n?/i, '').replace(/[\x60]{3}$/, '').trim();
                 
-                // If the Python execution log dumped raw HTML, intercept it
                 if (rawContent.includes('<!DOCTYPE html>') || (rawContent.includes('<html') && rawContent.includes('</html>'))) {
                     foundHtml = true;
-                    // Extract just the HTML part from the terminal log
                     let htmlStartIndex = rawContent.indexOf('<!DOCTYPE html>');
                     if (htmlStartIndex === -1) htmlStartIndex = rawContent.indexOf('<html');
                     htmlContentToRender = rawContent.substring(htmlStartIndex);
@@ -575,12 +567,10 @@ document.addEventListener('DOMContentLoaded', () => {
             codeSidebar.classList.add('open');
         }
 
-        // TRIGGER THE LIVE APP VIEWER IF HTML WAS DETECTED
         if (foundHtml && htmlContentToRender) {
             appIframe.srcdoc = htmlContentToRender;
             appViewer.classList.add('open');
-            // Give Ghost a custom spoken response for rendering UI
-            speakResponse("Interface compiled and rendered, Master Manoj.");
+            speakResponse("Interface compiled and rendered.");
         } else {
             speakResponse(fullText);
         }
