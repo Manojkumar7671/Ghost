@@ -1,19 +1,26 @@
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const { execSync } = require('child_process'); 
-const { Pool } = require('pg');
+import express from 'express';
+import path from 'path';
+import fs from 'fs';
+import { execSync } from 'child_process';
+import pkg from 'pg';
+import { fileURLToPath } from 'url';
 
+const { Pool } = pkg;
 const app = express();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// API KEYS
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
 
+// DATABASE
 let pool;
 if (process.env.SUPABASE_DB_URL) {
     pool = new Pool({ 
@@ -24,9 +31,7 @@ if (process.env.SUPABASE_DB_URL) {
     });
 }
 
-const skillsPath = path.join(__dirname, 'SKILLS.md');
-const SKILLS_MANUAL = fs.existsSync(skillsPath) ? fs.readFileSync(skillsPath, 'utf8') : "Consult the defined protocol.";
-
+// PROMPTS
 const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".
 
 YOUR PERSONALITY:
@@ -48,6 +53,7 @@ RULES:
 3. If processing a file, read strictly from 'user_upload.txt'.
 4. Keep a polite, efficient, British-assistant persona.`;
 
+// ROUTES
 app.post('/api/auth', async (req, res) => {
     const { user, status } = req.body;
     try {
@@ -58,7 +64,8 @@ app.post('/api/auth', async (req, res) => {
 
 app.post('/api/chat', async (req, res) => {
     try {
-        const { message, user, image, fileContent, ghostCodeMode } = req.body; 
+        // Fallback ghostCodeMode to true if the payload doesn't send it, since the UI tag is ON
+        const { message, user, image, fileContent, ghostCodeMode = true } = req.body; 
         let userHistory = [];
         
         try {
@@ -79,17 +86,16 @@ app.post('/api/chat', async (req, res) => {
         const maxAttempts = isAdmin ? 3 : 1;                
 
         let replyText = "";
-        
         const uploadFilePath = path.join(__dirname, 'user_upload.txt');
         let finalMessage = message;
         
-        // Physically write the uploaded file to the disk so Python can find it
         if (fileContent) {
             fs.writeFileSync(uploadFilePath, fileContent, 'utf8');
             finalMessage = `[A file has been uploaded and saved as 'user_upload.txt'.]\nUser Request: ${message}`;
         }
 
-        if (ghostCodeMode) {
+        // PYTHON EXECUTION MATRIX
+        if (ghostCodeMode && !image) {
             try {
                 const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                     method: 'POST',
@@ -148,7 +154,6 @@ app.post('/api/chat', async (req, res) => {
                     }
                 }
                 
-                // Cleanup files after execution to prevent disk space leaks
                 if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
                 if (fs.existsSync(uploadFilePath)) fs.unlinkSync(uploadFilePath);
 
@@ -156,6 +161,7 @@ app.post('/api/chat', async (req, res) => {
                 replyText += `[Matrix Fault: ${error.message}]`;
             }
         } 
+        // NVIDIA VISION MATRIX
         else if (image) {
             const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
                 method: 'POST',
@@ -172,7 +178,9 @@ app.post('/api/chat', async (req, res) => {
             });
             const data = await nvidiaRes.json();
             replyText = data.choices[0].message.content;
-        } else {
+        } 
+        // STANDARD LOGIC ROUTING
+        else {
             const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
@@ -191,7 +199,7 @@ app.post('/api/chat', async (req, res) => {
             replyText = data.choices[0].message.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
         }
 
-        // --- NEW WEBPAGE POPUP LOGIC ---
+        // TAVILY WEB EMBED/SEARCH PARSERS
         const embedMatch = replyText.match(/<embed>([\s\S]*?)<\/embed>/i);
         if (embedMatch) {
             const searchRes = await fetch("https://api.tavily.com/search", {
@@ -201,7 +209,6 @@ app.post('/api/chat', async (req, res) => {
             const searchData = await searchRes.json();
             if (searchData.results && searchData.results.length > 0) {
                 const targetUrl = searchData.results[0].url;
-                // Tells the frontend to open a new tab instead of an iframe
                 replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[EXECUTE_OPEN_TAB:${targetUrl}]\n\nI have opened the requested interface for you.`);
             } else {
                 replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Automation Fault: Target unreachable]`);
@@ -219,9 +226,9 @@ app.post('/api/chat', async (req, res) => {
             replyText = replyText.replace(/<search>([\s\S]*?)<\/search>/ig, `\n[Oracle Success]\n${searchOutput}\n`);
         }
 
+        // SAVE MEMORY
         userHistory.push({ role: 'user', content: message });
         userHistory.push({ role: 'assistant', content: replyText.trim() }); 
-        
         if (userHistory.length > (isAdmin ? 12 : 4)) userHistory = userHistory.slice(-(isAdmin ? 12 : 4));
         
         try {
@@ -235,6 +242,7 @@ app.post('/api/chat', async (req, res) => {
 
         res.json({ success: true, text: replyText.trim() });
     } catch (e) {
+        console.error("Core Fault:", e);
         res.json({ success: false, text: "System error: Matrix routing fault." });
     }
 });
@@ -242,4 +250,4 @@ app.post('/api/chat', async (req, res) => {
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log('Ghost Core Fast Logic Engine Online.'));
+app.listen(PORT, '0.0.0.0', () => console.log(`Ghost Core Fast Logic Engine Online on port ${PORT}.`));
