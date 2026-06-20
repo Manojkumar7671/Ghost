@@ -54,6 +54,8 @@ YOUR FEATURES: Voice Interaction, Live Web Search, Python Sandbox, Holographic U
 CRITICAL UI/UX GENERATION PROTOCOLS:
 1. DESIGN AESTHETIC: Implement ultra-modern, professional layouts using Tailwind CSS (bg-slate-950) with glassmorphism.
 2. SYNTAX SANITIZATION: When rendering HTML via Python execution, build the structure dynamically as a pristine string asset.
+3. VERBAL CONCISENESS: Keep your spoken conversational responses extremely short (1 or 2 brief, natural sentences max).
+4. SIDEBAR ROUTING: If you need to provide a long explanation, a detailed list, or heavy text, you MUST wrap it inside a standard markdown code block (e.g., \`\`\`markdown ... \`\`\`). The system will automatically route this block to the visual sidebar and mute it from the audio channel.
 
 EXTERNAL ACTIONS PROTOCOL (STRICT):
 You are strictly forbidden from writing Python code to make external network requests, API calls, or webhooks. 
@@ -245,7 +247,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
         }
 
         // --- LOCAL PYTHON SANDBOX ---
-        const codeRegex = /[\x60]{3}(?:python)?\n([\s\S]*?)[\x60]{3}/i;
+        const codeRegex = /[\x60]{3}python\n([\s\S]*?)[\x60]{3}/i;
         const match = fullResponse ? fullResponse.match(codeRegex) : null;
         if (ghostCodeMode && match && match[1]) {
             const tempFilePath = path.join(__dirname, 'ghost_payload.py');

@@ -124,11 +124,11 @@
                         userTag.innerHTML = `<span class="dot red"></span>ADMIN // ACTIVE`;
                         userTag.classList.add('admin');
                         masterUser = "Master Manoj";
-                        speakResponse("Welcome back, Master Manoj. Secure JWT established. Ghost AI online.");
+                        speakResponse("Welcome back, sir. How are you feeling today?");
                     } else {
                         userTag.innerHTML = `<span class="dot cyan"></span>VISITOR // ${safeGuestName.toUpperCase()}`;
                         masterUser = safeGuestName;
-                        speakResponse(`Welcome, ${safeGuestName}. Interactive portfolio access granted. How may I assist you today?`);
+                        speakResponse(`Hi ${safeGuestName}, how are you feeling today?`);
                     }
                 } catch (error) { console.error("Auth routing failed."); }
 
@@ -206,7 +206,7 @@
         function speakResponse(text) {
             if (!window.speechSynthesis) return;
             let cleanText = text.replace(/[\x60]{3}[\s\S]*?[\x60]{3}/g, '').replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<search>[\s\S]*?<\/search>/g, '').replace(/\[.*?\]/g, '').trim();
-            if (!cleanText) cleanText = "Execution complete, Master Manoj.";
+            if (!cleanText) cleanText = "Execution complete.";
             window.speechSynthesis.cancel();
             const sentences = cleanText.match(/[^.!?]+[.!?]+/g) || [cleanText];
             sentences.forEach((sentence) => {
@@ -301,7 +301,7 @@
                 fullText = fullText.replace(/\[EXECUTE_OPEN_TAB:.*?\]/g, 'Opening web oracle tab.');
             }
 
-            const codeRegex = /[\x60]{3}(?:python|html|javascript)?\n([\s\S]*?)[\x60]{3}/gi;
+            const codeRegex = /[\x60]{3}[a-z]*\n([\s\S]*?)[\x60]{3}/gi;
             let match, foundHtml = false, htmlContentToRender = "", spokenText = fullText;
             codeContent.innerHTML = ''; 
 
@@ -326,7 +326,7 @@
             }
             
             if (codeContent.innerHTML !== '') codeSidebar.classList.add('open');
-            if (foundHtml && htmlContentToRender) { appIframe.srcdoc = htmlContentToRender; appViewer.classList.add('open'); if (spokenText.trim() === "") spokenText = "Interface rendered, Master Manoj."; }
+            if (foundHtml && htmlContentToRender) { appIframe.srcdoc = htmlContentToRender; appViewer.classList.add('open'); if (spokenText.trim() === "") spokenText = "Interface rendered."; }
             speakResponse(spokenText);
         }
     }); 
