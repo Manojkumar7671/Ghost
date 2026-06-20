@@ -375,7 +375,6 @@
                 utterance.rate = 1.05; 
                 utterance.pitch = 0.9;
 
-                // Sync subtitle to exactly when the sentence starts speaking
                 utterance.onstart = () => {
                     showSubtitle(sentence.trim());
                 };
@@ -400,8 +399,8 @@
             recognition.onstart = () => { if(isMicActive) micIndicator.className = 'dot cyan'; };
             recognition.onresult = (event) => {
                 const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
-                if ((transcript.includes("ghost") || transcript.includes("host")) && !isProcessingCommand) {
-                    let command = transcript.split(/ghost|host/).pop().trim();
+                if ((transcript.includes("ghost") || transcript.includes("host") || transcript.includes("cost")) && !isProcessingCommand) {
+                    let command = transcript.split(/ghost|host|cost/).pop().trim();
                     if (command.length > 2) processCommand(command);
                     else speakResponse("Yes?");
                 }
@@ -497,16 +496,17 @@
             }
         }
 
-        // --- 7. PARSE RESPONSE & LIVE RENDERER ---
+        // --- 7. PARSE RESPONSE & LIVE RENDERER (AGGRESSIVE INTERCEPTOR) ---
         function handleGhostResponse(fullText) {
             const codeRegex = /[\x60]{3}(?:python|html|javascript)?\n([\s\S]*?)[\x60]{3}/gi;
             let match;
             let foundHtml = false;
             let htmlContentToRender = "";
+            let spokenText = fullText;
             
             codeContent.innerHTML = ''; // Clear previous
 
-            // Extract all code blocks for the sidebar, look for HTML to render
+            // Extract standard formatted code blocks
             while ((match = codeRegex.exec(fullText)) !== null) {
                 let codeBlock = match[1].trim();
                 let safeBlock = codeBlock.replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -518,6 +518,23 @@
                     if (htmlStartIndex === -1) htmlStartIndex = codeBlock.indexOf('<html');
                     htmlContentToRender = codeBlock.substring(htmlStartIndex);
                 }
+                spokenText = spokenText.replace(match[0], ''); // Strip code from speech
+            }
+
+            // AGGRESSIVE FALLBACK: Catch raw HTML leaks if the AI forgets backticks
+            if (!foundHtml && (spokenText.includes('<!DOCTYPE html>') || spokenText.includes('<html'))) {
+                let startIndex = spokenText.indexOf('<!DOCTYPE html>');
+                if (startIndex === -1) startIndex = spokenText.indexOf('<html');
+                let endIndex = spokenText.lastIndexOf('</html>') + 7;
+                
+                if (startIndex !== -1 && endIndex > startIndex) {
+                    htmlContentToRender = spokenText.substring(startIndex, endIndex);
+                    foundHtml = true;
+                    
+                    let safeBlock = htmlContentToRender.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    codeContent.innerHTML += `<pre><code>${safeBlock}</code></pre>`;
+                    spokenText = spokenText.replace(htmlContentToRender, '');
+                }
             }
             
             if (codeContent.innerHTML !== '') {
@@ -527,10 +544,11 @@
             if (foundHtml && htmlContentToRender) {
                 appIframe.srcdoc = htmlContentToRender;
                 appViewer.classList.add('open');
+                
+                if (spokenText.trim() === "") spokenText = "Interface successfully compiled and rendered, Master Manoj.";
             }
             
-            // Speak the response (the voice function automatically strips the code blocks out)
-            speakResponse(fullText);
+            speakResponse(spokenText);
         }
     }); 
     </script>

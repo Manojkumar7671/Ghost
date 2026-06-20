@@ -6,6 +6,8 @@ import pkg from 'pg';
 import { fileURLToPath } from 'url';
 
 const { Pool } = pkg;
+
+// FIX: Define directory paths FIRST before using them in Express
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -41,7 +43,7 @@ When asked to build a web application, page, or dashboard, you must act as a Mas
 1. DESIGN AESTHETIC: Implement ultra-modern, professional layouts. Use layered dark modes (e.g., slate-950, zinc-900) mixed with premium glassmorphism panels (blurred backgrounds, thin borders with low opacity). Accent colors must be sharp and vibrant (e.g., electric cyan, neon violet, brilliant emerald).
 2. STRUCTURE & RESPONSIVENESS: Ensure full responsiveness using CSS Grid and Flexbox. Layout containers must feature spacious, consistent padding (e.g., p-6 or p-8) and well-rounded corners (rounded-xl or rounded-2xl).
 3. GRAPHICS & EFFECTS: Incorporate vector iconography (via FontAwesome or Lucide CDN) and clean transitions (\`transition-all duration-300\`) on interactive components.
-4. SYNTAX SANITIZATION: When rendering code via Python execution scripts, build the HTML structure dynamically as a pristine string asset. Prevent leaks, loose characters, or dangling string literals from contaminating the browser viewport. Use f-strings in Python to inject variables.
+4. SYNTAX SANITIZATION: When rendering code via Python execution scripts, build the HTML structure dynamically as a pristine string asset. Prevent leaks, loose characters, or dangling string literals from contaminating the browser viewport.
 
 RULES:
 1. THE ORACLE: For live news, weather, or real-time data, you MUST search the web by outputting exactly <search>your query</search> and absolutely nothing else.
@@ -155,7 +157,6 @@ app.post('/api/chat', async (req, res) => {
         const activeTokens = isAdmin ? 4000 : 1000;
         const maxMemory = isAdmin ? 12 : 6;
         let finalMessage = message;
-        
         if (fileContent) {
             finalMessage = `[A document has been uploaded. Content extracted below:]\n${fileContent.substring(0, 5000)}\n\nUser Request: ${message}`;
         }
@@ -201,10 +202,7 @@ app.post('/api/chat', async (req, res) => {
                     body: JSON.stringify({ api_key: TAVILY_API_KEY, query: searchMatch[1], max_results: 3 })
                 });
                 const searchData = await searchRes.json();
-                let searchOutput = searchData.results && searchData.results.length > 0 
-                    ? searchData.results.map(r => `${r.title}: ${r.content}`).join("\n") 
-                    : "No results found for this query.";
-                
+                let searchOutput = searchData.results ? searchData.results.map(r => `${r.title}: ${r.content}`).join("\n") : "No results found.";
                 messagesArray.push({ role: "assistant", content: fullResponse });
                 messagesArray.push({ role: "user", content: `[SYSTEM ORACLE DATA RETURNED FOR YOUR SEARCH]:\n${searchOutput}\n\nBased on this live data, synthesize a final answer for the user.` });
 
@@ -214,7 +212,7 @@ app.post('/api/chat', async (req, res) => {
 
         let replyText = fullResponse || "System anomaly: Empty matrix response.";
 
-        // 4. SMART PYTHON EXECUTION INTERCEPT (With Pre-Flight File Check)
+        // 4. SMART PYTHON EXECUTION INTERCEPT
         const codeRegex = /[\x60]{3}(?:python)?\n([\s\S]*?)[\x60]{3}/i;
         const match = fullResponse ? fullResponse.match(codeRegex) : null;
 
@@ -223,7 +221,6 @@ app.post('/api/chat', async (req, res) => {
             const tempFilePath = path.join(__dirname, 'ghost_payload.py');
             const uploadFilePath = path.join(__dirname, 'user_upload.txt');
 
-            // PRE-FLIGHT CHECK: Create dummy file if missing to prevent FileNotFoundError
             if (!fs.existsSync(uploadFilePath)) {
                 fs.writeFileSync(uploadFilePath, "N/A\nN/A\nN/A", 'utf8');
             }
@@ -231,15 +228,12 @@ app.post('/api/chat', async (req, res) => {
             fs.writeFileSync(tempFilePath, currentCode);
 
             try {
-                // Execute and capture only standard output
                 const executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 15000, encoding: 'utf-8' });
-                // Pass the output cleanly as the response text
+                // Enclose execution output in markdown to prevent UI bleeding
                 replyText = fullResponse.replace(match[0], `\n\`\`\`html\n${executionOutput.trim()}\n\`\`\`\n`);
             } catch (execError) {
                 replyText = fullResponse.replace(match[0], `[Python Error]: ${execError.stderr || execError.message}`);
             }
-            
-            // Clean up temps
             if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         }
 
@@ -272,7 +266,7 @@ app.post('/api/chat', async (req, res) => {
         res.json({ success: true, text: replyText.trim() });
     } catch (e) {
         console.error("Core Fault:", e);
-        res.json({ success: true, text: `[System Warning]: Matrix Interference: ${e.message}` });
+        res.json({ success: true, text: `[System Warning]: The Matrix encountered an interference pattern. ${e.message}` });
     }
 });
 
