@@ -68,7 +68,7 @@
     <div id="os-container">
         <div id="canvas-container">
             <div class="status-bar">
-                <span class="tag" id="userTag"><span class="dot cyan"></span>GUEST // ACTIVE</span>
+                <span class="tag" id="userTag"><span class="dot cyan"></span>SYSTEM // READY</span>
                 <span class="tag interactive" id="micToggleBtn"><span class="dot cyan" id="micIndicator"></span>MIC // LISTENING</span>
                 <span class="tag interactive ghost-code" id="ghostCodeBtn">[ GHOST CODE: ON ]</span>
             </div>
@@ -126,9 +126,9 @@
                         masterUser = "Master Manoj";
                         speakResponse("Welcome back, Master Manoj. Secure JWT established. Ghost AI online.");
                     } else {
-                        userTag.innerHTML = `<span class="dot cyan"></span>GUEST // ${safeGuestName.toUpperCase()}`;
+                        userTag.innerHTML = `<span class="dot cyan"></span>VISITOR // ${safeGuestName.toUpperCase()}`;
                         masterUser = safeGuestName;
-                        speakResponse(`Welcome to Ghost AI, ${safeGuestName}. Guest protocols active.`);
+                        speakResponse(`Welcome, ${safeGuestName}. Interactive portfolio access granted. How may I assist you today?`);
                     }
                 } catch (error) { console.error("Auth routing failed."); }
 
