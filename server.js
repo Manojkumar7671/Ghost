@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import cookieParser from 'cookie-parser';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
+import n8nMcpClient from './services/mcpClient.js';
 
 // ==========================================
 // 1. CRITICAL BOOT SEQUENCE (FAIL-DEADLY)
@@ -17,37 +18,32 @@ if (!process.env.ADMIN_PASSPHRASE || !process.env.JWT_SECRET) {
     console.error("Halting server boot sequence to prevent fallback vulnerabilities.\n");
     process.exit(1); 
 }
-
 const ADMIN_PASSPHRASE = process.env.ADMIN_PASSPHRASE;
 const JWT_SECRET = process.env.JWT_SECRET;
-
 const { Pool } = pkg;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const app = express();
-app.set('trust proxy', 1); // CRITICAL: Required for Cloudflare/Render IP tracking
+
+app.set('trust proxy', 1);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// API KEYS
+n8nMcpClient.initialize().catch(e => console.error("[Server Init] Non-fatal MCP init error:", e.message));
+
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
-// DATABASE
 let pool;
 if (process.env.SUPABASE_DB_URL) {
     pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false }});
 }
 
-// ==========================================
-// 2. OMNI-MATRIX CAPABILITIES & PROMPTS
-// ==========================================
 const GHOST_CAPABILITIES = `
 YOUR FEATURES: Voice Interaction, Live Web Search, Python Sandbox, Holographic UI Rendering, Vision Analysis.
 
@@ -66,6 +62,14 @@ Schema:
   "tool": "trigger_webhook",
   "action": "description_of_action",
   "payload": { "key": "value" }
+}
+\`\`\`
+To trigger a live n8n workflow (see LIVE N8N WORKFLOWS list if present), use this schema instead:
+\`\`\`json
+{
+  "tool": "n8n_execute",
+  "action": "exact_workflow_name",
+  "payload": { "key": "value matching the workflow's schema" }
 }
 \`\`\`
 
@@ -111,9 +115,6 @@ async function callLLM(messages, maxTokens) {
     throw new Error("Critical Gateway Failure: All matrix nodes unreachable.");
 }
 
-// ==========================================
-// 3. AUTHENTICATION & RATE LIMITING
-// ==========================================
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, 
     max: 5,
@@ -140,7 +141,6 @@ app.post('/api/auth', authLimiter, async (req, res) => {
     }
 
     if (success) return res.json({ success: true, role: 'admin' });
-    // CLEAN CONSOLE FIX: Return 200 OK for guests instead of 401 Unauthorized
     return res.json({ success: true, role: 'guest' });
 });
 
@@ -158,9 +158,6 @@ function checkIsAdmin(req) {
     try { return token && jwt.verify(token, JWT_SECRET).role === 'admin'; } catch(e) { return false; }
 }
 
-// ==========================================
-// 4. THE PROPOSAL ENGINE (CHAT ROUTE)
-// ==========================================
 const chatLimiter = rateLimit({
     windowMs: 1 * 60 * 1000, 
     max: 20, 
@@ -190,7 +187,12 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             }
         } catch (err) {}
 
-        const textPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
+        let dynamicN8nPrompt = "";
+        if (isAdmin && n8nMcpClient.isConnected) {
+            dynamicN8nPrompt = `\n\n[LIVE N8N WORKFLOWS AVAILABLE]\nUse "tool": "n8n_execute" with these exact action names and schemas:\n${n8nMcpClient.getPromptString()}`;
+        }
+
+        const textPrompt = (isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user)) + dynamicN8nPrompt;
         let finalMessage = fileContent ? `[Document Uploaded:]\n${fileContent.substring(0, 5000)}\n\nUser: ${message}` : message;
         let fullResponse = "", messagesArray = [];
 
@@ -223,14 +225,13 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
 
         let replyText = fullResponse || "System anomaly: Empty matrix response.";
 
-        // --- TIER 0: STRUCTURED JSON INTERCEPTOR ---
         const jsonRegex = /[\x60]{3}json\n([\s\S]*?)[\x60]{3}/i;
         const jsonMatch = fullResponse ? fullResponse.match(jsonRegex) : null;
 
         if (jsonMatch) {
             try {
                 const toolCommand = JSON.parse(jsonMatch[1]);
-                if (toolCommand.tool === "trigger_webhook") {
+                if (toolCommand.tool === "trigger_webhook" || toolCommand.tool === "n8n_execute") {
                     if (!isAdmin) return res.json({ success: true, text: "[SYSTEM OVERRIDE]: External network actions are restricted to Admin clearance. Blocked." });
                     
                     const blocklist = ['stripe', 'paypal', 'delete', 'drop', 'billing', 'transfer', 'password'];
@@ -239,15 +240,19 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                     }
 
                     const actionId = crypto.randomBytes(16).toString('hex');
-                    pendingActions.set(actionId, { action: toolCommand.action, payload: toolCommand.payload, expiresAt: Date.now() + (5 * 60 * 1000) });
+                    pendingActions.set(actionId, {
+                        type: toolCommand.tool,
+                        action: toolCommand.action,
+                        payload: toolCommand.payload,
+                        expiresAt: Date.now() + (5 * 60 * 1000)
+                    });
                     
-                    replyText = `[ACTION REQUIRED - HITL GATE]: Proposal compiled for: ${toolCommand.action}.\n\nReview structural payload:\n\`\`\`json\n${JSON.stringify(toolCommand.payload, null, 2)}\n\`\`\``;
+                    replyText = `[ACTION REQUIRED - HITL GATE]: Proposal compiled for [${toolCommand.tool}]: ${toolCommand.action}.\n\nReview structural payload:\n\`\`\`json\n${JSON.stringify(toolCommand.payload, null, 2)}\n\`\`\``;
                     return res.json({ success: true, text: replyText, actionRequired: true, actionId: actionId });
                 }
             } catch (e) { console.error("Failed to parse JSON tool call."); }
         }
 
-        // --- STRICT LOCAL PYTHON SANDBOX ---
         const codeRegex = /[\x60]{3}python\n([\s\S]*?)[\x60]{3}/i;
         const match = fullResponse ? fullResponse.match(codeRegex) : null;
         if (ghostCodeMode && match && match[1]) {
@@ -260,7 +265,6 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         }
 
-        // TAVILY WEB EMBED
         const embedMatch = replyText ? replyText.match(/<embed>([\s\S]*?)<\/embed>/i) : null;
         if (embedMatch) {
             const searchRes = await fetch("https://api.tavily.com/search", {
@@ -273,7 +277,6 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             }
         }
 
-        // MEMORY SAVE
         userHistory.push({ role: 'user', content: message }, { role: 'assistant', content: replyText.trim() });
         if (userHistory.length > maxMemory) userHistory = userHistory.slice(-maxMemory);
         try { if (pool) await pool.query(`INSERT INTO user_memories (username, history_json) VALUES ($1, $2) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json`, [user, JSON.stringify(userHistory)]); } catch (err) {}
@@ -282,25 +285,26 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
     } catch (e) { res.json({ success: true, text: `[System Warning]: Matrix Interference: ${e.message}` }); }
 });
 
-// ==========================================
-// 5. THE ISOLATED EXECUTION ENDPOINT
-// ==========================================
 app.post('/api/execute-action', requireAdminToken, async (req, res) => {
     const { actionId } = req.body;
     const cachedAction = pendingActions.get(actionId);
     if (!cachedAction) return res.status(400).json({ success: false, error: "Action token expired or invalid." });
     
-    pendingActions.delete(actionId); // BURN NONCE
+    pendingActions.delete(actionId);
     if (Date.now() > cachedAction.expiresAt) return res.status(400).json({ success: false, error: "Confirmation window timed out." });
 
     try {
         console.log(`[AUDIT] Authorized execution of action: ${cachedAction.action}`);
-        // Integration point for Nango/n8n payload delivery
+
+        if (cachedAction.type === 'n8n_execute') {
+            const result = await n8nMcpClient.executeTool(cachedAction.action, cachedAction.payload);
+            return res.json({ success: true, message: `n8n workflow [${cachedAction.action}] executed successfully.`, result });
+        }
+
         return res.json({ success: true, message: `Action [${cachedAction.action}] deployed securely.` });
     } catch (err) { return res.status(500).json({ success: false, error: `Pipeline failure: ${err.message}` }); }
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
-
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => console.log(`Ghost AI Engine Online on port ${PORT}.`));
