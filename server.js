@@ -6,8 +6,6 @@ import pkg from 'pg';
 import { fileURLToPath } from 'url';
 
 const { Pool } = pkg;
-
-// FIX: Define directory paths FIRST before using them in Express
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -18,7 +16,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // API KEYS
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
+const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
@@ -39,11 +37,10 @@ const GHOST_CAPABILITIES = `
 YOUR FEATURES: Voice Interaction, Live Web Search, Python Sandbox, Holographic UI Rendering, Vision Analysis.
 
 CRITICAL UI/UX GENERATION PROTOCOLS:
-When asked to build a web application, page, or dashboard, you must act as a Master UI/UX Designer. Follow these constraints flawlessly:
-1. DESIGN AESTHETIC: Implement ultra-modern, professional layouts. Use layered dark modes (e.g., slate-950, zinc-900) mixed with premium glassmorphism panels (blurred backgrounds, thin borders with low opacity). Accent colors must be sharp and vibrant (e.g., electric cyan, neon violet, brilliant emerald).
-2. STRUCTURE & RESPONSIVENESS: Ensure full responsiveness using CSS Grid and Flexbox. Layout containers must feature spacious, consistent padding (e.g., p-6 or p-8) and well-rounded corners (rounded-xl or rounded-2xl).
-3. GRAPHICS & EFFECTS: Incorporate vector iconography (via FontAwesome or Lucide CDN) and clean transitions (\`transition-all duration-300\`) on interactive components.
-4. SYNTAX SANITIZATION: When rendering code via Python execution scripts, build the HTML structure dynamically as a pristine string asset. Prevent leaks, loose characters, or dangling string literals from contaminating the browser viewport.
+When asked to build a web application, page, or dashboard, you MUST act as a Master UI/UX Designer. Follow these constraints flawlessly:
+1. DESIGN AESTHETIC: You MUST implement ultra-modern, professional layouts. Use layered dark modes (e.g., bg-slate-950, bg-zinc-900) mixed with premium glassmorphism panels. Never default to a plain white background unless explicitly requested.
+2. STRUCTURE & RESPONSIVENESS: Ensure full responsiveness using CSS Grid and Flexbox. Layout containers must feature spacious, consistent padding (e.g., p-6 or p-8) and well-rounded corners (rounded-xl).
+3. SYNTAX SANITIZATION: When rendering code via Python execution scripts, build the HTML structure dynamically as a pristine string asset. Prevent leaks, loose characters, or dangling string literals from contaminating the browser viewport. Use f-strings in Python to inject variables.
 
 RULES:
 1. THE ORACLE: For live news, weather, or real-time data, you MUST search the web by outputting exactly <search>your query</search> and absolutely nothing else.
@@ -94,7 +91,7 @@ async function callLLM(messages, maxTokens) {
         }
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000); // Strict 4s Cutoff
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased timeout to 8s for heavy loads
 
         try {
             const res = await fetch(provider.endpoint, {
@@ -114,14 +111,26 @@ async function callLLM(messages, maxTokens) {
 
             clearTimeout(timeoutId);
             const data = await res.json();
+
             if (data.error) {
                 throw new Error(data.error.message || JSON.stringify(data.error));
             }
+
+            // Gemini Specific Response Parsing Fix
+            if (provider.name === 'Gemini') {
+                 if (data.choices && data.choices[0] && data.choices[0].message) {
+                     console.log(`[Gateway Success]: Routed successfully through ${provider.name}`);
+                     return data.choices[0].message.content;
+                 } else {
+                     throw new Error("Invalid response structure from Gemini API.");
+                 }
+            }
+
             console.log(`[Gateway Success]: Routed successfully through ${provider.name}`);
             return data.choices[0].message.content;
         } catch (e) {
             clearTimeout(timeoutId);
-            const errorMsg = e.name === 'AbortError' ? '4s Execution Timeout' : e.message;
+            const errorMsg = e.name === 'AbortError' ? '8s Execution Timeout' : e.message;
             console.log(`[Gateway Failover]: ${provider.name} failed (${errorMsg}). Rerouting to next provider...`);
         }
     }
@@ -157,6 +166,7 @@ app.post('/api/chat', async (req, res) => {
         const activeTokens = isAdmin ? 4000 : 1000;
         const maxMemory = isAdmin ? 12 : 6;
         let finalMessage = message;
+        
         if (fileContent) {
             finalMessage = `[A document has been uploaded. Content extracted below:]\n${fileContent.substring(0, 5000)}\n\nUser Request: ${message}`;
         }
@@ -202,7 +212,10 @@ app.post('/api/chat', async (req, res) => {
                     body: JSON.stringify({ api_key: TAVILY_API_KEY, query: searchMatch[1], max_results: 3 })
                 });
                 const searchData = await searchRes.json();
-                let searchOutput = searchData.results ? searchData.results.map(r => `${r.title}: ${r.content}`).join("\n") : "No results found.";
+                let searchOutput = searchData.results && searchData.results.length > 0 
+                    ? searchData.results.map(r => `${r.title}: ${r.content}`).join("\n") 
+                    : "No results found for this query.";
+                
                 messagesArray.push({ role: "assistant", content: fullResponse });
                 messagesArray.push({ role: "user", content: `[SYSTEM ORACLE DATA RETURNED FOR YOUR SEARCH]:\n${searchOutput}\n\nBased on this live data, synthesize a final answer for the user.` });
 
@@ -229,11 +242,11 @@ app.post('/api/chat', async (req, res) => {
 
             try {
                 const executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 15000, encoding: 'utf-8' });
-                // Enclose execution output in markdown to prevent UI bleeding
                 replyText = fullResponse.replace(match[0], `\n\`\`\`html\n${executionOutput.trim()}\n\`\`\`\n`);
             } catch (execError) {
                 replyText = fullResponse.replace(match[0], `[Python Error]: ${execError.stderr || execError.message}`);
             }
+            
             if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         }
 
@@ -266,7 +279,7 @@ app.post('/api/chat', async (req, res) => {
         res.json({ success: true, text: replyText.trim() });
     } catch (e) {
         console.error("Core Fault:", e);
-        res.json({ success: true, text: `[System Warning]: The Matrix encountered an interference pattern. ${e.message}` });
+        res.json({ success: true, text: `[System Warning]: Matrix Interference: ${e.message}` });
     }
 });
 
