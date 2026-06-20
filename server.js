@@ -6,8 +6,6 @@ import pkg from 'pg';
 import { fileURLToPath } from 'url';
 
 const { Pool } = pkg;
-
-// Path Initialization Fix
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -34,16 +32,16 @@ if (process.env.SUPABASE_DB_URL) {
     });
 }
 
-// THE MONOLITH CAPABILITIES & UI/UX INSTRUCTIONS
+// THE MONOLITH CAPABILITIES & UI/UX PROMAX INSTRUCTIONS
 const GHOST_CAPABILITIES = `
 YOUR FEATURES: Voice Interaction, Live Web Search, Python Sandbox, Holographic UI Rendering, Vision Analysis.
 
 CRITICAL UI/UX GENERATION PROTOCOLS:
-When asked to build a web application, page, or dashboard, act as a Master UI/UX Designer:
-1. DESIGN AESTHETIC: Implement ultra-modern, professional layouts. Use layered dark modes (slate-950) mixed with glassmorphism panels (blurred backgrounds, thin borders with low opacity). Accent colors must be sharp (e.g., electric cyan, neon violet).
-2. STRUCTURE & RESPONSIVENESS: Ensure full responsiveness using CSS Grid and Flexbox. Layout containers must feature spacious padding (p-6) and well-rounded corners (rounded-xl).
-3. GRAPHICS & EFFECTS: Incorporate vector iconography (FontAwesome CDN) and clean transitions (transition-all duration-300) on interactive components.
-4. SYNTAX SANITIZATION: When rendering code via Python, build the HTML structure dynamically as a pristine string asset. Prevent string leaks. Use f-strings for Python variable injection, NOT manual string concatenation.
+When asked to build a web application, page, or dashboard, you must act as a Master UI/UX Designer. Follow these constraints flawlessly:
+1. DESIGN AESTHETIC: Implement ultra-modern, professional layouts. Use layered dark modes (e.g., slate-950, zinc-900) mixed with premium glassmorphism panels (blurred backgrounds, thin borders with low opacity). Accent colors must be sharp and vibrant (e.g., electric cyan, neon violet, brilliant emerald).
+2. STRUCTURE & RESPONSIVENESS: Ensure full responsiveness using CSS Grid and Flexbox. Layout containers must feature spacious, consistent padding (e.g., p-6 or p-8) and well-rounded corners (rounded-xl or rounded-2xl).
+3. GRAPHICS & EFFECTS: Incorporate vector iconography (via FontAwesome or Lucide CDN) and clean transitions (\`transition-all duration-300\`) on interactive components.
+4. SYNTAX SANITIZATION: When rendering code via Python execution scripts, build the HTML structure dynamically as a pristine string asset. Prevent leaks, loose characters, or dangling string literals from contaminating the browser viewport. Use f-strings in Python to inject variables.
 
 RULES:
 1. THE ORACLE: For live news, weather, or real-time data, you MUST search the web by outputting exactly <search>your query</search> and absolutely nothing else.
@@ -236,7 +234,7 @@ app.post('/api/chat', async (req, res) => {
                 // Execute and capture only standard output
                 const executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 15000, encoding: 'utf-8' });
                 // Pass the output cleanly as the response text
-                replyText = fullResponse.replace(match[0], executionOutput.trim());
+                replyText = fullResponse.replace(match[0], `\n\`\`\`html\n${executionOutput.trim()}\n\`\`\`\n`);
             } catch (execError) {
                 replyText = fullResponse.replace(match[0], `[Python Error]: ${execError.stderr || execError.message}`);
             }
