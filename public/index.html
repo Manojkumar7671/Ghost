@@ -17,65 +17,17 @@
             --panel: rgba(5, 8, 12, 0.85);
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            background: var(--bg);
-            color: var(--core-cyan);
-            font-family: 'JetBrains Mono', 'Courier New', monospace;
-            overflow: hidden;
-            width: 100vw;
-            height: 100vh;
-        }
-
-        /* --- LOGIN OVERLAY --- */
-        #loginOverlay {
-            position: absolute; inset: 0; z-index: 100;
-            background: rgba(2, 2, 2, 0.95);
-            backdrop-filter: blur(20px);
-            display: flex; flex-direction: column;
-            justify-content: center; align-items: center;
-            transition: opacity 0.8s ease, visibility 0.8s ease;
-        }
-        #loginOverlay h1 {
-            font-size: 24px; letter-spacing: 0.3em; font-weight: 300;
-            margin-bottom: 40px; text-shadow: 0 0 20px var(--core-cyan);
-        }
-        #authInput {
-            background: transparent; border: none;
-            border-bottom: 2px solid rgba(0, 243, 255, 0.3);
-            color: #fff; font-size: 18px; text-align: center;
-            padding: 10px; width: 350px; outline: none;
-            font-family: inherit; letter-spacing: 0.1em;
-            transition: border-color 0.3s, box-shadow 0.3s;
-        }
-        #authInput:focus {
-            border-bottom-color: var(--core-cyan);
-            box-shadow: 0 10px 20px -10px var(--core-cyan);
-        }
-
-        /* --- MAIN OS CONTAINER --- */
-        #os-container {
-            position: absolute; inset: 0; z-index: 10;
-            display: flex; opacity: 0; visibility: hidden;
-            transition: opacity 1s ease 0.5s;
-        }
+        body { background: var(--bg); color: var(--core-cyan); font-family: 'JetBrains Mono', monospace; overflow: hidden; width: 100vw; height: 100vh; }
+        #loginOverlay { position: absolute; inset: 0; z-index: 100; background: rgba(2, 2, 2, 0.95); backdrop-filter: blur(20px); display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.8s ease, visibility 0.8s ease; }
+        #loginOverlay h1 { font-size: 24px; letter-spacing: 0.3em; font-weight: 300; margin-bottom: 40px; text-shadow: 0 0 20px var(--core-cyan); }
+        #authInput { background: transparent; border: none; border-bottom: 2px solid rgba(0, 243, 255, 0.3); color: #fff; font-size: 18px; text-align: center; padding: 10px; width: 350px; outline: none; font-family: inherit; letter-spacing: 0.1em; transition: border-color 0.3s, box-shadow 0.3s; }
+        #authInput:focus { border-bottom-color: var(--core-cyan); box-shadow: 0 10px 20px -10px var(--core-cyan); }
+        #os-container { position: absolute; inset: 0; z-index: 10; display: flex; opacity: 0; visibility: hidden; transition: opacity 1s ease 0.5s; }
         #os-container.active { opacity: 1; visibility: visible; }
-
-        /* --- 3D CANVAS & HUD --- */
         #canvas-container { flex: 1; position: relative; cursor: crosshair; }
-        #canvas-container::after {
-            content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2;
-            background: radial-gradient(circle at center, transparent 40%, rgba(0,0,0,0.8) 100%);
-        }
-
-        .status-bar {
-            position: absolute; top: 25px; left: 25px; z-index: 12;
-            display: flex; gap: 15px; font-size: 11px; font-weight: bold; letter-spacing: 0.15em;
-        }
-        .tag {
-            padding: 6px 12px; border-radius: 4px; display: flex; align-items: center; gap: 8px;
-            background: rgba(0, 243, 255, 0.05); border: 1px solid rgba(0, 243, 255, 0.2);
-            box-shadow: 0 0 15px rgba(0, 243, 255, 0.1) inset;
-        }
+        #canvas-container::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2; background: radial-gradient(circle at center, transparent 40%, rgba(0,0,0,0.8) 100%); }
+        .status-bar { position: absolute; top: 25px; left: 25px; z-index: 12; display: flex; gap: 15px; font-size: 11px; font-weight: bold; letter-spacing: 0.15em; }
+        .tag { padding: 6px 12px; border-radius: 4px; display: flex; align-items: center; gap: 8px; background: rgba(0, 243, 255, 0.05); border: 1px solid rgba(0, 243, 255, 0.2); box-shadow: 0 0 15px rgba(0, 243, 255, 0.1) inset; }
         .tag.admin { border-color: var(--alert); color: var(--alert); box-shadow: 0 0 15px rgba(255, 46, 77, 0.1) inset; }
         .tag.interactive { cursor: pointer; transition: all 0.3s ease; }
         .tag.interactive:hover { box-shadow: 0 0 25px rgba(0, 243, 255, 0.3) inset; }
@@ -85,61 +37,21 @@
         .dot.cyan { background: var(--core-cyan); box-shadow: 0 0 8px var(--core-cyan); }
         .dot.red { background: var(--alert); box-shadow: 0 0 8px var(--alert); }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-
-        /* --- SUBTITLE HUD --- */
-        #subtitle-hud {
-            position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
-            width: 70%; text-align: center; z-index: 11; pointer-events: none;
-            font-size: 15px; line-height: 1.6; letter-spacing: 0.05em; color: #fff;
-            text-shadow: 0 2px 10px rgba(0, 243, 255, 0.5);
-            background: linear-gradient(90deg, transparent, rgba(0,0,0,0.6), transparent);
-            padding: 20px; opacity: 0; transition: opacity 0.3s;
-        }
-
-        /* --- HIDDEN INPUT BAR --- */
-        #input-area {
-            position: absolute; bottom: 30px; left: 50%; transform: translate(-50%, 20px);
-            z-index: 20; display: flex; align-items: center; gap: 12px;
-            background: var(--panel); backdrop-filter: blur(15px);
-            padding: 12px 20px; border-radius: 30px; width: 60%; max-width: 800px;
-            border: 1px solid rgba(0, 243, 255, 0.3);
-            box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 20px rgba(0, 243, 255, 0.1) inset;
-            opacity: 0; pointer-events: none; transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
-        }
+        #subtitle-hud { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); width: 70%; text-align: center; z-index: 11; pointer-events: none; font-size: 15px; line-height: 1.6; letter-spacing: 0.05em; color: #fff; text-shadow: 0 2px 10px rgba(0, 243, 255, 0.5); background: linear-gradient(90deg, transparent, rgba(0,0,0,0.6), transparent); padding: 20px; opacity: 0; transition: opacity 0.3s; }
+        #input-area { position: absolute; bottom: 30px; left: 50%; transform: translate(-50%, 20px); z-index: 20; display: flex; align-items: center; gap: 12px; background: var(--panel); backdrop-filter: blur(15px); padding: 12px 20px; border-radius: 30px; width: 60%; max-width: 800px; border: 1px solid rgba(0, 243, 255, 0.3); box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 20px rgba(0, 243, 255, 0.1) inset; opacity: 0; pointer-events: none; transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
         #input-area.visible { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
-        #input-area input[type="text"] {
-            flex: 1; background: transparent; border: none; color: #fff;
-            font-family: inherit; font-size: 14px; outline: none;
-        }
+        #input-area input[type="text"] { flex: 1; background: transparent; border: none; color: #fff; font-family: inherit; font-size: 14px; outline: none; }
         #input-area input::placeholder { color: rgba(0, 243, 255, 0.4); }
         #input-area button { background: transparent; border: none; color: var(--core-cyan); cursor: pointer; font-size: 18px; transition: 0.2s; }
         #input-area button:hover { transform: scale(1.1); text-shadow: 0 0 10px var(--core-cyan); }
         #sendBtn { font-size: 12px !important; font-weight: bold; letter-spacing: 0.1em; border: 1px solid var(--core-cyan) !important; padding: 6px 14px; border-radius: 15px; }
-
-        /* --- CODE SIDEBAR --- */
-        #code-sidebar {
-            position: absolute; right: -500px; top: 0; bottom: 0; width: 450px; z-index: 30;
-            background: var(--panel); backdrop-filter: blur(20px);
-            border-left: 1px solid rgba(0, 243, 255, 0.3);
-            box-shadow: -20px 0 50px rgba(0,0,0,0.8);
-            display: flex; flex-direction: column; transition: right 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
-        }
+        #code-sidebar { position: absolute; right: -500px; top: 0; bottom: 0; width: 450px; z-index: 30; background: var(--panel); backdrop-filter: blur(20px); border-left: 1px solid rgba(0, 243, 255, 0.3); box-shadow: -20px 0 50px rgba(0,0,0,0.8); display: flex; flex-direction: column; transition: right 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
         #code-sidebar.open { right: 0; }
         #sidebar-header { padding: 20px; border-bottom: 1px solid rgba(0, 243, 255, 0.2); display: flex; justify-content: space-between; font-weight: bold; font-size: 12px; letter-spacing: 0.2em; }
         #closeSidebar { cursor: pointer; color: var(--alert); font-size: 16px; }
         #code-content { flex: 1; overflow-y: auto; padding: 20px; font-size: 13px; }
         pre { background: rgba(0,0,0,0.6); padding: 15px; border-radius: 6px; border: 1px solid rgba(0, 243, 255, 0.2); overflow-x: auto; color: #e0e0e0; margin-bottom: 20px; }
-
-        /* --- LIVE APP PREVIEW WINDOW --- */
-        #app-viewer {
-            position: absolute; top: 50%; left: 45%; transform: translate(-50%, -45%);
-            width: 75vw; height: 80vh; z-index: 40;
-            background: rgba(5, 8, 12, 0.95); backdrop-filter: blur(25px);
-            border: 1px solid var(--core-cyan); border-radius: 12px;
-            box-shadow: 0 0 50px rgba(0, 243, 255, 0.15), 0 20px 60px rgba(0,0,0,0.9);
-            display: flex; flex-direction: column; overflow: hidden;
-            opacity: 0; pointer-events: none; transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
-        }
+        #app-viewer { position: absolute; top: 50%; left: 45%; transform: translate(-50%, -45%); width: 75vw; height: 80vh; z-index: 40; background: rgba(5, 8, 12, 0.95); backdrop-filter: blur(25px); border: 1px solid var(--core-cyan); border-radius: 12px; box-shadow: 0 0 50px rgba(0, 243, 255, 0.15), 0 20px 60px rgba(0,0,0,0.9); display: flex; flex-direction: column; overflow: hidden; opacity: 0; pointer-events: none; transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
         #app-viewer.open { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%); }
         #app-header { padding: 15px 20px; background: rgba(0, 243, 255, 0.05); border-bottom: 1px solid rgba(0, 243, 255, 0.3); display: flex; justify-content: space-between; font-weight: bold; font-size: 13px; letter-spacing: 0.2em; color: var(--core-cyan); }
         #closeAppViewer { cursor: pointer; color: var(--alert); font-size: 18px; transition: 0.3s;}
@@ -190,364 +102,231 @@
 
     <script>
     document.addEventListener('DOMContentLoaded', () => {
-        console.log("Ghost Matrix Shell Initializing...");
-
-        // PRE-LOAD VOICES
         let availableVoices = [];
         window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); };
-        availableVoices = window.speechSynthesis.getVoices();
 
-        // --- 1. AUTHENTICATION & MEMORY LOGIC ---
-        const loginOverlay = document.getElementById('loginOverlay');
-        const authInput = document.getElementById('authInput');
-        const osContainer = document.getElementById('os-container');
-        const userTag = document.getElementById('userTag');
+        const loginOverlay = document.getElementById('loginOverlay'), authInput = document.getElementById('authInput');
+        const osContainer = document.getElementById('os-container'), userTag = document.getElementById('userTag');
         let masterUser = "Guest";
-        let knownUsers = JSON.parse(localStorage.getItem('ghost_users') || '[]');
 
-        authInput.addEventListener('keypress', (e) => {
+        authInput.addEventListener('keypress', async (e) => {
             if (e.key === 'Enter') {
                 const inputVal = authInput.value.trim();
                 if (!inputVal) return;
+                
+                const safeGuestName = inputVal.replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 20) || "Guest";
 
-                if (inputVal.toLowerCase() === 'blacksyth') {
-                    userTag.innerHTML = `<span class="dot red"></span>ADMIN // ACTIVE`;
-                    userTag.classList.add('admin');
-                    masterUser = "Master Manoj";
-                    speakResponse("Welcome back, Master Manoj. Ghost AI online and fully unrestrained.");
-                } else {
-                    userTag.innerHTML = `<span class="dot cyan"></span>GUEST // ${inputVal.toUpperCase()}`;
-                    masterUser = inputVal;
-                    if (!knownUsers.includes(inputVal.toLowerCase())) {
-                        knownUsers.push(inputVal.toLowerCase());
-                        localStorage.setItem('ghost_users', JSON.stringify(knownUsers));
-                        speakResponse(`Welcome to Ghost AI, ${inputVal}. My logic, vision, and execution modules are currently at your disposal.`);
+                try {
+                    const authRes = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ authString: inputVal, user: safeGuestName }) });
+                    const authData = await authRes.json();
+
+                    if (authData.success && authData.role === 'admin') {
+                        userTag.innerHTML = `<span class="dot red"></span>ADMIN // ACTIVE`;
+                        userTag.classList.add('admin');
+                        masterUser = "Master Manoj";
+                        speakResponse("Welcome back, Master Manoj. Secure JWT established. Ghost AI online.");
                     } else {
-                        speakResponse(`Welcome back, ${inputVal}. My matrix remembers your previous sessions.`);
+                        userTag.innerHTML = `<span class="dot cyan"></span>GUEST // ${safeGuestName.toUpperCase()}`;
+                        masterUser = safeGuestName;
+                        speakResponse(`Welcome to Ghost AI, ${safeGuestName}. Guest protocols active.`);
                     }
-                }
-                loginOverlay.style.opacity = '0';
-                loginOverlay.style.visibility = 'hidden';
-                osContainer.classList.add('active');
-                setTimeout(startContinuousListening, 1000);
+                } catch (error) { console.error("Auth routing failed."); }
+
+                loginOverlay.style.opacity = '0'; loginOverlay.style.visibility = 'hidden';
+                osContainer.classList.add('active'); setTimeout(startContinuousListening, 1000);
             }
         });
 
-        // UI TOGGLES
-        let isGhostCodeActive = true;
-        let isMicActive = true;
+        let isGhostCodeActive = true, isMicActive = true;
         document.getElementById('ghostCodeBtn').addEventListener('click', () => {
             isGhostCodeActive = !isGhostCodeActive;
             const btn = document.getElementById('ghostCodeBtn');
-            if (isGhostCodeActive) {
-                btn.classList.remove('off'); btn.innerText = "[ GHOST CODE: ON ]";
-                speakResponse("Code execution matrix activated.");
-            } else {
-                btn.classList.add('off'); btn.innerText = "[ GHOST CODE: OFF ]";
-                speakResponse("Code execution matrix offline.");
-            }
+            if (isGhostCodeActive) { btn.classList.remove('off'); btn.innerText = "[ GHOST CODE: ON ]"; speakResponse("Code matrix activated."); } 
+            else { btn.classList.add('off'); btn.innerText = "[ GHOST CODE: OFF ]"; speakResponse("Code matrix offline."); }
         });
 
         document.getElementById('micToggleBtn').addEventListener('click', () => {
             isMicActive = !isMicActive;
             const btn = document.getElementById('micToggleBtn');
-            if (isMicActive) {
-                btn.innerHTML = `<span class="dot cyan" id="micIndicator"></span>MIC // LISTENING`;
-                if (recognition) { try { recognition.start(); } catch(e){} }
-                speakResponse("Microphone array online.");
-            } else {
-                btn.innerHTML = `<span class="dot red" id="micIndicator"></span>MIC // MUTED`;
-                if (recognition) recognition.stop();
-                speakResponse("Microphone array offline.");
-            }
+            if (isMicActive) { btn.innerHTML = `<span class="dot cyan" id="micIndicator"></span>MIC // LISTENING`; if (recognition) { try { recognition.start(); } catch(e){} } speakResponse("Microphone array online."); } 
+            else { btn.innerHTML = `<span class="dot red" id="micIndicator"></span>MIC // MUTED`; if (recognition) recognition.stop(); speakResponse("Microphone array offline."); }
         });
 
-        // --- 2. THE J.A.R.V.I.S SPHERE ---
         if (typeof THREE !== 'undefined') {
             const canvasContainer = document.getElementById('canvas-container');
-            const scene = new THREE.Scene();
-            const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
             const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.domElement.style.position = 'absolute';
-            renderer.domElement.style.zIndex = '1';
+            renderer.domElement.style.position = 'absolute'; renderer.domElement.style.zIndex = '1';
             canvasContainer.appendChild(renderer.domElement);
 
-            const particleCount = 8000;
-            const geometry = new THREE.BufferGeometry();
-            const positions = new Float32Array(particleCount * 3);
-            const colors = new Float32Array(particleCount * 3);
-            const colorCyan = new THREE.Color('#00f3ff');
-            const colorBlue = new THREE.Color('#0055ff');
+            const particleCount = 8000, geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3), colors = new Float32Array(particleCount * 3);
+            const colorCyan = new THREE.Color('#00f3ff'), colorBlue = new THREE.Color('#0055ff');
 
-            for(let i = 0; i < particleCount; i++) {
-                const theta = Math.random() * Math.PI * 2;
-                const phi = Math.acos((Math.random() * 2) - 1);
-                const radius = 5 + (Math.random() * 0.5);
-                positions[i*3] = radius * Math.sin(phi) * Math.cos(theta);
-                positions[i*3+1] = radius * Math.sin(phi) * Math.sin(theta);
-                positions[i*3+2] = radius * Math.cos(phi);
+            for(let i=0; i<particleCount; i++) {
+                const theta = Math.random() * Math.PI * 2, phi = Math.acos((Math.random() * 2) - 1), radius = 5 + (Math.random() * 0.5);
+                positions[i*3] = radius * Math.sin(phi) * Math.cos(theta); positions[i*3+1] = radius * Math.sin(phi) * Math.sin(theta); positions[i*3+2] = radius * Math.cos(phi);
                 const mixedColor = Math.random() > 0.5 ? colorCyan : colorBlue;
                 colors[i*3] = mixedColor.r; colors[i*3+1] = mixedColor.g; colors[i*3+2] = mixedColor.b;
             }
-
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3)); geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
             const material = new THREE.PointsMaterial({ size: 0.03, vertexColors: true, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
-            const sphereMesh = new THREE.Points(geometry, material);
-            scene.add(sphereMesh);
+            const sphereMesh = new THREE.Points(geometry, material); scene.add(sphereMesh);
+            const coreMesh = new THREE.Mesh(new THREE.SphereGeometry(4.5, 32, 32), new THREE.MeshBasicMaterial({ color: 0x0055ff, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending }));
+            scene.add(coreMesh); camera.position.z = 12;
 
-            const coreGeo = new THREE.SphereGeometry(4.5, 32, 32);
-            const coreMat = new THREE.MeshBasicMaterial({ color: 0x0055ff, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending });
-            const coreMesh = new THREE.Mesh(coreGeo, coreMat);
-            scene.add(coreMesh);
-
-            camera.position.z = 12;
             let time = 0;
-            function animateSphere() {
-                requestAnimationFrame(animateSphere);
-                time += 0.005;
-                sphereMesh.rotation.y += 0.002;
-                sphereMesh.rotation.x = Math.sin(time) * 0.2;
-                const scale = 1 + Math.sin(time * 2) * 0.02;
-                sphereMesh.scale.set(scale, scale, scale);
-                coreMesh.scale.set(scale, scale, scale);
-                renderer.render(scene, camera);
-            }
+            function animateSphere() { requestAnimationFrame(animateSphere); time += 0.005; sphereMesh.rotation.y += 0.002; sphereMesh.rotation.x = Math.sin(time) * 0.2; const scale = 1 + Math.sin(time * 2) * 0.02; sphereMesh.scale.set(scale, scale, scale); coreMesh.scale.set(scale, scale, scale); renderer.render(scene, camera); }
             animateSphere();
         }
 
-        // --- 3. UI INTERACTIONS ---
-        let inputVisible = false;
-        let lastTap = 0;
-        const inputArea = document.getElementById('input-area');
-        const codeSidebar = document.getElementById('code-sidebar');
-        const codeContent = document.getElementById('code-content');
-        const subtitleHud = document.getElementById('subtitle-hud');
-        const appViewer = document.getElementById('app-viewer');
-        const appIframe = document.getElementById('app-iframe');
+        let inputVisible = false, lastTap = 0;
+        const inputArea = document.getElementById('input-area'), codeSidebar = document.getElementById('code-sidebar');
+        const codeContent = document.getElementById('code-content'), subtitleHud = document.getElementById('subtitle-hud');
+        const appViewer = document.getElementById('app-viewer'), appIframe = document.getElementById('app-iframe');
 
         function handleDoubleTap(e) {
             if(e.target.closest('#input-area') || e.target.closest('#code-sidebar') || e.target.closest('#app-viewer')) return;
             const currentTime = new Date().getTime();
             if (currentTime - lastTap < 300 && currentTime - lastTap > 0) {
                 inputVisible = !inputVisible;
-                if (inputVisible) { inputArea.classList.add('visible'); document.getElementById('userInput').focus(); }
-                else { inputArea.classList.remove('visible'); }
+                if (inputVisible) { inputArea.classList.add('visible'); document.getElementById('userInput').focus(); } else inputArea.classList.remove('visible');
             }
             lastTap = currentTime;
         }
         document.addEventListener('dblclick', (e) => { lastTap = new Date().getTime() - 100; handleDoubleTap(e); });
         document.addEventListener('touchend', handleDoubleTap);
-
-        document.getElementById('closeSidebar').addEventListener('click', () => { codeSidebar.classList.remove('open'); });
-        document.getElementById('closeAppViewer').addEventListener('click', () => { appViewer.classList.remove('open'); setTimeout(()=> {appIframe.srcdoc = "";}, 500); });
+        document.getElementById('closeSidebar').addEventListener('click', () => codeSidebar.classList.remove('open'));
+        document.getElementById('closeAppViewer').addEventListener('click', () => { appViewer.classList.remove('open'); setTimeout(()=> appIframe.srcdoc = "", 500); });
 
         let subtitleTimeout;
-        function showSubtitle(text) {
-            subtitleHud.innerText = text;
-            subtitleHud.style.opacity = '1';
-            clearTimeout(subtitleTimeout);
-            subtitleTimeout = setTimeout(() => { subtitleHud.style.opacity = '0'; }, Math.max(3000, text.length * 50));
-        }
+        function showSubtitle(text) { subtitleHud.innerText = text; subtitleHud.style.opacity = '1'; clearTimeout(subtitleTimeout); subtitleTimeout = setTimeout(() => subtitleHud.style.opacity = '0', Math.max(3000, text.length * 50)); }
 
-        // --- 4. VOICE SYNTHESIS (PERFECT AUDIO SYNC) ---
         function speakResponse(text) {
             if (!window.speechSynthesis) return;
-            let cleanText = text.replace(/[\x60]{3}[\s\S]*?[\x60]{3}/g, '')
-                                .replace(/<think>[\s\S]*?<\/think>/g, '')
-                                .replace(/<search>[\s\S]*?<\/search>/g, '')
-                                .replace(/\[.*?\]/g, '')
-                                .trim();
-
+            let cleanText = text.replace(/[\x60]{3}[\s\S]*?[\x60]{3}/g, '').replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<search>[\s\S]*?<\/search>/g, '').replace(/\[.*?\]/g, '').trim();
             if (!cleanText) cleanText = "Execution complete, Master Manoj.";
-
             window.speechSynthesis.cancel();
             const sentences = cleanText.match(/[^.!?]+[.!?]+/g) || [cleanText];
-
             sentences.forEach((sentence) => {
                 const utterance = new SpeechSynthesisUtterance(sentence.trim());
                 if (availableVoices.length === 0) availableVoices = window.speechSynthesis.getVoices();
-                let ukVoice = availableVoices.find(v => v.lang === 'en-GB' || v.name.includes('UK English'));
-                if (!ukVoice) ukVoice = availableVoices.find(v => v.lang.includes('en'));
-                if (ukVoice) utterance.voice = ukVoice;
-                
-                utterance.rate = 1.05; 
-                utterance.pitch = 0.9;
-
-                utterance.onstart = () => {
-                    showSubtitle(sentence.trim());
-                };
-
+                let ukVoice = availableVoices.find(v => v.lang === 'en-GB' || v.name.includes('UK English')) || availableVoices.find(v => v.lang.includes('en'));
+                if (ukVoice) utterance.voice = ukVoice; utterance.rate = 1.05; utterance.pitch = 0.9;
+                utterance.onstart = () => showSubtitle(sentence.trim());
                 window.speechSynthesis.speak(utterance);
             });
         }
 
-        // --- 5. CONTINUOUS VOICE RECOGNITION ---
-        const micIndicator = document.getElementById('micIndicator');
-        let recognition;
-        let isProcessingCommand = false;
-
+        const micIndicator = document.getElementById('micIndicator'); let recognition, isProcessingCommand = false;
         function startContinuousListening() {
-            if (!isMicActive) return;
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) return;
-
-            recognition = new SpeechRecognition();
-            recognition.continuous = true;
-            recognition.lang = 'en-IN';
+            if (!isMicActive) return; const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SpeechRecognition) return;
+            recognition = new SpeechRecognition(); recognition.continuous = true; recognition.lang = 'en-IN';
             recognition.onstart = () => { if(isMicActive) micIndicator.className = 'dot cyan'; };
             recognition.onresult = (event) => {
                 const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
                 if ((transcript.includes("ghost") || transcript.includes("host") || transcript.includes("cost")) && !isProcessingCommand) {
                     let command = transcript.split(/ghost|host|cost/).pop().trim();
-                    if (command.length > 2) processCommand(command);
-                    else speakResponse("Yes?");
+                    if (command.length > 2) processCommand(command); else speakResponse("Yes?");
                 }
             };
-            recognition.onend = () => { if(!isProcessingCommand && isMicActive) { try { recognition.start(); } catch(e){} } };
+            recognition.onend = () => { if(!isProcessingCommand && isMicActive) try { recognition.start(); } catch(e){} };
             try { recognition.start(); } catch(e){}
         }
 
-        // --- 6. DATA GATHERING & SMART PDF PARSING ---
-        let uploadedFileText = "";
-        let uploadedImageBase64 = "";
+        let uploadedFileText = "", uploadedImageBase64 = "";
         const attachmentInput = document.getElementById('attachmentInput');
         document.getElementById('attachBtn').addEventListener('click', () => attachmentInput.click());
-        
         attachmentInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            showSubtitle(`Processing: ${file.name}...`);
-            if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    uploadedImageBase64 = ev.target.result.split(',')[1];
-                    showSubtitle(`Vision data buffered: ${file.name}`);
-                };
-                reader.readAsDataURL(file);
-            } else if (file.type === 'application/pdf') {
-                const fileReader = new FileReader();
-                fileReader.onload = async function() {
-                    try {
-                        const typedarray = new Uint8Array(this.result);
-                        const pdf = await pdfjsLib.getDocument(typedarray).promise;
-                        let text = "";
-                        for(let i = 1; i <= pdf.numPages; i++) {
-                            const page = await pdf.getPage(i);
-                            const content = await page.getTextContent();
-                            text += content.items.map(item => item.str).join(' ') + "\n";
-                        }
-                        uploadedFileText = text;
-                        showSubtitle(`PDF Parsed successfully: ${file.name}`);
-                    } catch (err) {
-                        showSubtitle("Error parsing PDF.");
-                    }
-                };
-                fileReader.readAsArrayBuffer(file);
-            } else {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    uploadedFileText = ev.target.result;
-                    showSubtitle(`Data buffered: ${file.name}`);
-                };
-                reader.readAsText(file);
-            }
+            const file = e.target.files[0]; if (!file) return; showSubtitle(`Processing: ${file.name}...`);
+            if (file.type.startsWith('image/')) { const reader = new FileReader(); reader.onload = (ev) => { uploadedImageBase64 = ev.target.result.split(',')[1]; showSubtitle(`Vision data buffered: ${file.name}`); }; reader.readAsDataURL(file); }
+            else if (file.type === 'application/pdf') { const fileReader = new FileReader(); fileReader.onload = async function() { try { const pdf = await pdfjsLib.getDocument(new Uint8Array(this.result)).promise; let text = ""; for(let i=1; i<=pdf.numPages; i++) { const content = await (await pdf.getPage(i)).getTextContent(); text += content.items.map(item => item.str).join(' ') + "\n"; } uploadedFileText = text; showSubtitle(`PDF Parsed successfully: ${file.name}`); } catch (err) { showSubtitle("Error parsing PDF."); } }; fileReader.readAsArrayBuffer(file); }
+            else { const reader = new FileReader(); reader.onload = (ev) => { uploadedFileText = ev.target.result; showSubtitle(`Data buffered: ${file.name}`); }; reader.readAsText(file); }
         });
 
-        document.getElementById('sendBtn').addEventListener('click', () => {
-            const val = document.getElementById('userInput').value;
-            if(val || uploadedImageBase64 || uploadedFileText) processCommand(val);
-        });
-        document.getElementById('userInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                const val = document.getElementById('userInput').value;
-                if(val || uploadedImageBase64 || uploadedFileText) processCommand(val);
-            }
-        });
+        document.getElementById('sendBtn').addEventListener('click', () => { const val = document.getElementById('userInput').value; if(val || uploadedImageBase64 || uploadedFileText) processCommand(val); });
+        document.getElementById('userInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') { const val = document.getElementById('userInput').value; if(val || uploadedImageBase64 || uploadedFileText) processCommand(val); } });
 
         async function processCommand(textCommand) {
-            isProcessingCommand = true;
-            if(recognition) recognition.stop();
-            showSubtitle("Synthesizing...");
-            document.getElementById('userInput').value = "";
-            inputArea.classList.remove('visible'); inputVisible = false;
-
-            const payload = {
-                message: textCommand,
-                user: masterUser,
-                image: uploadedImageBase64 || null,
-                fileContent: uploadedFileText || null,
-                ghostCodeMode: isGhostCodeActive
-            };
-
+            isProcessingCommand = true; if(recognition) recognition.stop();
+            showSubtitle("Synthesizing..."); document.getElementById('userInput').value = ""; inputArea.classList.remove('visible'); inputVisible = false;
+            const payload = { message: textCommand, user: masterUser, image: uploadedImageBase64 || null, fileContent: uploadedFileText || null, ghostCodeMode: isGhostCodeActive };
             uploadedFileText = ""; uploadedImageBase64 = ""; attachmentInput.value = "";
 
             try {
                 const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 const data = await response.json();
-                if (data.success) handleGhostResponse(data.text);
-                else speakResponse("Matrix error. Backend disconnected.");
-            } catch (error) {
-                speakResponse("Critical failure. Server unreachable.");
-            } finally {
-                isProcessingCommand = false;
-                setTimeout(() => { if (isMicActive) try { recognition.start(); } catch(e){} }, 1000);
-            }
+                
+                if (data.success) {
+                    handleGhostResponse(data.text);
+                    
+                    // HITL UI INJECTION
+                    if (data.actionRequired && data.actionId) {
+                        const hitlDiv = document.createElement('div');
+                        hitlDiv.innerHTML = `
+                            <div style="margin-top: 15px; padding: 15px; border: 1px solid var(--alert); background: rgba(255, 46, 77, 0.1); border-radius: 8px; text-align: center;">
+                                <p style="color: var(--alert); margin-bottom: 10px; font-weight: bold; font-size: 12px; letter-spacing: 0.1em;">EXTERNAL ACTION AUTHORIZATION REQUIRED</p>
+                                <button id="approveBtn" style="padding: 8px 16px; background: rgba(0, 243, 255, 0.2); border: 1px solid var(--core-cyan); color: var(--core-cyan); border-radius: 4px; cursor: pointer; margin-right: 10px; font-weight: bold;">AUTHORIZE</button>
+                                <button id="rejectBtn" style="padding: 8px 16px; background: rgba(255, 46, 77, 0.2); border: 1px solid var(--alert); color: var(--alert); border-radius: 4px; cursor: pointer; font-weight: bold;">REJECT</button>
+                            </div>
+                        `;
+                        codeContent.appendChild(hitlDiv);
+                        codeSidebar.classList.add('open');
+
+                        document.getElementById('approveBtn').addEventListener('click', async () => {
+                            hitlDiv.innerHTML = `<span style="color: var(--core-cyan); font-size: 12px;">Transmitting...</span>`;
+                            try {
+                                const execRes = await fetch('/api/execute-action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actionId: data.actionId }) });
+                                const execData = await execRes.json();
+                                hitlDiv.innerHTML = `<span style="color: ${execData.success ? 'var(--core-cyan)' : 'var(--alert)'}; font-size: 12px;">${execData.success ? execData.message : execData.error}</span>`;
+                                speakResponse(execData.success ? "Authorization accepted. Execution successful." : "Execution failed.");
+                            } catch(e) { hitlDiv.innerHTML = `<span style="color: var(--alert); font-size: 12px;">Network error during execution.</span>`; }
+                        });
+
+                        document.getElementById('rejectBtn').addEventListener('click', () => {
+                            hitlDiv.innerHTML = `<span style="color: var(--alert); font-size: 12px;">Action aborted by Admin.</span>`;
+                            speakResponse("Action aborted.");
+                        });
+                    }
+                } else speakResponse("Matrix error. Backend disconnected.");
+            } catch (error) { speakResponse("Critical failure. Server unreachable."); } 
+            finally { isProcessingCommand = false; setTimeout(() => { if (isMicActive) try { recognition.start(); } catch(e){} }, 1000); }
         }
 
-        // --- 7. PARSE RESPONSE & LIVE RENDERER (AGGRESSIVE INTERCEPTOR) ---
         function handleGhostResponse(fullText) {
-            const codeRegex = /[\x60]{3}(?:python|html|javascript)?\n([\s\S]*?)[\x60]{3}/gi;
-            let match;
-            let foundHtml = false;
-            let htmlContentToRender = "";
-            let spokenText = fullText;
-            
-            codeContent.innerHTML = ''; // Clear previous
-
-            // Extract standard formatted code blocks
-            while ((match = codeRegex.exec(fullText)) !== null) {
-                let codeBlock = match[1].trim();
-                let safeBlock = codeBlock.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                codeContent.innerHTML += `<pre><code>${safeBlock}</code></pre>`;
-                
-                if (codeBlock.includes('<!DOCTYPE html>') || (codeBlock.includes('<html') && codeBlock.includes('</html>'))) {
-                    foundHtml = true;
-                    let htmlStartIndex = codeBlock.indexOf('<!DOCTYPE html>');
-                    if (htmlStartIndex === -1) htmlStartIndex = codeBlock.indexOf('<html');
-                    htmlContentToRender = codeBlock.substring(htmlStartIndex);
-                }
-                spokenText = spokenText.replace(match[0], ''); // Strip code from speech
+            if (fullText.includes('[EXECUTE_OPEN_TAB:')) {
+                const urlMatch = fullText.match(/\[EXECUTE_OPEN_TAB:(.*?)\]/);
+                if (urlMatch && urlMatch[1]) window.open(urlMatch[1], '_blank');
+                fullText = fullText.replace(/\[EXECUTE_OPEN_TAB:.*?\]/g, 'Opening web oracle tab.');
             }
 
-            // AGGRESSIVE FALLBACK: Catch raw HTML leaks if the AI forgets backticks
-            if (!foundHtml && (spokenText.includes('<!DOCTYPE html>') || spokenText.includes('<html'))) {
-                let startIndex = spokenText.indexOf('<!DOCTYPE html>');
-                if (startIndex === -1) startIndex = spokenText.indexOf('<html');
-                let endIndex = spokenText.lastIndexOf('</html>') + 7;
-                
-                if (startIndex !== -1 && endIndex > startIndex) {
-                    htmlContentToRender = spokenText.substring(startIndex, endIndex);
+            const codeRegex = /[\x60]{3}(?:python|html|javascript)?\n([\s\S]*?)[\x60]{3}/gi;
+            let match, foundHtml = false, htmlContentToRender = "", spokenText = fullText;
+            codeContent.innerHTML = ''; 
+
+            while ((match = codeRegex.exec(fullText)) !== null) {
+                let codeBlock = match[1].trim(), safeBlock = codeBlock.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                codeContent.innerHTML += `<pre><code>${safeBlock}</code></pre>`;
+                if (codeBlock.includes('<!DOCTYPE html>') || (codeBlock.includes('<html') && codeBlock.includes('</html>'))) {
                     foundHtml = true;
-                    
-                    let safeBlock = htmlContentToRender.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                    codeContent.innerHTML += `<pre><code>${safeBlock}</code></pre>`;
+                    htmlContentToRender = codeBlock.substring(codeBlock.indexOf('<!DOCTYPE html>') !== -1 ? codeBlock.indexOf('<!DOCTYPE html>') : codeBlock.indexOf('<html'));
+                }
+                spokenText = spokenText.replace(match[0], ''); 
+            }
+
+            if (!foundHtml && (spokenText.includes('<!DOCTYPE html>') || spokenText.includes('<html'))) {
+                let startIndex = spokenText.indexOf('<!DOCTYPE html>') !== -1 ? spokenText.indexOf('<!DOCTYPE html>') : spokenText.indexOf('<html');
+                let endIndex = spokenText.lastIndexOf('</html>') + 7;
+                if (startIndex !== -1 && endIndex > startIndex) {
+                    htmlContentToRender = spokenText.substring(startIndex, endIndex); foundHtml = true;
+                    codeContent.innerHTML += `<pre><code>${htmlContentToRender.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></pre>`;
                     spokenText = spokenText.replace(htmlContentToRender, '');
                 }
             }
             
-            if (codeContent.innerHTML !== '') {
-                codeSidebar.classList.add('open');
-            }
-
-            if (foundHtml && htmlContentToRender) {
-                appIframe.srcdoc = htmlContentToRender;
-                appViewer.classList.add('open');
-                
-                if (spokenText.trim() === "") spokenText = "Interface successfully compiled and rendered, Master Manoj.";
-            }
-            
+            if (codeContent.innerHTML !== '') codeSidebar.classList.add('open');
+            if (foundHtml && htmlContentToRender) { appIframe.srcdoc = htmlContentToRender; appViewer.classList.add('open'); if (spokenText.trim() === "") spokenText = "Interface rendered, Master Manoj."; }
             speakResponse(spokenText);
         }
     }); 

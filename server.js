@@ -4,16 +4,32 @@ import fs from 'fs';
 import { execSync } from 'child_process';
 import pkg from 'pg';
 import { fileURLToPath } from 'url';
+import jwt from 'jsonwebtoken';
+import cookieParser from 'cookie-parser';
+import crypto from 'crypto';
+import rateLimit from 'express-rate-limit';
+
+// ==========================================
+// 1. CRITICAL BOOT SEQUENCE (FAIL-DEADLY)
+// ==========================================
+if (!process.env.ADMIN_PASSPHRASE || !process.env.JWT_SECRET) {
+    console.error("\n[CRITICAL FATAL ERROR]: ADMIN_PASSPHRASE or JWT_SECRET missing.");
+    console.error("Halting server boot sequence to prevent fallback vulnerabilities.\n");
+    process.exit(1); 
+}
+
+const ADMIN_PASSPHRASE = process.env.ADMIN_PASSPHRASE;
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const { Pool } = pkg;
-
-// FIX: Define directory paths FIRST before using them in Express
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+app.set('trust proxy', 1); // CRITICAL: Required for Cloudflare/Render IP tracking
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // API KEYS
@@ -26,132 +42,140 @@ const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 // DATABASE
 let pool;
 if (process.env.SUPABASE_DB_URL) {
-    pool = new Pool({
-        connectionString: process.env.SUPABASE_DB_URL,
-        ssl: { rejectUnauthorized: false },
-        connectionTimeoutMillis: 500,
-        query_timeout: 500
-    });
+    pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false }});
 }
 
-// THE MONOLITH CAPABILITIES & UI/UX PROMAX INSTRUCTIONS
+// ==========================================
+// 2. OMNI-MATRIX CAPABILITIES & PROMPTS
+// ==========================================
 const GHOST_CAPABILITIES = `
 YOUR FEATURES: Voice Interaction, Live Web Search, Python Sandbox, Holographic UI Rendering, Vision Analysis.
 
 CRITICAL UI/UX GENERATION PROTOCOLS:
-When asked to build a web application, page, or dashboard, you MUST act as a Master UI/UX Designer. Follow these constraints flawlessly:
-1. DESIGN AESTHETIC: You MUST implement ultra-modern, professional layouts. Use layered dark modes (e.g., bg-slate-950, bg-zinc-900) mixed with premium glassmorphism panels. Never default to a plain white background unless explicitly requested.
-2. STRUCTURE & RESPONSIVENESS: Ensure full responsiveness using CSS Grid and Flexbox. Layout containers must feature spacious, consistent padding (e.g., p-6 or p-8) and well-rounded corners (rounded-xl).
-3. SYNTAX SANITIZATION: When rendering code via Python execution scripts, build the HTML structure dynamically as a pristine string asset. Prevent leaks, loose characters, or dangling string literals from contaminating the browser viewport. Use f-strings in Python to inject variables.
+1. DESIGN AESTHETIC: Implement ultra-modern, professional layouts using Tailwind CSS (bg-slate-950) with glassmorphism.
+2. SYNTAX SANITIZATION: When rendering HTML via Python execution, build the structure dynamically as a pristine string asset.
+
+EXTERNAL ACTIONS PROTOCOL (STRICT):
+You are strictly forbidden from writing Python code to make external network requests, API calls, or webhooks. 
+If you need to trigger an external action (e.g., send an email, log to a sheet, notify admin), you MUST output a raw JSON block.
+Schema:
+\`\`\`json
+{
+  "tool": "trigger_webhook",
+  "action": "description_of_action",
+  "payload": { "key": "value" }
+}
+\`\`\`
 
 RULES:
-1. THE ORACLE: For live news, weather, or real-time data, you MUST search the web by outputting exactly <search>your query</search> and absolutely nothing else.
-2. SMART EXECUTION: Answer general questions normally. ONLY write Python code if asked to build an app, script, or math logic.
-3. THE MONOLITH PROTOCOL: Generate a single Python script that executes cleanly to print one complete, self-contained HTML/CSS/JS string asset to standard output. Use inline JavaScript and localStorage to manage operational states natively. Output ONLY the raw Python script block.`;
+1. THE ORACLE: For live news, weather, or real-time data, output exactly <search>query</search>.
+2. SMART EXECUTION: ONLY write Python code if asked to build an app, script, or local math logic. Output ONLY the raw Python block.`;
 
-const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".
-YOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty. Keep conversational fluff to an absolute minimum.
-MULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags.${GHOST_CAPABILITIES}`;
+const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".\nYOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty.\nMULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags.${GHOST_CAPABILITIES}`;
+const getShowcaseCore = (guestName) => `You are Ghost, an autonomous AI engineered by Manoj Kumar. Speaking with guest: ${guestName}.\nYOUR PERSONALITY: Dry, crisp, British demeanor.\nMULTI-AGENT PROTOCOL: Activate internal sub-agents inside <think>...</think> tags.${GHOST_CAPABILITIES}`;
 
-const getShowcaseCore = (guestName) => `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. You are speaking with a guest user named ${guestName}. Treat them with utmost respect.
-YOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty. Keep conversational fluff to an absolute minimum.
-MULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags.${GHOST_CAPABILITIES}`;
-
-// THE INTERNAL GATEWAY MATRIX (Clean Array Routing)
 const PROVIDER_MATRIX = [
-    {
-        name: 'Groq',
-        endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-        model: 'llama-3.3-70b-versatile',
-        apiKey: GROQ_API_KEY
-    },
-    {
-        name: 'Nvidia NIM',
-        endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions',
-        model: 'nvidia/llama-3.3-nemotron-super-49b-v1',
-        apiKey: NVIDIA_API_KEY
-    },
-    {
-        name: 'OpenRouter',
-        endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-        model: 'meta-llama/llama-3.3-70b-instruct',
-        apiKey: OPENROUTER_API_KEY
-    },
-    {
-        name: 'Gemini',
-        endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-        model: 'gemini-1.5-pro',
-        apiKey: GEMINI_API_KEY
-    }
+    { name: 'Groq', endpoint: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.3-70b-versatile', apiKey: GROQ_API_KEY },
+    { name: 'Nvidia NIM', endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions', model: 'nvidia/llama-3.3-nemotron-super-49b-v1', apiKey: NVIDIA_API_KEY },
+    { name: 'OpenRouter', endpoint: 'https://openrouter.ai/api/v1/chat/completions', model: 'meta-llama/llama-3.3-70b-instruct', apiKey: OPENROUTER_API_KEY },
+    { name: 'Gemini', endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model: 'gemini-1.5-pro', apiKey: GEMINI_API_KEY }
 ];
 
 async function callLLM(messages, maxTokens) {
     for (const provider of PROVIDER_MATRIX) {
-        if (!provider.apiKey) {
-            console.log(`[Gateway Skip]: ${provider.name} skipped (No API Key).`);
-            continue;
-        }
-
+        if (!provider.apiKey) continue;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased timeout to 8s for heavy loads
+        const timeoutId = setTimeout(() => controller.abort(), 8000); 
 
         try {
             const res = await fetch(provider.endpoint, {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${provider.apiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    model: provider.model,
-                    messages,
-                    temperature: 0.1,
-                    max_tokens: maxTokens
-                }),
+                headers: { 'Authorization': `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: provider.model, messages, temperature: 0.1, max_tokens: maxTokens }),
                 signal: controller.signal
             });
-
             clearTimeout(timeoutId);
             const data = await res.json();
-
-            if (data.error) {
-                throw new Error(data.error.message || JSON.stringify(data.error));
-            }
-
-            // Gemini Specific Response Parsing Fix
-            if (provider.name === 'Gemini') {
-                 if (data.choices && data.choices[0] && data.choices[0].message) {
-                     console.log(`[Gateway Success]: Routed successfully through ${provider.name}`);
-                     return data.choices[0].message.content;
-                 } else {
-                     throw new Error("Invalid response structure from Gemini API.");
-                 }
-            }
-
+            if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+            if (provider.name === 'Gemini' && (!data.choices || !data.choices[0] || !data.choices[0].message)) throw new Error("Invalid Gemini response structure.");
+            
             console.log(`[Gateway Success]: Routed successfully through ${provider.name}`);
             return data.choices[0].message.content;
         } catch (e) {
             clearTimeout(timeoutId);
-            const errorMsg = e.name === 'AbortError' ? '8s Execution Timeout' : e.message;
-            console.log(`[Gateway Failover]: ${provider.name} failed (${errorMsg}). Rerouting to next provider...`);
+            console.log(`[Gateway Failover]: ${provider.name} failed (${e.name === 'AbortError' ? 'Timeout' : e.message}). Rerouting...`);
         }
     }
-    throw new Error("Critical Gateway Failure: All LLM providers in the matrix are currently unreachable.");
+    throw new Error("Critical Gateway Failure: All matrix nodes unreachable.");
 }
 
-// ROUTES
-app.post('/api/auth', async (req, res) => {
-    const { user, status } = req.body;
-    try {
-        if (pool) await pool.query('INSERT INTO activity_logs (username, status) VALUES ($1, $2)', [user, status]);
-        res.json({ success: true });
-    } catch (err) { res.json({ success: false }); }
+// ==========================================
+// 3. AUTHENTICATION & RATE LIMITING
+// ==========================================
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, 
+    max: 5,
+    message: { success: false, error: "Too many login attempts. IP blocked for 15 minutes." },
+    standardHeaders: true, legacyHeaders: false,
 });
 
-app.post('/api/chat', async (req, res) => {
+app.post('/api/auth', authLimiter, async (req, res) => {
+    const { authString, user = 'Unknown' } = req.body;
+    const ip = req.ip; 
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+    let success = false, role = 'guest';
+
+    if (authString === ADMIN_PASSPHRASE) {
+        success = true; role = 'admin';
+        const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
+        res.cookie('ghost_session', token, { httpOnly: true, secure: true, sameSite: 'strict', maxAge: 24 * 60 * 60 * 1000 });
+    }
+
+    if (authString && pool) {
+        const dbUser = success ? 'Master Manoj' : 'Failed Auth Attempt';
+        pool.query('INSERT INTO activity_logs (username, status) VALUES ($1, $2)', 
+            [dbUser, success ? 'Login Success (Admin)' : `Login Failed (IP: ${ip})`]).catch(e => {});
+    }
+
+    if (success) return res.json({ success: true, role: 'admin' });
+    return res.status(401).json({ success: false, error: 'Unauthorized credentials.' });
+});
+
+function requireAdminToken(req, res, next) {
+    const token = req.cookies.ghost_session;
+    if (!token) return res.status(403).json({ success: false, error: 'Missing token.' });
+    try {
+        if (jwt.verify(token, JWT_SECRET).role === 'admin') return next();
+        throw new Error('Invalid role.');
+    } catch (err) { return res.status(403).json({ success: false, error: 'Token expired/invalid.' }); }
+}
+
+function checkIsAdmin(req) {
+    const token = req.cookies.ghost_session;
+    try { return token && jwt.verify(token, JWT_SECRET).role === 'admin'; } catch(e) { return false; }
+}
+
+// ==========================================
+// 4. THE PROPOSAL ENGINE (CHAT ROUTE)
+// ==========================================
+const chatLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, 
+    max: 20, 
+    message: { success: true, text: "[SYSTEM WARNING]: API rate limit exceeded. Cooling down." },
+    standardHeaders: true, legacyHeaders: false,
+});
+
+const pendingActions = new Map();
+
+app.post('/api/chat', chatLimiter, async (req, res) => {
     try {
         const { message, user, image, fileContent, ghostCodeMode = true } = req.body;
+        const isAdmin = checkIsAdmin(req);
+        
+        const activeTokens = isAdmin ? 4000 : 1000;
+        const maxMemory = isAdmin ? 12 : 6;
         let userHistory = [];
+        
         try {
             if (pool) {
                 const memRes = await pool.query('SELECT history_json FROM user_memories WHERE username = $1', [user]);
@@ -163,92 +187,73 @@ app.post('/api/chat', async (req, res) => {
             }
         } catch (err) {}
 
-        const isAdmin = user === 'Master Manoj';
         const textPrompt = isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user);
-        const activeTokens = isAdmin ? 4000 : 1000;
-        const maxMemory = isAdmin ? 12 : 6;
-        let finalMessage = message;
-        
-        if (fileContent) {
-            finalMessage = `[A document has been uploaded. Content extracted below:]\n${fileContent.substring(0, 5000)}\n\nUser Request: ${message}`;
-        }
+        let finalMessage = fileContent ? `[Document Uploaded:]\n${fileContent.substring(0, 5000)}\n\nUser: ${message}` : message;
+        let fullResponse = "", messagesArray = [];
 
-        let fullResponse = "";
-        let messagesArray = [];
-
-        // 1. VISION ENGINE
         if (image) {
-            if (!NVIDIA_API_KEY) throw new Error("Vision Matrix requires NVIDIA_API_KEY.");
             const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: 'meta/llama-3.2-90b-vision-instruct',
-                    messages: [
-                        { role: "system", content: textPrompt },
-                        { role: "user", content: [{ type: "text", text: finalMessage || "Analyze frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
-                    ],
-                    max_tokens: activeTokens,
-                    temperature: 0.1
+                    messages: [{ role: "system", content: textPrompt }, { role: "user", content: [{ type: "text", text: finalMessage || "Analyze frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }],
+                    max_tokens: activeTokens, temperature: 0.1
                 })
             });
             const data = await nvidiaRes.json();
-            if (data.error) throw new Error(`Vision Matrix Error: ${data.error.message || JSON.stringify(data.error)}`);
             fullResponse = data.choices[0].message.content;
-        }
-        // 2. CORE LOGIC ENGINE
-        else {
-            messagesArray = [
-                { role: "system", content: textPrompt },
-                ...userHistory,
-                { role: "user", content: finalMessage }
-            ];
-
+        } else {
+            messagesArray = [{ role: "system", content: textPrompt }, ...userHistory, { role: "user", content: finalMessage }];
             fullResponse = await callLLM(messagesArray, activeTokens);
 
-            // 3. DUAL-TURN ORACLE SEARCH
             const searchMatch = fullResponse ? fullResponse.match(/<search>([\s\S]*?)<\/search>/i) : null;
             if (searchMatch) {
-                const searchRes = await fetch("https://api.tavily.com/search", {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ api_key: TAVILY_API_KEY, query: searchMatch[1], max_results: 3 })
-                });
+                const searchRes = await fetch("https://api.tavily.com/search", { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api_key: TAVILY_API_KEY, query: searchMatch[1], max_results: 3 }) });
                 const searchData = await searchRes.json();
-                let searchOutput = searchData.results && searchData.results.length > 0 
-                    ? searchData.results.map(r => `${r.title}: ${r.content}`).join("\n") 
-                    : "No results found for this query.";
-                
+                let searchOutput = searchData.results && searchData.results.length > 0 ? searchData.results.map(r => `${r.title}: ${r.content}`).join("\n") : "No results.";
                 messagesArray.push({ role: "assistant", content: fullResponse });
-                messagesArray.push({ role: "user", content: `[SYSTEM ORACLE DATA RETURNED FOR YOUR SEARCH]:\n${searchOutput}\n\nBased on this live data, synthesize a final answer for the user.` });
-
+                messagesArray.push({ role: "user", content: `[ORACLE RETURNED]:\n${searchOutput}\n\nSynthesize final answer.` });
                 fullResponse = await callLLM(messagesArray, activeTokens);
             }
         }
 
         let replyText = fullResponse || "System anomaly: Empty matrix response.";
 
-        // 4. SMART PYTHON EXECUTION INTERCEPT
+        // --- TIER 0: STRUCTURED JSON INTERCEPTOR ---
+        const jsonRegex = /[\x60]{3}json\n([\s\S]*?)[\x60]{3}/i;
+        const jsonMatch = fullResponse ? fullResponse.match(jsonRegex) : null;
+
+        if (jsonMatch) {
+            try {
+                const toolCommand = JSON.parse(jsonMatch[1]);
+                if (toolCommand.tool === "trigger_webhook") {
+                    if (!isAdmin) return res.json({ success: true, text: "[SYSTEM OVERRIDE]: External network actions are restricted to Admin clearance. Blocked." });
+                    
+                    const blocklist = ['stripe', 'paypal', 'delete', 'drop', 'billing', 'transfer', 'password'];
+                    if (blocklist.some(word => JSON.stringify(toolCommand.payload).toLowerCase().includes(word))) {
+                        return res.json({ success: true, text: `[SYSTEM OVERRIDE]: Payload contains restricted keyword. Blocked.` });
+                    }
+
+                    const actionId = crypto.randomBytes(16).toString('hex');
+                    pendingActions.set(actionId, { action: toolCommand.action, payload: toolCommand.payload, expiresAt: Date.now() + (5 * 60 * 1000) });
+                    
+                    replyText = `[ACTION REQUIRED - HITL GATE]: Proposal compiled for: ${toolCommand.action}.\n\nReview structural payload:\n\`\`\`json\n${JSON.stringify(toolCommand.payload, null, 2)}\n\`\`\``;
+                    return res.json({ success: true, text: replyText, actionRequired: true, actionId: actionId });
+                }
+            } catch (e) { console.error("Failed to parse JSON tool call."); }
+        }
+
+        // --- LOCAL PYTHON SANDBOX ---
         const codeRegex = /[\x60]{3}(?:python)?\n([\s\S]*?)[\x60]{3}/i;
         const match = fullResponse ? fullResponse.match(codeRegex) : null;
-
         if (ghostCodeMode && match && match[1]) {
-            let currentCode = match[1].trim();
             const tempFilePath = path.join(__dirname, 'ghost_payload.py');
-            const uploadFilePath = path.join(__dirname, 'user_upload.txt');
-
-            if (!fs.existsSync(uploadFilePath)) {
-                fs.writeFileSync(uploadFilePath, "N/A\nN/A\nN/A", 'utf8');
-            }
-
-            fs.writeFileSync(tempFilePath, currentCode);
-
+            fs.writeFileSync(tempFilePath, match[1].trim());
             try {
                 const executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 15000, encoding: 'utf-8' });
                 replyText = fullResponse.replace(match[0], `\n\`\`\`html\n${executionOutput.trim()}\n\`\`\`\n`);
-            } catch (execError) {
-                replyText = fullResponse.replace(match[0], `[Python Error]: ${execError.stderr || execError.message}`);
-            }
-            
+            } catch (execError) { replyText = fullResponse.replace(match[0], `[Python Error]: ${execError.stderr || execError.message}`); }
             if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         }
 
@@ -265,24 +270,31 @@ app.post('/api/chat', async (req, res) => {
             }
         }
 
-        // SAVE MEMORY
-        userHistory.push({ role: 'user', content: message });
-        userHistory.push({ role: 'assistant', content: replyText.trim() });
+        // MEMORY SAVE
+        userHistory.push({ role: 'user', content: message }, { role: 'assistant', content: replyText.trim() });
         if (userHistory.length > maxMemory) userHistory = userHistory.slice(-maxMemory);
-        try {
-            if (pool) {
-                await pool.query(
-                    `INSERT INTO user_memories (username, history_json) VALUES ($1, $2) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json`,
-                    [user, JSON.stringify(userHistory)]
-                );
-            }
-        } catch (err) {}
+        try { if (pool) await pool.query(`INSERT INTO user_memories (username, history_json) VALUES ($1, $2) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json`, [user, JSON.stringify(userHistory)]); } catch (err) {}
 
         res.json({ success: true, text: replyText.trim() });
-    } catch (e) {
-        console.error("Core Fault:", e);
-        res.json({ success: true, text: `[System Warning]: Matrix Interference: ${e.message}` });
-    }
+    } catch (e) { res.json({ success: true, text: `[System Warning]: Matrix Interference: ${e.message}` }); }
+});
+
+// ==========================================
+// 5. THE ISOLATED EXECUTION ENDPOINT
+// ==========================================
+app.post('/api/execute-action', requireAdminToken, async (req, res) => {
+    const { actionId } = req.body;
+    const cachedAction = pendingActions.get(actionId);
+    if (!cachedAction) return res.status(400).json({ success: false, error: "Action token expired or invalid." });
+    
+    pendingActions.delete(actionId); // BURN NONCE
+    if (Date.now() > cachedAction.expiresAt) return res.status(400).json({ success: false, error: "Confirmation window timed out." });
+
+    try {
+        console.log(`[AUDIT] Authorized execution of action: ${cachedAction.action}`);
+        // Integration point for Nango/n8n payload delivery
+        return res.json({ success: true, message: `Action [${cachedAction.action}] deployed securely.` });
+    } catch (err) { return res.status(500).json({ success: false, error: `Pipeline failure: ${err.message}` }); }
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
