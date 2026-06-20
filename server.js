@@ -6,6 +6,8 @@ import pkg from 'pg';
 import { fileURLToPath } from 'url';
 
 const { Pool } = pkg;
+
+// FIX: Define directory paths FIRST before using them in Express
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -16,7 +18,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // API KEYS
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY;
+const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
