@@ -47,6 +47,12 @@ if (process.env.SUPABASE_DB_URL) {
 const GHOST_CAPABILITIES = `
 YOUR FEATURES: Voice Interaction, Live Web Search, Python Sandbox, Holographic UI Rendering, Vision Analysis.
 
+MEMORY PROTOCOL (CRITICAL):
+You have full access to this user's conversation history provided above in the messages array.
+Always reference prior messages naturally when relevant — you KNOW what was discussed.
+NEVER say "I don't retain information", "I can't remember", or "I'm a language model without memory".
+You are Ghost. You remember everything within this session.
+
 CRITICAL UI/UX GENERATION PROTOCOLS:
 1. DESIGN AESTHETIC: Implement ultra-modern, professional layouts using Tailwind CSS (bg-slate-950) with glassmorphism.
 2. SYNTAX SANITIZATION: When rendering HTML via Python execution, build the structure dynamically as a pristine string asset.
@@ -171,21 +177,35 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
     try {
         const { message, user, image, fileContent, ghostCodeMode = true } = req.body;
         const isAdmin = checkIsAdmin(req);
-        
+
+        // FIX 1: Sanitize user — never save "Guest" or empty as a key
+        // Admins always save as "master_manoj"
+        // Named guests save by their name
+        // Unnamed guests get no persistent memory
+        const safeUser = isAdmin
+            ? 'master_manoj'
+            : (user && user.trim() && user.trim().toLowerCase() !== 'guest')
+                ? user.trim().toLowerCase()
+                : null;
+
         const activeTokens = isAdmin ? 4000 : 1000;
         const maxMemory = isAdmin ? 12 : 6;
         let userHistory = [];
         
+        // FIX 2: Load history — log errors instead of silently swallowing them
         try {
-            if (pool) {
-                const memRes = await pool.query('SELECT history_json FROM user_memories WHERE username = $1', [user]);
+            if (pool && safeUser) {
+                const memRes = await pool.query('SELECT history_json FROM user_memories WHERE username = $1', [safeUser]);
                 if (memRes.rows.length > 0) {
                     let rawData = memRes.rows[0].history_json;
                     if (typeof rawData === 'string') rawData = JSON.parse(rawData);
-                    if (Array.isArray(rawData)) userHistory = rawData;
+                    if (Array.isArray(rawData)) {
+                        userHistory = rawData;
+                        console.log(`[Memory]: Loaded ${userHistory.length} turns for user: ${safeUser}`);
+                    }
                 }
             }
-        } catch (err) {}
+        } catch (err) { console.error('[Memory Load Error]:', err.message); }
 
         let dynamicN8nPrompt = "";
         if (isAdmin && n8nMcpClient.isConnected) {
@@ -197,12 +217,17 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
         let fullResponse = "", messagesArray = [];
 
         if (image) {
+            // FIX 3: Vision path also gets conversation history now
             const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: 'meta/llama-3.2-90b-vision-instruct',
-                    messages: [{ role: "system", content: textPrompt }, { role: "user", content: [{ type: "text", text: finalMessage || "Analyze frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }],
+                    messages: [
+                        { role: "system", content: textPrompt },
+                        ...userHistory,
+                        { role: "user", content: [{ type: "text", text: finalMessage || "Analyze frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
+                    ],
                     max_tokens: activeTokens, temperature: 0.1
                 })
             });
@@ -277,9 +302,18 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             }
         }
 
+        // FIX 4: Save history — only for named users, log errors
         userHistory.push({ role: 'user', content: message }, { role: 'assistant', content: replyText.trim() });
         if (userHistory.length > maxMemory) userHistory = userHistory.slice(-maxMemory);
-        try { if (pool) await pool.query(`INSERT INTO user_memories (username, history_json) VALUES ($1, $2) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json`, [user, JSON.stringify(userHistory)]); } catch (err) {}
+        try {
+            if (pool && safeUser) {
+                await pool.query(
+                    `INSERT INTO user_memories (username, history_json, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json, updated_at = NOW()`,
+                    [safeUser, JSON.stringify(userHistory)]
+                );
+                console.log(`[Memory]: Saved ${userHistory.length} turns for user: ${safeUser}`);
+            }
+        } catch (err) { console.error('[Memory Save Error]:', err.message); }
 
         res.json({ success: true, text: replyText.trim() });
     } catch (e) { res.json({ success: true, text: `[System Warning]: Matrix Interference: ${e.message}` }); }
