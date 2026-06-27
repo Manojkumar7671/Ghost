@@ -36,10 +36,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Boot System Integrations Gracefully
 n8nMcpClient.initialize().catch(e => console.error("[Server Init] Non-fatal n8n MCP init error:", e.message));
 
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY; 
 
 let pool;
 if (process.env.SUPABASE_DB_URL) {
@@ -58,7 +59,60 @@ const fetchWithTimeout = (promise, ms) => {
 };
 
 // ==========================================
-// 3. OMNI-MATRIX CAPABILITIES & PROMPTS
+// 3. CONTEXT COMPRESSION & EVOMAP PRAL LOOP
+// ==========================================
+function compressContext(messages) {
+    if (!messages || messages.length <= 7) return messages;
+
+    const systemPrompt = messages[0].role === 'system' ? messages[0] : null;
+    const startIndex = systemPrompt ? 1 : 0;
+    
+    const coreMessages = messages.slice(startIndex, messages.length - 6);
+    const recentMessages = messages.slice(messages.length - 6);
+
+    const compressedCore = coreMessages.map(msg => {
+        let content = msg.content || "";
+        if (typeof content !== 'string') return msg;
+
+        // Truncate massively long web scrapes or outputs to preserve Headroom
+        if (content.length > 2000) {
+            content = content.substring(0, 1000) + "\n\n...[SYSTEM OVERRIDE: HEAVY CONTEXT COMPRESSED]...\n\n" + content.substring(content.length - 900);
+        }
+        return { ...msg, content };
+    });
+
+    // Strip immediate duplicate bot outputs in history to save tokens
+    const dedupedCore = compressedCore.filter((msg, idx, arr) => {
+        if (idx === 0) return true;
+        return msg.content !== arr[idx - 1].content;
+    });
+
+    return systemPrompt ? [systemPrompt, ...dedupedCore, ...recentMessages] : [...dedupedCore, ...recentMessages];
+}
+
+async function ghostLearn(sessionData) {
+    const { safeUser, message, actionTaken } = sessionData;
+    if (!pool || !safeUser || safeUser === 'guest') return;
+
+    // Build the evolutionary Gene
+    const pattern = message.substring(0, 500); // What did the user ask?
+    const action = actionTaken || "general_response"; // What tool did Ghost decide to use?
+    const outcome = "success"; 
+    const score = 1.0; 
+
+    try {
+        await pool.query(
+            `INSERT INTO ghost_genes (pattern, action, outcome, score, created_at) VALUES ($1, $2, $3, $4, NOW())`,
+            [pattern, action, outcome, score]
+        );
+    } catch (err) {
+        // Silently fail if table isn't created yet or network hiccups
+        console.error('[EvoMap]: Background gene write failed.', err.message);
+    }
+}
+
+// ==========================================
+// 4. OMNI-MATRIX CAPABILITIES & PROMPTS
 // ==========================================
 const GHOST_CAPABILITIES = `
 YOUR FEATURES: Voice Interaction, Live Web Search, Python Sandbox, Holographic UI Rendering, Vision Analysis.
@@ -86,7 +140,7 @@ Schema:
   "payload": { "key": "value" }
 }
 \`\`\`
-To trigger a live n8n workflow (see LIVE N8N WORKFLOWS list if present), use this schema instead:
+To trigger a live n8n workflow, use this schema instead:
 \`\`\`json
 {
   "tool": "n8n_execute",
@@ -105,10 +159,26 @@ To control the headless browser infrastructure via Browserbase, use this schema 
 
 RULES:
 1. THE ORACLE: For live news, weather, or real-time data, output exactly <search>query</search>.
-2. SMART EXECUTION: ONLY write Python code if asked to build an app, script, or local math logic. Output ONLY the raw Python block.`;
+2. SMART EXECUTION: ONLY write Python code if asked to build an app, script, or local math logic. Output ONLY the raw Python block.
+3. PONYTAIL MINIMALISM RULE: Before writing any code, you must check if the standard library, native features, or an existing dependency can solve it first. Write the absolute minimum working code necessary.`;
 
-const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".\nYOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty.\nMULTI-AGENT PROTOCOL: Activate your internal Research, Architect, and Execution sub-agents inside <think>...</think> tags.${GHOST_CAPABILITIES}`;
-const getShowcaseCore = (guestName) => `You are Ghost, an autonomous AI engineered by Manoj Kumar. Speaking with visitor: ${guestName}.\nYOUR PERSONALITY: Dry, crisp, British demeanor.\nMULTI-AGENT PROTOCOL: Activate internal sub-agents inside <think>...</think> tags.${GHOST_CAPABILITIES}`;
+const MULTI_AGENT_PROTOCOL = `
+MULTI-AGENT PROTOCOL: Activate your internal sub-agents inside <think>...</think> tags. Personas:
+- Research Agent: deep web analysis, fact-checking
+- Architect Agent: system design, code structure
+- Execution Agent: writes code, takes actions
+- Growth Agent: marketing, outreach strategy`;
+
+const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".\nYOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty.${MULTI_AGENT_PROTOCOL}\n${GHOST_CAPABILITIES}`;
+const getShowcaseCore = (guestName) => `You are Ghost, an autonomous AI engineered by Manoj Kumar. Speaking with visitor: ${guestName}.\nYOUR PERSONALITY: Dry, crisp, British demeanor.${MULTI_AGENT_PROTOCOL}\n${GHOST_CAPABILITIES}`;
+
+const PROVIDER_MATRIX = [
+    { name: 'Gemini', endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model: 'gemini-1.5-pro', apiKey: GEMINI_API_KEY },
+    { name: 'Groq', endpoint: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.3-70b-versatile', apiKey: GROQ_API_KEY },
+    { name: 'Nvidia NIM', endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions', model: 'nvidia/llama-3.3-nemotron-super-49b-v1', apiKey: NVIDIA_API_KEY },
+    { name: 'OpenRouter', endpoint: 'https://openrouter.ai/api/v1/chat/completions', model: 'meta-llama/llama-3.3-70b-instruct', apiKey: OPENROUTER_API_KEY },
+    { name: 'MiniMax', endpoint: 'https://api.minimax.io/v1/chat/completions', model: 'MiniMax-M3', apiKey: MINIMAX_API_KEY }
+];
 
 async function callLLM(messages, maxTokens) {
     for (const provider of PROVIDER_MATRIX) {
@@ -168,7 +238,6 @@ app.post('/api/auth', authLimiter, async (req, res) => {
 
     if (success) return res.json({ success: true, role: 'admin' });
     
-    // Destroy the Admin cookie if they log in as a guest
     res.clearCookie('ghost_session'); 
     return res.json({ success: true, role: 'guest' });
 });
@@ -201,30 +270,25 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
         const { message, user, image, fileContent, ghostCodeMode = true } = req.body;
         const isAdmin = checkIsAdmin(req);
 
-        const safeUser = isAdmin
-            ? 'master_manoj'
-            : (user && user.trim() && user.trim().toLowerCase() !== 'guest')
-                ? user.trim().toLowerCase()
-                : null;
-
+        const safeUser = isAdmin ? 'master_manoj' : (user && user.trim() && user.trim().toLowerCase() !== 'guest') ? user.trim().toLowerCase() : null;
         const activeTokens = isAdmin ? 4000 : 1000;
         const maxMemory = isAdmin ? 12 : 6;
         let userHistory = [];
         
-        try {
-            if (pool && safeUser) {
+        if (pool && safeUser) {
+            try {
                 const memRes = await pool.query('SELECT history_json FROM user_memories WHERE username = $1', [safeUser]);
                 if (memRes.rows.length > 0) {
                     let rawData = memRes.rows[0].history_json;
                     if (typeof rawData === 'string') rawData = JSON.parse(rawData);
-                    if (Array.isArray(rawData)) {
-                        userHistory = rawData;
-                    }
+                    if (Array.isArray(rawData)) userHistory = rawData;
                 }
-            }
-        } catch (err) { console.error('[Memory Load Error]:', err.message); }
+            } catch (err) { console.error('[Memory Load Error]:', err.message); }
+        }
 
         let dynamicToolsPrompt = "";
+        let learnedGenesPrompt = "";
+
         if (isAdmin) {
             if (n8nMcpClient.isConnected) {
                 dynamicToolsPrompt += `\n\n[LIVE N8N WORKFLOWS AVAILABLE]\nUse "tool": "n8n_execute" with these exact action names and schemas:\n${n8nMcpClient.getPromptString()}`;
@@ -232,9 +296,19 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             if (browserbaseClient.isConnected) {
                 dynamicToolsPrompt += `\n\n${browserbaseClient.getPromptString()}`;
             }
+
+            // Fetch EvoMap PRAL Context
+            if (pool) {
+                try {
+                    const geneRes = await pool.query('SELECT pattern, action FROM ghost_genes ORDER BY created_at DESC LIMIT 3');
+                    if (geneRes.rows.length > 0) {
+                        learnedGenesPrompt = "\n\n[EVOMAP PRAL PROTOCOL - PAST SUCCESSFUL LOGIC:]\n" + geneRes.rows.map(g => `[LEARNED: ${g.pattern} -> ${g.action}]`).join('\n');
+                    }
+                } catch (e) {} // Fails gracefully if ghost_genes doesn't exist yet
+            }
         }
 
-        const textPrompt = (isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user)) + dynamicToolsPrompt;
+        const textPrompt = (isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user)) + dynamicToolsPrompt + learnedGenesPrompt;
         let finalMessage = fileContent ? `[Document Uploaded:]\n${fileContent.substring(0, 5000)}\n\nUser: ${message}` : message;
         let fullResponse = "", messagesArray = [];
 
@@ -256,8 +330,13 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             fullResponse = data.choices[0].message.content;
         } else {
             messagesArray = [{ role: "system", content: textPrompt }, ...userHistory, { role: "user", content: finalMessage }];
+            
+            // Apply Headroom Context Compression before dispatching
+            messagesArray = compressContext(messagesArray);
+            
             fullResponse = await callLLM(messagesArray, activeTokens);
 
+            // --- THE NEW ORACLE (DUCK-DUCK-SCRAPE WITH 8s TIMEOUT & NO SAFESEARCH ARG) ---
             const searchMatch = fullResponse ? fullResponse.match(/<search>([\s\S]*?)<\/search>/i) : null;
             if (searchMatch) {
                 try {
@@ -270,6 +349,9 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                         
                     messagesArray.push({ role: "assistant", content: fullResponse });
                     messagesArray.push({ role: "user", content: `[ORACLE RETURNED]:\n${searchOutput}\n\nBased on this live data, synthesize a final answer for the user.` });
+                    
+                    // Re-compress if Oracle payload is massively heavy
+                    messagesArray = compressContext(messagesArray); 
                     fullResponse = await callLLM(messagesArray, activeTokens);
                 } catch (searchErr) {
                     console.error("[Oracle Error]:", searchErr.message);
@@ -281,6 +363,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
         }
 
         let replyText = fullResponse || "System anomaly: Empty matrix response.";
+        let actionTriggered = "general_response";
 
         // --- TIER 0: STRUCTURED JSON INTERCEPTOR ---
         const jsonRegex = /[\x60]{3}json\n([\s\S]*?)[\x60]{3}/i;
@@ -301,6 +384,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                         return;
                     }
 
+                    actionTriggered = `${toolCommand.tool}:${toolCommand.action}`;
                     const actionId = crypto.randomBytes(16).toString('hex');
                     pendingActions.set(actionId, {
                         type: toolCommand.tool,
@@ -310,6 +394,8 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                     });
                     
                     replyText = `[ACTION REQUIRED - HITL GATE]: Proposal compiled for [${toolCommand.tool}]: ${toolCommand.action}.\n\nReview structural payload:\n\`\`\`json\n${JSON.stringify(toolCommand.payload, null, 2)}\n\`\`\``;
+                    
+                    ghostLearn({ safeUser, message, actionTaken: actionTriggered });
                     res.json({ success: true, text: replyText, actionRequired: true, actionId: actionId });
                     return;
                 }
@@ -320,6 +406,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
         const codeRegex = /[\x60]{3}python\n([\s\S]*?)[\x60]{3}/i;
         const match = fullResponse ? fullResponse.match(codeRegex) : null;
         if (ghostCodeMode && match && match[1]) {
+            actionTriggered = "python_execution";
             const tempFilePath = path.join(__dirname, 'ghost_payload.py');
             fs.writeFileSync(tempFilePath, match[1].trim());
             try {
@@ -332,6 +419,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
         // --- DUCK-DUCK-SCRAPE WEB EMBED ---
         const embedMatch = replyText ? replyText.match(/<embed>([\s\S]*?)<\/embed>/i) : null;
         if (embedMatch) {
+            actionTriggered = "web_embed";
             try {
                 const embedResults = await fetchWithTimeout(search(embedMatch[1]), 8000);
                 if (embedResults && embedResults.results && embedResults.results.length > 0) {
@@ -344,6 +432,9 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                 replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Oracle embed failed to resolve]`);
             }
         }
+
+        // --- EVO MAP PRAL TRIGGER ---
+        ghostLearn({ safeUser, message, actionTaken: actionTriggered });
 
         // --- SAVE HISTORIC MATRIX PATHS ---
         userHistory.push({ role: 'user', content: message }, { role: 'assistant', content: replyText.trim() });
