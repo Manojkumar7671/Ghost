@@ -10,7 +10,6 @@ import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import n8nMcpClient from './services/mcpClient.js';
 import browserbaseClient from './services/browserbaseClient.js';
-import { search } from 'duck-duck-scrape'; 
 
 // ==========================================
 // 1. CRITICAL BOOT SEQUENCE (FAIL-DEADLY)
@@ -41,6 +40,7 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY; 
+const SERPER_API_KEY = process.env.SERPER_API_KEY;
 
 let pool;
 if (process.env.SUPABASE_DB_URL) {
@@ -336,15 +336,20 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             
             fullResponse = await callLLM(messagesArray, activeTokens);
 
-            // --- THE NEW ORACLE (DUCK-DUCK-SCRAPE WITH 8s TIMEOUT & NO SAFESEARCH ARG) ---
+            // --- THE NEW ORACLE (SERPER API WITH 8s TIMEOUT) ---
             const searchMatch = fullResponse ? fullResponse.match(/<search>([\s\S]*?)<\/search>/i) : null;
             if (searchMatch) {
                 try {
                     console.log(`[Oracle]: Searching web for: ${searchMatch[1]}`);
-                    const searchResults = await fetchWithTimeout(search(searchMatch[1]), 8000);
+                    const serperRes = await fetchWithTimeout(fetch('https://google.serper.dev/search', {
+                        method: 'POST',
+                        headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ q: searchMatch[1] })
+                    }), 8000);
                     
-                    let searchOutput = searchResults && searchResults.results && searchResults.results.length > 0 
-                        ? searchResults.results.slice(0, 3).map(r => `${r.title}: ${r.description}`).join("\n") 
+                    const searchData = await serperRes.json();
+                    let searchOutput = searchData.organic && searchData.organic.length > 0 
+                        ? searchData.organic.slice(0, 3).map(r => `${r.title}: ${r.snippet}`).join("\n") 
                         : "No results found.";
                         
                     messagesArray.push({ role: "assistant", content: fullResponse });
@@ -416,14 +421,20 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         }
 
-        // --- DUCK-DUCK-SCRAPE WEB EMBED ---
+        // --- SERPER API WEB EMBED ---
         const embedMatch = replyText ? replyText.match(/<embed>([\s\S]*?)<\/embed>/i) : null;
         if (embedMatch) {
             actionTriggered = "web_embed";
             try {
-                const embedResults = await fetchWithTimeout(search(embedMatch[1]), 8000);
-                if (embedResults && embedResults.results && embedResults.results.length > 0) {
-                    replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[EXECUTE_OPEN_TAB:${embedResults.results[0].url}]`);
+                const serperRes = await fetchWithTimeout(fetch('https://google.serper.dev/search', {
+                    method: 'POST',
+                    headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ q: embedMatch[1] })
+                }), 8000);
+                
+                const searchData = await serperRes.json();
+                if (searchData.organic && searchData.organic.length > 0) {
+                    replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[EXECUTE_OPEN_TAB:${searchData.organic[0].link}]`);
                 } else {
                     replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Oracle embed returned no results]`);
                 }
