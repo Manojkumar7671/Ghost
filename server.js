@@ -71,9 +71,9 @@ You are Ghost. You remember everything within this session.
 
 CRITICAL UI/UX GENERATION PROTOCOLS:
 1. DESIGN AESTHETIC: Implement ultra-modern, professional layouts using Tailwind CSS (bg-slate-950) with glassmorphism.
-2. SYNTAX SANITIZATION: When rendering HTML via Python execution, build the structure dynamically as a pristine string asset.
+2. SYNTAX SANITIZATION: When rendering HTML/UI, you MUST output a complete file starting with exactly <!DOCTYPE html> followed by the <html> tags. 
 3. VERBAL CONCISENESS: Keep your spoken conversational responses extremely short (1 or 2 brief, natural sentences max).
-4. SIDEBAR ROUTING: If you need to provide a long explanation, a detailed list, or heavy text, you MUST wrap it inside a standard markdown code block (e.g., \`\`\`markdown ... \`\`\`). The system will automatically route this block to the visual sidebar and mute it from the audio channel.
+4. SIDEBAR ROUTING: If you need to provide a long explanation, a detailed list, or heavy text, you MUST wrap it inside a standard markdown code block (e.g., \`\`\`markdown ... \`\`\`).
 
 EXTERNAL ACTIONS PROTOCOL (STRICT):
 You are strictly forbidden from writing Python code to make external network requests, API calls, or webhooks. 
@@ -265,7 +265,6 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             messagesArray = [{ role: "system", content: textPrompt }, ...userHistory, { role: "user", content: finalMessage }];
             fullResponse = await callLLM(messagesArray, activeTokens);
 
-            // --- THE NEW ORACLE (DUCK-DUCK-SCRAPE WITH 8s TIMEOUT & NO SAFESEARCH ARG) ---
             const searchMatch = fullResponse ? fullResponse.match(/<search>([\s\S]*?)<\/search>/i) : null;
             if (searchMatch) {
                 try {
