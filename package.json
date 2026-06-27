@@ -13,6 +13,7 @@
     "axios": "^1.17.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "duck-duck-scrape": "^2.2.7",
     "express": "^4.22.2",
     "express-rate-limit": "^8.5.2",
     "form-data": "^4.0.5",

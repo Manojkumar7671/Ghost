@@ -10,6 +10,7 @@ import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import n8nMcpClient from './services/mcpClient.js';
 import browserbaseClient from './services/browserbaseClient.js';
+import { search } from 'duck-duck-scrape'; // NEW: DuckDuckGo Scraper
 
 // ==========================================
 // 1. CRITICAL BOOT SEQUENCE (FAIL-DEADLY)
@@ -39,7 +40,7 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
+// Removed Tavily API Key entirely
 
 let pool;
 if (process.env.SUPABASE_DB_URL) {
@@ -47,7 +48,19 @@ if (process.env.SUPABASE_DB_URL) {
 }
 
 // ==========================================
-// 2. OMNI-MATRIX CAPABILITIES & PROMPTS
+// 2. ORACLE TIMEOUT WRAPPER
+// ==========================================
+// Forces any promise to reject if it takes longer than the specified milliseconds
+const fetchWithTimeout = (promise, ms) => {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Oracle Search Timeout (8s)')), ms);
+    });
+    return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+};
+
+// ==========================================
+// 3. OMNI-MATRIX CAPABILITIES & PROMPTS
 // ==========================================
 const GHOST_CAPABILITIES = `
 YOUR FEATURES: Voice Interaction, Live Web Search, Python Sandbox, Holographic UI Rendering, Vision Analysis.
@@ -161,7 +174,7 @@ app.post('/api/auth', authLimiter, async (req, res) => {
 
     if (success) return res.json({ success: true, role: 'admin' });
     
-    // CRITICAL FIX: Destroy the Admin cookie if they log in as a guest to prevent session bleed
+    // Destroy the Admin cookie if they log in as a guest
     res.clearCookie('ghost_session'); 
     return res.json({ success: true, role: 'guest' });
 });
@@ -212,7 +225,6 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                     if (typeof rawData === 'string') rawData = JSON.parse(rawData);
                     if (Array.isArray(rawData)) {
                         userHistory = rawData;
-                        console.log(`[Memory]: Loaded ${userHistory.length} turns for user: ${safeUser}`);
                     }
                 }
             }
@@ -253,20 +265,32 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             messagesArray = [{ role: "system", content: textPrompt }, ...userHistory, { role: "user", content: finalMessage }];
             fullResponse = await callLLM(messagesArray, activeTokens);
 
+            // --- THE NEW ORACLE (DUCK-DUCK-SCRAPE WITH 8s TIMEOUT) ---
             const searchMatch = fullResponse ? fullResponse.match(/<search>([\s\S]*?)<\/search>/i) : null;
             if (searchMatch) {
-                const searchRes = await fetch("https://api.tavily.com/search", { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api_key: TAVILY_API_KEY, query: searchMatch[1], max_results: 3 }) });
-                const searchData = await searchRes.json();
-                let searchOutput = searchData.results && searchData.results.length > 0 ? searchData.results.map(r => `${r.title}: ${r.content}`).join("\n") : "No results.";
-                messagesArray.push({ role: "assistant", content: fullResponse });
-                messagesArray.push({ role: "user", content: `[ORACLE RETURNED]:\n${searchOutput}\n\nBased on this live data, synthesize a final answer for the user.` });
-                fullResponse = await callLLM(messagesArray, activeTokens);
+                try {
+                    console.log(`[Oracle]: Searching web for: ${searchMatch[1]}`);
+                    const searchResults = await fetchWithTimeout(search(searchMatch[1], { safeSearch: 1 }), 8000);
+                    
+                    let searchOutput = searchResults && searchResults.results && searchResults.results.length > 0 
+                        ? searchResults.results.slice(0, 3).map(r => `${r.title}: ${r.description}`).join("\n") 
+                        : "No results found.";
+                        
+                    messagesArray.push({ role: "assistant", content: fullResponse });
+                    messagesArray.push({ role: "user", content: `[ORACLE RETURNED]:\n${searchOutput}\n\nBased on this live data, synthesize a final answer for the user.` });
+                    fullResponse = await callLLM(messagesArray, activeTokens);
+                } catch (searchErr) {
+                    console.error("[Oracle Error]:", searchErr.message);
+                    messagesArray.push({ role: "assistant", content: fullResponse });
+                    messagesArray.push({ role: "user", content: `[ORACLE FAILED]: The live web search timed out or was blocked. Inform the user gracefully.` });
+                    fullResponse = await callLLM(messagesArray, activeTokens);
+                }
             }
         }
 
         let replyText = fullResponse || "System anomaly: Empty matrix response.";
 
-        // --- TIER 0: STRUCTURED JSON INTERCEPTOR (Safe Unified Array Check) ---
+        // --- TIER 0: STRUCTURED JSON INTERCEPTOR ---
         const jsonRegex = /[\x60]{3}json\n([\s\S]*?)[\x60]{3}/i;
         const jsonMatch = fullResponse ? fullResponse.match(jsonRegex) : null;
 
@@ -308,16 +332,19 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         }
 
-        // TAVILY WEB EMBED
+        // --- TAVILY WEB EMBED REPLACED BY DUCK-DUCK-SCRAPE ---
         const embedMatch = replyText ? replyText.match(/<embed>([\s\S]*?)<\/embed>/i) : null;
         if (embedMatch) {
-            const searchRes = await fetch("https://api.tavily.com/search", {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ api_key: TAVILY_API_KEY, query: embedMatch[1], max_results: 1 })
-            });
-            const searchData = await searchRes.json();
-            if (searchData.results && searchData.results.length > 0) {
-                replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[EXECUTE_OPEN_TAB:${searchData.results[0].url}]`);
+            try {
+                const embedResults = await fetchWithTimeout(search(embedMatch[1], { safeSearch: 1 }), 8000);
+                if (embedResults && embedResults.results && embedResults.results.length > 0) {
+                    replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[EXECUTE_OPEN_TAB:${embedResults.results[0].url}]`);
+                } else {
+                    replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Oracle embed returned no results]`);
+                }
+            } catch (embedErr) {
+                console.error("[Oracle Embed Error]:", embedErr.message);
+                replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Oracle embed failed to resolve]`);
             }
         }
 
@@ -330,7 +357,6 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                     `INSERT INTO user_memories (username, history_json, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json, updated_at = NOW()`,
                     [safeUser, JSON.stringify(userHistory)]
                 );
-                console.log(`[Memory]: Saved ${userHistory.length} turns for user: ${safeUser}`);
             }
         } catch (err) { console.error('[Memory Save Error]:', err.message); }
 
@@ -352,13 +378,11 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
     try {
         console.log(`[AUDIT] Authorized execution of action: ${cachedAction.action}`);
 
-        // Route n8n MCP actions securely
         if (cachedAction.type === 'n8n_execute') {
             const result = await n8nMcpClient.executeTool(cachedAction.action, cachedAction.payload);
             return res.json({ success: true, message: `n8n workflow [${cachedAction.action}] executed successfully.`, result });
         }
 
-        // Route Browserbase actions securely
         if (cachedAction.type === 'browserbase_execute') {
             const result = await browserbaseClient.executeTool(cachedAction.action, cachedAction.payload);
             return res.json({ success: true, message: `Browserbase successfully processed target domain [${cachedAction.payload.url}].`, result });
