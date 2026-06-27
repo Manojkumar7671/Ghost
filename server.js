@@ -9,6 +9,7 @@ import cookieParser from 'cookie-parser';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import n8nMcpClient from './services/mcpClient.js';
+import browserbaseClient from './services/browserbaseClient.js';
 
 // ==========================================
 // 1. CRITICAL BOOT SEQUENCE (FAIL-DEADLY)
@@ -31,7 +32,8 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-n8nMcpClient.initialize().catch(e => console.error("[Server Init] Non-fatal MCP init error:", e.message));
+// Boot System Integrations Gracefully
+n8nMcpClient.initialize().catch(e => console.error("[Server Init] Non-fatal n8n MCP init error:", e.message));
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
@@ -44,6 +46,9 @@ if (process.env.SUPABASE_DB_URL) {
     pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false }});
 }
 
+// ==========================================
+// 2. OMNI-MATRIX CAPABILITIES & PROMPTS
+// ==========================================
 const GHOST_CAPABILITIES = `
 YOUR FEATURES: Voice Interaction, Live Web Search, Python Sandbox, Holographic UI Rendering, Vision Analysis.
 
@@ -76,6 +81,14 @@ To trigger a live n8n workflow (see LIVE N8N WORKFLOWS list if present), use thi
   "tool": "n8n_execute",
   "action": "exact_workflow_name",
   "payload": { "key": "value matching the workflow's schema" }
+}
+\`\`\`
+To control the headless browser infrastructure via Browserbase, use this schema instead:
+\`\`\`json
+{
+  "tool": "browserbase_execute",
+  "action": "load_url_or_extract_data",
+  "payload": { "url": "https://target-site.com", "query": "optional details to parse" }
 }
 \`\`\`
 
@@ -147,6 +160,9 @@ app.post('/api/auth', authLimiter, async (req, res) => {
     }
 
     if (success) return res.json({ success: true, role: 'admin' });
+    
+    // CRITICAL FIX: Destroy the Admin cookie if they log in as a guest to prevent session bleed
+    res.clearCookie('ghost_session'); 
     return res.json({ success: true, role: 'guest' });
 });
 
@@ -178,10 +194,6 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
         const { message, user, image, fileContent, ghostCodeMode = true } = req.body;
         const isAdmin = checkIsAdmin(req);
 
-        // FIX 1: Sanitize user — never save "Guest" or empty as a key
-        // Admins always save as "master_manoj"
-        // Named guests save by their name
-        // Unnamed guests get no persistent memory
         const safeUser = isAdmin
             ? 'master_manoj'
             : (user && user.trim() && user.trim().toLowerCase() !== 'guest')
@@ -192,7 +204,6 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
         const maxMemory = isAdmin ? 12 : 6;
         let userHistory = [];
         
-        // FIX 2: Load history — log errors instead of silently swallowing them
         try {
             if (pool && safeUser) {
                 const memRes = await pool.query('SELECT history_json FROM user_memories WHERE username = $1', [safeUser]);
@@ -207,17 +218,22 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             }
         } catch (err) { console.error('[Memory Load Error]:', err.message); }
 
-        let dynamicN8nPrompt = "";
-        if (isAdmin && n8nMcpClient.isConnected) {
-            dynamicN8nPrompt = `\n\n[LIVE N8N WORKFLOWS AVAILABLE]\nUse "tool": "n8n_execute" with these exact action names and schemas:\n${n8nMcpClient.getPromptString()}`;
+        // --- EXTRACT TOOL SCHEMAS FOR ACTIVE AGENT MATRIX ---
+        let dynamicToolsPrompt = "";
+        if (isAdmin) {
+            if (n8nMcpClient.isConnected) {
+                dynamicToolsPrompt += `\n\n[LIVE N8N WORKFLOWS AVAILABLE]\nUse "tool": "n8n_execute" with these exact action names and schemas:\n${n8nMcpClient.getPromptString()}`;
+            }
+            if (browserbaseClient.isConnected) {
+                dynamicToolsPrompt += `\n\n${browserbaseClient.getPromptString()}`;
+            }
         }
 
-        const textPrompt = (isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user)) + dynamicN8nPrompt;
+        const textPrompt = (isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user)) + dynamicToolsPrompt;
         let finalMessage = fileContent ? `[Document Uploaded:]\n${fileContent.substring(0, 5000)}\n\nUser: ${message}` : message;
         let fullResponse = "", messagesArray = [];
 
         if (image) {
-            // FIX 3: Vision path also gets conversation history now
             const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
@@ -243,20 +259,21 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                 const searchData = await searchRes.json();
                 let searchOutput = searchData.results && searchData.results.length > 0 ? searchData.results.map(r => `${r.title}: ${r.content}`).join("\n") : "No results.";
                 messagesArray.push({ role: "assistant", content: fullResponse });
-                messagesArray.push({ role: "user", content: `[ORACLE RETURNED]:\n${searchOutput}\n\nSynthesize final answer.` });
+                messagesArray.push({ role: "user", content: `[ORACLE RETURNED]:\n${searchOutput}\n\nBased on this live data, synthesize a final answer for the user.` });
                 fullResponse = await callLLM(messagesArray, activeTokens);
             }
         }
 
         let replyText = fullResponse || "System anomaly: Empty matrix response.";
 
+        // --- TIER 0: STRUCTURED JSON INTERCEPTOR (Safe Unified Array Check) ---
         const jsonRegex = /[\x60]{3}json\n([\s\S]*?)[\x60]{3}/i;
         const jsonMatch = fullResponse ? fullResponse.match(jsonRegex) : null;
 
         if (jsonMatch) {
             try {
                 const toolCommand = JSON.parse(jsonMatch[1]);
-                if (toolCommand.tool === "trigger_webhook" || toolCommand.tool === "n8n_execute") {
+                if (toolCommand.tool === "trigger_webhook" || toolCommand.tool === "n8n_execute" || toolCommand.tool === "browserbase_execute") {
                     if (!isAdmin) return res.json({ success: true, text: "[SYSTEM OVERRIDE]: External network actions are restricted to Admin clearance. Blocked." });
                     
                     const blocklist = ['stripe', 'paypal', 'delete', 'drop', 'billing', 'transfer', 'password'];
@@ -278,6 +295,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             } catch (e) { console.error("Failed to parse JSON tool call."); }
         }
 
+        // --- STRICT LOCAL PYTHON SANDBOX ---
         const codeRegex = /[\x60]{3}python\n([\s\S]*?)[\x60]{3}/i;
         const match = fullResponse ? fullResponse.match(codeRegex) : null;
         if (ghostCodeMode && match && match[1]) {
@@ -290,6 +308,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         }
 
+        // TAVILY WEB EMBED
         const embedMatch = replyText ? replyText.match(/<embed>([\s\S]*?)<\/embed>/i) : null;
         if (embedMatch) {
             const searchRes = await fetch("https://api.tavily.com/search", {
@@ -302,7 +321,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             }
         }
 
-        // FIX 4: Save history — only for named users, log errors
+        // SAVE HISTORIC MATRIX PATHS
         userHistory.push({ role: 'user', content: message }, { role: 'assistant', content: replyText.trim() });
         if (userHistory.length > maxMemory) userHistory = userHistory.slice(-maxMemory);
         try {
@@ -319,6 +338,9 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
     } catch (e) { res.json({ success: true, text: `[System Warning]: Matrix Interference: ${e.message}` }); }
 });
 
+// ==========================================
+// 5. THE ISOLATED EXECUTION ENDPOINT
+// ==========================================
 app.post('/api/execute-action', requireAdminToken, async (req, res) => {
     const { actionId } = req.body;
     const cachedAction = pendingActions.get(actionId);
@@ -330,9 +352,16 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
     try {
         console.log(`[AUDIT] Authorized execution of action: ${cachedAction.action}`);
 
+        // Route n8n MCP actions securely
         if (cachedAction.type === 'n8n_execute') {
             const result = await n8nMcpClient.executeTool(cachedAction.action, cachedAction.payload);
             return res.json({ success: true, message: `n8n workflow [${cachedAction.action}] executed successfully.`, result });
+        }
+
+        // Route Browserbase actions securely
+        if (cachedAction.type === 'browserbase_execute') {
+            const result = await browserbaseClient.executeTool(cachedAction.action, cachedAction.payload);
+            return res.json({ success: true, message: `Browserbase successfully processed target domain [${cachedAction.payload.url}].`, result });
         }
 
         return res.json({ success: true, message: `Action [${cachedAction.action}] deployed securely.` });
