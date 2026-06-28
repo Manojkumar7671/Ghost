@@ -40,6 +40,7 @@ const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY; 
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
+const N8N_MCP_TOKEN = process.env.N8N_MCP_TOKEN;
 
 let pool;
 if (process.env.SUPABASE_DB_URL) {
@@ -361,6 +362,7 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
+                        token: N8N_MCP_TOKEN, // Injected the auth token here!
                         action: cachedAction.action, 
                         params: cachedAction.payload, 
                         approvedBy: 'admin', 
