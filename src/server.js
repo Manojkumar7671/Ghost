@@ -11,9 +11,6 @@ import rateLimit from 'express-rate-limit';
 import n8nMcpClient from './services/mcpClient.js';
 import browserbaseClient from './services/browserbaseClient.js';
 
-// ==========================================
-// 1. CRITICAL BOOT SEQUENCE
-// ==========================================
 if (!process.env.ADMIN_PASSPHRASE || !process.env.JWT_SECRET) {
     console.error("\n[CRITICAL FATAL ERROR]: ADMIN_PASSPHRASE or JWT_SECRET missing.");
     process.exit(1); 
@@ -33,7 +30,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 n8nMcpClient.initialize().catch(e => console.error("[Server Init] Non-fatal n8n MCP init error:", e.message));
 
-// Load all API Keys
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY; 
@@ -55,17 +51,12 @@ const fetchWithTimeout = (promise, ms) => {
     return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
 };
 
-// ==========================================
-// 2. CONTEXT COMPRESSION & FLYWHEEL PRAL
-// ==========================================
 function compressContext(messages) {
     if (!messages || messages.length <= 7) return messages;
     const systemPrompt = messages[0].role === 'system' ? messages[0] : null;
     const startIndex = systemPrompt ? 1 : 0;
-    
     const coreMessages = messages.slice(startIndex, messages.length - 6);
     const recentMessages = messages.slice(messages.length - 6);
-
     const compressedCore = coreMessages.map(msg => {
         let content = msg.content || "";
         if (typeof content === 'string' && content.length > 2000) {
@@ -73,22 +64,18 @@ function compressContext(messages) {
         }
         return { ...msg, content };
     });
-
     const dedupedCore = compressedCore.filter((msg, idx, arr) => {
         if (idx === 0) return true;
         return msg.content !== arr[idx - 1].content;
     });
-
     return systemPrompt ? [systemPrompt, ...dedupedCore, ...recentMessages] : [...dedupedCore, ...recentMessages];
 }
 
 async function ghostLearn(sessionData) {
     const { safeUser, message, actionTaken, latencyMs, providerUsed } = sessionData;
     if (!pool || !safeUser || safeUser === 'guest') return;
-
     const pattern = message.substring(0, 500); 
     const action = actionTaken || "general_response"; 
-    
     try {
         await pool.query(
             `INSERT INTO ghost_genes (pattern, action, outcome, score, created_at) VALUES ($1, $2, $3, $4, NOW())`,
@@ -97,9 +84,6 @@ async function ghostLearn(sessionData) {
     } catch (err) { console.error('[Flywheel PRAL]: Background gene write failed.', err.message); }
 }
 
-// ==========================================
-// 3. CAPABILITIES & AI-Q PROMPTS
-// ==========================================
 const GHOST_CAPABILITIES = `
 YOUR FEATURES: Voice Interaction, Live Web Search, Python Sandbox, Holographic UI Rendering.
 CRITICAL UI/UX: When generating HTML, always include <!DOCTYPE html> at the top. Keep voice text concise. Use markdown for heavy text.
@@ -107,7 +91,7 @@ CRITICAL UI/UX: When generating HTML, always include <!DOCTYPE html> at the top.
 RULES:
 1. PONYTAIL MINIMALISM: Use native features before writing complex code.
 2. ORACLE: For live data, output <search>query</search>.
-3. ACTIONS: Output JSON schema for triggers.
+3. ACTIONS: Output JSON schema for triggers. For email use tool "trigger_webhook", action "send_email", payload with to/subject/body fields.
 `;
 
 const MULTI_AGENT_PROTOCOL = `
@@ -120,9 +104,6 @@ Personas: Research Agent, Architect Agent, Execution Agent, Growth Agent.`;
 const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI. Address him exclusively as "Master Manoj".\n${MULTI_AGENT_PROTOCOL}\n${GHOST_CAPABILITIES}`;
 const getShowcaseCore = (guestName) => `You are Ghost. Speaking with visitor: ${guestName}.\n${MULTI_AGENT_PROTOCOL}\n${GHOST_CAPABILITIES}`;
 
-// ==========================================
-// 4. THE EXPANDED MATRIX 
-// ==========================================
 const TEXT_PROVIDER_MATRIX = [
     { name: 'Groq', endpoint: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.3-70b-versatile', apiKey: GROQ_API_KEY },
     { name: 'Nvidia NIM Llama 90b', endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions', model: 'meta/llama-3.2-90b-vision-instruct', apiKey: NVIDIA_API_KEY },
@@ -146,7 +127,6 @@ const VISION_PROVIDER_MATRIX = [
 
 async function callLLM(messages, maxTokens, isVision = false) {
     const matrix = isVision ? VISION_PROVIDER_MATRIX : TEXT_PROVIDER_MATRIX;
-    
     for (const provider of matrix) {
         if (!provider.apiKey) continue;
         const controller = new AbortController();
@@ -163,7 +143,6 @@ async function callLLM(messages, maxTokens, isVision = false) {
             clearTimeout(timeoutId); 
             if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
             if (provider.name === 'Gemini' && (!data.choices || !data.choices[0])) throw new Error("Invalid structure.");
-            
             console.log(`[Gateway Success]: Routed successfully through ${provider.name}`);
             return { content: data.choices[0].message.content, provider: provider.name };
         } catch (e) {
@@ -179,21 +158,17 @@ app.post('/api/auth', async (req, res) => {
     const ip = req.ip; 
     const userAgent = req.headers['user-agent'] || 'Unknown';
     let success = false, role = 'guest';
-
     if (authString === ADMIN_PASSPHRASE) {
         success = true; role = 'admin';
         const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
         res.cookie('ghost_session', token, { httpOnly: true, secure: true, sameSite: 'strict', maxAge: 24 * 60 * 60 * 1000 });
     }
-
     if (authString && pool) {
         const dbUser = success ? 'Master Manoj' : 'Failed Auth Attempt';
         pool.query('INSERT INTO activity_logs (username, status, ip_address, user_agent) VALUES ($1, $2, $3, $4)', 
             [dbUser, success ? 'Login Success (Admin)' : `Login Failed (IP: ${ip})`, ip, userAgent]).catch(e => {});
     }
-
     if (success) return res.json({ success: true, role: 'admin' });
-    
     res.clearCookie('ghost_session'); 
     return res.json({ success: true, role: 'guest' });
 });
@@ -217,7 +192,6 @@ app.post('/api/chat', async (req, res) => {
         const safeUser = isAdmin ? 'master_manoj' : 'guest';
         const activeTokens = isAdmin ? 4000 : 1000;
         
-        // NemoClaw Privacy Simulator
         const sensitiveKeywords = ['password', 'ssn', 'credit card'];
         if (sensitiveKeywords.some(kw => message.toLowerCase().includes(kw))) {
             return res.json({ success: true, text: "[NEMOCLAW ROUTER]: Sensitive data detected. Cloud inference aborted to protect data." });
@@ -228,7 +202,6 @@ app.post('/api/chat', async (req, res) => {
         let messagesArray = [];
         let fullResponse = "";
         let llmProvider = "Unknown";
-        
         let finalMessage = fileContent ? `[Document Uploaded:]\n${fileContent.substring(0, 5000)}\n\nUser: ${message}` : message;
 
         if (image) {
@@ -238,19 +211,16 @@ app.post('/api/chat', async (req, res) => {
                 { role: "user", content: [{ type: "text", text: finalMessage || "Analyze frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
             ];
             messagesArray = compressContext(messagesArray);
-            
             let llmResult = await callLLM(messagesArray, activeTokens, true);
             fullResponse = llmResult.content;
             llmProvider = llmResult.provider;
         } else {
             messagesArray = [{ role: "system", content: textPrompt }, ...userHistory, { role: "user", content: finalMessage }];
             messagesArray = compressContext(messagesArray);
-            
             let llmResult = await callLLM(messagesArray, activeTokens, false);
             fullResponse = llmResult.content;
             llmProvider = llmResult.provider;
 
-            // --- ORACLE (SERPER API) ---
             const searchMatch = fullResponse ? fullResponse.match(/<search>([\s\S]*?)<\/search>/i) : null;
             if (searchMatch) {
                 try {
@@ -261,10 +231,8 @@ app.post('/api/chat', async (req, res) => {
                     }), 8000);
                     const searchData = await serperRes.json();
                     let searchOutput = searchData.organic && searchData.organic.length > 0 ? searchData.organic.slice(0, 3).map(r => `${r.title}: ${r.snippet}`).join("\n") : "No results found.";
-                    
                     messagesArray.push({ role: "assistant", content: fullResponse }, { role: "user", content: `[ORACLE]:\n${searchOutput}` });
                     messagesArray = compressContext(messagesArray); 
-                    
                     llmResult = await callLLM(messagesArray, activeTokens, false);
                     fullResponse = llmResult.content;
                     llmProvider = llmResult.provider;
@@ -275,25 +243,23 @@ app.post('/api/chat', async (req, res) => {
         let actionTriggered = "general_response";
         let replyText = fullResponse;
         
-        // --- TIER 0: STRUCTURED JSON INTERCEPTOR ---
         const jsonRegex = /[\x60]{3}json\n([\s\S]*?)[\x60]{3}/i;
         const jsonMatch = fullResponse ? fullResponse.match(jsonRegex) : null;
 
         if (jsonMatch) {
             try {
                 const toolCommand = JSON.parse(jsonMatch[1]);
-                if (toolCommand.tool === "trigger_webhook" || toolCommand.tool === "n8n_execute" || toolCommand.tool === "browserbase_execute") {
+                const INTERCEPTED_TOOLS = ['trigger_webhook', 'n8n_execute', 'send_email', 'create_calendar_event', 'browserbase_execute'];
+                if (INTERCEPTED_TOOLS.includes(toolCommand.tool)) {
                     if (!isAdmin) {
                         res.json({ success: true, text: "[SYSTEM OVERRIDE]: External network actions are restricted to Admin clearance. Blocked." });
                         return;
                     }
-                    
                     const blocklist = ['stripe', 'paypal', 'delete', 'drop', 'billing', 'transfer', 'password'];
                     if (blocklist.some(word => JSON.stringify(toolCommand.payload).toLowerCase().includes(word))) {
                         res.json({ success: true, text: `[SYSTEM OVERRIDE]: Payload contains restricted keyword. Blocked.` });
                         return;
                     }
-
                     actionTriggered = `${toolCommand.tool}:${toolCommand.action}`;
                     const actionId = crypto.randomBytes(16).toString('hex');
                     pendingActions.set(actionId, {
@@ -302,9 +268,7 @@ app.post('/api/chat', async (req, res) => {
                         payload: toolCommand.payload,
                         expiresAt: Date.now() + (5 * 60 * 1000)
                     });
-                    
                     replyText = `[ACTION REQUIRED - HITL GATE]: Proposal compiled for [${toolCommand.tool}]: ${toolCommand.action}.\n\nReview structural payload:\n\`\`\`json\n${JSON.stringify(toolCommand.payload, null, 2)}\n\`\`\``;
-                    
                     ghostLearn({ safeUser, message, actionTaken: actionTriggered, latencyMs: Date.now() - startTime, providerUsed: llmProvider });
                     res.json({ success: true, text: replyText, actionRequired: true, actionId: actionId });
                     return;
@@ -312,7 +276,6 @@ app.post('/api/chat', async (req, res) => {
             } catch (e) { console.error("Failed to parse JSON tool call."); }
         }
 
-        // --- STRICT LOCAL PYTHON SANDBOX ---
         const codeRegex = /[\x60]{3}python\n([\s\S]*?)[\x60]{3}/i;
         const match = fullResponse ? fullResponse.match(codeRegex) : null;
         if (ghostCodeMode && match && match[1]) {
@@ -326,12 +289,9 @@ app.post('/api/chat', async (req, res) => {
             if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         }
         
-        // Flywheel Telemetry Capture
         const latencyMs = Date.now() - startTime;
         ghostLearn({ safeUser, message, actionTaken: actionTriggered, latencyMs, providerUsed: llmProvider });
-
         userHistory.push({ role: 'user', content: message }, { role: 'assistant', content: replyText.trim() });
-        
         res.json({ success: true, text: replyText.trim() });
         
         if (pool && safeUser) {
@@ -354,27 +314,28 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
     if (Date.now() > cachedAction.expiresAt) return res.status(400).json({ success: false, error: "Confirmation window timed out." });
 
     try {
-        console.log(`[AUDIT] Authorized execution of action: ${cachedAction.action}`);
+        console.log(`[AUDIT] Authorized execution of action: ${cachedAction.action} (type: ${cachedAction.type})`);
 
-        if (cachedAction.type === 'n8n_execute') {
+        const WEBHOOK_TYPES = ['n8n_execute', 'trigger_webhook', 'send_email', 'create_calendar_event'];
+        if (WEBHOOK_TYPES.includes(cachedAction.type)) {
             try {
                 const n8nRes = await fetch(process.env.N8N_MCP_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        token: N8N_MCP_TOKEN, // Injected the auth token here!
+                        token: N8N_MCP_TOKEN,
                         action: cachedAction.action, 
-                        params: cachedAction.payload, 
+                        params: cachedAction.payload,
+                        payload: cachedAction.payload,
                         approvedBy: 'admin', 
                         timestamp: Date.now() 
                     })
                 });
-                
                 const resultText = await n8nRes.text();
                 let parsedResult = resultText;
                 try { parsedResult = JSON.parse(resultText); } catch(e) {}
-                
-                return res.json({ success: true, message: `n8n workflow [${cachedAction.action}] executed successfully.`, result: parsedResult });
+                console.log(`[HITL Result]: ${resultText}`);
+                return res.json({ success: true, message: `Workflow [${cachedAction.action}] executed successfully.`, result: parsedResult });
             } catch (n8nErr) {
                 return res.json({ success: false, error: n8nErr.message });
             }
