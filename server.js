@@ -10,6 +10,8 @@ import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import n8nMcpClient from './services/mcpClient.js';
 import browserbaseClient from './services/browserbaseClient.js';
+import { pendingActions as sharedPendingActions } from './state/pendingActions.js';
+import createPipelineRoutes from './routes/pipelineRoutes.js';
 
 // ==========================================
 // 1. CRITICAL BOOT SEQUENCE (FAIL-DEADLY)
@@ -74,14 +76,12 @@ function compressContext(messages) {
         let content = msg.content || "";
         if (typeof content !== 'string') return msg;
 
-        // Truncate massively long web scrapes or outputs to preserve Headroom
         if (content.length > 2000) {
             content = content.substring(0, 1000) + "\n\n...[SYSTEM OVERRIDE: HEAVY CONTEXT COMPRESSED]...\n\n" + content.substring(content.length - 900);
         }
         return { ...msg, content };
     });
 
-    // Strip immediate duplicate bot outputs in history to save tokens
     const dedupedCore = compressedCore.filter((msg, idx, arr) => {
         if (idx === 0) return true;
         return msg.content !== arr[idx - 1].content;
@@ -94,9 +94,8 @@ async function ghostLearn(sessionData) {
     const { safeUser, message, actionTaken } = sessionData;
     if (!pool || !safeUser || safeUser === 'guest') return;
 
-    // Build the evolutionary Gene
-    const pattern = message.substring(0, 500); // What did the user ask?
-    const action = actionTaken || "general_response"; // What tool did Ghost decide to use?
+    const pattern = message.substring(0, 500);
+    const action = actionTaken || "general_response";
     const outcome = "success"; 
     const score = 1.0; 
 
@@ -106,7 +105,6 @@ async function ghostLearn(sessionData) {
             [pattern, action, outcome, score]
         );
     } catch (err) {
-        // Silently fail if table isn't created yet or network hiccups
         console.error('[EvoMap]: Background gene write failed.', err.message);
     }
 }
@@ -263,7 +261,8 @@ const chatLimiter = rateLimit({
     standardHeaders: true, legacyHeaders: false,
 });
 
-const pendingActions = new Map();
+// Now points at the shared map used by both /api/execute-action and the pipeline engine
+const pendingActions = sharedPendingActions;
 
 app.post('/api/chat', chatLimiter, async (req, res) => {
     try {
@@ -297,14 +296,13 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                 dynamicToolsPrompt += `\n\n${browserbaseClient.getPromptString()}`;
             }
 
-            // Fetch EvoMap PRAL Context
             if (pool) {
                 try {
                     const geneRes = await pool.query('SELECT pattern, action FROM ghost_genes ORDER BY created_at DESC LIMIT 3');
                     if (geneRes.rows.length > 0) {
                         learnedGenesPrompt = "\n\n[EVOMAP PRAL PROTOCOL - PAST SUCCESSFUL LOGIC:]\n" + geneRes.rows.map(g => `[LEARNED: ${g.pattern} -> ${g.action}]`).join('\n');
                     }
-                } catch (e) {} // Fails gracefully if ghost_genes doesn't exist yet
+                } catch (e) {}
             }
         }
 
@@ -331,12 +329,10 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
         } else {
             messagesArray = [{ role: "system", content: textPrompt }, ...userHistory, { role: "user", content: finalMessage }];
             
-            // Apply Headroom Context Compression before dispatching
             messagesArray = compressContext(messagesArray);
             
             fullResponse = await callLLM(messagesArray, activeTokens);
 
-            // --- THE NEW ORACLE (SERPER API WITH 8s TIMEOUT) ---
             const searchMatch = fullResponse ? fullResponse.match(/<search>([\s\S]*?)<\/search>/i) : null;
             if (searchMatch) {
                 try {
@@ -355,7 +351,6 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                     messagesArray.push({ role: "assistant", content: fullResponse });
                     messagesArray.push({ role: "user", content: `[ORACLE RETURNED]:\n${searchOutput}\n\nBased on this live data, synthesize a final answer for the user.` });
                     
-                    // Re-compress if Oracle payload is massively heavy
                     messagesArray = compressContext(messagesArray); 
                     fullResponse = await callLLM(messagesArray, activeTokens);
                 } catch (searchErr) {
@@ -370,7 +365,6 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
         let replyText = fullResponse || "System anomaly: Empty matrix response.";
         let actionTriggered = "general_response";
 
-        // --- TIER 0: STRUCTURED JSON INTERCEPTOR ---
         const jsonRegex = /[\x60]{3}json\n([\s\S]*?)[\x60]{3}/i;
         const jsonMatch = fullResponse ? fullResponse.match(jsonRegex) : null;
 
@@ -407,7 +401,6 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             } catch (e) { console.error("Failed to parse JSON tool call."); }
         }
 
-        // --- STRICT LOCAL PYTHON SANDBOX ---
         const codeRegex = /[\x60]{3}python\n([\s\S]*?)[\x60]{3}/i;
         const match = fullResponse ? fullResponse.match(codeRegex) : null;
         if (ghostCodeMode && match && match[1]) {
@@ -421,7 +414,6 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         }
 
-        // --- SERPER API WEB EMBED ---
         const embedMatch = replyText ? replyText.match(/<embed>([\s\S]*?)<\/embed>/i) : null;
         if (embedMatch) {
             actionTriggered = "web_embed";
@@ -444,17 +436,13 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             }
         }
 
-        // --- EVO MAP PRAL TRIGGER ---
         ghostLearn({ safeUser, message, actionTaken: actionTriggered });
 
-        // --- SAVE HISTORIC MATRIX PATHS ---
         userHistory.push({ role: 'user', content: message }, { role: 'assistant', content: replyText.trim() });
         if (userHistory.length > maxMemory) userHistory = userHistory.slice(-maxMemory);
         
-        // CRITICAL FIX: Send response instantly to the UI before touching the database
         res.json({ success: true, text: replyText.trim() });
 
-        // Fire and Forget: Save to DB in the background so it never hangs the matrix
         if (pool && safeUser) {
             pool.query(
                 `INSERT INTO user_memories (username, history_json, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json, updated_at = NOW()`,
@@ -475,6 +463,11 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
     const { actionId } = req.body;
     const cachedAction = pendingActions.get(actionId);
     if (!cachedAction) return res.status(400).json({ success: false, error: "Action token expired or invalid." });
+
+    // Guard: pipeline actions are handled by the pipeline routes, not here
+    if (cachedAction.type === 'pipeline') {
+        return res.status(400).json({ success: false, error: 'Use /api/pipeline/execute-action for pipeline actions.' });
+    }
     
     pendingActions.delete(actionId);
     if (Date.now() > cachedAction.expiresAt) return res.status(400).json({ success: false, error: "Confirmation window timed out." });
@@ -495,6 +488,11 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
         return res.json({ success: true, message: `Action [${cachedAction.action}] deployed securely.` });
     } catch (err) { return res.status(500).json({ success: false, error: `Pipeline failure: ${err.message}` }); }
 });
+
+// ==========================================
+// 6. PIPELINE ENGINE ROUTES (Node-graph automation)
+// ==========================================
+app.use('/api/pipeline', createPipelineRoutes(n8nMcpClient));
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 const PORT = process.env.PORT || 10000;

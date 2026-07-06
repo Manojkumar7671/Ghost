@@ -184,7 +184,7 @@ function requireAdminToken(req, res, next) {
 
 const pendingActions = new Map();
 
-app.post('/api/chat', async (req, res) => {
+const chatHandler = async (req, res) => {
     const startTime = Date.now();
     try {
         const { message, user, image, fileContent, ghostCodeMode = true } = req.body;
@@ -303,7 +303,10 @@ app.post('/api/chat', async (req, res) => {
     } catch (e) { 
         if (!res.headersSent) res.json({ success: true, text: `[System Warning]: Matrix Interference: ${e.message}` }); 
     }
-});
+};
+
+app.post('/api/chat', chatHandler);
+app.post('/chat', chatHandler);
 
 app.post('/api/execute-action', requireAdminToken, async (req, res) => {
     const { actionId } = req.body;

@@ -514,4 +514,3 @@ window.fetch = async function() {
     return originalGhostFetch.apply(this, arguments);
 };
 </script>
-
