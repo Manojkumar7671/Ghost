@@ -311,21 +311,41 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
         let fullResponse = "", messagesArray = [];
 
         if (image) {
-            const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: 'meta/llama-3.2-90b-vision-instruct',
-                    messages: [
-                        { role: "system", content: textPrompt },
-                        ...userHistory,
-                        { role: "user", content: [{ type: "text", text: finalMessage || "Analyze frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
-                    ],
-                    max_tokens: activeTokens, temperature: 0.1
-                })
-            });
-            const data = await nvidiaRes.json();
-            fullResponse = data.choices[0].message.content;
+            if (!NVIDIA_API_KEY) {
+                fullResponse = "[SYSTEM WARNING]: Vision module offline — NVIDIA_API_KEY not configured on this instance.";
+            } else {
+                const visionSystemPrompt = `${textPrompt}\n\nVISION MODE OVERRIDE (STRICT):\nYou are Ghost analyzing an uploaded image. You are NOT a generic language model — you are Ghost, engineered by Manoj Kumar, and you must stay fully in character while describing what you see. Never say "I'm a large language model", "I don't have the ability to view images", or any disclaimer about your nature. Describe the image directly and naturally, in Ghost's voice.`;
+
+                try {
+                    const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            model: 'meta/llama-3.2-90b-vision-instruct',
+                            messages: [
+                                { role: "system", content: visionSystemPrompt },
+                                { role: "user", content: [{ type: "text", text: finalMessage || "Analyze frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
+                            ],
+                            max_tokens: activeTokens, temperature: 0.1
+                        })
+                    });
+
+                    const data = await nvidiaRes.json();
+
+                    if (data.error) {
+                        console.error('[Vision Error]:', data.error);
+                        fullResponse = `[SYSTEM WARNING]: Vision analysis failed — ${data.error.message || 'NVIDIA API error'}.`;
+                    } else if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                        console.error('[Vision Error]: Malformed response', JSON.stringify(data));
+                        fullResponse = "[SYSTEM WARNING]: Vision module returned an unexpected response format.";
+                    } else {
+                        fullResponse = data.choices[0].message.content;
+                    }
+                } catch (visionErr) {
+                    console.error('[Vision Fetch Error]:', visionErr.message);
+                    fullResponse = `[SYSTEM WARNING]: Vision module unreachable — ${visionErr.message}.`;
+                }
+            }
         } else {
             messagesArray = [{ role: "system", content: textPrompt }, ...userHistory, { role: "user", content: finalMessage }];
             
@@ -376,10 +396,22 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                         res.json({ success: true, text: "[SYSTEM OVERRIDE]: External network actions are restricted to Admin clearance. Blocked." });
                         return;
                     }
-                    
-                    const blocklist = ['stripe', 'paypal', 'delete', 'drop', 'billing', 'transfer', 'password'];
-                    if (blocklist.some(word => JSON.stringify(toolCommand.payload).toLowerCase().includes(word))) {
-                        res.json({ success: true, text: `[SYSTEM OVERRIDE]: Payload contains restricted keyword. Blocked.` });
+
+                    // ==========================================
+                    // EXPANDED SECURITY BLOCKLIST (scans action + payload together)
+                    // ==========================================
+                    const blocklist = [
+                        'stripe', 'paypal', 'delete', 'drop', 'billing', 'transfer', 'password',
+                        'user_memories', 'select ', 'insert ', 'update ', 'table', 'schema',
+                        'admin', 'role', '--', '1=1'
+                    ];
+
+                    const actionString = toolCommand.action ? String(toolCommand.action).toLowerCase() : "";
+                    const payloadString = toolCommand.payload ? JSON.stringify(toolCommand.payload).toLowerCase() : "";
+                    const combinedCheck = actionString + " " + payloadString;
+
+                    if (blocklist.some(word => combinedCheck.includes(word))) {
+                        res.json({ success: true, text: `[SYSTEM OVERRIDE]: Payload or action contains restricted keyword. Blocked.` });
                         return;
                     }
 
