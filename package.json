@@ -13,6 +13,7 @@
     "express": "^4.19.2",
     "express-rate-limit": "^7.2.0",
     "jsonwebtoken": "^9.0.2",
-    "pg": "^8.11.5"
+    "pg": "^8.11.5",
+    "playwright-core": "^1.61.1"
   }
 }
