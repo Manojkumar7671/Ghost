@@ -110,6 +110,32 @@ async function ghostLearn(sessionData) {
 }
 
 // ==========================================
+// 3b. SHARED HELPER: append a turn to a user's persisted history
+// ==========================================
+async function appendToUserMemory(username, newTurns, maxTurns = 12) {
+    if (!pool || !username) return;
+    try {
+        const memRes = await pool.query('SELECT history_json FROM user_memories WHERE username = $1', [username]);
+        let hist = [];
+        if (memRes.rows.length > 0) {
+            let raw = memRes.rows[0].history_json;
+            if (typeof raw === 'string') raw = JSON.parse(raw);
+            if (Array.isArray(raw)) hist = raw;
+        }
+        hist.push(...newTurns);
+        if (hist.length > maxTurns) hist = hist.slice(-maxTurns);
+
+        await pool.query(
+            `INSERT INTO user_memories (username, history_json, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json, updated_at = NOW()`,
+            [username, JSON.stringify(hist)]
+        );
+        console.log(`[Memory]: Appended ${newTurns.length} turn(s) for user: ${username}`);
+    } catch (err) {
+        console.error('[Memory Save Error]:', err.message);
+    }
+}
+
+// ==========================================
 // 4. OMNI-MATRIX CAPABILITIES & PROMPTS
 // ==========================================
 const GHOST_CAPABILITIES = `
@@ -421,6 +447,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                         type: toolCommand.tool,
                         action: toolCommand.action,
                         payload: toolCommand.payload,
+                        requestedBy: safeUser,
                         expiresAt: Date.now() + (5 * 60 * 1000)
                     });
                     
@@ -504,16 +531,33 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
     pendingActions.delete(actionId);
     if (Date.now() > cachedAction.expiresAt) return res.status(400).json({ success: false, error: "Confirmation window timed out." });
 
+    const memoryUser = cachedAction.requestedBy || 'master_manoj';
+
     try {
         console.log(`[AUDIT] Authorized execution of action: ${cachedAction.action}`);
 
         if (cachedAction.type === 'n8n_execute') {
             const result = await n8nMcpClient.executeTool(cachedAction.action, cachedAction.payload);
+
+            // FIX (goldfish memory): persist the outcome so Ghost remembers this happened
+            appendToUserMemory(memoryUser, [
+                { role: 'assistant', content: `[n8n workflow "${cachedAction.action}" executed successfully. Result: ${JSON.stringify(result).slice(0, 1500)}]` }
+            ]);
+
             return res.json({ success: true, message: `n8n workflow [${cachedAction.action}] executed successfully.`, result });
         }
 
         if (cachedAction.type === 'browserbase_execute') {
             const result = await browserbaseClient.executeTool(cachedAction.action, cachedAction.payload);
+
+            // FIX (goldfish memory): persist the scraped page so Ghost remembers it next turn
+            appendToUserMemory(memoryUser, [
+                {
+                    role: 'assistant',
+                    content: `[Browserbase result for ${cachedAction.payload.url}]\nTitle: "${result.title}"\nContent: ${result.content ? result.content.slice(0, 1500) : '(no text extracted)'}`
+                }
+            ]);
+
             return res.json({ success: true, message: `Browserbase successfully processed target domain [${cachedAction.payload.url}].`, result });
         }
 
