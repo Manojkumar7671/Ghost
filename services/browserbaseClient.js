@@ -5,6 +5,7 @@ class BrowserbaseClient {
         this.apiKey = process.env.BROWSERBASE_API_KEY;
         this.projectId = process.env.BROWSERBASE_PROJECT_ID;
         this.isConnected = !!(this.apiKey && this.projectId);
+        this.baseURL = 'https://api.browserbase.com/v1'; // FIXED: was www.browserbase.com (marketing site, 404s)
     }
 
     getPromptString() {
@@ -26,30 +27,51 @@ Available Actions:
         if (!this.isConnected) {
             throw new Error('Browserbase configuration missing or incomplete on host.');
         }
-
         if (!payload || !payload.url) {
             throw new Error('Missing destination URL parameter in payload.');
         }
 
         try {
             console.log(`[Browserbase Engine] Spawning cloud browser instance for action: ${action}`);
-            
-            const response = await axios.post('https://www.browserbase.com/v1/extract', {
-                url: payload.url,
-                text_query: payload.query || "Extract all readable text and core metadata structure",
-                project_id: this.projectId
+
+            // 1. Create a session
+            const sessionRes = await axios.post(`${this.baseURL}/sessions`, {
+                projectId: this.projectId
             }, {
                 headers: {
                     'x-bb-api-key': this.apiKey,
                     'Content-Type': 'application/json'
                 },
-                timeout: 50000 
+                timeout: 20000
             });
-            
+
+            const sessionId = sessionRes.data.id;
+            if (!sessionId) {
+                throw new Error('Browserbase did not return a session ID.');
+            }
+
+            // 2. Use the Extract endpoint against that session's target URL
+            const response = await axios.post(`${this.baseURL}/extract`, {
+                sessionId,
+                url: payload.url,
+                query: payload.query || "Extract all readable text and core metadata structure"
+            }, {
+                headers: {
+                    'x-bb-api-key': this.apiKey,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 50000
+            });
+
+            // 3. Always release the session so it doesn't hang billing/usage
+            axios.post(`${this.baseURL}/sessions/${sessionId}`, { status: 'REQUEST_RELEASE' }, {
+                headers: { 'x-bb-api-key': this.apiKey, 'Content-Type': 'application/json' }
+            }).catch(() => {}); // best-effort cleanup, don't block on failure
+
             return response.data;
         } catch (error) {
             console.error(`[Browserbase Critical Fail]:`, error.response?.data || error.message);
-            throw new Error(`Cloud browser execution aborted: ${error.response?.data?.error || error.message}`);
+            throw new Error(`Cloud browser execution aborted: ${error.response?.data?.error || error.response?.status || error.message}`);
         }
     }
 }
