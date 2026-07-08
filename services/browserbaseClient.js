@@ -1,5 +1,11 @@
 import { chromium } from 'playwright-core';
-import { supabase } from '../supabaseClient.js';
+import pkg from 'pg';
+
+const { Pool } = pkg;
+let pool;
+if (process.env.SUPABASE_DB_URL) {
+    pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
+}
 
 class BrowserbaseClient {
     constructor() {
@@ -26,15 +32,19 @@ Example payload:
     }
 
     async _persistProgress(runId, safeUser, url, actions, results) {
+        if (!pool) return;
         try {
-            await supabase.from('browserbase_runs').upsert({
-                run_id: runId,
-                user_id: safeUser,
-                url,
-                actions,
-                results,
-                updated_at: new Date().toISOString(),
-            });
+            await pool.query(
+                `INSERT INTO browserbase_runs (run_id, user_id, url, actions, results, updated_at)
+                 VALUES ($1, $2, $3, $4, $5, NOW())
+                 ON CONFLICT (run_id) DO UPDATE SET
+                     user_id = EXCLUDED.user_id,
+                     url = EXCLUDED.url,
+                     actions = EXCLUDED.actions,
+                     results = EXCLUDED.results,
+                     updated_at = NOW()`,
+                [runId, safeUser, url, JSON.stringify(actions), JSON.stringify(results)]
+            );
         } catch (err) {
             console.error('[Browserbase] Failed to persist progress:', err.message);
         }
