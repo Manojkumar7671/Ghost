@@ -1,5 +1,3 @@
-import { securityAuditSkill } from './securityAuditSkill.js';
-
 /**
  * Core Skill interface and built-in skill registry.
  * Wired to Ghost's real infrastructure: Serper search, n8nMcpClient for external actions.
@@ -42,7 +40,7 @@ export const webSearchSkill = new BaseSkill({
 // n8nMcpClient is injected at registry-build time (see buildSkillRegistry below)
 // so this file doesn't need to import server.js directly (avoids circular imports).
 
-export function buildSkillRegistry(n8nMcpClient) {
+export function buildSkillRegistry(n8nMcpClient, securityAuditSkill) {
     const sendEmailSkill = new BaseSkill({
         name: 'sendEmail',
         inputSchema: { workflowName: 'string', payload: 'object' },

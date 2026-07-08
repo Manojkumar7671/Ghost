@@ -3,10 +3,11 @@ import { validateGraph } from '../engine/validateGraph.js';
 import { runPipeline } from '../engine/runPipeline.js';
 import { pendingActions } from '../state/pendingActions.js';
 import { buildSkillRegistry } from '../skills/BaseSkill.js';
+import { securityAuditSkill } from '../skills/securityAuditSkill.js';
 
 export default function createPipelineRoutes(n8nMcpClient) {
     const router = express.Router();
-    const skillRegistry = buildSkillRegistry(n8nMcpClient);
+    const skillRegistry = buildSkillRegistry(n8nMcpClient, securityAuditSkill);
 
     router.post('/run', async (req, res) => {
         try {
