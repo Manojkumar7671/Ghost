@@ -1,88 +1,118 @@
-import axios from 'axios';
 import { chromium } from 'playwright-core';
+import { supabase } from '../supabaseClient.js';
 
 class BrowserbaseClient {
     constructor() {
         this.apiKey = process.env.BROWSERBASE_API_KEY;
         this.projectId = process.env.BROWSERBASE_PROJECT_ID;
         this.isConnected = !!(this.apiKey && this.projectId);
-        this.baseURL = 'https://api.browserbase.com/v1';
     }
 
     getPromptString() {
-        if (!this.isConnected) return "";
         return `
-[LIVE BROWSERBASE WEBACTIONS AVAILABLE]
-You have access to an autonomous headless cloud browser. To navigate, scrape, or extract real-time web content, you MUST output a raw JSON block.
-Available Actions:
-1. Action: "load_url"
-   Schema: {"tool": "browserbase_execute", "action": "load_url", "payload": {"url": "https://example.com"}}
-   Description: Loads a live web page and retrieves the raw text content.
-2. Action: "extract_data"
-   Schema: {"tool": "browserbase_execute", "action": "extract_data", "payload": {"url": "https://example.com", "query": "Extract the pricing tiers"}}
-   Description: Loads the page and extracts visible text for the model to reason over (query is passed through for context, not server-side AI extraction).
-`;
+To control the headless browser, use the "browserbase_execute" tool.
+Payload must include a "url" and an "actions" array.
+Supported actions: "click" (requires selector), "type" (requires selector, text), "scroll" (requires amount), "extract" (requires selector).
+Example payload:
+{
+  "url": "https://example.com",
+  "actions": [
+    { "action": "click", "selector": "#login-btn" },
+    { "action": "type", "selector": "#email", "text": "master@manoj.com" },
+    { "action": "scroll", "amount": 500 },
+    { "action": "extract", "selector": ".dashboard-data" }
+  ]
+}`;
     }
 
-    async executeTool(action, payload) {
-        if (!this.isConnected) {
-            throw new Error('Browserbase configuration missing or incomplete on host.');
-        }
-        if (!payload || !payload.url) {
-            throw new Error('Missing destination URL parameter in payload.');
-        }
-
-        let sessionId;
-        let browser;
+    async _persistProgress(runId, safeUser, url, actions, results) {
         try {
-            console.log(`[Browserbase Engine] Spawning cloud browser instance for action: ${action}`);
-
-            // 1. Create a session — returns a connectUrl (CDP endpoint), NOT a REST extract path
-            const sessionRes = await axios.post(`${this.baseURL}/sessions`, {
-                projectId: this.projectId
-            }, {
-                headers: {
-                    'x-bb-api-key': this.apiKey,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 20000
+            await supabase.from('browserbase_runs').upsert({
+                run_id: runId,
+                user_id: safeUser,
+                url,
+                actions,
+                results,
+                updated_at: new Date().toISOString(),
             });
+        } catch (err) {
+            console.error('[Browserbase] Failed to persist progress:', err.message);
+        }
+    }
 
-            sessionId = sessionRes.data.id;
-            const connectUrl = sessionRes.data.connectUrl;
-            if (!sessionId || !connectUrl) {
-                throw new Error('Browserbase did not return a session ID or connectUrl.');
+    async executeTool(actionName, payload) {
+        if (!this.isConnected) throw new Error('Browserbase is not configured.');
+        if (actionName !== 'load_url_or_extract_data' && actionName !== 'execute_actions') {
+            throw new Error(`Unsupported browser action: ${actionName}`);
+        }
+
+        const { url, actions = [], runId = null, resumeFromStep = 0, safeUser = 'unknown' } = payload;
+        if (!url) throw new Error('URL is required for browserbase_execute.');
+
+        const effectiveRunId = runId || `run_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const wsEndpoint = `wss://connect.browserbase.com?apiKey=${this.apiKey}&projectId=${this.projectId}`;
+        let browser;
+        const results = [];
+
+        try {
+            browser = await chromium.connectOverCDP(wsEndpoint);
+            const context = browser.contexts()[0];
+            const page = await context.newPage();
+
+            await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+            results.push({ step: 'navigation', status: 'success', url });
+
+            for (let i = resumeFromStep; i < actions.length; i++) {
+                const step = actions[i];
+                const stepTimeout = step.timeout || 10000;
+
+                try {
+                    if (step.action === 'click') {
+                        await page.click(step.selector, { timeout: stepTimeout });
+                        results.push({ step: i, action: 'click', status: 'success', selector: step.selector });
+
+                    } else if (step.action === 'type') {
+                        await page.fill(step.selector, step.text, { timeout: stepTimeout });
+                        results.push({ step: i, action: 'type', status: 'success', selector: step.selector });
+
+                    } else if (step.action === 'scroll') {
+                        await page.mouse.wheel(0, step.amount);
+                        await page.waitForTimeout(1000);
+                        results.push({ step: i, action: 'scroll', status: 'success', amount: step.amount });
+
+                    } else if (step.action === 'extract') {
+                        const content = await page.textContent(step.selector, { timeout: stepTimeout });
+                        results.push({ step: i, action: 'extract', status: 'success', data: (content || '').trim() });
+
+                    } else {
+                        throw new Error(`Unknown action type: ${step.action}`);
+                    }
+
+                    await this._persistProgress(effectiveRunId, safeUser, url, actions, results);
+
+                } catch (stepErr) {
+                    results.push({
+                        step: i,
+                        action: step.action,
+                        status: 'failed',
+                        error: stepErr.message,
+                    });
+                    await this._persistProgress(effectiveRunId, safeUser, url, actions, results);
+                    return {
+                        finalUrl: page.url(),
+                        stepResults: results,
+                        runId: effectiveRunId,
+                        canResumeFromStep: i,
+                    };
+                }
             }
 
-            // 2. Connect Playwright over CDP to the live cloud browser
-            browser = await chromium.connectOverCDP(connectUrl);
-            const context = browser.contexts()[0] || await browser.newContext();
-            const page = context.pages()[0] || await context.newPage();
-
-            await page.goto(payload.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-
-            const title = await page.title();
-            const bodyText = await page.evaluate(() => document.body?.innerText || "");
-            const trimmedText = bodyText.slice(0, 8000); // keep payload sane for LLM context
-
-            return {
-                url: payload.url,
-                title,
-                query: payload.query || null,
-                content: trimmedText
-            };
+            return { finalUrl: page.url(), stepResults: results, runId: effectiveRunId, canResumeFromStep: null };
         } catch (error) {
-            console.error(`[Browserbase Critical Fail]:`, error.response?.data || error.message);
-            throw new Error(`Cloud browser execution aborted: ${error.response?.data?.error || error.response?.status || error.message}`);
+            console.error('Browserbase Execution Error:', error);
+            throw new Error(`Browser automation failed: ${error.message}`);
         } finally {
-            if (browser) {
-                try { await browser.close(); } catch (e) {}
-            }
-            if (sessionId) {
-                axios.post(`${this.baseURL}/sessions/${sessionId}`, { status: 'REQUEST_RELEASE' }, {
-                    headers: { 'x-bb-api-key': this.apiKey, 'Content-Type': 'application/json' }
-                }).catch(() => {});
-            }
+            if (browser) await browser.close();
         }
     }
 }

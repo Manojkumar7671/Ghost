@@ -1,0 +1,1 @@
+touch ghostLearnScheduler.js && open -e ghostLearnScheduler.js
