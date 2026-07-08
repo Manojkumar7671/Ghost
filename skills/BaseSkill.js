@@ -1,3 +1,5 @@
+import { securityAuditSkill } from './securityAuditSkill.js';
+
 /**
  * Core Skill interface and built-in skill registry.
  * Wired to Ghost's real infrastructure: Serper search, n8nMcpClient for external actions.
@@ -10,7 +12,6 @@ export class BaseSkill {
         this.requiresApproval = requiresApproval;
         this._execute = execute;
     }
-
     async execute(inputs) {
         return await this._execute(inputs);
     }
@@ -69,6 +70,7 @@ export function buildSkillRegistry(n8nMcpClient) {
     return {
         webSearch: webSearchSkill,
         sendEmail: sendEmailSkill,
-        calendar: calendarSkill
+        calendar: calendarSkill,
+        securityAudit: securityAuditSkill
     };
 }

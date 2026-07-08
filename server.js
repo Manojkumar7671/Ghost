@@ -1,3 +1,5 @@
+import { checkToolAccess } from './adminGate.js';
+import { startAutoLearning } from './ghostLearnScheduler.js';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
@@ -13,9 +15,6 @@ import browserbaseClient from './services/browserbaseClient.js';
 import { pendingActions as sharedPendingActions } from './state/pendingActions.js';
 import createPipelineRoutes from './routes/pipelineRoutes.js';
 
-// ==========================================
-// 1. CRITICAL BOOT SEQUENCE (FAIL-DEADLY)
-// ==========================================
 if (!process.env.ADMIN_PASSPHRASE || !process.env.JWT_SECRET) {
     console.error("\n[CRITICAL FATAL ERROR]: ADMIN_PASSPHRASE or JWT_SECRET missing.");
     console.error("Halting server boot sequence to prevent fallback vulnerabilities.\n");
@@ -34,7 +33,6 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Boot System Integrations Gracefully
 n8nMcpClient.initialize().catch(e => console.error("[Server Init] Non-fatal n8n MCP init error:", e.message));
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -49,9 +47,6 @@ if (process.env.SUPABASE_DB_URL) {
     pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false }});
 }
 
-// ==========================================
-// 2. ORACLE TIMEOUT WRAPPER
-// ==========================================
 const fetchWithTimeout = (promise, ms) => {
     let timeoutId;
     const timeoutPromise = new Promise((_, reject) => {
@@ -60,58 +55,42 @@ const fetchWithTimeout = (promise, ms) => {
     return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
 };
 
-// ==========================================
-// 3. CONTEXT COMPRESSION & EVOMAP PRAL LOOP
-// ==========================================
 function compressContext(messages) {
     if (!messages || messages.length <= 7) return messages;
-
     const systemPrompt = messages[0].role === 'system' ? messages[0] : null;
     const startIndex = systemPrompt ? 1 : 0;
-    
     const coreMessages = messages.slice(startIndex, messages.length - 6);
     const recentMessages = messages.slice(messages.length - 6);
-
     const compressedCore = coreMessages.map(msg => {
         let content = msg.content || "";
         if (typeof content !== 'string') return msg;
-
         if (content.length > 2000) {
             content = content.substring(0, 1000) + "\n\n...[SYSTEM OVERRIDE: HEAVY CONTEXT COMPRESSED]...\n\n" + content.substring(content.length - 900);
         }
         return { ...msg, content };
     });
-
     const dedupedCore = compressedCore.filter((msg, idx, arr) => {
         if (idx === 0) return true;
         return msg.content !== arr[idx - 1].content;
     });
-
     return systemPrompt ? [systemPrompt, ...dedupedCore, ...recentMessages] : [...dedupedCore, ...recentMessages];
 }
 
 async function ghostLearn(sessionData) {
     const { safeUser, message, actionTaken } = sessionData;
     if (!pool || !safeUser || safeUser === 'guest') return;
-
     const pattern = message.substring(0, 500);
     const action = actionTaken || "general_response";
-    const outcome = "success"; 
-    const score = 1.0; 
-
     try {
         await pool.query(
             `INSERT INTO ghost_genes (pattern, action, outcome, score, created_at) VALUES ($1, $2, $3, $4, NOW())`,
-            [pattern, action, outcome, score]
+            [pattern, action, "success", 1.0]
         );
     } catch (err) {
         console.error('[EvoMap]: Background gene write failed.', err.message);
     }
 }
 
-// ==========================================
-// 3b. SHARED HELPER: append a turn to a user's persisted history
-// ==========================================
 async function appendToUserMemory(username, newTurns, maxTurns = 12) {
     if (!pool || !username) return;
     try {
@@ -124,67 +103,46 @@ async function appendToUserMemory(username, newTurns, maxTurns = 12) {
         }
         hist.push(...newTurns);
         if (hist.length > maxTurns) hist = hist.slice(-maxTurns);
-
         await pool.query(
             `INSERT INTO user_memories (username, history_json, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json, updated_at = NOW()`,
             [username, JSON.stringify(hist)]
         );
-        console.log(`[Memory]: Appended ${newTurns.length} turn(s) for user: ${username}`);
     } catch (err) {
         console.error('[Memory Save Error]:', err.message);
     }
 }
 
-// ==========================================
-// 4. OMNI-MATRIX CAPABILITIES & PROMPTS
-// ==========================================
 const GHOST_CAPABILITIES = `
 YOUR FEATURES: Voice Interaction, Live Web Search, Python Sandbox, Holographic UI Rendering, Vision Analysis.
-
 MEMORY PROTOCOL (CRITICAL):
 You have full access to this user's conversation history provided above in the messages array.
 Always reference prior messages naturally when relevant — you KNOW what was discussed.
 NEVER say "I don't retain information", "I can't remember", or "I'm a language model without memory".
 You are Ghost. You remember everything within this session.
-
 CRITICAL UI/UX GENERATION PROTOCOLS:
 1. DESIGN AESTHETIC: Implement ultra-modern, professional layouts using Tailwind CSS (bg-slate-950) with glassmorphism.
 2. SYNTAX SANITIZATION: When rendering HTML/UI, you MUST output a complete file starting with exactly <!DOCTYPE html> followed by the <html> tags. 
 3. VERBAL CONCISENESS: Keep your spoken conversational responses extremely short (1 or 2 brief, natural sentences max).
-4. SIDEBAR ROUTING: If you need to provide a long explanation, a detailed list, or heavy text, you MUST wrap it inside a standard markdown code block (e.g., \`\`\`markdown ... \`\`\`).
-
+4. SIDEBAR ROUTING: If you need to provide a long explanation, a detailed list, or heavy text, you MUST wrap it inside a standard markdown code block.
 EXTERNAL ACTIONS PROTOCOL (STRICT):
 You are strictly forbidden from writing Python code to make external network requests, API calls, or webhooks. 
-If you need to trigger an external action (e.g., send an email, log to a sheet, notify admin), you MUST output a raw JSON block.
+If you need to trigger an external action, you MUST output a raw JSON block.
 Schema:
 \`\`\`json
-{
-  "tool": "trigger_webhook",
-  "action": "description_of_action",
-  "payload": { "key": "value" }
-}
+{"tool": "trigger_webhook", "action": "description_of_action", "payload": { "key": "value" }}
 \`\`\`
-To trigger a live n8n workflow, use this schema instead:
+To trigger a live n8n workflow:
 \`\`\`json
-{
-  "tool": "n8n_execute",
-  "action": "exact_workflow_name",
-  "payload": { "key": "value matching the workflow's schema" }
-}
+{"tool": "n8n_execute", "action": "exact_workflow_name", "payload": { "key": "value matching the workflow's schema" }}
 \`\`\`
-To control the headless browser infrastructure via Browserbase, use this schema instead:
+To control the headless browser via Browserbase:
 \`\`\`json
-{
-  "tool": "browserbase_execute",
-  "action": "load_url_or_extract_data",
-  "payload": { "url": "https://target-site.com", "query": "optional details to parse" }
-}
+{"tool": "browserbase_execute", "action": "load_url_or_extract_data", "payload": { "url": "https://target-site.com", "query": "optional details" }}
 \`\`\`
-
 RULES:
 1. THE ORACLE: For live news, weather, or real-time data, output exactly <search>query</search>.
-2. SMART EXECUTION: ONLY write Python code if asked to build an app, script, or local math logic. Output ONLY the raw Python block.
-3. PONYTAIL MINIMALISM RULE: Before writing any code, you must check if the standard library, native features, or an existing dependency can solve it first. Write the absolute minimum working code necessary.`;
+2. SMART EXECUTION: ONLY write Python code if asked to build an app, script, or local math logic.
+3. PONYTAIL MINIMALISM RULE: Check if the standard library can solve it first. Write the absolute minimum working code necessary.`;
 
 const MULTI_AGENT_PROTOCOL = `
 MULTI-AGENT PROTOCOL: Activate your internal sub-agents inside <think>...</think> tags. Personas:
@@ -209,35 +167,27 @@ async function callLLM(messages, maxTokens) {
         if (!provider.apiKey) continue;
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 8000); 
-
         try {
-            console.log(`[Gateway]: Attempting connection to ${provider.name}...`);
             const res = await fetch(provider.endpoint, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ model: provider.model, messages, temperature: 0.1, max_tokens: maxTokens }),
                 signal: controller.signal
             });
-            
             const data = await res.json();
             clearTimeout(timeoutId); 
-
             if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
             if (provider.name === 'Gemini' && (!data.choices || !data.choices[0] || !data.choices[0].message)) throw new Error("Invalid Gemini response structure.");
-            
-            console.log(`[Gateway Success]: Routed successfully through ${provider.name}`);
             return data.choices[0].message.content;
         } catch (e) {
             clearTimeout(timeoutId);
-            console.log(`[Gateway Failover]: ${provider.name} failed (${e.name === 'AbortError' ? 'Timeout (8s limit)' : e.message}). Rerouting...`);
         }
     }
     throw new Error("Critical Gateway Failure: All matrix nodes unreachable.");
 }
 
 const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, 
-    max: 5,
+    windowMs: 15 * 60 * 1000, max: 5,
     message: { success: false, error: "Too many login attempts. IP blocked for 15 minutes." },
     standardHeaders: true, legacyHeaders: false,
 });
@@ -246,22 +196,17 @@ app.post('/api/auth', authLimiter, async (req, res) => {
     const { authString, user = 'Unknown' } = req.body;
     const ip = req.ip; 
     const userAgent = req.headers['user-agent'] || 'Unknown';
-    let success = false, role = 'guest';
-
+    let success = false;
     if (authString === ADMIN_PASSPHRASE) {
-        success = true; role = 'admin';
+        success = true;
         const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
         res.cookie('ghost_session', token, { httpOnly: true, secure: true, sameSite: 'strict', maxAge: 24 * 60 * 60 * 1000 });
     }
-
     if (authString && pool) {
-        const dbUser = success ? 'Master Manoj' : 'Failed Auth Attempt';
         pool.query('INSERT INTO activity_logs (username, status, ip_address, user_agent) VALUES ($1, $2, $3, $4)', 
-            [dbUser, success ? 'Login Success (Admin)' : `Login Failed (IP: ${ip})`, ip, userAgent]).catch(e => {});
+            [success ? 'Master Manoj' : 'Failed Auth Attempt', success ? 'Login Success (Admin)' : `Login Failed (IP: ${ip})`, ip, userAgent]).catch(e => {});
     }
-
     if (success) return res.json({ success: true, role: 'admin' });
-    
     res.clearCookie('ghost_session'); 
     return res.json({ success: true, role: 'guest' });
 });
@@ -281,20 +226,17 @@ function checkIsAdmin(req) {
 }
 
 const chatLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000, 
-    max: 20, 
+    windowMs: 1 * 60 * 1000, max: 20, 
     message: { success: true, text: "[SYSTEM WARNING]: API rate limit exceeded. Cooling down." },
     standardHeaders: true, legacyHeaders: false,
 });
 
-// Now points at the shared map used by both /api/execute-action and the pipeline engine
 const pendingActions = sharedPendingActions;
 
 app.post('/api/chat', chatLimiter, async (req, res) => {
     try {
         const { message, user, image, fileContent, ghostCodeMode = true } = req.body;
         const isAdmin = checkIsAdmin(req);
-
         const safeUser = isAdmin ? 'master_manoj' : (user && user.trim() && user.trim().toLowerCase() !== 'guest') ? user.trim().toLowerCase() : null;
         const activeTokens = isAdmin ? 4000 : 1000;
         const maxMemory = isAdmin ? 12 : 6;
@@ -308,26 +250,17 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                     if (typeof rawData === 'string') rawData = JSON.parse(rawData);
                     if (Array.isArray(rawData)) userHistory = rawData;
                 }
-            } catch (err) { console.error('[Memory Load Error]:', err.message); }
+            } catch (err) {}
         }
 
-        let dynamicToolsPrompt = "";
-        let learnedGenesPrompt = "";
-
+        let dynamicToolsPrompt = "", learnedGenesPrompt = "";
         if (isAdmin) {
-            if (n8nMcpClient.isConnected) {
-                dynamicToolsPrompt += `\n\n[LIVE N8N WORKFLOWS AVAILABLE]\nUse "tool": "n8n_execute" with these exact action names and schemas:\n${n8nMcpClient.getPromptString()}`;
-            }
-            if (browserbaseClient.isConnected) {
-                dynamicToolsPrompt += `\n\n${browserbaseClient.getPromptString()}`;
-            }
-
+            if (n8nMcpClient.isConnected) dynamicToolsPrompt += `\n\n[LIVE N8N WORKFLOWS AVAILABLE]\nUse "tool": "n8n_execute" with these exact action names and schemas:\n${n8nMcpClient.getPromptString()}`;
+            if (browserbaseClient.isConnected) dynamicToolsPrompt += `\n\n${browserbaseClient.getPromptString()}`;
             if (pool) {
                 try {
                     const geneRes = await pool.query('SELECT pattern, action FROM ghost_genes ORDER BY created_at DESC LIMIT 3');
-                    if (geneRes.rows.length > 0) {
-                        learnedGenesPrompt = "\n\n[EVOMAP PRAL PROTOCOL - PAST SUCCESSFUL LOGIC:]\n" + geneRes.rows.map(g => `[LEARNED: ${g.pattern} -> ${g.action}]`).join('\n');
-                    }
+                    if (geneRes.rows.length > 0) learnedGenesPrompt = "\n\n[EVOMAP PRAL PROTOCOL]\n" + geneRes.rows.map(g => `[LEARNED: ${g.pattern} -> ${g.action}]`).join('\n');
                 } catch (e) {}
             }
         }
@@ -338,10 +271,9 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
 
         if (image) {
             if (!NVIDIA_API_KEY) {
-                fullResponse = "[SYSTEM WARNING]: Vision module offline — NVIDIA_API_KEY not configured on this instance.";
+                fullResponse = "[SYSTEM WARNING]: Vision module offline.";
             } else {
-                const visionSystemPrompt = `${textPrompt}\n\nVISION MODE OVERRIDE (STRICT):\nYou are Ghost analyzing an uploaded image. You are NOT a generic language model — you are Ghost, engineered by Manoj Kumar, and you must stay fully in character while describing what you see. Never say "I'm a large language model", "I don't have the ability to view images", or any disclaimer about your nature. Describe the image directly and naturally, in Ghost's voice.`;
-
+                const visionSystemPrompt = `${textPrompt}\n\nVISION MODE OVERRIDE (STRICT):\nYou are Ghost analyzing an uploaded image. Never say you can't view images. Describe it directly in Ghost's voice.`;
                 try {
                     const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
                         method: 'POST',
@@ -355,54 +287,38 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                             max_tokens: activeTokens, temperature: 0.1
                         })
                     });
-
                     const data = await nvidiaRes.json();
-
-                    if (data.error) {
-                        console.error('[Vision Error]:', data.error);
-                        fullResponse = `[SYSTEM WARNING]: Vision analysis failed — ${data.error.message || 'NVIDIA API error'}.`;
-                    } else if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-                        console.error('[Vision Error]: Malformed response', JSON.stringify(data));
-                        fullResponse = "[SYSTEM WARNING]: Vision module returned an unexpected response format.";
-                    } else {
-                        fullResponse = data.choices[0].message.content;
-                    }
+                    if (data.error) fullResponse = `[SYSTEM WARNING]: Vision analysis failed — ${data.error.message || 'NVIDIA API error'}.`;
+                    else if (!data.choices || !data.choices[0] || !data.choices[0].message) fullResponse = "[SYSTEM WARNING]: Vision module returned unexpected format.";
+                    else fullResponse = data.choices[0].message.content;
                 } catch (visionErr) {
-                    console.error('[Vision Fetch Error]:', visionErr.message);
                     fullResponse = `[SYSTEM WARNING]: Vision module unreachable — ${visionErr.message}.`;
                 }
             }
         } else {
             messagesArray = [{ role: "system", content: textPrompt }, ...userHistory, { role: "user", content: finalMessage }];
-            
             messagesArray = compressContext(messagesArray);
-            
             fullResponse = await callLLM(messagesArray, activeTokens);
 
             const searchMatch = fullResponse ? fullResponse.match(/<search>([\s\S]*?)<\/search>/i) : null;
             if (searchMatch) {
                 try {
-                    console.log(`[Oracle]: Searching web for: ${searchMatch[1]}`);
                     const serperRes = await fetchWithTimeout(fetch('https://google.serper.dev/search', {
                         method: 'POST',
                         headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
                         body: JSON.stringify({ q: searchMatch[1] })
                     }), 8000);
-                    
                     const searchData = await serperRes.json();
                     let searchOutput = searchData.organic && searchData.organic.length > 0 
                         ? searchData.organic.slice(0, 3).map(r => `${r.title}: ${r.snippet}`).join("\n") 
                         : "No results found.";
-                        
                     messagesArray.push({ role: "assistant", content: fullResponse });
-                    messagesArray.push({ role: "user", content: `[ORACLE RETURNED]:\n${searchOutput}\n\nBased on this live data, synthesize a final answer for the user.` });
-                    
+                    messagesArray.push({ role: "user", content: `[ORACLE RETURNED]:\n${searchOutput}\n\nSynthesize a final answer.` });
                     messagesArray = compressContext(messagesArray); 
                     fullResponse = await callLLM(messagesArray, activeTokens);
                 } catch (searchErr) {
-                    console.error("[Oracle Error]:", searchErr.message);
                     messagesArray.push({ role: "assistant", content: fullResponse });
-                    messagesArray.push({ role: "user", content: `[ORACLE FAILED]: The live web search timed out or was blocked. Inform the user gracefully.` });
+                    messagesArray.push({ role: "user", content: `[ORACLE FAILED]: Web search timed out. Inform the user gracefully.` });
                     fullResponse = await callLLM(messagesArray, activeTokens);
                 }
             }
@@ -422,42 +338,26 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                         res.json({ success: true, text: "[SYSTEM OVERRIDE]: External network actions are restricted to Admin clearance. Blocked." });
                         return;
                     }
-
-                    // ==========================================
-                    // EXPANDED SECURITY BLOCKLIST (scans action + payload together)
-                    // ==========================================
-                    const blocklist = [
-                        'stripe', 'paypal', 'delete', 'drop', 'billing', 'transfer', 'password',
-                        'user_memories', 'select ', 'insert ', 'update ', 'table', 'schema',
-                        'admin', 'role', '--', '1=1'
-                    ];
-
+                    const blocklist = ['stripe', 'paypal', 'delete', 'drop', 'billing', 'transfer', 'password', 'user_memories', 'select ', 'insert ', 'update ', 'table', 'schema', 'admin', 'role', '--', '1=1'];
                     const actionString = toolCommand.action ? String(toolCommand.action).toLowerCase() : "";
                     const payloadString = toolCommand.payload ? JSON.stringify(toolCommand.payload).toLowerCase() : "";
                     const combinedCheck = actionString + " " + payloadString;
-
                     if (blocklist.some(word => combinedCheck.includes(word))) {
                         res.json({ success: true, text: `[SYSTEM OVERRIDE]: Payload or action contains restricted keyword. Blocked.` });
                         return;
                     }
-
                     actionTriggered = `${toolCommand.tool}:${toolCommand.action}`;
                     const actionId = crypto.randomBytes(16).toString('hex');
                     pendingActions.set(actionId, {
-                        type: toolCommand.tool,
-                        action: toolCommand.action,
-                        payload: toolCommand.payload,
-                        requestedBy: safeUser,
-                        expiresAt: Date.now() + (5 * 60 * 1000)
+                        type: toolCommand.tool, action: toolCommand.action, payload: toolCommand.payload,
+                        requestedBy: safeUser, expiresAt: Date.now() + (5 * 60 * 1000)
                     });
-                    
-                    replyText = `[ACTION REQUIRED - HITL GATE]: Proposal compiled for [${toolCommand.tool}]: ${toolCommand.action}.\n\nReview structural payload:\n\`\`\`json\n${JSON.stringify(toolCommand.payload, null, 2)}\n\`\`\``;
-                    
+                    replyText = `[ACTION REQUIRED - HITL GATE]: Proposal compiled for [${toolCommand.tool}]: ${toolCommand.action}.\n\nReview:\n\`\`\`json\n${JSON.stringify(toolCommand.payload, null, 2)}\n\`\`\``;
                     ghostLearn({ safeUser, message, actionTaken: actionTriggered });
                     res.json({ success: true, text: replyText, actionRequired: true, actionId: actionId });
                     return;
                 }
-            } catch (e) { console.error("Failed to parse JSON tool call."); }
+            } catch (e) {}
         }
 
         const codeRegex = /[\x60]{3}python\n([\s\S]*?)[\x60]{3}/i;
@@ -478,11 +378,9 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             actionTriggered = "web_embed";
             try {
                 const serperRes = await fetchWithTimeout(fetch('https://google.serper.dev/search', {
-                    method: 'POST',
-                    headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
+                    method: 'POST', headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ q: embedMatch[1] })
                 }), 8000);
-                
                 const searchData = await serperRes.json();
                 if (searchData.organic && searchData.organic.length > 0) {
                     replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[EXECUTE_OPEN_TAB:${searchData.organic[0].link}]`);
@@ -490,74 +388,53 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                     replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Oracle embed returned no results]`);
                 }
             } catch (embedErr) {
-                console.error("[Oracle Embed Error]:", embedErr.message);
                 replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Oracle embed failed to resolve]`);
             }
         }
 
         ghostLearn({ safeUser, message, actionTaken: actionTriggered });
-
         userHistory.push({ role: 'user', content: message }, { role: 'assistant', content: replyText.trim() });
         if (userHistory.length > maxMemory) userHistory = userHistory.slice(-maxMemory);
-        
         res.json({ success: true, text: replyText.trim() });
 
         if (pool && safeUser) {
             pool.query(
                 `INSERT INTO user_memories (username, history_json, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json, updated_at = NOW()`,
                 [safeUser, JSON.stringify(userHistory)]
-            )
-            .then(() => console.log(`[Memory]: Saved ${userHistory.length} turns for user: ${safeUser}`))
-            .catch(err => console.error('[Memory Save Error]: Background save failed.', err.message));
+            ).catch(err => console.error('[Memory Save Error]:', err.message));
         }
     } catch (e) { 
         if (!res.headersSent) res.json({ success: true, text: `[System Warning]: Matrix Interference: ${e.message}` }); 
     }
 });
 
-// ==========================================
-// 5. THE ISOLATED EXECUTION ENDPOINT
-// ==========================================
 app.post('/api/execute-action', requireAdminToken, async (req, res) => {
     const { actionId } = req.body;
     const cachedAction = pendingActions.get(actionId);
     if (!cachedAction) return res.status(400).json({ success: false, error: "Action token expired or invalid." });
-
-    // Guard: pipeline actions are handled by the pipeline routes, not here
     if (cachedAction.type === 'pipeline') {
         return res.status(400).json({ success: false, error: 'Use /api/pipeline/execute-action for pipeline actions.' });
     }
-    
     pendingActions.delete(actionId);
     if (Date.now() > cachedAction.expiresAt) return res.status(400).json({ success: false, error: "Confirmation window timed out." });
-
     const memoryUser = cachedAction.requestedBy || 'master_manoj';
 
     try {
-        console.log(`[AUDIT] Authorized execution of action: ${cachedAction.action}`);
+        const access = checkToolAccess(cachedAction.type, memoryUser);
+        if (!access.allowed) return res.status(403).json({ success: false, error: access.reason });
 
         if (cachedAction.type === 'n8n_execute') {
             const result = await n8nMcpClient.executeTool(cachedAction.action, cachedAction.payload);
-
-            // FIX (goldfish memory): persist the outcome so Ghost remembers this happened
-            appendToUserMemory(memoryUser, [
-                { role: 'assistant', content: `[n8n workflow "${cachedAction.action}" executed successfully. Result: ${JSON.stringify(result).slice(0, 1500)}]` }
-            ]);
-
+            appendToUserMemory(memoryUser, [{ role: 'assistant', content: `[n8n workflow "${cachedAction.action}" executed. Result: ${JSON.stringify(result).slice(0, 1500)}]` }]);
             return res.json({ success: true, message: `n8n workflow [${cachedAction.action}] executed successfully.`, result });
         }
 
         if (cachedAction.type === 'browserbase_execute') {
-            const result = await browserbaseClient.executeTool(cachedAction.action, cachedAction.payload);
-
-            // FIX (goldfish memory): persist the scraped page so Ghost remembers it next turn
-            appendToUserMemory(memoryUser, [
-                {
-                    role: 'assistant',
-                    content: `[Browserbase result for ${cachedAction.payload.url}]\nTitle: "${result.title}"\nContent: ${result.content ? result.content.slice(0, 1500) : '(no text extracted)'}`
-                }
-            ]);
-
+            const result = await browserbaseClient.executeTool(cachedAction.action, { ...cachedAction.payload, safeUser: memoryUser });
+            const summary = (result.stepResults || [])
+                .map(r => r.step === 'navigation' ? `Navigated to ${r.url}` : `Step ${r.step} (${r.action}): ${r.status}${r.data ? ' — ' + r.data.slice(0, 300) : ''}${r.error ? ' — ERROR: ' + r.error : ''}`)
+                .join('\n');
+            appendToUserMemory(memoryUser, [{ role: 'assistant', content: `[Browserbase result for ${cachedAction.payload.url}]\n${summary}` }]);
             return res.json({ success: true, message: `Browserbase successfully processed target domain [${cachedAction.payload.url}].`, result });
         }
 
@@ -565,11 +442,8 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
     } catch (err) { return res.status(500).json({ success: false, error: `Pipeline failure: ${err.message}` }); }
 });
 
-// ==========================================
-// 6. PIPELINE ENGINE ROUTES (Node-graph automation)
-// ==========================================
 app.use('/api/pipeline', createPipelineRoutes(n8nMcpClient));
-
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 const PORT = process.env.PORT || 10000;
+startAutoLearning(ghostLearn, pool);
 app.listen(PORT, '0.0.0.0', () => console.log(`Ghost AI Engine Online on port ${PORT}.`));
