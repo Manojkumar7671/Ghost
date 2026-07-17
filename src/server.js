@@ -10,6 +10,10 @@ import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import n8nMcpClient from './services/mcpClient.js';
 import browserbaseClient from './services/browserbaseClient.js';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const brain = require('./brain.js');
 
 if (!process.env.ADMIN_PASSPHRASE || !process.env.JWT_SECRET) {
     console.error("\n[CRITICAL FATAL ERROR]: ADMIN_PASSPHRASE or JWT_SECRET missing.");
@@ -198,14 +202,13 @@ const chatHandler = async (req, res) => {
         }
 
         let userHistory = []; 
-        let textPrompt = (isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user));
-        let messagesArray = [];
         let fullResponse = "";
-        let llmProvider = "Unknown";
+        let llmProvider = "Ghost-Orchestrator";
         let finalMessage = fileContent ? `[Document Uploaded:]\n${fileContent.substring(0, 5000)}\n\nUser: ${message}` : message;
 
         if (image) {
-            messagesArray = [
+            let textPrompt = (isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user));
+            let messagesArray = [
                 { role: "system", content: textPrompt },
                 ...userHistory,
                 { role: "user", content: [{ type: "text", text: finalMessage || "Analyze frame." }, { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } }] }
@@ -215,28 +218,13 @@ const chatHandler = async (req, res) => {
             fullResponse = llmResult.content;
             llmProvider = llmResult.provider;
         } else {
-            messagesArray = [{ role: "system", content: textPrompt }, ...userHistory, { role: "user", content: finalMessage }];
-            messagesArray = compressContext(messagesArray);
-            let llmResult = await callLLM(messagesArray, activeTokens, false);
-            fullResponse = llmResult.content;
-            llmProvider = llmResult.provider;
-
-            const searchMatch = fullResponse ? fullResponse.match(/<search>([\s\S]*?)<\/search>/i) : null;
-            if (searchMatch) {
-                try {
-                    const serperRes = await fetchWithTimeout(fetch('https://google.serper.dev/search', {
-                        method: 'POST',
-                        headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ q: searchMatch[1] })
-                    }), 8000);
-                    const searchData = await serperRes.json();
-                    let searchOutput = searchData.organic && searchData.organic.length > 0 ? searchData.organic.slice(0, 3).map(r => `${r.title}: ${r.snippet}`).join("\n") : "No results found.";
-                    messagesArray.push({ role: "assistant", content: fullResponse }, { role: "user", content: `[ORACLE]:\n${searchOutput}` });
-                    messagesArray = compressContext(messagesArray); 
-                    llmResult = await callLLM(messagesArray, activeTokens, false);
-                    fullResponse = llmResult.content;
-                    llmProvider = llmResult.provider;
-                } catch (e) { /* Fallback */ }
+            console.log('[Server] Routing plain-text request to brain.think()...');
+            try {
+                const brainResult = await brain.think(finalMessage);
+                fullResponse = brainResult.reply;
+            } catch (error) {
+                console.error('[Server] Error during brain execution:', error);
+                fullResponse = "I encountered a critical error while routing your request through my agents. Please try again.";
             }
         }
 
