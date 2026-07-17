@@ -14,6 +14,10 @@ import n8nMcpClient from './services/mcpClient.js';
 import browserbaseClient from './services/browserbaseClient.js';
 import { pendingActions as sharedPendingActions } from './state/pendingActions.js';
 import createPipelineRoutes from './routes/pipelineRoutes.js';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const brain = require('./src/brain.js');
 
 if (!process.env.ADMIN_PASSPHRASE || !process.env.JWT_SECRET) {
     console.error("\n[CRITICAL FATAL ERROR]: ADMIN_PASSPHRASE or JWT_SECRET missing.");
@@ -296,31 +300,15 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                 }
             }
         } else {
-            messagesArray = [{ role: "system", content: textPrompt }, ...userHistory, { role: "user", content: finalMessage }];
-            messagesArray = compressContext(messagesArray);
-            fullResponse = await callLLM(messagesArray, activeTokens);
-
-            const searchMatch = fullResponse ? fullResponse.match(/<search>([\s\S]*?)<\/search>/i) : null;
-            if (searchMatch) {
-                try {
-                    const serperRes = await fetchWithTimeout(fetch('https://google.serper.dev/search', {
-                        method: 'POST',
-                        headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ q: searchMatch[1] })
-                    }), 8000);
-                    const searchData = await serperRes.json();
-                    let searchOutput = searchData.organic && searchData.organic.length > 0 
-                        ? searchData.organic.slice(0, 3).map(r => `${r.title}: ${r.snippet}`).join("\n") 
-                        : "No results found.";
-                    messagesArray.push({ role: "assistant", content: fullResponse });
-                    messagesArray.push({ role: "user", content: `[ORACLE RETURNED]:\n${searchOutput}\n\nSynthesize a final answer.` });
-                    messagesArray = compressContext(messagesArray); 
-                    fullResponse = await callLLM(messagesArray, activeTokens);
-                } catch (searchErr) {
-                    messagesArray.push({ role: "assistant", content: fullResponse });
-                    messagesArray.push({ role: "user", content: `[ORACLE FAILED]: Web search timed out. Inform the user gracefully.` });
-                    fullResponse = await callLLM(messagesArray, activeTokens);
-                }
+            console.log('[Server] Routing plain-text request to brain.think()...');
+            try {
+                const brainResult = await brain.think(finalMessage);
+                fullResponse = brainResult.reply;
+            } catch (error) {
+                console.error('[Server] Error during brain execution:', error);
+                messagesArray = [{ role: "system", content: textPrompt }, ...userHistory, { role: "user", content: finalMessage }];
+                messagesArray = compressContext(messagesArray);
+                fullResponse = await callLLM(messagesArray, activeTokens);
             }
         }
 
