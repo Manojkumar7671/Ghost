@@ -1,14 +1,14 @@
-const { chat } = require('./tools/llm');
+const { chat } = require('../tools/llm');
 const fs = require('fs');
 const path = require('path');
 
 // Import the wrapped standard agents that guarantee a .run(task, context) interface
-const standardAgents = require('./agentAdapter');
+const standardAgents = require('../agentAdapter');
 
 // Reference existing standard agents wrapped with .run()
 const availableAgents = { ...standardAgents };
 
-const DYNAMIC_AGENTS_DIR = path.join(__dirname, 'agents', 'dynamic');
+const DYNAMIC_AGENTS_DIR = path.join(__dirname, 'dynamic');
 
 // 1. Load any previously created dynamic agents on boot
 if (!fs.existsSync(DYNAMIC_AGENTS_DIR)) {
@@ -17,7 +17,6 @@ if (!fs.existsSync(DYNAMIC_AGENTS_DIR)) {
   const files = fs.readdirSync(DYNAMIC_AGENTS_DIR).filter(f => f.endsWith('.js'));
   for (const file of files) {
     const agentName = file.replace('.js', '');
-    // Dynamic agents already export a .run() method by design
     availableAgents[agentName] = require(path.join(DYNAMIC_AGENTS_DIR, file));
   }
 }
@@ -26,7 +25,7 @@ if (!fs.existsSync(DYNAMIC_AGENTS_DIR)) {
 function createAgent(name, instructions) {
   const safeName = name.replace(/[^a-zA-Z0-9_]/g, '');
   const filePath = path.join(DYNAMIC_AGENTS_DIR, `${safeName}.js`);
-  
+
   const code = `
 const { chat } = require('../../tools/llm');
 
@@ -45,8 +44,7 @@ module.exports = { run };
 
   fs.writeFileSync(filePath, code.trim());
   console.log(`[Orchestrator] Spun up new dynamic agent: ${safeName}`);
-  
-  // Require and cache it immediately
+
   const newAgent = require(filePath);
   availableAgents[safeName] = newAgent;
   return newAgent;
@@ -79,45 +77,41 @@ If an existing agent fits, respond EXACTLY with just the agent's name.`;
     return { name: result, agent: availableAgents[result] };
   }
 
-  // Fallback if the LLM hallucinates an agent name
-  return { 
-    name: 'genericDynamic', 
-    agent: createAgent('genericDynamic', 'You are a general-purpose execution agent.') 
+  return {
+    name: 'genericDynamic',
+    agent: createAgent('genericDynamic', 'You are a general-purpose execution agent.')
   };
 }
 
 // 4. Parallel Execution Engine
 async function run(task, globalContext = '') {
-  // Break down complex tasks into parallel subtasks
   const planPrompt = `Break this task down into 1 to 3 distinct subtasks. 
 If they can be done in parallel, list them. 
 Task: "${task}"
 Respond ONLY with a JSON array of string subtasks. No markdown.`;
-  
+
   let subtasks = [];
   try {
     const planRes = await chat([{ role: 'user', content: planPrompt }]);
     subtasks = JSON.parse(planRes.match(/\[.*\]/s)[0]);
   } catch (e) {
-    subtasks = [task]; // Fallback to single task
+    subtasks = [task];
   }
 
-  // Execute in parallel
   const promises = subtasks.map(async (st) => {
     const { name, agent } = await evaluate(st);
     let result = '';
-    
+
     try {
       if (typeof agent.run === 'function') {
         result = await agent.run(st, globalContext);
       } else {
-        // We shouldn't hit this anymore since all standard and dynamic agents have .run()
         result = `Agent ${name} missing standard run() method.`;
       }
     } catch (err) {
       result = `Error executing ${name}: ${err.message}`;
     }
-    
+
     return `[Agent: ${name}] Subtask: "${st}"\nResult: ${result}`;
   });
 

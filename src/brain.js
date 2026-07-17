@@ -1,5 +1,8 @@
 const { chat } = require('./tools/llm');
 const { saveMessage, getHistory, remember } = require('./tools/memory');
+const { recordLearning, getRelevantLearnings } = require('./learningStore');
+const orchestrator = require('./orchestrator');
+
 const webAgent = require('./agents/webAgent');
 const emailAgent = require('./agents/emailAgent');
 const githubAgent = require('./agents/githubAgent');
@@ -11,33 +14,34 @@ const selfAgent = require('./agents/selfAgent');
 const scheduler = require('./agents/scheduler');
 
 async function plan(userMessage) {
+  const learnings = getRelevantLearnings(userMessage);
+  
   const response = await chat(
     [{ role: 'user', content: userMessage }],
     {
       systemPrompt: `You are Ghost's planning brain. Given a user message, decide which tools to call.
 Respond ONLY with a JSON array of actions. Each action has:
-- "tool": one of [chat, web_search, web_scrape, email_draft, email_send, github_repos, github_analyze, github_push, image_generate, notion_search, notion_create, goal_run, self_analyze, voice_speak, schedule, briefing, memory_save, memory_get]
+- "tool": tool name
 - "params": object with required params
 - "reason": why you're using this tool (1 sentence)
 
-Rules:
-- Use "chat" alone for simple conversation, questions, opinions
-- Use web_search for anything needing current info
-- Use image_generate when user asks to create/draw/generate an image
-- Use email_draft or email_send for email tasks
-- Use github_* for code/repo tasks
-- Use goal_run for complex multi-step goals
-- Use self_analyze when asked about Ghost itself
-- Use voice_speak only if user explicitly says "speak", "say out loud", "voice"
-- Use memory_save when user says "remember this"
-- Multiple tools can be combined
+CRITICAL ROUTING RULES:
+1. DEFAULT TO TOOLS: Never use "chat" to answer factual questions or perform tasks. Use "chat" ONLY for pure greetings (e.g. "hi") or simple opinions.
+2. MULTI-STEP / RESEARCH: Use "orchestrator_run" for ANY multi-step, research-based, or complex requests. It delegates to parallel agents.
+3. SINGLE TASKS: Use specific agents (web_search, email_send, etc.) only if the task is highly specific and singular.
+
+LEARNINGS FROM PAST TASKS:
+Use these past task outcomes to bias your tool selection (prefer tools that succeeded for similar tasks):
+${learnings}
+
+Available tools: [chat, orchestrator_run, web_search, web_scrape, email_draft, email_send, github_repos, github_analyze, github_push, image_generate, notion_search, notion_create, goal_run, self_analyze, voice_speak, schedule, briefing, memory_save, memory_get]
 
 Output ONLY valid JSON array. No markdown, no explanation.`,
       maxTokens: 512
     }
   );
   try { return JSON.parse(response.replace(/```json|```/g, '').trim()); }
-  catch { return [{ tool: 'chat', params: {}, reason: 'Fallback to conversation' }]; }
+  catch { return [{ tool: 'orchestrator_run', params: { task: userMessage }, reason: 'Fallback to orchestrator for safety' }]; }
 }
 
 async function execute(action, userMessage, previousResults = []) {
@@ -46,6 +50,9 @@ async function execute(action, userMessage, previousResults = []) {
   switch (tool) {
     case 'chat':
       return await chat([...getHistory(15), { role: 'user', content: userMessage }], { systemPrompt: 'You are Ghost, a sharp autonomous AI assistant for Manoj. Be concise and helpful.' });
+    case 'orchestrator_run':
+      const orchRes = await orchestrator.run(params.task || userMessage, context);
+      return `Orchestrator results:\n${orchRes}`;
     case 'web_search':
       const sr = await webAgent.searchWeb(params.query || userMessage);
       return sr.summary || JSON.stringify(sr);
@@ -101,28 +108,75 @@ async function execute(action, userMessage, previousResults = []) {
 }
 
 async function summarize(userMessage, actions, results) {
-  if (actions.length === 1 && actions[0].tool === 'chat') return results[0].output;
-  const actionLog = actions.map((a, i) => `${i+1}. ${a.tool}: ${results[i]?.output?.slice(0,300)}`).join('\n\n');
-  return await chat(
-    [{ role: 'user', content: `User asked: "${userMessage}"\n\nActions done:\n${actionLog}\n\nSummarize results clearly and concisely.` }],
-    { systemPrompt: 'You are Ghost. Summarize actions and results. Be direct and concise.' }
-  );
+  let finalAnswer = '';
+  
+  if (actions.length === 1 && actions[0].tool === 'chat') {
+    finalAnswer = results[0].output;
+  } else {
+    const actionLog = actions.map((a, i) => `${i+1}. ${a.tool}: ${results[i]?.output?.slice(0,300)}`).join('\n\n');
+    finalAnswer = await chat(
+      [{ role: 'user', content: `User asked: "${userMessage}"\n\nActions done:\n${actionLog}\n\nSummarize results clearly and concisely.` }],
+      { systemPrompt: 'You are Ghost. Summarize actions and results for the user. Be direct and concise.' }
+    );
+  }
+
+  const toolToAgent = {
+    web_search: 'webAgent', web_scrape: 'webAgent',
+    email_draft: 'emailAgent', email_send: 'emailAgent',
+    github_repos: 'githubAgent', github_analyze: 'githubAgent', github_push: 'githubAgent',
+    image_generate: 'imageAgent',
+    notion_search: 'notionAgent', notion_create: 'notionAgent',
+    goal_run: 'goalAgent',
+    self_analyze: 'selfAgent',
+    voice_speak: 'voiceAgent',
+    briefing: 'scheduler',
+    memory_save: 'memory', memory_get: 'memory',
+    chat: 'llm'
+  };
+
+  const prefixTags = actions.map((a, i) => {
+    if (a.tool === 'orchestrator_run') {
+      const output = results[i]?.output || '';
+      const agentMatches = [...output.matchAll(/\[Agent:\s*(.*?)\]/g)].map(m => m[1]);
+      const uniqueAgents = [...new Set(agentMatches)];
+      const agentsStr = uniqueAgents.length > 0 ? uniqueAgents.join(', ') : 'orchestrator';
+      return `[${a.tool} → ${agentsStr}]`;
+    }
+    
+    const agentName = toolToAgent[a.tool] || 'system';
+    return `[${a.tool} → ${agentName}]`;
+  }).join(' ');
+
+  return `${prefixTags}\n\n${finalAnswer}`.trim();
 }
 
 async function think(userMessage) {
   saveMessage('user', userMessage);
+  
   const actions = await plan(userMessage);
   const results = [];
+  let executionSuccess = true;
+
   for (const action of actions) {
     try {
       const output = await execute(action, userMessage, results);
       results.push({ tool: action.tool, output, reason: action.reason, status: 'done' });
     } catch (err) {
+      executionSuccess = false;
       results.push({ tool: action.tool, output: `Error: ${err.message}`, reason: action.reason, status: 'failed' });
     }
   }
+  
   const reply = await summarize(userMessage, actions, results);
   saveMessage('assistant', reply);
+
+  recordLearning(
+    userMessage, 
+    actions.map(a => a.tool), 
+    executionSuccess ? 'success' : 'failed', 
+    reply.substring(0, 300)
+  );
+
   return { reply, actions: actions.map((a,i) => ({ tool: a.tool, reason: a.reason, status: results[i]?.status })) };
 }
 
