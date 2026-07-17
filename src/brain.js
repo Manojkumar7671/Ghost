@@ -1,7 +1,7 @@
 const { chat } = require('./tools/llm');
 const { saveMessage, getHistory, remember } = require('./tools/memory');
 const { recordLearning, getRelevantLearnings } = require('./learningStore');
-const orchestrator = require('./orchestrator');
+const orchestrator = require('./agents/orchestrator');
 
 const webAgent = require('./agents/webAgent');
 const emailAgent = require('./agents/emailAgent');
