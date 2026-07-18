@@ -626,7 +626,8 @@ function startN8n() {
                 DB_POSTGRESDB_USER: dbUrl.username,
                 DB_POSTGRESDB_PASSWORD: decodeURIComponent(dbUrl.password),
                 DB_POSTGRESDB_DATABASE: dbUrl.pathname.replace(/^\//, ''),
-                DB_POSTGRESDB_SSL_ENABLED: 'true'
+                DB_POSTGRESDB_SSL_ENABLED: 'true',
+                DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED: 'false'
             };
         } catch (e) {
             console.error('[n8n Sidecar] Failed to parse SUPABASE_DB_URL, falling back to SQLite:', e.message);
