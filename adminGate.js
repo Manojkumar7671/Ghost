@@ -12,7 +12,7 @@ const RESTRICTED_TOOLS = new Set([
   'pipelineControl',
   'envUpdate',
   'browserbase_execute',
-  'n8n_execute',
+  'workflow_execute',
 ]);
 
 /**

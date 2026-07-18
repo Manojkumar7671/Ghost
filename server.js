@@ -10,7 +10,7 @@ import jwt from 'jsonwebtoken';
 import cookieParser from 'cookie-parser';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
-import n8nMcpClient from './services/mcpClient.js';
+import workflowEngine from './services/workflowEngine.js';
 import browserbaseClient from './services/browserbaseClient.js';
 import { pendingActions as sharedPendingActions } from './state/pendingActions.js';
 import createPipelineRoutes from './routes/pipelineRoutes.js';
@@ -43,7 +43,8 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-n8nMcpClient.initialize().catch(e => console.error("[Server Init] Non-fatal n8n MCP init error:", e.message));
+// Ghost Workflow Engine is built-in — no external initialization required
+console.log(`[Ghost Workflow Engine] Online — ${workflowEngine.getPromptString().split('- Action Name:').length - 1} built-in workflows ready.`);
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
@@ -378,7 +379,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
 
         let dynamicToolsPrompt = "", learnedGenesPrompt = "";
         if (isAdmin) {
-            if (n8nMcpClient.isConnected) dynamicToolsPrompt += `\n\n[LIVE N8N WORKFLOWS AVAILABLE]\nUse "tool": "n8n_execute" with these exact action names and schemas:\n${n8nMcpClient.getPromptString()}`;
+            dynamicToolsPrompt += `\n\n[GHOST BUILT-IN WORKFLOWS AVAILABLE]\nUse "tool": "n8n_execute" with these exact action names and schemas:\n${workflowEngine.getPromptString()}`;
             if (browserbaseClient.isConnected) dynamicToolsPrompt += `\n\n${browserbaseClient.getPromptString()}`;
             if (pool) {
                 try {
@@ -552,9 +553,9 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
         if (!access.allowed) return res.status(403).json({ success: false, error: access.reason });
 
         if (cachedAction.type === 'n8n_execute') {
-            const result = await n8nMcpClient.executeTool(cachedAction.action, cachedAction.payload);
-            appendToUserMemory(memoryUser, [{ role: 'assistant', content: `[n8n workflow "${cachedAction.action}" executed. Result: ${JSON.stringify(result).slice(0, 1500)}]` }]);
-            return res.json({ success: true, message: `n8n workflow [${cachedAction.action}] executed successfully.`, result });
+            const result = await workflowEngine.executeTool(cachedAction.action, cachedAction.payload);
+            appendToUserMemory(memoryUser, [{ role: 'assistant', content: `[Ghost Workflow "${cachedAction.action}" executed. Result: ${JSON.stringify(result).slice(0, 1500)}]` }]);
+            return res.json({ success: true, message: `Ghost Workflow [${cachedAction.action}] executed successfully.`, result });
         }
 
         if (cachedAction.type === 'browserbase_execute') {
@@ -577,7 +578,7 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
 });
 
 // Mounted pipeline router BEFORE dummy stubs to prevent Express route collisions
-app.use('/api/pipeline', createPipelineRoutes(n8nMcpClient));
+app.use('/api/pipeline', createPipelineRoutes(workflowEngine));
 
 app.post('/api/pipeline/execute', async (req, res) => {
     const { skills, input } = req.body;
