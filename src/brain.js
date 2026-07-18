@@ -59,8 +59,8 @@ function extractJSON(raw) {
   return null;
 }
 
-async function plan(userMessage) {
-  const learnings = getRelevantLearnings(userMessage);
+async function plan(userMessage, userContext = { safeUser: 'guest', isAdmin: false }) {
+  const learnings = userContext.isAdmin ? getRelevantLearnings(userMessage) : "No past learnings available.";
   
   const response = await chat(
     [{ role: 'user', content: userMessage }],
@@ -103,12 +103,18 @@ Example: [{"tool":"web_search","params":{"query":"latest AI news"},"reason":"Use
   return [{ tool: 'orchestrator_run', params: { task: userMessage }, reason: 'Fallback to orchestrator — plan parse failed' }];
 }
 
-async function execute(action, userMessage, previousResults = []) {
+async function execute(action, userMessage, previousResults = [], userContext = {}) {
   const { tool, params } = action;
   const context = previousResults.map(r => r.output).join('\n');
   switch (tool) {
-    case 'chat':
-      return await chat([...getHistory(15), { role: 'user', content: userMessage }], { systemPrompt: 'You are Ghost, a sharp autonomous AI assistant for Manoj. Be concise and helpful.' });
+    case 'chat': {
+      const { safeUser = 'guest', isAdmin = false } = userContext;
+      return await chat([...getHistory(safeUser, 15), { role: 'user', content: userMessage }], {
+        systemPrompt: isAdmin
+          ? 'You are Ghost, a sharp autonomous AI assistant for Manoj. Be concise and helpful.'
+          : 'You are Ghost, an AI assistant. Be concise and helpful.'
+      });
+    }
     case 'orchestrator_run':
       const orchRes = await orchestrator.run(params.task || userMessage, context);
       return `Orchestrator results:\n${orchRes}`;
@@ -154,13 +160,17 @@ async function execute(action, userMessage, previousResults = []) {
     case 'briefing':
       const br = await scheduler.generateBriefing();
       return `Briefing:\n${br}`;
-    case 'memory_save':
-      remember(params.key || 'note', params.value || userMessage);
+    case 'memory_save': {
+      const { safeUser = 'guest' } = userContext;
+      remember(safeUser, params.key || 'note', params.value || userMessage);
       return `Remembered: ${params.key}`;
-    case 'memory_get':
+    }
+    case 'memory_get': {
+      const { safeUser = 'guest' } = userContext;
       const { allMemory } = require('./tools/memory');
-      const all = allMemory();
+      const all = allMemory(safeUser);
       return `Memory:\n${Object.entries(all).map(([k,v]) => `- ${k}: ${JSON.stringify(v.value)}`).join('\n')}`;
+    }
       
     // Added Antigravity workspace operation routes
     case 'workspace_view_file':
@@ -228,16 +238,17 @@ async function summarize(userMessage, actions, results) {
   return `${prefixTags}\n\n${finalAnswer}`.trim();
 }
 
-async function think(userMessage) {
-  saveMessage('user', userMessage);
+async function think(userMessage, userContext = { safeUser: 'guest', isAdmin: false }) {
+  const username = userContext.safeUser || 'guest';
+  saveMessage(username, 'user', userMessage);
   
-  const actions = await plan(userMessage);
+  const actions = await plan(userMessage, userContext);
   const results = [];
   let executionSuccess = true;
 
   for (const action of actions) {
     try {
-      const output = await execute(action, userMessage, results);
+      const output = await execute(action, userMessage, results, userContext);
       results.push({ tool: action.tool, output, reason: action.reason, status: 'done' });
     } catch (err) {
       executionSuccess = false;
@@ -246,14 +257,16 @@ async function think(userMessage) {
   }
   
   const reply = await summarize(userMessage, actions, results);
-  saveMessage('assistant', reply);
+  saveMessage(username, 'assistant', reply);
 
-  recordLearning(
-    userMessage, 
-    actions.map(a => a.tool), 
-    executionSuccess ? 'success' : 'failed', 
-    reply.substring(0, 300)
-  );
+  if (userContext.isAdmin) {
+    recordLearning(
+      userMessage, 
+      actions.map(a => a.tool), 
+      executionSuccess ? 'success' : 'failed', 
+      reply.substring(0, 300)
+    );
+  }
 
   return { reply, actions: actions.map((a,i) => ({ tool: a.tool, reason: a.reason, status: results[i]?.status })) };
 }

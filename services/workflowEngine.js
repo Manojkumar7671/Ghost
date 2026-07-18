@@ -5,6 +5,7 @@
  * No external dependency. No 401 errors. No cloud required.
  */
 import { execFileSync } from 'child_process';
+import { assertSafeUrl } from './urlSafety.js';
 
 const SAFE_WORKFLOW_ID = /^[a-zA-Z0-9_-]+$/;
 
@@ -28,6 +29,7 @@ class GhostWorkflowEngine {
             handler: async (args) => {
                 const { url, payload } = args;
                 if (!url) throw new Error('Workflow "send_webhook" requires a "url" argument.');
+                await assertSafeUrl(url);
                 const res = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -49,6 +51,7 @@ class GhostWorkflowEngine {
             handler: async (args) => {
                 const { url, headers = {} } = args;
                 if (!url) throw new Error('Workflow "fetch_data" requires a "url" argument.');
+                await assertSafeUrl(url);
                 const res = await fetch(url, { headers });
                 const contentType = res.headers.get('content-type') || '';
                 const data = contentType.includes('json') ? await res.json() : await res.text();

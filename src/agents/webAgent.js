@@ -47,6 +47,8 @@ async function searchWeb(query) {
  */
 async function scrapeAndSummarize(url) {
   try {
+    const { assertSafeUrl } = await import('../../services/urlSafety.js');
+    await assertSafeUrl(url);
     const res = await axios.get(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'

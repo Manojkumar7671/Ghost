@@ -56,7 +56,17 @@ const SERPER_API_KEY = process.env.SERPER_API_KEY;
 
 let pool;
 if (process.env.SUPABASE_DB_URL) {
-    pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false }});
+    pool = new Pool({
+        connectionString: process.env.SUPABASE_DB_URL,
+        ssl: { rejectUnauthorized: false },
+        max: 5,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+        keepAlive: true
+    });
+    pool.on('error', (err) => {
+        console.error('[Postgres Pool Error]:', err.message);
+    });
 }
 
 const fetchWithTimeout = (promise, ms) => {
@@ -431,7 +441,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             // ============================================================
             console.log('[Server] Routing plain-text request to brain.think()...');
             try {
-                const brainResult = await brain.think(finalMessage);
+                const brainResult = await brain.think(finalMessage, { safeUser, isAdmin });
                 fullResponse = brainResult.reply;
             } catch (error) {
                 console.error('[Server] brain.think() failed:', error.message);

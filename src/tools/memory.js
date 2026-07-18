@@ -2,41 +2,55 @@ const fs = require('fs-extra');
 const path = require('path');
 
 const MEMORY_DIR = path.join(__dirname, '../../memory');
-const HISTORY_FILE = path.join(MEMORY_DIR, 'chat_history.json');
-const MEMORY_FILE = path.join(MEMORY_DIR, 'persistent.json');
+function getMemoryFile(username) {
+  const safe = (username || 'guest').replace(/[^a-zA-Z0-9_-]/g, '_');
+  return path.join(MEMORY_DIR, `persistent_${safe}.json`);
+}
 const COST_FILE = path.join(MEMORY_DIR, 'cost_tracker.json');
 
 fs.ensureDirSync(MEMORY_DIR);
 
-function loadHistory() {
-  return fs.existsSync(HISTORY_FILE) ? fs.readJsonSync(HISTORY_FILE) : [];
+function getHistoryFile(username) {
+  const safe = (username || 'guest').replace(/[^a-zA-Z0-9_-]/g, '_');
+  return path.join(MEMORY_DIR, `chat_history_${safe}.json`);
 }
-function saveMessage(role, content) {
-  const history = loadHistory();
+
+function loadHistory(username) {
+  const file = getHistoryFile(username);
+  return fs.existsSync(file) ? fs.readJsonSync(file) : [];
+}
+
+function saveMessage(username, role, content) {
+  const history = loadHistory(username);
   history.push({ role, content, ts: new Date().toISOString() });
   if (history.length > 100) history.splice(0, history.length - 100);
-  fs.writeJsonSync(HISTORY_FILE, history, { spaces: 2 });
+  fs.writeJsonSync(getHistoryFile(username), history, { spaces: 2 });
 }
-function getHistory(limit = 20) {
-  const h = loadHistory();
+
+function getHistory(username, limit = 20) {
+  const h = loadHistory(username);
   return h.slice(-limit).map(m => ({ role: m.role, content: m.content }));
 }
-function clearHistory() { fs.writeJsonSync(HISTORY_FILE, []); }
-function loadMemory() {
-  return fs.existsSync(MEMORY_FILE) ? fs.readJsonSync(MEMORY_FILE) : {};
+
+function clearHistory(username) { 
+  fs.writeJsonSync(getHistoryFile(username), []); 
 }
-function remember(key, value) {
-  const mem = loadMemory();
+function loadMemory(username) {
+  const file = getMemoryFile(username);
+  return fs.existsSync(file) ? fs.readJsonSync(file) : {};
+}
+function remember(username, key, value) {
+  const mem = loadMemory(username);
   mem[key] = { value, ts: new Date().toISOString() };
-  fs.writeJsonSync(MEMORY_FILE, mem, { spaces: 2 });
+  fs.writeJsonSync(getMemoryFile(username), mem, { spaces: 2 });
 }
-function recall(key) { return loadMemory()[key]?.value ?? null; }
-function forgetKey(key) {
-  const mem = loadMemory();
+function recall(username, key) { return loadMemory(username)[key]?.value ?? null; }
+function forgetKey(username, key) {
+  const mem = loadMemory(username);
   delete mem[key];
-  fs.writeJsonSync(MEMORY_FILE, mem, { spaces: 2 });
+  fs.writeJsonSync(getMemoryFile(username), mem, { spaces: 2 });
 }
-function allMemory() { return loadMemory(); }
+function allMemory(username) { return loadMemory(username); }
 function loadCosts() {
   return fs.existsSync(COST_FILE) ? fs.readJsonSync(COST_FILE) : { total_tokens: 0, total_cost_usd: 0, calls: [] };
 }
