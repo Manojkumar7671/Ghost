@@ -181,7 +181,7 @@ const PROVIDER_MATRIX = [
     { name: 'Gemini', endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model: 'gemini-1.5-pro', apiKey: GEMINI_API_KEY },
     { name: 'Groq', endpoint: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.3-70b-versatile', apiKey: GROQ_API_KEY },
     { name: 'Nvidia NIM', endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions', model: 'nvidia/llama-3.3-nemotron-super-49b-v1', apiKey: NVIDIA_API_KEY },
-    { name: 'Nemotron 3 Ultra', endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions', model: 'nvidia/nemotron-3-70b-instruct', apiKey: NVIDIA_API_KEY },
+    { name: 'Kimi K2.6 (OpenRouter)', endpoint: 'https://openrouter.ai/api/v1/chat/completions', model: 'moonshotai/kimi-k2.6', apiKey: OPENROUTER_API_KEY },
     { name: 'OpenRouter', endpoint: 'https://openrouter.ai/api/v1/chat/completions', model: 'meta-llama/llama-3.3-70b-instruct', apiKey: OPENROUTER_API_KEY },
     { name: 'MiniMax', endpoint: 'https://api.minimax.io/v1/chat/completions', model: 'MiniMax-M3', apiKey: MINIMAX_API_KEY }
 ];
