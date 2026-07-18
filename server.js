@@ -3,7 +3,7 @@ import { startAutoLearning } from './ghostLearnScheduler.js';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { execSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
 import pkg from 'pg';
 import { fileURLToPath } from 'url';
 import jwt from 'jsonwebtoken';
@@ -15,6 +15,7 @@ import browserbaseClient from './services/browserbaseClient.js';
 import { pendingActions as sharedPendingActions } from './state/pendingActions.js';
 import createPipelineRoutes from './routes/pipelineRoutes.js';
 import { securityMiddleware } from './middleware/security.js';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -599,7 +600,55 @@ app.post('/api/browser/navigate', async (req, res) => {
     res.json({ success: true, message: `Browser navigating to: ${url}` });
 });
 
+app.use(
+    '/n8n',
+    createProxyMiddleware({
+        target: 'http://localhost:5678',
+        changeOrigin: true,
+        ws: true,
+        logger: console
+    })
+);
+
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
+function startN8n() {
+    console.log("[n8n Sidecar] Spawning self-hosted n8n engine...");
+    const n8nEnv = {
+        ...process.env,
+        N8N_PORT: '5678',
+        N8N_PATH: '/n8n/',
+        DB_TYPE: 'postgresdb',
+        DB_POSTGRESDB_CONNECTION_STRING: process.env.SUPABASE_DB_URL,
+        N8N_EDITOR_BASE_URL: process.env.RENDER_EXTERNAL_URL 
+            ? `${process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '')}/n8n/` 
+            : 'https://ghost-34qz.onrender.com/n8n/',
+        WEBHOOK_URL: process.env.RENDER_EXTERNAL_URL 
+            ? `${process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '')}/n8n/` 
+            : 'https://ghost-34qz.onrender.com/n8n/',
+        N8N_ENCRYPTION_KEY: process.env.JWT_SECRET || 'ghost-n8n-default-key'
+    };
+
+    const n8nProcess = spawn('npx', ['n8n', 'start'], {
+        env: n8nEnv,
+        stdio: 'inherit',
+        shell: true
+    });
+
+    n8nProcess.on('error', (err) => {
+        console.error('[n8n Sidecar] Failed to start n8n process:', err.message);
+    });
+
+    n8nProcess.on('exit', (code) => {
+        if (code !== 0 && code !== null) {
+            console.warn(`[n8n Sidecar] n8n process exited with code ${code}. Restarting in 5s...`);
+            setTimeout(startN8n, 5000);
+        }
+    });
+}
+
 const PORT = process.env.PORT || 10000;
 startAutoLearning(ghostLearn, pool);
-app.listen(PORT, '0.0.0.0', () => console.log(`Ghost AI Engine Online on port ${PORT}.`));
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Ghost AI Engine Online on port ${PORT}.`);
+    startN8n();
+});

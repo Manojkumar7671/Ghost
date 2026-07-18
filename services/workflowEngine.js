@@ -91,6 +91,65 @@ class GhostWorkflowEngine {
                 return { sent: true, title, message };
             }
         });
+
+        // Trigger a self-hosted n8n workflow via its local webhook node
+        this.workflows.set('n8n_webhook', {
+            name: 'n8n_webhook',
+            description: 'Trigger a workflow webhook on the self-hosted local n8n instance.',
+            inputSchema: {
+                properties: {
+                    path: { type: 'string', description: 'The webhook path (e.g., webhook/my-flow or webhook-test/my-flow)' },
+                    method: { type: 'string', description: 'HTTP method (GET, POST)' },
+                    payload: { type: 'object', description: 'JSON payload to send' }
+                }
+            },
+            handler: async (args) => {
+                const { path, method = 'POST', payload } = args;
+                if (!path) throw new Error('Workflow "n8n_webhook" requires a "path" argument.');
+                const cleanPath = path.startsWith('/') ? path : `/${path}`;
+                const url = `http://localhost:5678/n8n${cleanPath}`;
+                const fetchOpts = {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' }
+                };
+                if (method === 'POST' && payload) {
+                    fetchOpts.body = JSON.stringify(payload);
+                }
+                const res = await fetch(url, fetchOpts);
+                const responseText = await res.text();
+                let jsonResponse;
+                try { jsonResponse = JSON.parse(responseText); } catch (e) { jsonResponse = responseText; }
+                return { status: res.status, ok: res.ok, response: jsonResponse };
+            }
+        });
+
+        // Execute a saved n8n workflow by its ID using local Server CLI (database execution)
+        this.workflows.set('n8n_execute', {
+            name: 'n8n_execute',
+            description: 'Execute a saved n8n workflow directly by its ID.',
+            inputSchema: {
+                properties: {
+                    workflowId: { type: 'string', description: 'The n8n workflow ID (e.g., "1")' },
+                    payload: { type: 'object', description: 'Optional input payload' }
+                }
+            },
+            handler: async (args) => {
+                const { workflowId, payload } = args;
+                if (!workflowId) throw new Error('Workflow "n8n_execute" requires a "workflowId" argument.');
+                const { execSync } = require('child_process');
+                // Format the execution command
+                const command = `npx n8n execute --id ${workflowId}`;
+                const n8nEnv = {
+                    ...process.env,
+                    N8N_PORT: '5678',
+                    N8N_PATH: '/n8n/',
+                    DB_TYPE: 'postgresdb',
+                    DB_POSTGRESDB_CONNECTION_STRING: process.env.SUPABASE_DB_URL
+                };
+                const output = execSync(command, { env: n8nEnv, encoding: 'utf-8' });
+                return { success: true, workflowId, output: output.trim() };
+            }
+        });
     }
 
     /**
