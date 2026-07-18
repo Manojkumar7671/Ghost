@@ -15,6 +15,50 @@ const goalAgent = require('./agents/goalAgent');
 const selfAgent = require('./agents/selfAgent');
 const scheduler = require('./agents/scheduler');
 
+/**
+ * Robust multi-strategy JSON extraction.
+ * Tries multiple approaches to parse JSON from LLM output, 
+ * which may be wrapped in markdown code fences, contain preamble text, etc.
+ */
+function extractJSON(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  
+  // Strategy 1: Direct parse (LLM returned clean JSON)
+  try {
+    const parsed = JSON.parse(raw.trim());
+    if (Array.isArray(parsed)) return parsed;
+  } catch {}
+  
+  // Strategy 2: Strip markdown code fences (```json ... ``` or ``` ... ```)
+  const fenceMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)```/i);
+  if (fenceMatch) {
+    try {
+      const parsed = JSON.parse(fenceMatch[1].trim());
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+  }
+  
+  // Strategy 3: Find first JSON array in the text
+  const arrayMatch = raw.match(/\[[\s\S]*\]/);
+  if (arrayMatch) {
+    try {
+      const parsed = JSON.parse(arrayMatch[0]);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+  }
+  
+  // Strategy 4: Find first JSON object and wrap it in an array
+  const objectMatch = raw.match(/\{[\s\S]*\}/);
+  if (objectMatch) {
+    try {
+      const parsed = JSON.parse(objectMatch[0]);
+      if (parsed && typeof parsed === 'object') return [parsed];
+    } catch {}
+  }
+  
+  return null;
+}
+
 async function plan(userMessage) {
   const learnings = getRelevantLearnings(userMessage);
   
@@ -40,12 +84,23 @@ ${learnings}
 
 Available tools: [chat, orchestrator_run, web_search, web_scrape, email_draft, email_send, github_repos, github_analyze, github_push, image_generate, notion_search, notion_create, goal_run, self_analyze, voice_speak, schedule, briefing, memory_save, memory_get, workspace_view_file, workspace_edit_file, workspace_run_command, database_query]
 
-Output ONLY valid JSON array. No markdown, no explanation.`,
+RESPONSE FORMAT: Output ONLY a valid JSON array. No markdown fences, no explanation, no preamble.
+Example: [{"tool":"web_search","params":{"query":"latest AI news"},"reason":"User asked for current information"}]`,
       maxTokens: 512
     }
   );
-  try { return JSON.parse(response.replace(/```json|```/g, '').trim()); }
-  catch { return [{ tool: 'orchestrator_run', params: { task: userMessage }, reason: 'Fallback to orchestrator for safety' }]; }
+  
+  // Use robust multi-strategy JSON extraction instead of brittle regex
+  const parsed = extractJSON(response);
+  if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+    // Validate each action has at minimum a 'tool' field
+    const valid = parsed.filter(a => a && typeof a.tool === 'string');
+    if (valid.length > 0) return valid;
+  }
+  
+  // Safe fallback — delegate to orchestrator rather than crashing
+  console.warn('[Brain] Plan JSON extraction failed. Raw response:', response?.substring(0, 200));
+  return [{ tool: 'orchestrator_run', params: { task: userMessage }, reason: 'Fallback to orchestrator — plan parse failed' }];
 }
 
 async function execute(action, userMessage, previousResults = []) {
@@ -199,4 +254,4 @@ async function think(userMessage) {
   return { reply, actions: actions.map((a,i) => ({ tool: a.tool, reason: a.reason, status: results[i]?.status })) };
 }
 
-module.exports = { think };
+module.exports = { think, extractJSON };

@@ -14,6 +14,7 @@ import n8nMcpClient from './services/mcpClient.js';
 import browserbaseClient from './services/browserbaseClient.js';
 import { pendingActions as sharedPendingActions } from './state/pendingActions.js';
 import createPipelineRoutes from './routes/pipelineRoutes.js';
+import { securityMiddleware } from './middleware/security.js';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -160,6 +161,7 @@ MULTI-AGENT PROTOCOL: Activate your internal sub-agents inside <think>...</think
 - Execution Agent: writes code, takes actions
 - Growth Agent: marketing, outreach strategy`;
 
+// GHOST_ADMIN_CORE and getShowcaseCore are retained ONLY for vision mode (which doesn't use brain.think)
 const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".\nYOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty.${MULTI_AGENT_PROTOCOL}\n${GHOST_CAPABILITIES}`;
 const getShowcaseCore = (guestName) => `You are Ghost, an autonomous AI engineered by Manoj Kumar. Speaking with visitor: ${guestName}.\nYOUR PERSONALITY: Dry, crisp, British demeanor.${MULTI_AGENT_PROTOCOL}\n${GHOST_CAPABILITIES}`;
 
@@ -185,7 +187,7 @@ async function callLLM(messages, maxTokens) {
                 signal: controller.signal
             });
             clearTimeout(timeoutId); 
-            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`); // Added checks to prevent JSON parsing on HTTP failures
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
             const data = await res.json();
             if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
             if (provider.name === 'Gemini' && (!data.choices || !data.choices[0] || !data.choices[0].message)) throw new Error("Invalid Gemini response structure.");
@@ -196,6 +198,111 @@ async function callLLM(messages, maxTokens) {
     }
     throw new Error("Critical Gateway Failure: All matrix nodes unreachable.");
 }
+
+// ============================================================
+// ROBUST TOOL COMMAND EXTRACTION (replaces brittle regex parser)
+// ============================================================
+
+/**
+ * Extract a tool command JSON object from LLM response text.
+ * Uses multi-strategy approach:
+ *   1. Find ```json ... ``` code fences
+ *   2. Find raw JSON objects in text
+ *   3. Validate the extracted object has a "tool" field
+ * Returns null if no valid tool command found.
+ */
+function extractToolCommand(text) {
+    if (!text || typeof text !== 'string') return null;
+
+    // Strategy 1: Extract from markdown code fence (most common LLM format)
+    const fencePatterns = [
+        /```json\s*\n([\s\S]*?)```/i,
+        /```\s*\n([\s\S]*?)```/i
+    ];
+    for (const pattern of fencePatterns) {
+        const match = text.match(pattern);
+        if (match) {
+            try {
+                const parsed = JSON.parse(match[1].trim());
+                if (parsed && typeof parsed === 'object' && parsed.tool) return parsed;
+            } catch {}
+        }
+    }
+
+    // Strategy 2: Find raw JSON object with "tool" key anywhere in text
+    const objectMatch = text.match(/\{[^{}]*"tool"\s*:\s*"[^"]+?"[^{}]*\}/);
+    if (objectMatch) {
+        try {
+            const parsed = JSON.parse(objectMatch[0]);
+            if (parsed && parsed.tool) return parsed;
+        } catch {}
+    }
+
+    // Strategy 3: Find nested JSON object (tool commands with nested payload objects)
+    const nestedMatch = text.match(/\{[\s\S]*?"tool"\s*:\s*"[^"]+?"[\s\S]*?\}/);
+    if (nestedMatch) {
+        try {
+            const parsed = JSON.parse(nestedMatch[0]);
+            if (parsed && parsed.tool) return parsed;
+        } catch {}
+    }
+
+    return null;
+}
+
+// ============================================================
+// PYTHON SANDBOX SECURITY
+// ============================================================
+
+// Dangerous Python imports that could be used for network access or system compromise
+const BLOCKED_PYTHON_IMPORTS = [
+    'requests', 'urllib', 'http.client', 'socket', 'subprocess', 
+    'shutil', 'pathlib', '__import__', 'importlib', 'ctypes',
+    'pickle', 'shelve', 'multiprocessing', 'threading'
+];
+
+/**
+ * Validate Python code before execution.
+ * Returns { safe: boolean, reason: string }
+ */
+function validatePythonCode(code) {
+    if (!code || typeof code !== 'string') return { safe: false, reason: 'Empty code' };
+    
+    // Max code size: 50KB
+    if (code.length > 50000) return { safe: false, reason: 'Code exceeds maximum size limit (50KB)' };
+    
+    const lowerCode = code.toLowerCase();
+    
+    // Check for blocked imports
+    for (const imp of BLOCKED_PYTHON_IMPORTS) {
+        const importPatterns = [
+            new RegExp(`import\\s+${imp}`, 'i'),
+            new RegExp(`from\\s+${imp}`, 'i'),
+            new RegExp(`__import__\\s*\\(\\s*['"]${imp}`, 'i')
+        ];
+        for (const pattern of importPatterns) {
+            if (pattern.test(code)) {
+                return { safe: false, reason: `Blocked import: ${imp} — network/system access not allowed in sandbox` };
+            }
+        }
+    }
+    
+    // Check for dangerous system calls
+    if (/os\.system\s*\(/i.test(code) || /os\.popen\s*\(/i.test(code) || /os\.exec/i.test(code)) {
+        return { safe: false, reason: 'System command execution blocked in sandbox' };
+    }
+    
+    // Check for file system traversal
+    if (/\.\.\//.test(code) || /~\//.test(code)) {
+        return { safe: false, reason: 'Path traversal blocked in sandbox' };
+    }
+    
+    return { safe: true };
+}
+
+// ============================================================
+// AUTH & RATE LIMITING
+// ============================================================
 
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, max: 5,
@@ -244,7 +351,12 @@ const chatLimiter = rateLimit({
 
 const pendingActions = sharedPendingActions;
 
-app.post('/api/chat', chatLimiter, async (req, res) => {
+// ============================================================
+// MAIN CHAT ENDPOINT — UNIFIED PIPELINE
+// brain.think() is the SOLE execution path. No fallback to callLLM with GHOST_ADMIN_CORE.
+// ============================================================
+
+app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
     try {
         const { message, user, image, fileContent, ghostCodeMode = true } = req.body;
         const isAdmin = checkIsAdmin(req);
@@ -276,9 +388,10 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             }
         }
 
+        // Vision mode still uses callLLM directly (brain.think doesn't handle images)
         const textPrompt = (isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user)) + dynamicToolsPrompt + learnedGenesPrompt;
         let finalMessage = fileContent ? `[Document Uploaded:]\n${fileContent.substring(0, 5000)}\n\nUser: ${message}` : message;
-        let fullResponse = "", messagesArray = [];
+        let fullResponse = "";
 
         if (image) {
             if (!NVIDIA_API_KEY) {
@@ -307,67 +420,79 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                 }
             }
         } else {
+            // ============================================================
+            // UNIFIED EXECUTION: brain.think() is the SOLE path.
+            // NO fallback to callLLM with GHOST_ADMIN_CORE (which caused double-planning).
+            // If brain.think() fails, return a clean error — don't retry with a different planner.
+            // ============================================================
             console.log('[Server] Routing plain-text request to brain.think()...');
             try {
                 const brainResult = await brain.think(finalMessage);
                 fullResponse = brainResult.reply;
             } catch (error) {
-                console.error('[Server] Error during brain execution:', error);
-                messagesArray = [{ role: "system", content: textPrompt }, ...userHistory, { role: "user", content: finalMessage }];
-                messagesArray = compressContext(messagesArray);
-                fullResponse = await callLLM(messagesArray, activeTokens);
+                console.error('[Server] brain.think() failed:', error.message);
+                fullResponse = `[System Warning]: Brain processing encountered an error — ${error.message}. Please try again.`;
             }
         }
 
         let replyText = fullResponse || "System anomaly: Empty matrix response.";
         let actionTriggered = "general_response";
 
-        const jsonRegex = /[\x60]{3}json\n([\s\S]*?)[\x60]{3}/i;
-        const jsonMatch = fullResponse ? fullResponse.match(jsonRegex) : null;
+        // ============================================================
+        // ROBUST TOOL COMMAND EXTRACTION (replaces brittle regex)
+        // ============================================================
+        const toolCommand = extractToolCommand(fullResponse);
 
-        if (jsonMatch) {
-            try {
-                const toolCommand = JSON.parse(jsonMatch[1]);
-                if (toolCommand.tool === "trigger_webhook" || toolCommand.tool === "n8n_execute" || toolCommand.tool === "browserbase_execute") {
-                    if (!isAdmin) {
-                        res.json({ success: true, text: "[SYSTEM OVERRIDE]: External network actions are restricted to Admin clearance. Blocked." });
-                        return;
-                    }
-                    const blocklist = ['stripe', 'paypal', 'delete', 'drop', 'billing', 'transfer', 'password', 'user_memories', 'select ', 'insert ', 'update ', 'table', 'schema', 'admin', 'role', '--', '1=1'];
-                    const actionString = toolCommand.action ? String(toolCommand.action).toLowerCase() : "";
-                    const payloadString = toolCommand.payload ? JSON.stringify(toolCommand.payload).toLowerCase() : "";
-                    const combinedCheck = actionString + " " + payloadString;
-                    if (blocklist.some(word => combinedCheck.includes(word))) {
-                        res.json({ success: true, text: `[SYSTEM OVERRIDE]: Payload or action contains restricted keyword. Blocked.` });
-                        return;
-                    }
-                    actionTriggered = `${toolCommand.tool}:${toolCommand.action}`;
-                    const actionId = crypto.randomBytes(16).toString('hex');
-                    pendingActions.set(actionId, {
-                        type: toolCommand.tool, action: toolCommand.action, payload: toolCommand.payload,
-                        requestedBy: safeUser, expiresAt: Date.now() + (5 * 60 * 1000)
-                    });
-                    replyText = `[ACTION REQUIRED - HITL GATE]: Proposal compiled for [${toolCommand.tool}]: ${toolCommand.action}.\n\nReview:\n\`\`\`json\n${JSON.stringify(toolCommand.payload, null, 2)}\n\`\`\``;
-                    ghostLearn({ safeUser, message, actionTaken: actionTriggered });
-                    res.json({ success: true, text: replyText, actionRequired: true, actionId: actionId });
+        if (toolCommand) {
+            if (toolCommand.tool === "trigger_webhook" || toolCommand.tool === "n8n_execute" || toolCommand.tool === "browserbase_execute") {
+                if (!isAdmin) {
+                    res.json({ success: true, text: "[SYSTEM OVERRIDE]: External network actions are restricted to Admin clearance. Blocked." });
                     return;
                 }
-            } catch (e) {}
+                const blocklist = ['stripe', 'paypal', 'delete', 'drop', 'billing', 'transfer', 'password', 'user_memories', 'select ', 'insert ', 'update ', 'table', 'schema', 'admin', 'role', '--', '1=1'];
+                const actionString = toolCommand.action ? String(toolCommand.action).toLowerCase() : "";
+                const payloadString = toolCommand.payload ? JSON.stringify(toolCommand.payload).toLowerCase() : "";
+                const combinedCheck = actionString + " " + payloadString;
+                if (blocklist.some(word => combinedCheck.includes(word))) {
+                    res.json({ success: true, text: `[SYSTEM OVERRIDE]: Payload or action contains restricted keyword. Blocked.` });
+                    return;
+                }
+                actionTriggered = `${toolCommand.tool}:${toolCommand.action}`;
+                const actionId = crypto.randomBytes(16).toString('hex');
+                pendingActions.set(actionId, {
+                    type: toolCommand.tool, action: toolCommand.action, payload: toolCommand.payload,
+                    requestedBy: safeUser, expiresAt: Date.now() + (5 * 60 * 1000)
+                });
+                replyText = `[ACTION REQUIRED - HITL GATE]: Proposal compiled for [${toolCommand.tool}]: ${toolCommand.action}.\n\nReview:\n\`\`\`json\n${JSON.stringify(toolCommand.payload, null, 2)}\n\`\`\``;
+                ghostLearn({ safeUser, message, actionTaken: actionTriggered });
+                res.json({ success: true, text: replyText, actionRequired: true, actionId: actionId });
+                return;
+            }
         }
 
+        // ============================================================
+        // PYTHON SANDBOX — hardened with import validation
+        // ============================================================
         const codeRegex = /[\x60]{3}python\n([\s\S]*?)[\x60]{3}/i;
         const match = fullResponse ? fullResponse.match(codeRegex) : null;
         if (ghostCodeMode && match && match[1]) {
-            actionTriggered = "python_execution";
-            // Use random UUID filenames to prevent race conditions during concurrent runs
-            const tempFileName = `ghost_${crypto.randomUUID()}.py`;
-            const tempFilePath = path.join(__dirname, tempFileName);
-            fs.writeFileSync(tempFilePath, match[1].trim());
-            try {
-                const executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 15000, encoding: 'utf-8' });
-                replyText = fullResponse.replace(match[0], `\n\`\`\`html\n${executionOutput.trim()}\n\`\`\`\n`);
-            } catch (execError) { replyText = fullResponse.replace(match[0], `[Python Error]: ${execError.stderr || execError.message}`); }
-            if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+            const pythonCode = match[1].trim();
+            const validation = validatePythonCode(pythonCode);
+            
+            if (!validation.safe) {
+                replyText = fullResponse.replace(match[0], `[Python Sandbox Blocked]: ${validation.reason}`);
+            } else {
+                actionTriggered = "python_execution";
+                // Use random UUID filenames to prevent race conditions during concurrent runs
+                const tempFileName = `ghost_${crypto.randomUUID()}.py`;
+                const tempFilePath = path.join(__dirname, tempFileName);
+                fs.writeFileSync(tempFilePath, pythonCode);
+                try {
+                    const executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 15000, encoding: 'utf-8' });
+                    replyText = fullResponse.replace(match[0], `\n\`\`\`html\n${executionOutput.trim()}\n\`\`\`\n`);
+                } catch (execError) { replyText = fullResponse.replace(match[0], `[Python Error]: ${execError.stderr || execError.message}`); }
+                if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+            }
         }
 
         const embedMatch = replyText ? replyText.match(/<embed>([\s\S]*?)<\/embed>/i) : null;
