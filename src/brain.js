@@ -185,7 +185,11 @@ async function summarize(userMessage, actions, results) {
   if (actions.length === 1 && actions[0].tool === 'chat') {
     finalAnswer = results[0].output;
   } else {
-    const actionLog = actions.map((a, i) => `${i+1}. ${a.tool}: ${results[i]?.output?.slice(0, 300)}`).join('\n\n');
+    const actionLog = actions.map((a, i) => {
+      let out = results[i]?.output;
+      if (typeof out !== 'string') out = JSON.stringify(out) || String(out);
+      return `${i+1}. ${a.tool}: ${out.slice(0, 300)}`;
+    }).join('\n\n');
     finalAnswer = await chat(
       [{ role: 'user', content: `User asked: "${userMessage}"\n\nActions done:\n${actionLog}\n\nSummarize results clearly and concisely.` }],
       { systemPrompt: 'You are Ghost. Summarize actions and results for the user. Be direct and concise.' }
