@@ -621,7 +621,7 @@ function startN8n() {
     const n8nEnv = {
         ...process.env,
         N8N_PORT: '5678',
-        N8N_PATH: '/n8n/',
+        N8N_PATH: '/n8n',
         N8N_EDITOR_BASE_URL: process.env.RENDER_EXTERNAL_URL 
             ? `${process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '')}/n8n/` 
             : 'https://ghost-34qz.onrender.com/n8n/',
@@ -630,7 +630,7 @@ function startN8n() {
             : 'https://ghost-34qz.onrender.com/n8n/',
         N8N_ENCRYPTION_KEY: process.env.N8N_ENCRYPTION_KEY, // strictly required, no fallback!
         N8N_BLOCK_ENV_ACCESS_IN_NODE: 'true',
-        N8N_RUNNERS_ENABLED: 'true',
+        N8N_RUNNERS_ENABLED: 'false',
         N8N_GIT_NODE_DISABLE_BARE_REPOS: 'true'
     };
 
