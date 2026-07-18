@@ -2,7 +2,8 @@ const { chat } = require('./tools/llm');
 const { saveMessage, getHistory, remember } = require('./tools/memory');
 const { recordLearning, getRelevantLearnings } = require('./learningStore');
 const orchestrator = require('./agents/orchestrator');
-const workspaceTools = require('./tools/workspaceTools'); // Integrated Antigravity-style workspace tools
+const workspaceTools = require('./tools/workspaceTools');
+const databaseTools = require('./tools/databaseTools'); // Integrated Supabase Postgres Tool
 
 const webAgent = require('./agents/webAgent');
 const emailAgent = require('./agents/emailAgent');
@@ -31,12 +32,13 @@ CRITICAL ROUTING RULES:
 2. MULTI-STEP / RESEARCH: Use "orchestrator_run" for ANY multi-step, research-based, or complex requests. It delegates to parallel agents.
 3. SINGLE TASKS: Use specific agents (web_search, email_send, workspace_edit_file, etc.) only if the task is highly specific and singular.
 4. WORKSPACE OPERATION: If the user asks you to view, edit, or modify files in their workspace, or run a terminal command locally, you MUST use workspace_view_file, workspace_edit_file, or workspace_run_command.
+5. DATABASE ACCESS: If the user asks to query tables, inspect schemas, save task metrics, or run database commands on Supabase, you MUST use database_query.
 
 LEARNINGS FROM PAST TASKS:
 Use these past task outcomes to bias your tool selection (prefer tools that succeeded for similar tasks):
 ${learnings}
 
-Available tools: [chat, orchestrator_run, web_search, web_scrape, email_draft, email_send, github_repos, github_analyze, github_push, image_generate, notion_search, notion_create, goal_run, self_analyze, voice_speak, schedule, briefing, memory_save, memory_get, workspace_view_file, workspace_edit_file, workspace_run_command]
+Available tools: [chat, orchestrator_run, web_search, web_scrape, email_draft, email_send, github_repos, github_analyze, github_push, image_generate, notion_search, notion_create, goal_run, self_analyze, voice_speak, schedule, briefing, memory_save, memory_get, workspace_view_file, workspace_edit_file, workspace_run_command, database_query]
 
 Output ONLY valid JSON array. No markdown, no explanation.`,
       maxTokens: 512
@@ -113,6 +115,10 @@ async function execute(action, userMessage, previousResults = []) {
     case 'workspace_run_command':
       return await workspaceTools.runWorkspaceCommand(params);
       
+    // Added Supabase Postgres Database dynamic query route
+    case 'database_query':
+      return await databaseTools.executeQuery(params);
+      
     default:
       return await chat([{ role: 'user', content: userMessage }], { systemPrompt: 'You are Ghost.' });
   }
@@ -143,6 +149,7 @@ async function summarize(userMessage, actions, results) {
     briefing: 'scheduler',
     memory_save: 'memory', memory_get: 'memory',
     workspace_view_file: 'workspace', workspace_edit_file: 'workspace', workspace_run_command: 'workspace',
+    database_query: 'database',
     chat: 'llm'
   };
 
