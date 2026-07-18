@@ -2,7 +2,7 @@ const Groq = require('groq-sdk');
 const { trackCost } = require('./memory');
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-const MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'mixtral-8x7b-32768', 'gemma2-9b-it'];
+const MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'groq/compound'];
 
 async function chat(messages, { model = MODELS[0], systemPrompt = null, maxTokens = 1024, retryCount = 0 } = {}) {
   const msgs = systemPrompt ? [{ role: 'system', content: systemPrompt }, ...messages] : messages;
