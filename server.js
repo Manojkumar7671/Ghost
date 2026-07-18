@@ -317,7 +317,9 @@ app.post('/api/auth', authLimiter, async (req, res) => {
     const ip = req.ip; 
     const userAgent = req.headers['user-agent'] || 'Unknown';
     let success = false;
-    if (authString === ADMIN_PASSPHRASE) {
+    const suppliedHash = crypto.createHash('sha256').update(String(authString || '')).digest();
+    const expectedHash = crypto.createHash('sha256').update(ADMIN_PASSPHRASE).digest();
+    if (authString && crypto.timingSafeEqual(suppliedHash, expectedHash)) {
         success = true;
         const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
         res.cookie('ghost_session', token, { httpOnly: true, secure: true, sameSite: 'strict', maxAge: 24 * 60 * 60 * 1000 });

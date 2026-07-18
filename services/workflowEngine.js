@@ -4,6 +4,9 @@
  * Supports: webhooks, scheduled jobs, and custom action chains.
  * No external dependency. No 401 errors. No cloud required.
  */
+import { execFileSync } from 'child_process';
+
+const SAFE_WORKFLOW_ID = /^[a-zA-Z0-9_-]+$/;
 
 class GhostWorkflowEngine {
     constructor() {
@@ -12,11 +15,7 @@ class GhostWorkflowEngine {
         this._registerBuiltinWorkflows();
     }
 
-    /**
-     * Built-in workflows that Ghost can trigger natively
-     */
     _registerBuiltinWorkflows() {
-        // Send a webhook to an external URL
         this.workflows.set('send_webhook', {
             name: 'send_webhook',
             description: 'Send a POST request to any external webhook URL with a custom payload.',
@@ -38,7 +37,6 @@ class GhostWorkflowEngine {
             }
         });
 
-        // Fetch data from a URL and return the response
         this.workflows.set('fetch_data', {
             name: 'fetch_data',
             description: 'Fetch JSON or text data from any external URL via GET request.',
@@ -58,7 +56,6 @@ class GhostWorkflowEngine {
             }
         });
 
-        // Log a structured event to the console
         this.workflows.set('log_event', {
             name: 'log_event',
             description: 'Log a structured event or message to the Ghost system console.',
@@ -75,7 +72,6 @@ class GhostWorkflowEngine {
             }
         });
 
-        // Send an email via the environment-configured SMTP (future)
         this.workflows.set('send_notification', {
             name: 'send_notification',
             description: 'Send a system notification or alert message.',
@@ -92,7 +88,6 @@ class GhostWorkflowEngine {
             }
         });
 
-        // Trigger a self-hosted n8n workflow via its local webhook node
         this.workflows.set('n8n_webhook', {
             name: 'n8n_webhook',
             description: 'Trigger a workflow webhook on the self-hosted local n8n instance.',
@@ -123,7 +118,6 @@ class GhostWorkflowEngine {
             }
         });
 
-        // Execute a saved n8n workflow by its ID using local Server CLI (database execution)
         this.workflows.set('n8n_execute', {
             name: 'n8n_execute',
             description: 'Execute a saved n8n workflow directly by its ID.',
@@ -136,25 +130,23 @@ class GhostWorkflowEngine {
             handler: async (args) => {
                 const { workflowId, payload } = args;
                 if (!workflowId) throw new Error('Workflow "n8n_execute" requires a "workflowId" argument.');
-                const { execSync } = require('child_process');
-                // Format the execution command
-                const command = `npx n8n execute --id ${workflowId}`;
+                if (!SAFE_WORKFLOW_ID.test(workflowId)) {
+                    throw new Error('Invalid workflowId format — must be alphanumeric, dashes, or underscores only.');
+                }
                 const n8nEnv = {
                     ...process.env,
                     N8N_PORT: '5678',
-                    N8N_PATH: '/n8n/',
-                    DB_TYPE: 'postgresdb',
-                    DB_POSTGRESDB_CONNECTION_STRING: process.env.SUPABASE_DB_URL
+                    N8N_PATH: '/n8n/'
+                    // Intentionally no DB_TYPE/DB_POSTGRESDB_* here — n8n runs on its own
+                    // isolated SQLite store (see server.js startN8n()), not Ghost's shared
+                    // Supabase pool. Reconnecting it here would reintroduce pool contention.
                 };
-                const output = execSync(command, { env: n8nEnv, encoding: 'utf-8' });
+                const output = execFileSync('npx', ['n8n', 'execute', '--id', workflowId], { env: n8nEnv, encoding: 'utf-8' });
                 return { success: true, workflowId, output: output.trim() };
             }
         });
     }
 
-    /**
-     * Returns a formatted string for the LLM prompt listing available workflows
-     */
     getPromptString() {
         const entries = [...this.workflows.values()];
         return entries.map(w =>
@@ -162,9 +154,6 @@ class GhostWorkflowEngine {
         ).join('\n\n');
     }
 
-    /**
-     * Execute a workflow by name with given arguments
-     */
     async executeTool(name, args) {
         const workflow = this.workflows.get(name);
         if (!workflow) {
@@ -180,9 +169,6 @@ class GhostWorkflowEngine {
         }
     }
 
-    /**
-     * Register a custom workflow at runtime
-     */
     register(name, description, inputSchema, handler) {
         this.workflows.set(name, { name, description, inputSchema, handler });
         console.log(`[Ghost Workflow] Registered custom workflow: "${name}"`);
