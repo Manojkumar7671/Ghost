@@ -601,12 +601,12 @@ app.post('/api/browser/navigate', async (req, res) => {
 });
 
 app.use(
-    '/n8n',
     createProxyMiddleware({
         target: 'http://localhost:5678',
         changeOrigin: true,
         ws: true,
-        logger: console
+        logger: console,
+        pathFilter: '/n8n'
     })
 );
 
