@@ -611,14 +611,33 @@ app.use(
 );
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
+
 function startN8n() {
     console.log("[n8n Sidecar] Spawning self-hosted n8n engine...");
+    
+    let dbConfig = {};
+    if (process.env.SUPABASE_DB_URL) {
+        try {
+            const dbUrl = new URL(process.env.SUPABASE_DB_URL);
+            dbConfig = {
+                DB_TYPE: 'postgresdb',
+                DB_POSTGRESDB_HOST: dbUrl.hostname,
+                DB_POSTGRESDB_PORT: dbUrl.port || '5432',
+                DB_POSTGRESDB_USER: dbUrl.username,
+                DB_POSTGRESDB_PASSWORD: decodeURIComponent(dbUrl.password),
+                DB_POSTGRESDB_DATABASE: dbUrl.pathname.replace(/^\//, ''),
+                DB_POSTGRESDB_SSL_ENABLED: 'true'
+            };
+        } catch (e) {
+            console.error('[n8n Sidecar] Failed to parse SUPABASE_DB_URL, falling back to SQLite:', e.message);
+        }
+    }
+
     const n8nEnv = {
         ...process.env,
         N8N_PORT: '5678',
         N8N_PATH: '/n8n/',
-        DB_TYPE: 'postgresdb',
-        DB_POSTGRESDB_CONNECTION_STRING: process.env.SUPABASE_DB_URL,
+        ...dbConfig,
         N8N_EDITOR_BASE_URL: process.env.RENDER_EXTERNAL_URL 
             ? `${process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '')}/n8n/` 
             : 'https://ghost-34qz.onrender.com/n8n/',
