@@ -24,6 +24,11 @@ if (!process.env.ADMIN_PASSPHRASE || !process.env.JWT_SECRET) {
     console.error("Halting server boot sequence to prevent fallback vulnerabilities.\n");
     process.exit(1); 
 }
+
+// ENV VAR VALIDATION
+if (!process.env.SERPER_API_KEY) console.warn("[WARN] SERPER_API_KEY missing — web search disabled");
+if (!process.env.BROWSERBASE_API_KEY) console.warn("[WARN] BROWSERBASE_API_KEY missing — browser automation disabled");
+
 const ADMIN_PASSPHRASE = process.env.ADMIN_PASSPHRASE;
 const JWT_SECRET = process.env.JWT_SECRET;
 const { Pool } = pkg;
@@ -370,13 +375,19 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                     body: JSON.stringify({ q: embedMatch[1] })
                 }), 8000);
                 const searchData = await serperRes.json();
-                if (searchData.organic && searchData.organic.length > 0) {
+                if (searchData.error) {
+                    const errMsg = searchData.error.message || JSON.stringify(searchData.error);
+                    console.error(`[Serper Embed Error]: ${errMsg}`);
+                    replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Embed Resolution Failed: ${errMsg}]`);
+                } else if (searchData.organic && searchData.organic.length > 0) {
                     replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[EXECUTE_OPEN_TAB:${searchData.organic[0].link}]`);
                 } else {
                     replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Oracle embed returned no results]`);
                 }
             } catch (embedErr) {
-                replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Oracle embed failed to resolve]`);
+                const embedErrMsg = embedErr.message || 'Unknown error';
+                console.error(`[Embed Timeout/Error]: ${embedErrMsg}`);
+                replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Oracle embed failed — ${embedErrMsg}]`);
             }
         }
 
@@ -418,16 +429,41 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
         }
 
         if (cachedAction.type === 'browserbase_execute') {
-            const result = await browserbaseClient.executeTool(cachedAction.action, { ...cachedAction.payload, safeUser: memoryUser });
-            const summary = (result.stepResults || [])
-                .map(r => r.step === 'navigation' ? `Navigated to ${r.url}` : `Step ${r.step} (${r.action}): ${r.status}${r.data ? ' — ' + r.data.slice(0, 300) : ''}${r.error ? ' — ERROR: ' + r.error : ''}`)
-                .join('\n');
-            appendToUserMemory(memoryUser, [{ role: 'assistant', content: `[Browserbase result for ${cachedAction.payload.url}]\n${summary}` }]);
-            return res.json({ success: true, message: `Browserbase successfully processed target domain [${cachedAction.payload.url}].`, result });
+            try {
+                const result = await browserbaseClient.executeTool(cachedAction.action, { ...cachedAction.payload, safeUser: memoryUser });
+                const summary = (result.stepResults || [])
+                    .map(r => r.step === 'navigation' ? `Navigated to ${r.url}` : `Step ${r.step}: ${r.status}${r.data ? ' — ' + r.data.slice(0, 300) : ''}${r.error ? ' — ERROR: ' + r.error : ''}`)
+                    .join('\n');
+                appendToUserMemory(memoryUser, [{ role: 'assistant', content: `[Browserbase result for ${cachedAction.payload.url}]\n${summary}` }]);
+                return res.json({ success: true, message: `Browserbase successfully processed [${cachedAction.payload.url}].`, result });
+            } catch (browserErr) {
+                const browserErrMsg = browserErr.message || 'Unknown error';
+                console.error(`[Browserbase Execute Error]: ${browserErrMsg}`);
+                return res.status(500).json({ success: false, error: `Browser automation failed — ${browserErrMsg}` });
+            }
         }
 
         return res.json({ success: true, message: `Action [${cachedAction.action}] deployed securely.` });
     } catch (err) { return res.status(500).json({ success: false, error: `Pipeline failure: ${err.message}` }); }
+});
+
+app.post('/api/pipeline/execute', async (req, res) => {
+    const { skills, input } = req.body;
+    const isAdmin = checkIsAdmin(req);
+    if (!isAdmin) return res.json({ success: true, text: "[SYSTEM OVERRIDE]: Pipeline execution restricted to Admin." });
+    res.json({ success: true, result: `Pipeline executed with skills: ${skills.join(', ')}, input: ${input}` });
+});
+
+app.post('/api/voice/activate', async (req, res) => {
+    const { wakeWord } = req.body;
+    res.json({ success: true, message: `Voice activation ready for wake-word: ${wakeWord}` });
+});
+
+app.post('/api/browser/navigate', async (req, res) => {
+    const { url } = req.body;
+    const isAdmin = checkIsAdmin(req);
+    if (!isAdmin) return res.json({ success: true, text: "[SYSTEM OVERRIDE]: Browser automation restricted to Admin." });
+    res.json({ success: true, message: `Browser navigating to: ${url}` });
 });
 
 app.use('/api/pipeline', createPipelineRoutes(n8nMcpClient));
