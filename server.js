@@ -21,8 +21,8 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const brain = require('./src/brain.js');
 
-if (!process.env.ADMIN_PASSPHRASE || !process.env.JWT_SECRET) {
-    console.error("\n[CRITICAL FATAL ERROR]: ADMIN_PASSPHRASE or JWT_SECRET missing.");
+if (!process.env.ADMIN_PASSPHRASE || !process.env.JWT_SECRET || !process.env.N8N_ENCRYPTION_KEY) {
+    console.error("\n[CRITICAL FATAL ERROR]: ADMIN_PASSPHRASE, JWT_SECRET, or N8N_ENCRYPTION_KEY missing.");
     console.error("Halting server boot sequence to prevent fallback vulnerabilities.\n");
     process.exit(1); 
 }
@@ -601,51 +601,37 @@ app.post('/api/browser/navigate', async (req, res) => {
 });
 
 app.use(
+    '/n8n',
+    requireAdminToken,
     createProxyMiddleware({
         target: 'http://localhost:5678',
         changeOrigin: true,
         ws: true,
         logger: console,
-        pathFilter: '/n8n'
+        pathRewrite: (path, req) => {
+            return '/n8n' + path; // Preserves /n8n prefix for correct n8n routing
+        }
     })
 );
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 
 function startN8n() {
-    console.log("[n8n Sidecar] Spawning self-hosted n8n engine...");
-    
-    let dbConfig = {};
-    if (process.env.SUPABASE_DB_URL) {
-        try {
-            const dbUrl = new URL(process.env.SUPABASE_DB_URL);
-            dbConfig = {
-                DB_TYPE: 'postgresdb',
-                DB_POSTGRESDB_HOST: dbUrl.hostname,
-                DB_POSTGRESDB_PORT: dbUrl.port || '5432',
-                DB_POSTGRESDB_USER: dbUrl.username,
-                DB_POSTGRESDB_PASSWORD: decodeURIComponent(dbUrl.password),
-                DB_POSTGRESDB_DATABASE: dbUrl.pathname.replace(/^\//, ''),
-                DB_POSTGRESDB_SSL_ENABLED: 'true',
-                DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED: 'false'
-            };
-        } catch (e) {
-            console.error('[n8n Sidecar] Failed to parse SUPABASE_DB_URL, falling back to SQLite:', e.message);
-        }
-    }
-
+    console.log("[n8n Sidecar] Spawning self-hosted n8n engine (SQLite storage)...");
     const n8nEnv = {
         ...process.env,
         N8N_PORT: '5678',
         N8N_PATH: '/n8n/',
-        ...dbConfig,
         N8N_EDITOR_BASE_URL: process.env.RENDER_EXTERNAL_URL 
             ? `${process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '')}/n8n/` 
             : 'https://ghost-34qz.onrender.com/n8n/',
         WEBHOOK_URL: process.env.RENDER_EXTERNAL_URL 
             ? `${process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '')}/n8n/` 
             : 'https://ghost-34qz.onrender.com/n8n/',
-        N8N_ENCRYPTION_KEY: process.env.JWT_SECRET || 'ghost-n8n-default-key'
+        N8N_ENCRYPTION_KEY: process.env.N8N_ENCRYPTION_KEY, // strictly required, no fallback!
+        N8N_BLOCK_ENV_ACCESS_IN_NODE: 'true',
+        N8N_RUNNERS_ENABLED: 'true',
+        N8N_GIT_NODE_DISABLE_BARE_REPOS: 'true'
     };
 
     const n8nProcess = spawn('npx', ['n8n', 'start'], {
