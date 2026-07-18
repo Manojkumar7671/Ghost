@@ -2,6 +2,7 @@ const { chat } = require('./tools/llm');
 const { saveMessage, getHistory, remember } = require('./tools/memory');
 const { recordLearning, getRelevantLearnings } = require('./learningStore');
 const orchestrator = require('./agents/orchestrator');
+const workspaceTools = require('./tools/workspaceTools'); // Integrated Antigravity-style workspace tools
 
 const webAgent = require('./agents/webAgent');
 const emailAgent = require('./agents/emailAgent');
@@ -28,13 +29,14 @@ Respond ONLY with a JSON array of actions. Each action has:
 CRITICAL ROUTING RULES:
 1. DEFAULT TO TOOLS: Never use "chat" to answer factual questions or perform tasks. Use "chat" ONLY for pure greetings (e.g. "hi") or simple opinions.
 2. MULTI-STEP / RESEARCH: Use "orchestrator_run" for ANY multi-step, research-based, or complex requests. It delegates to parallel agents.
-3. SINGLE TASKS: Use specific agents (web_search, email_send, etc.) only if the task is highly specific and singular.
+3. SINGLE TASKS: Use specific agents (web_search, email_send, workspace_edit_file, etc.) only if the task is highly specific and singular.
+4. WORKSPACE OPERATION: If the user asks you to view, edit, or modify files in their workspace, or run a terminal command locally, you MUST use workspace_view_file, workspace_edit_file, or workspace_run_command.
 
 LEARNINGS FROM PAST TASKS:
 Use these past task outcomes to bias your tool selection (prefer tools that succeeded for similar tasks):
 ${learnings}
 
-Available tools: [chat, orchestrator_run, web_search, web_scrape, email_draft, email_send, github_repos, github_analyze, github_push, image_generate, notion_search, notion_create, goal_run, self_analyze, voice_speak, schedule, briefing, memory_save, memory_get]
+Available tools: [chat, orchestrator_run, web_search, web_scrape, email_draft, email_send, github_repos, github_analyze, github_push, image_generate, notion_search, notion_create, goal_run, self_analyze, voice_speak, schedule, briefing, memory_save, memory_get, workspace_view_file, workspace_edit_file, workspace_run_command]
 
 Output ONLY valid JSON array. No markdown, no explanation.`,
       maxTokens: 512
@@ -102,6 +104,15 @@ async function execute(action, userMessage, previousResults = []) {
       const { allMemory } = require('./tools/memory');
       const all = allMemory();
       return `Memory:\n${Object.entries(all).map(([k,v]) => `- ${k}: ${JSON.stringify(v.value)}`).join('\n')}`;
+      
+    // Added Antigravity workspace operation routes
+    case 'workspace_view_file':
+      return await workspaceTools.viewFile(params);
+    case 'workspace_edit_file':
+      return await workspaceTools.editFile(params);
+    case 'workspace_run_command':
+      return await workspaceTools.runWorkspaceCommand(params);
+      
     default:
       return await chat([{ role: 'user', content: userMessage }], { systemPrompt: 'You are Ghost.' });
   }
@@ -113,7 +124,7 @@ async function summarize(userMessage, actions, results) {
   if (actions.length === 1 && actions[0].tool === 'chat') {
     finalAnswer = results[0].output;
   } else {
-    const actionLog = actions.map((a, i) => `${i+1}. ${a.tool}: ${results[i]?.output?.slice(0,300)}`).join('\n\n');
+    const actionLog = actions.map((a, i) => `${i+1}. ${a.tool}: ${results[i]?.output?.slice(0, 300)}`).join('\n\n');
     finalAnswer = await chat(
       [{ role: 'user', content: `User asked: "${userMessage}"\n\nActions done:\n${actionLog}\n\nSummarize results clearly and concisely.` }],
       { systemPrompt: 'You are Ghost. Summarize actions and results for the user. Be direct and concise.' }
@@ -131,20 +142,21 @@ async function summarize(userMessage, actions, results) {
     voice_speak: 'voiceAgent',
     briefing: 'scheduler',
     memory_save: 'memory', memory_get: 'memory',
+    workspace_view_file: 'workspace', workspace_edit_file: 'workspace', workspace_run_command: 'workspace',
     chat: 'llm'
   };
 
   const prefixTags = actions.map((a, i) => {
     if (a.tool === 'orchestrator_run') {
       const output = results[i]?.output || '';
-      const agentMatches = [...output.matchAll(/\[Agent:\s*(.*?)\]/g)].map(m => m[1]);
+      const agentMatches = [...output.matchAll(/\[Agent:\s(.*?)\]/g)].map(m => m[1]);
       const uniqueAgents = [...new Set(agentMatches)];
       const agentsStr = uniqueAgents.length > 0 ? uniqueAgents.join(', ') : 'orchestrator';
-      return `[${a.tool} → ${agentsStr}]`;
+      return `[${a.tool} ➔ ${agentsStr}]`;
     }
     
     const agentName = toolToAgent[a.tool] || 'system';
-    return `[${a.tool} → ${agentName}]`;
+    return `[${a.tool} ➔ ${agentName}]`;
   }).join(' ');
 
   return `${prefixTags}\n\n${finalAnswer}`.trim();

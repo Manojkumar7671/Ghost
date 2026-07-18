@@ -1,53 +1,65 @@
 const { chat } = require('../tools/llm');
 const fs = require('fs');
 const path = require('path');
-
-// Import the wrapped standard agents that guarantee a .run(task, context) interface
 const standardAgents = require('../agentAdapter');
 
-// Reference existing standard agents wrapped with .run()
 const availableAgents = { ...standardAgents };
+const AGENTS_METADATA_FILE = path.join(__dirname, '../../state/dynamic_agents.json');
 
-const DYNAMIC_AGENTS_DIR = path.join(__dirname, 'dynamic');
+// Ensure the state folder exists
+const stateDir = path.dirname(AGENTS_METADATA_FILE);
+if (!fs.existsSync(stateDir)) {
+  fs.mkdirSync(stateDir, { recursive: true });
+}
 
-// 1. Load any previously created dynamic agents on boot
-if (!fs.existsSync(DYNAMIC_AGENTS_DIR)) {
-  fs.mkdirSync(DYNAMIC_AGENTS_DIR, { recursive: true });
-} else {
-  const files = fs.readdirSync(DYNAMIC_AGENTS_DIR).filter(f => f.endsWith('.js'));
-  for (const file of files) {
-    const agentName = file.replace('.js', '');
-    availableAgents[agentName] = require(path.join(DYNAMIC_AGENTS_DIR, file));
+// 1. Initialize and load dynamic agents from metadata JSON instead of raw JS files
+if (fs.existsSync(AGENTS_METADATA_FILE)) {
+  try {
+    const raw = fs.readFileSync(AGENTS_METADATA_FILE, 'utf-8');
+    const metadata = JSON.parse(raw);
+    for (const [name, instructions] of Object.entries(metadata)) {
+      instantiateVirtualAgent(name, instructions);
+    }
+  } catch (err) {
+    console.error("[Orchestrator] Failed to load dynamic agents metadata:", err.message);
   }
 }
 
-// 2. Dynamic Agent Creation
-function createAgent(name, instructions) {
-  const safeName = name.replace(/[^a-zA-Z0-9_]/g, '');
-  const filePath = path.join(DYNAMIC_AGENTS_DIR, `${safeName}.js`);
-
-  const code = `
-const { chat } = require('../../tools/llm');
-
-async function run(task, context = '') {
-  const systemPrompt = \`You are an autonomous AI agent named ${safeName}. 
+// Helper to instantiate virtual in-memory agents (safe context propagation)
+function instantiateVirtualAgent(name, instructions) {
+  availableAgents[name] = {
+    run: async (task, context = '') => {
+      const systemPrompt = `You are an autonomous AI agent named ${name}. 
 Your exact instructions are: ${instructions}
 
 Context provided from prior steps:
-\${context}\`;
-
-  return await chat([{ role: 'user', content: task }], { systemPrompt });
+${context}`;
+      return await chat([{ role: 'user', content: task }], { systemPrompt });
+    }
+  };
 }
 
-module.exports = { run };
-`;
+// 2. Dynamic Agent Creation (Secure JSON metadata-driven persistence)
+function createAgent(name, instructions) {
+  const safeName = name.replace(/[^a-zA-Z0-9_]/g, '');
+  
+  // Register the agent in memory
+  instantiateVirtualAgent(safeName, instructions);
+  console.log(`[Orchestrator] Spun up new virtual agent: ${safeName}`);
 
-  fs.writeFileSync(filePath, code.trim());
-  console.log(`[Orchestrator] Spun up new dynamic agent: ${safeName}`);
+  // Persist the metadata to dynamic_agents.json
+  try {
+    let metadata = {};
+    if (fs.existsSync(AGENTS_METADATA_FILE)) {
+      metadata = JSON.parse(fs.readFileSync(AGENTS_METADATA_FILE, 'utf-8'));
+    }
+    metadata[safeName] = instructions;
+    fs.writeFileSync(AGENTS_METADATA_FILE, JSON.stringify(metadata, null, 2), 'utf-8');
+  } catch (err) {
+    console.error("[Orchestrator] Failed to save dynamic agent metadata:", err.message);
+  }
 
-  const newAgent = require(filePath);
-  availableAgents[safeName] = newAgent;
-  return newAgent;
+  return availableAgents[safeName];
 }
 
 // 3. Evaluation and Subtask Routing
@@ -103,7 +115,7 @@ Respond ONLY with a JSON array of string subtasks. No markdown.`;
     let result = '';
 
     try {
-      if (typeof agent.run === 'function') {
+      if (agent && typeof agent.run === 'function') {
         result = await agent.run(st, globalContext);
       } else {
         result = `Agent ${name} missing standard run() method.`;
