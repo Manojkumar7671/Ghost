@@ -21,6 +21,7 @@ import { loadCatalog, routeCapabilityToTools } from './services/toolRouter.js';
 import { initAgentModes, activateMorningDigest, activateScheduledMonitor } from './services/agentModes.js';
 import { runPythonSandbox } from './services/pythonSandbox.js';
 import { initGoogleAuthTable, generateAuthUrl, handleOAuthCallback, revokeAccess } from './services/googleAuth.js';
+import { wss, authenticateUpgrade } from './services/localControlServer.js';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -431,6 +432,9 @@ app.post('/api/auth/google/disconnect', requireAdminToken, async (req, res) => {
 });
 
 function requireAdminToken(req, res, next) {
+    if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
+        return res.status(403).json({ success: false, error: 'Forbidden: Admin operations are restricted in public deployment mode.' });
+    }
     const token = req.cookies.ghost_session;
     if (!token) return res.status(403).json({ success: false, error: 'Missing token.' });
     try {
@@ -440,6 +444,9 @@ function requireAdminToken(req, res, next) {
 }
 
 function checkIsAdmin(req) {
+    if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
+        return false;
+    }
     const token = req.cookies.ghost_session;
     try { return token && jwt.verify(token, JWT_SECRET).role === 'admin'; } catch(e) { return false; }
 }
@@ -478,7 +485,15 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
         }
 
         const lowerMsg = (message || '').toLowerCase().trim();
-        
+        const isPublic = (process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public';
+
+        if (lowerMsg.startsWith('activate morning') || lowerMsg.startsWith('activate scheduled monitor') || lowerMsg.startsWith('activate code assistant') || lowerMsg.startsWith('activate code_assistant')) {
+            if (isPublic) {
+                res.status(403).json({ success: false, error: 'Forbidden: Admin operations and custom session modes are restricted in public deployment mode.' });
+                return;
+            }
+        }
+
         if (lowerMsg.startsWith('activate morning')) {
             const timeMatch = message.toLowerCase().match(/at\s+(\d+)\s*(am|pm)/i);
             let hour = 7;
@@ -943,7 +958,25 @@ Promise.all([
 ]).then(() => {
     startAutoLearning(ghostLearn, pool);
 });
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Ghost AI Engine Online on port ${PORT}.`);
     startN8n();
+    if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'local') {
+        console.log('[Local Control Server] Auto-spawning Local Control Daemon client...');
+        spawn('node', ['./services/localControlDaemon.js'], { stdio: 'inherit' });
+    }
+});
+
+server.on('upgrade', (req, socket, head) => {
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    if (urlObj.pathname === '/api/local-control') {
+        if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'local' && authenticateUpgrade(req)) {
+            wss.handleUpgrade(req, socket, head, (ws) => {
+                wss.emit('connection', ws, req);
+            });
+        } else {
+            socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+            socket.destroy();
+        }
+    }
 });

@@ -16,7 +16,10 @@ const REGISTRY_METADATA = [
     { name: 'database_query', description: 'Run Postgres database SQL queries', tags: ['database_query', 'sql', 'db', 'postgres', 'db_query'], triggers: ['query', 'sql', 'database'] },
     { name: 'workspace_view_file', description: 'View files in the local workspace', tags: ['workspace', 'view_file', 'read_file'], triggers: ['view file', 'read file'] },
     { name: 'workspace_edit_file', description: 'Edit or write files in local workspace', tags: ['workspace', 'edit_file', 'write_file'], triggers: ['edit file', 'write file'] },
-    { name: 'workspace_run_command', description: 'Run bash commands in local workspace', tags: ['workspace', 'run_command', 'shell'], triggers: ['run command', 'shell command'] }
+    { name: 'workspace_run_command', description: 'Run bash commands in local workspace', tags: ['workspace', 'run_command', 'shell'], triggers: ['run command', 'shell command'] },
+    { name: 'local_open_url', description: 'Open a URL in the default local web browser (local mode only)', tags: ['local', 'open_url', 'browser'], triggers: ['open url', 'go to link'] },
+    { name: 'local_open_app', description: 'Open a local desktop application (local mode only)', tags: ['local', 'open_app', 'launch'], triggers: ['open app', 'launch application'] },
+    { name: 'local_run_script', description: 'Execute a local desktop automation script (AppleScript on macOS, PowerShell on Windows) (local mode only)', tags: ['local', 'run_script', 'script'], triggers: ['run applescript', 'run powershell', 'desktop script'] }
 ];
 
 function parseYamlFrontmatter(content) {

@@ -183,7 +183,7 @@ async function execute(action, userMessage, previousResults = [], userContext = 
       
     // Added Supabase Postgres Database dynamic query route
     case 'database_query':
-      return await databaseTools.executeQuery(params);
+      return await databaseTools.executeQuery({ ...params, userContext });
       
     // Added Google Direct API routes via OAuth
     case 'gmail_list_unread':
@@ -192,6 +192,20 @@ async function execute(action, userMessage, previousResults = [], userContext = 
       return await googleAgent.createCalendarEvent('master_manoj', userContext, params);
     case 'sheets_append':
       return await googleAgent.appendSheetsValue('master_manoj', userContext, params);
+      
+    // Added Local Control Daemon automation tools
+    case 'local_open_url': {
+      const { sendDaemonCommand } = await import('../services/localControlServer.js');
+      return await sendDaemonCommand('openUrl', { url: params.url });
+    }
+    case 'local_open_app': {
+      const { sendDaemonCommand } = await import('../services/localControlServer.js');
+      return await sendDaemonCommand('openApp', { appName: params.appName });
+    }
+    case 'local_run_script': {
+      const { sendDaemonCommand } = await import('../services/localControlServer.js');
+      return await sendDaemonCommand('runScript', { script: params.script });
+    }
       
     default:
       return await chat([{ role: 'user', content: userMessage }], { systemPrompt: 'You are Ghost.' });
@@ -229,6 +243,7 @@ async function summarize(userMessage, actions, results) {
     workspace_view_file: 'workspace', workspace_edit_file: 'workspace', workspace_run_command: 'workspace',
     database_query: 'database',
     gmail_list_unread: 'googleAgent', calendar_create: 'googleAgent', sheets_append: 'googleAgent',
+    local_open_url: 'localControl', local_open_app: 'localControl', local_run_script: 'localControl',
     chat: 'llm'
   };
 
