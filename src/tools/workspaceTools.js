@@ -79,6 +79,12 @@ async function runWorkspaceCommand(payload) {
   if (blocklist.some(term => command.includes(term))) {
     return { error: "Command blocked: contains restricted system modifiers." };
   }
+
+  const { classifyCommand } = await import('../../../services/commandGate.js');
+  const gateRes = classifyCommand(command);
+  if (!gateRes.safe) {
+    return { error: gateRes.reason };
+  }
   
   return new Promise((resolve) => {
     exec(command, { cwd: PROJECT_ROOT, timeout: 20000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {

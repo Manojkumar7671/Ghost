@@ -46,6 +46,51 @@ function parseYamlFrontmatter(content) {
     return { frontmatter, body };
 }
 
+export function vetSkill(content, filePath) {
+  const highRiskRegexes = [
+    /child_process|exec\(|spawn\(|eval\(|system\(/i,
+    /fetch\(|axios|axios\.|require\(['"]http|import.*from.*['"]http/i,
+    /[A-Za-z0-9+/]{40,}=*/ // Obfuscated content / keys
+  ];
+
+  const mediumRiskRegexes = [
+    /process\.env|token|secret|key|password|auth|cookie/i
+  ];
+
+  const basename = path.basename(filePath);
+
+  for (const regex of highRiskRegexes) {
+    if (regex.test(content)) {
+      console.error(`[Security Vet] HIGH RISK EXCLUSION: Skill file ${basename} contains dangerous pattern: ${regex}. Excluding.`);
+      return { status: 'exclude', reason: `Dangerous pattern match: ${regex}` };
+    }
+  }
+
+  for (const regex of mediumRiskRegexes) {
+    if (regex.test(content)) {
+      console.warn(`[Security Vet] MEDIUM RISK WARNING: Skill file ${basename} contains sensitive pattern: ${regex}. Loaded with caution.`);
+      return { status: 'flag', reason: `Sensitive pattern match: ${regex}` };
+    }
+  }
+
+  return { status: 'safe' };
+}
+
+const MODE_SKILLS = {
+  morning_digest: ['web_search', 'email', 'email_send', 'email_draft'],
+  deep_research: ['web_search', 'web_scrape'],
+  code_assistant: ['workspace_view_file', 'workspace_edit_file', 'workspace_run_command', 'web_search'],
+  scheduled_monitor: ['web_search', 'web_scrape', 'email', 'email_send', 'email_draft']
+};
+
+export function filterCatalogByMode(catalog, mode) {
+  if (!mode || !MODE_SKILLS[mode]) return catalog;
+  const allowed = MODE_SKILLS[mode];
+  return catalog.filter(tool => {
+    return allowed.includes(tool.name) || tool.tags.some(t => allowed.includes(t));
+  });
+}
+
 export async function loadCatalog() {
     if (cachedCatalog) return cachedCatalog;
 
@@ -61,6 +106,12 @@ export async function loadCatalog() {
                     const skillMdPath = path.join(subpath, 'SKILL.md');
                     if (fs.existsSync(skillMdPath)) {
                         const content = fs.readFileSync(skillMdPath, 'utf8');
+                        
+                        const vetResult = vetSkill(content, skillMdPath);
+                        if (vetResult.status === 'exclude') {
+                            continue;
+                        }
+
                         const { frontmatter, body } = parseYamlFrontmatter(content);
                         if (frontmatter.name) {
                             catalog.push({
@@ -131,4 +182,8 @@ export async function routeCapabilityToTools(requiredCapability, stepDescription
 
     const sorted = scores.sort((a, b) => b.score - a.score);
     return sorted.slice(0, 3).map(s => s.tool);
+}
+
+export function resetCatalogCache() {
+    cachedCatalog = null;
 }

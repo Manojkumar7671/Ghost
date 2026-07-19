@@ -17,7 +17,7 @@ import createPipelineRoutes from './routes/pipelineRoutes.js';
 import { securityMiddleware } from './middleware/security.js';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { classifyComplexity, analyzeIntent, buildTaskPlan, generateToolParams, verifyGoalSatisfaction } from './services/intentPlanner.js';
-import { loadCatalog, routeCapabilityToTools } from './services/toolRouter.js';
+import { loadCatalog, routeCapabilityToTools, filterCatalogByMode } from './services/toolRouter.js';
 import { initAgentModes, activateMorningDigest, activateScheduledMonitor } from './services/agentModes.js';
 import { runPythonSandbox } from './services/pythonSandbox.js';
 import { initGoogleAuthTable, generateAuthUrl, handleOAuthCallback, revokeAccess } from './services/googleAuth.js';
@@ -623,7 +623,9 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
 
                     // 4. Resolve capabilities to tools, parameterize, and execute
                     const previousResults = [];
-                    const catalog = await loadCatalog();
+                    const activeMode = isCodeAssistant ? 'code_assistant' : isDeepResearch ? 'deep_research' : null;
+                    const fullCatalog = await loadCatalog();
+                    const catalog = filterCatalogByMode(fullCatalog, activeMode);
 
                     for (const step of plan) {
                         const candidates = await routeCapabilityToTools(step.requiredCapability, step.description, catalog);

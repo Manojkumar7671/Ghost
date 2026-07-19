@@ -1,6 +1,15 @@
 import { spawn } from 'child_process';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const { classifyCommand } = require('../commandGate.js');
 
 export function openUrl(url) {
+  const gateRes = classifyCommand(url);
+  if (!gateRes.safe) {
+    throw new Error(gateRes.reason);
+  }
+
   console.log(`[Mac Driver] Opening URL: ${url}`);
   const child = spawn('open', [url]);
   child.unref();
@@ -8,6 +17,11 @@ export function openUrl(url) {
 }
 
 export function openApp(appName) {
+  const gateRes = classifyCommand(appName);
+  if (!gateRes.safe) {
+    throw new Error(gateRes.reason);
+  }
+
   console.log(`[Mac Driver] Opening App: ${appName}`);
   const child = spawn('open', ['-a', appName]);
   child.unref();
@@ -15,6 +29,11 @@ export function openApp(appName) {
 }
 
 export function runScript(script) {
+  const gateRes = classifyCommand(script);
+  if (!gateRes.safe) {
+    throw new Error(gateRes.reason);
+  }
+
   console.log(`[Mac Driver] Running AppleScript...`);
   return new Promise((resolve) => {
     const child = spawn('osascript', ['-e', script]);

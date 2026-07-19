@@ -1,4 +1,8 @@
 import { spawn } from 'child_process';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const { classifyCommand } = require('../commandGate.js');
 
 const WINDOWS_APP_LOOKUP = {
   browser: 'msedge.exe',
@@ -7,14 +11,23 @@ const WINDOWS_APP_LOOKUP = {
 };
 
 export function openUrl(url) {
+  const gateRes = classifyCommand(url);
+  if (!gateRes.safe) {
+    throw new Error(gateRes.reason);
+  }
+
   console.log(`[Windows Driver] Opening URL: ${url}`);
-  // Start-Process in PowerShell opens the URL in the default web browser safely
   const child = spawn('powershell.exe', ['Start-Process', url]);
   child.unref();
   return { success: true };
 }
 
 export function openApp(appName) {
+  const gateRes = classifyCommand(appName);
+  if (!gateRes.safe) {
+    throw new Error(gateRes.reason);
+  }
+
   const cleanApp = appName.toLowerCase().trim();
   const exe = WINDOWS_APP_LOOKUP[cleanApp] || cleanApp;
   console.log(`[Windows Driver] Opening App: ${exe}`);
@@ -24,9 +37,13 @@ export function openApp(appName) {
 }
 
 export function runScript(script) {
+  const gateRes = classifyCommand(script);
+  if (!gateRes.safe) {
+    throw new Error(gateRes.reason);
+  }
+
   console.log(`[Windows Driver] Running PowerShell automation...`);
   return new Promise((resolve) => {
-    // Spawns powershell safely with no profile and passes the command in arguments
     const child = spawn('powershell.exe', ['-NoProfile', '-Command', script]);
     let stdout = '';
     let stderr = '';
