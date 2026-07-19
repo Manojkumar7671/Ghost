@@ -14,6 +14,7 @@ const voiceAgent = require('./agents/voiceAgent');
 const goalAgent = require('./agents/goalAgent');
 const selfAgent = require('./agents/selfAgent');
 const scheduler = require('./agents/scheduler');
+const googleAgent = require('./agents/googleAgent');
 
 /**
  * Robust multi-strategy JSON extraction.
@@ -128,7 +129,7 @@ async function execute(action, userMessage, previousResults = [], userContext = 
       const draft = await emailAgent.draftEmail({ to: params.to || '', subject: params.subject || userMessage, context: params.context || userMessage });
       return `Email drafted to ${draft.to}:\n\nSubject: ${draft.subject}\n\n${draft.body}`;
     case 'email_send':
-      await emailAgent.composeAndSend({ to: params.to, subject: params.subject, context: params.context || userMessage });
+      await emailAgent.composeAndSend({ to: params.to, subject: params.subject, context: params.context || userMessage }, userContext);
       return `Email sent to ${params.to}`;
     case 'github_repos':
       const repos = await githubAgent.listRepos();
@@ -184,6 +185,14 @@ async function execute(action, userMessage, previousResults = [], userContext = 
     case 'database_query':
       return await databaseTools.executeQuery(params);
       
+    // Added Google Direct API routes via OAuth
+    case 'gmail_list_unread':
+      return await googleAgent.listUnreadEmails('master_manoj');
+    case 'calendar_create':
+      return await googleAgent.createCalendarEvent('master_manoj', userContext, params);
+    case 'sheets_append':
+      return await googleAgent.appendSheetsValue('master_manoj', userContext, params);
+      
     default:
       return await chat([{ role: 'user', content: userMessage }], { systemPrompt: 'You are Ghost.' });
   }
@@ -219,6 +228,7 @@ async function summarize(userMessage, actions, results) {
     memory_save: 'memory', memory_get: 'memory',
     workspace_view_file: 'workspace', workspace_edit_file: 'workspace', workspace_run_command: 'workspace',
     database_query: 'database',
+    gmail_list_unread: 'googleAgent', calendar_create: 'googleAgent', sheets_append: 'googleAgent',
     chat: 'llm'
   };
 

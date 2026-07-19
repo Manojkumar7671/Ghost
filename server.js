@@ -20,6 +20,7 @@ import { classifyComplexity, analyzeIntent, buildTaskPlan, generateToolParams, v
 import { loadCatalog, routeCapabilityToTools } from './services/toolRouter.js';
 import { initAgentModes, activateMorningDigest, activateScheduledMonitor } from './services/agentModes.js';
 import { runPythonSandbox } from './services/pythonSandbox.js';
+import { initGoogleAuthTable, generateAuthUrl, handleOAuthCallback, revokeAccess } from './services/googleAuth.js';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -301,6 +302,134 @@ app.post('/api/auth', authLimiter, async (req, res) => {
     return res.json({ success: true, role: 'guest' });
 });
 
+// ============================================================
+// GOOGLE OAUTH ROUTES
+// ============================================================
+
+app.get('/api/auth/google/connect', (req, res) => {
+    const token = req.cookies.ghost_session;
+    if (!token) {
+        return res.status(401).send('<h1>Error: Unauthorized</h1><p>Please log into Ghost first to connect your Google account.</p>');
+    }
+    try {
+        const verified = jwt.verify(token, JWT_SECRET);
+        const userId = verified.role === 'admin' ? 'master_manoj' : 'guest';
+        const url = generateAuthUrl(userId);
+        res.redirect(url);
+    } catch (err) {
+        return res.status(401).send('<h1>Error: Invalid Session</h1><p>Please log in again.</p>');
+    }
+});
+
+app.get('/api/auth/google/callback', async (req, res) => {
+    const { code, state, error } = req.query;
+    if (error) {
+        return res.status(400).send(`<h1>Google Auth Error</h1><p>${error}</p>`);
+    }
+    if (!code || !state) {
+        return res.status(400).send('<h1>Error</h1><p>Missing auth code or state parameters.</p>');
+    }
+    try {
+        await handleOAuthCallback(code, state);
+        res.send(`
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Google Connected Successfully</title>
+                <style>
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                        background: radial-gradient(circle at center, #1e1e2f 0%, #0d0d13 100%);
+                        color: #ffffff;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        height: 100vh;
+                        margin: 0;
+                        text-align: center;
+                    }
+                    .card {
+                        background: rgba(255, 255, 255, 0.03);
+                        border: 1px solid rgba(255, 255, 255, 0.08);
+                        border-radius: 20px;
+                        padding: 40px 60px;
+                        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+                        backdrop-filter: blur(10px);
+                        max-width: 450px;
+                        animation: fadeIn 0.8s ease;
+                    }
+                    .icon {
+                        font-size: 64px;
+                        margin-bottom: 20px;
+                        background: linear-gradient(135deg, #4285f4, #34a853, #fbbc05, #ea4335);
+                        -webkit-background-clip: text;
+                        -webkit-text-fill-color: transparent;
+                        display: inline-block;
+                    }
+                    h1 {
+                        font-size: 24px;
+                        margin: 0 0 10px 0;
+                        font-weight: 600;
+                        background: linear-gradient(90deg, #ffffff 0%, #a5a5cc 100%);
+                        -webkit-background-clip: text;
+                        -webkit-text-fill-color: transparent;
+                    }
+                    p {
+                        font-size: 15px;
+                        color: #a0a0c0;
+                        line-height: 1.6;
+                        margin: 0 0 30px 0;
+                    }
+                    .btn {
+                        display: inline-block;
+                        text-decoration: none;
+                        background: linear-gradient(90deg, #4f46e5 0%, #3b82f6 100%);
+                        color: #ffffff;
+                        padding: 12px 30px;
+                        border-radius: 10px;
+                        font-weight: 500;
+                        font-size: 14px;
+                        transition: transform 0.2s, box-shadow 0.2s;
+                        cursor: pointer;
+                        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+                    }
+                    .btn:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+                    }
+                    @keyframes fadeIn {
+                        from { opacity: 0; transform: translateY(20px); }
+                        to { opacity: 1; transform: translateY(0); }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <div class="icon">✓</div>
+                    <h1>Google OAuth Complete</h1>
+                    <p>Ghost has successfully connected to your Google account.<br>Gmail, Calendar, and Sheets integrations are now enabled.</p>
+                    <a href="javascript:window.close()" class="btn">Close Window</a>
+                </div>
+            </body>
+            </html>
+        `);
+    } catch (err) {
+        res.status(500).send(`<h1>OAuth Callback Failed</h1><p>${err.message}</p>`);
+    }
+});
+
+app.post('/api/auth/google/disconnect', requireAdminToken, async (req, res) => {
+    try {
+        const userId = 'master_manoj';
+        await revokeAccess(userId);
+        res.json({ success: true, message: 'Google account disconnected successfully.' });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 function requireAdminToken(req, res, next) {
     const token = req.cookies.ghost_session;
     if (!token) return res.status(403).json({ success: false, error: 'Missing token.' });
@@ -395,6 +524,14 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
         if (lowerMsg.startsWith('deactivate code assistant') || lowerMsg.startsWith('deactivate code_assistant')) {
             sessionModes.delete(safeUser || 'guest');
             res.json({ success: true, text: `[GHOST CONTROLLER]: Code Assistant mode deactivated.` });
+            return;
+        }
+
+        if (lowerMsg === 'connect google' || lowerMsg === 'connect gmail') {
+            const redirectUrl = process.env.RENDER_EXTERNAL_URL 
+                ? `${process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '')}/api/auth/google/connect`
+                : 'http://localhost:10000/api/auth/google/connect';
+            res.json({ success: true, text: `[GHOST CONTROLLER]: Please connect your Google account by visiting: ${redirectUrl}` });
             return;
         }
 
@@ -800,7 +937,10 @@ function startN8n() {
 }
 
 const PORT = process.env.PORT || 10000;
-initAgentModes(pool).then(() => {
+Promise.all([
+    initAgentModes(pool),
+    initGoogleAuthTable(pool)
+]).then(() => {
     startAutoLearning(ghostLearn, pool);
 });
 app.listen(PORT, '0.0.0.0', () => {
