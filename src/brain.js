@@ -174,12 +174,30 @@ async function execute(action, userMessage, previousResults = [], userContext = 
     }
       
     // Added Antigravity workspace operation routes
-    case 'workspace_view_file':
+    case 'workspace_view_file': {
+      const isPublic = (process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public';
+      const { isAdmin = false } = userContext;
+      if (isPublic && !isAdmin) {
+        return 'Access Denied: Workspace file reading is restricted to admin clearance in public deployment mode.';
+      }
       return await workspaceTools.viewFile(params);
-    case 'workspace_edit_file':
+    }
+    case 'workspace_edit_file': {
+      const isPublic = (process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public';
+      const { isAdmin = false } = userContext;
+      if (isPublic && !isAdmin) {
+        return 'Access Denied: Workspace file modification is restricted to admin clearance in public deployment mode.';
+      }
       return await workspaceTools.editFile(params);
-    case 'workspace_run_command':
+    }
+    case 'workspace_run_command': {
+      const isPublic = (process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public';
+      const { isAdmin = false } = userContext;
+      if (isPublic && !isAdmin) {
+        return 'Access Denied: Local shell command execution is restricted to admin clearance in public deployment mode.';
+      }
       return await workspaceTools.runWorkspaceCommand(params);
+    }
       
     // Added Supabase Postgres Database dynamic query route
     case 'database_query':
