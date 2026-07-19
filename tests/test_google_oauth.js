@@ -17,7 +17,7 @@ async function runTests() {
 
   const pool = new Pool({
     connectionString: process.env.SUPABASE_DB_URL,
-    ssl: { rejectUnauthorized: false },
+    ssl: (process.env.SUPABASE_DB_URL && (process.env.SUPABASE_DB_URL.includes('localhost') || process.env.SUPABASE_DB_URL.includes('127.0.0.1'))) ? false : { rejectUnauthorized: false },
     max: 1
   });
 

@@ -67,7 +67,7 @@ let pool;
 if (process.env.SUPABASE_DB_URL) {
     pool = new Pool({
         connectionString: process.env.SUPABASE_DB_URL,
-        ssl: { rejectUnauthorized: false },
+        ssl: (process.env.SUPABASE_DB_URL.includes('localhost') || process.env.SUPABASE_DB_URL.includes('127.0.0.1')) ? false : { rejectUnauthorized: false },
         max: 2,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,

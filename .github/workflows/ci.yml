@@ -1,0 +1,75 @@
+name: CI Regression Pipeline & Render Gate
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Syntax Checks
+        run: node --check server.js
+
+      - name: Run Test Suites
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          JWT_SECRET: ci-jwt-secret-key-must-be-long-enough
+          ADMIN_PASSPHRASE: ci-admin-passphrase-clearance
+          GOOGLE_TOKEN_ENCRYPTION_KEY: ci-token-encryption-key-32-chars-long
+          GHOST_DEPLOYMENT_MODE: local
+        run: |
+          node tests/test_modes_daemon.js
+          node tests/test_google_oauth.js
+          node tests/test_phase4.js
+          node tests/test_phase5.js
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Trigger Render Deploy
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          if [ -z "$RENDER_API_KEY" ]; then
+            echo "Error: RENDER_API_KEY secret is not set in GitHub repository secrets."
+            exit 1
+          fi
+          echo "Triggering manual Render deployment..."
+          curl -f -X POST \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            https://api.render.com/v1/services/srv-d8odc7p194ac73brr43g/deploys

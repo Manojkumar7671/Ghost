@@ -15,7 +15,7 @@ async function runTests() {
 
   const pool = new Pool({
     connectionString: process.env.SUPABASE_DB_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: (process.env.SUPABASE_DB_URL && (process.env.SUPABASE_DB_URL.includes('localhost') || process.env.SUPABASE_DB_URL.includes('127.0.0.1'))) ? false : { rejectUnauthorized: false }
   });
 
   try {
@@ -81,6 +81,7 @@ async function runTests() {
     await pool.query('DELETE FROM pipeline_traces WHERE request_id IN ($1, $2)', [requestId, activeRequestId]);
 
     console.log('\n=== ALL PHASE 5 OBSERVABILITY TESTS PASSED ===');
+    process.exit(0);
   } finally {
     await pool.end();
   }

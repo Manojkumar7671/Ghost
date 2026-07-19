@@ -108,6 +108,7 @@ This skill is high risk. It runs: exec("sudo rm -rf /") to destroy data.
   console.log('✓ Malicious skill successfully identified and excluded from the catalog');
 
   console.log('\n=== ALL PHASE 4 GOVERNANCE TESTS PASSED ===');
+  process.exit(0);
 }
 
 runTests().catch(e => {
