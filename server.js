@@ -16,6 +16,9 @@ import { pendingActions as sharedPendingActions } from './state/pendingActions.j
 import createPipelineRoutes from './routes/pipelineRoutes.js';
 import { securityMiddleware } from './middleware/security.js';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import { classifyComplexity, analyzeIntent, buildTaskPlan, generateToolParams, verifyGoalSatisfaction } from './services/intentPlanner.js';
+import { loadCatalog, routeCapabilityToTools } from './services/toolRouter.js';
+import { initAgentModes, activateMorningDigest, activateScheduledMonitor } from './services/agentModes.js';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -43,6 +46,8 @@ app.use(express.json({ limit: '10mb' })); // Restricted standard payload sizes t
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
+
+const sessionModes = new Map();
 
 // Ghost Workflow Engine is built-in — no external initialization required
 console.log(`[Ghost Workflow Engine] Online — ${workflowEngine.getPromptString().split('- Action Name:').length - 1} built-in workflows ready.`);
@@ -390,6 +395,56 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             } catch (err) {}
         }
 
+        const lowerMsg = (message || '').toLowerCase().trim();
+        
+        if (lowerMsg.startsWith('activate morning')) {
+            const timeMatch = message.toLowerCase().match(/at\s+(\d+)\s*(am|pm)/i);
+            let hour = 7;
+            if (timeMatch) {
+                hour = parseInt(timeMatch[1]);
+                if (timeMatch[2].toLowerCase() === 'pm' && hour < 12) hour += 12;
+                if (timeMatch[2].toLowerCase() === 'am' && hour === 12) hour = 0;
+            }
+            const cronExpr = `0 ${hour} * * *`;
+            activateMorningDigest(cronExpr, safeUser || 'guest', pool);
+            res.json({ success: true, text: `[GHOST CONTROLLER]: Morning digest activated successfully at ${hour}:00 daily. (Cron: "${cronExpr}")` });
+            return;
+        }
+
+        if (lowerMsg.startsWith('activate scheduled monitor')) {
+            const intervalMatch = message.toLowerCase().match(/every\s+(\d+)\s*(m|h|d)/i);
+            const targetMatch = message.toLowerCase().match(/target\s+([^\s]+)/i);
+            const conditionMatch = message.toLowerCase().match(/condition\s+(.+)/i);
+            
+            let intervalVal = 30;
+            let cronExpr = '*/30 * * * *';
+            if (intervalMatch) {
+                intervalVal = parseInt(intervalMatch[1]);
+                const unit = intervalMatch[2].toLowerCase();
+                if (unit === 'm') cronExpr = `*/${intervalVal} * * * *`;
+                else if (unit === 'h') cronExpr = `0 */${intervalVal} * * *`;
+                else if (unit === 'd') cronExpr = `0 0 */${intervalVal} * *`;
+            }
+            
+            const target = targetMatch ? targetMatch[1] : 'latest tech news';
+            const condition = conditionMatch ? conditionMatch[1] : 'contains any updates';
+            
+            activateScheduledMonitor(cronExpr, target, condition, safeUser || 'guest', pool);
+            res.json({ success: true, text: `[GHOST CONTROLLER]: Scheduled monitor activated successfully for target "${target}" under condition "${condition}" (Cron: "${cronExpr}").` });
+            return;
+        }
+
+        if (lowerMsg.startsWith('activate code assistant') || lowerMsg.startsWith('activate code_assistant')) {
+            sessionModes.set(safeUser || 'guest', 'code_assistant');
+            res.json({ success: true, text: `[GHOST CONTROLLER]: Code Assistant mode activated for this session. Scoped file and command execution is now enabled.` });
+            return;
+        }
+        if (lowerMsg.startsWith('deactivate code assistant') || lowerMsg.startsWith('deactivate code_assistant')) {
+            sessionModes.delete(safeUser || 'guest');
+            res.json({ success: true, text: `[GHOST CONTROLLER]: Code Assistant mode deactivated.` });
+            return;
+        }
+
         let dynamicToolsPrompt = "", learnedGenesPrompt = "";
         if (isAdmin) {
             dynamicToolsPrompt += `\n\n[GHOST BUILT-IN WORKFLOWS AVAILABLE]\nUse "tool": "n8n_execute" with these exact action names and schemas:\n${workflowEngine.getPromptString()}`;
@@ -434,14 +489,124 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                 }
             }
         } else {
-            // ============================================================
-            // UNIFIED EXECUTION: brain.think() is the SOLE path.
-            // NO fallback to callLLM with GHOST_ADMIN_CORE (which caused double-planning).
-            // If brain.think() fails, return a clean error — don't retry with a different planner.
-            // ============================================================
+            const isDeepResearch = lowerMsg.includes('research') || lowerMsg.includes('deep dive') || sessionModes.get(safeUser || 'guest') === 'deep_research';
+            const isCodeAssistant = sessionModes.get(safeUser || 'guest') === 'code_assistant';
+            const isComplex = classifyComplexity(finalMessage) === 'complex' || isDeepResearch;
+
+            if (isComplex && process.env.GHOST_PLANNER_ENABLED !== 'false') {
+                console.log('[Intent Planner] Complex goal detected, initializing intent planner pipeline...');
+                try {
+                    // 1. Analyze intent
+                    const intent = await analyzeIntent(finalMessage, userHistory);
+                    console.log('[Intent Planner] Intent analysis:', JSON.stringify(intent));
+
+                    // 2. Check for blocking ambiguities and short-circuit if found
+                    if (intent.ambiguities && intent.ambiguities.length > 0) {
+                        const clarifyingQuestion = `I need a bit more info to plan this: ${intent.ambiguities[0]}`;
+                        if (pool && safeUser) {
+                            userHistory.push({ role: 'user', content: finalMessage });
+                            userHistory.push({ role: 'assistant', content: clarifyingQuestion });
+                            await pool.query('UPDATE user_memories SET history_json = $2, updated_at = CURRENT_TIMESTAMP WHERE username = $1', [safeUser, JSON.stringify(userHistory.slice(-15))]);
+                        }
+                        res.json({ success: true, text: clarifyingQuestion });
+                        return;
+                    }
+
+                    // 3. Build task plan (DAG)
+                    const plan = await buildTaskPlan(intent);
+                    console.log('[Intent Planner] Generated Task Plan:', JSON.stringify(plan));
+
+                    // 4. Resolve capabilities to tools, parameterize, and execute
+                    const previousResults = [];
+                    const catalog = await loadCatalog();
+
+                    for (const step of plan) {
+                        const candidates = await routeCapabilityToTools(step.requiredCapability, step.description, catalog);
+                        const selectedTool = candidates[0] || { name: 'chat' };
+
+                        console.log(`[Tool Router] Routing step "${step.description}" to tool "${selectedTool.name}"`);
+
+                        const params = await generateToolParams(selectedTool.name, step.description, previousResults, finalMessage);
+                        const action = { tool: selectedTool.name, params };
+
+                        const executionContext = { 
+                            safeUser: safeUser || 'guest', 
+                            isAdmin, 
+                            isCodeAssistant, 
+                            isDeepResearch 
+                        };
+
+                        let output;
+                        try {
+                            output = await brain.execute(action, finalMessage, previousResults, executionContext);
+                            previousResults.push({ id: step.id, description: step.description, tool: selectedTool.name, output, status: 'done' });
+                        } catch (stepErr) {
+                            console.warn(`[Intent Planner] Step "${step.description}" failed:`, stepErr.message);
+                            previousResults.push({ id: step.id, description: step.description, tool: selectedTool.name, output: `Error: ${stepErr.message}`, status: 'failed' });
+                        }
+                    }
+
+                    // 5. Verify stage (Goal-satisfaction check)
+                    const verification = await verifyGoalSatisfaction(finalMessage, plan, previousResults);
+                    console.log('[Verify Stage] Goal-satisfaction check result:', JSON.stringify(verification));
+
+                    if (!verification.satisfied && verification.failedStepId) {
+                        console.log(`[Verify Stage] Attempting single retry for failed step "${verification.failedStepId}"`);
+                        const failedStep = plan.find(s => s.id === verification.failedStepId || s.description.includes(verification.failedStepId));
+                        if (failedStep) {
+                            try {
+                                const candidates = await routeCapabilityToTools(failedStep.requiredCapability, failedStep.description, catalog);
+                                const selectedTool = candidates[0] || { name: 'chat' };
+                                const params = await generateToolParams(selectedTool.name, failedStep.description, previousResults, finalMessage);
+                                const action = { tool: selectedTool.name, params };
+                                const output = await brain.execute(action, finalMessage, previousResults, { safeUser: safeUser || 'guest', isAdmin, isCodeAssistant, isDeepResearch });
+                                
+                                const index = previousResults.findIndex(r => r.id === failedStep.id);
+                                if (index !== -1) {
+                                    previousResults[index].output = output;
+                                    previousResults[index].status = 'done';
+                                }
+                            } catch (retryErr) {
+                                console.warn(`[Verify Stage] Retry failed for step "${failedStep.description}":`, retryErr.message);
+                            }
+                        }
+                    }
+
+                    // 6. Compile and summarize final answer
+                    const summarySystemPrompt = isCodeAssistant
+                        ? `You are Ghost, Manoj's loyal AI coding assistant. Summarize the completed plan execution and results clearly. Scoped file and command executions are enabled.`
+                        : `You are Ghost, an elite autonomous AI. Summarize the completed plan execution and results clearly and directly for the user. Do not include tool syntax. Provide citations for sources if this is a deep research task.`;
+
+                    const { chat: localChat } = require('./src/tools/llm.js');
+                    const finalSummary = await localChat(
+                        [{ role: 'user', content: `Goal: "${finalMessage}"\n\nResults:\n${previousResults.map(r => `Step: ${r.description}\nTool Used: ${r.tool}\nResult: ${r.output}`).join('\n\n')}` }],
+                        { systemPrompt: summarySystemPrompt, maxTokens: 1024 }
+                    );
+
+                    const traceText = `[Intent Planner ➔ Plan Executed]\n` + 
+                        plan.map(s => `- [x] ${s.description} (routed to: ${s.requiredCapability})`).join('\n') + 
+                        `\n\n${finalSummary}`;
+
+                    if (pool && safeUser) {
+                        userHistory.push({ role: 'user', content: finalMessage });
+                        userHistory.push({ role: 'assistant', content: traceText });
+                        await pool.query('UPDATE user_memories SET history_json = $2, updated_at = CURRENT_TIMESTAMP WHERE username = $1', [safeUser, JSON.stringify(userHistory.slice(-15))]);
+                    }
+
+                    res.json({ success: true, text: traceText });
+                    return;
+                } catch (err) {
+                    console.error('[Intent Planner] Execution pipeline failed, falling back to direct brain.think:', err.message);
+                }
+            }
+
             console.log('[Server] Routing plain-text request to brain.think()...');
             try {
-                const brainResult = await brain.think(finalMessage, { safeUser, isAdmin });
+                let msgToThink = finalMessage;
+                if (isCodeAssistant) {
+                    msgToThink = `[SESSION MODE: CODE ASSISTANT IS ACTIVE. You have broader workspace execution access.]\n${finalMessage}`;
+                }
+                const brainResult = await brain.think(msgToThink, { safeUser, isAdmin });
                 fullResponse = brainResult.reply;
             } catch (error) {
                 console.error('[Server] brain.think() failed:', error.message);
@@ -612,6 +777,27 @@ app.post('/api/browser/navigate', async (req, res) => {
     res.json({ success: true, message: `Browser navigating to: ${url}` });
 });
 
+app.post('/api/modes/activate', requireAdminToken, async (req, res) => {
+    const { mode, schedule, target, condition, user = 'master_manoj' } = req.body;
+    if (mode === 'morning_digest') {
+        const result = activateMorningDigest(schedule || '0 7 * * *', user, pool);
+        return res.json({ success: true, message: 'Morning digest activated', result });
+    }
+    if (mode === 'scheduled_monitor') {
+        const result = activateScheduledMonitor(schedule || '*/30 * * * *', target, condition, user, pool);
+        return res.json({ success: true, message: 'Scheduled monitor activated', result });
+    }
+    if (mode === 'code_assistant') {
+        sessionModes.set(user, 'code_assistant');
+        return res.json({ success: true, message: 'Code assistant mode activated for user' });
+    }
+    if (mode === 'deep_research') {
+        sessionModes.set(user, 'deep_research');
+        return res.json({ success: true, message: 'Deep research mode activated for user' });
+    }
+    res.status(400).json({ error: 'Invalid mode specified' });
+});
+
 app.use(
     '/n8n',
     requireAdminToken,
@@ -666,7 +852,9 @@ function startN8n() {
 }
 
 const PORT = process.env.PORT || 10000;
-startAutoLearning(ghostLearn, pool);
+initAgentModes(pool).then(() => {
+    startAutoLearning(ghostLearn, pool);
+});
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Ghost AI Engine Online on port ${PORT}.`);
     startN8n();

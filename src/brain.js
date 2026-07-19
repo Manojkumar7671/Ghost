@@ -271,4 +271,4 @@ async function think(userMessage, userContext = { safeUser: 'guest', isAdmin: fa
   return { reply, actions: actions.map((a,i) => ({ tool: a.tool, reason: a.reason, status: results[i]?.status })) };
 }
 
-module.exports = { think, extractJSON };
+module.exports = { think, execute, extractJSON };
