@@ -22,6 +22,7 @@ import { initAgentModes, activateMorningDigest, activateScheduledMonitor } from 
 import { runPythonSandbox } from './services/pythonSandbox.js';
 import { initGoogleAuthTable, generateAuthUrl, handleOAuthCallback, revokeAccess } from './services/googleAuth.js';
 import { wss, authenticateUpgrade } from './services/localControlServer.js';
+import { traceLocalStorage, initTraceTable, saveTrace, cleanupTraces } from './services/traceStore.js';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -465,9 +466,12 @@ const pendingActions = sharedPendingActions;
 // ============================================================
 
 app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
-    try {
-        const { message, user, image, fileContent, ghostCodeMode = true } = req.body;
-        const isAdmin = checkIsAdmin(req);
+    const requestId = crypto.randomUUID();
+    const requestContext = { requestId, llmCalls: [] };
+    await traceLocalStorage.run(requestContext, async () => {
+        try {
+            const { message, user, image, fileContent, ghostCodeMode = true } = req.body;
+            const isAdmin = checkIsAdmin(req);
         const safeUser = isAdmin ? 'master_manoj' : (user && user.trim() && user.trim().toLowerCase() !== 'guest') ? user.trim().toLowerCase() : null;
         const activeTokens = isAdmin ? 4000 : 1000;
         const maxMemory = isAdmin ? 12 : 6;
@@ -644,10 +648,46 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                         };
 
                         let output;
+                        const startTime = Date.now();
                         try {
                             output = await brain.execute(action, finalMessage, previousResults, executionContext);
+                            const latencyMs = Date.now() - startTime;
+                            
+                            const lastCalls = requestContext.llmCalls || [];
+                            requestContext.llmCalls = []; // Clear for next step
+                            const primaryCall = lastCalls.find(c => c.status === 'success') || lastCalls[lastCalls.length - 1];
+                            const provider = primaryCall ? primaryCall.provider : 'n/a';
+                            const fallbacksTried = lastCalls.filter(c => c.status === 'failed').map(c => c.provider).join(', ');
+
+                            saveTrace(pool, {
+                                requestId,
+                                stepId: step.id,
+                                description: step.description,
+                                toolUsed: selectedTool.name,
+                                provider,
+                                fallbacksTried,
+                                latencyMs,
+                                status: 'done'
+                            });
+
                             previousResults.push({ id: step.id, description: step.description, tool: selectedTool.name, output, status: 'done' });
                         } catch (stepErr) {
+                            const latencyMs = Date.now() - startTime;
+                            const lastCalls = requestContext.llmCalls || [];
+                            requestContext.llmCalls = [];
+                            const fallbacksTried = lastCalls.filter(c => c.status === 'failed').map(c => c.provider).join(', ');
+
+                            saveTrace(pool, {
+                                requestId,
+                                stepId: step.id,
+                                description: step.description,
+                                toolUsed: selectedTool.name,
+                                provider: 'n/a',
+                                fallbacksTried,
+                                latencyMs,
+                                status: 'failed'
+                            });
+
                             console.warn(`[Intent Planner] Step "${step.description}" failed:`, stepErr.message);
                             previousResults.push({ id: step.id, description: step.description, tool: selectedTool.name, output: `Error: ${stepErr.message}`, status: 'failed' });
                         }
@@ -713,7 +753,26 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                 if (isCodeAssistant) {
                     msgToThink = `[SESSION MODE: CODE ASSISTANT IS ACTIVE. You have broader workspace execution access.]\n${finalMessage}`;
                 }
+                const startTime = Date.now();
                 const brainResult = await brain.think(msgToThink, { safeUser, isAdmin });
+                const latencyMs = Date.now() - startTime;
+
+                const lastCalls = requestContext.llmCalls || [];
+                const primaryCall = lastCalls.find(c => c.status === 'success') || lastCalls[0];
+                const provider = primaryCall ? primaryCall.provider : 'n/a';
+                const fallbacksTried = lastCalls.filter(c => c.status === 'failed').map(c => c.provider).join(', ');
+
+                saveTrace(pool, {
+                    requestId,
+                    stepId: 'chat_simple',
+                    description: 'Direct LLM Chat Response',
+                    toolUsed: 'chat',
+                    provider,
+                    fallbacksTried,
+                    latencyMs,
+                    status: 'done'
+                });
+
                 fullResponse = brainResult.reply;
             } catch (error) {
                 console.error('[Server] brain.think() failed:', error.message);
@@ -815,6 +874,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
     } catch (e) { 
         if (!res.headersSent) res.json({ success: true, text: `[System Warning]: Matrix Interference: ${e.message}` }); 
     }
+    });
 });
 
 app.post('/api/execute-action', requireAdminToken, async (req, res) => {
@@ -914,6 +974,267 @@ app.use(
     })
 );
 
+app.get('/api/admin/observability', requireAdminToken, async (req, res) => {
+    try {
+        if (!pool) {
+            return res.status(500).send('Database not connected.');
+        }
+
+        const providerRes = await pool.query(`
+            SELECT provider, COUNT(*) as count, ROUND(AVG(latency_ms)) as avg_latency 
+            FROM pipeline_traces 
+            GROUP BY provider 
+            ORDER BY count DESC
+        `);
+
+        const toolRes = await pool.query(`
+            SELECT tool_used, COUNT(*) as count, ROUND(AVG(latency_ms)) as avg_latency 
+            FROM pipeline_traces 
+            GROUP BY tool_used 
+            ORDER BY avg_latency DESC
+        `);
+
+        const traceRes = await pool.query(`
+            SELECT request_id, step_id, description, tool_used, provider, fallbacks_tried, latency_ms, status, created_at 
+            FROM pipeline_traces 
+            ORDER BY created_at DESC 
+            LIMIT 50
+        `);
+
+        const providers = providerRes.rows;
+        const tools = toolRes.rows;
+        const traces = traceRes.rows;
+
+        let html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghost AI Observability Matrix</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-gradient: radial-gradient(circle at 50% 50%, #0b0a1a 0%, #16142e 100%);
+            --panel-bg: rgba(255, 255, 255, 0.03);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0c0;
+            --accent: #4f46e5;
+            --accent-glow: rgba(79, 70, 229, 0.4);
+            --success: #10b981;
+            --error: #ef4444;
+        }
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-gradient);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 20px;
+        }
+        h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin: 0;
+            background: linear-gradient(90deg, #ffffff 0%, #a5a5cc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .btn-refresh {
+            background: linear-gradient(90deg, #4f46e5 0%, #3b82f6 100%);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px var(--accent-glow);
+            transition: all 0.3s ease;
+        }
+        .btn-refresh:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px var(--accent-glow);
+        }
+        .grid-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        .card {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            backdrop-filter: blur(12px);
+        }
+        .card h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+        th, td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 14px;
+        }
+        th {
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 1px;
+        }
+        td {
+            color: var(--text-primary);
+        }
+        .status-done {
+            color: var(--success);
+            font-weight: 600;
+        }
+        .status-failed {
+            color: var(--error);
+            font-weight: 600;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.08);
+        }
+        .badge-provider {
+            background: rgba(79, 70, 229, 0.15);
+            color: #a5b4fc;
+            border: 1px solid rgba(79, 70, 229, 0.3);
+        }
+        .badge-tool {
+            background: rgba(16, 185, 129, 0.15);
+            color: #6ee7b7;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1>Ghost AI Observability Matrix</h1>
+                <p style="color: var(--text-secondary); margin: 5px 0 0 0; font-size: 14px;">Real-time DAG pipeline execution and LLM provider traces</p>
+            </div>
+            <button class="btn-refresh" onclick="window.location.reload()">Refresh Data</button>
+        </header>
+
+        <div class="grid-stats">
+            <div class="card">
+                <h2>LLM Provider Breakdown</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Provider</th>
+                            <th>Invocations</th>
+                            <th>Avg Latency</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        \${providers.map(p => \`
+                            <tr>
+                                <td><span class="badge badge-provider">\${p.provider}</span></td>
+                                <td>\${p.count}</td>
+                                <td>\${p.avg_latency}ms</td>
+                            </tr>
+                        \`).join('')}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card">
+                <h2>Tool Average Latency</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tool</th>
+                            <th>Calls</th>
+                            <th>Avg Latency</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        \${tools.map(t => \`
+                            <tr>
+                                <td><span class="badge badge-tool">\${t.tool_used}</span></td>
+                                <td>\${t.count}</td>
+                                <td>\${t.avg_latency}ms</td>
+                            </tr>
+                        \`).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 40px;">
+            <h2>Recent Pipeline Execution Logs (Last 50 Traces)</h2>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Request ID</th>
+                            <th>Step / Tool</th>
+                            <th>Description</th>
+                            <th>Provider</th>
+                            <th>Fallbacks</th>
+                            <th>Latency</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        \${traces.map(t => \`
+                            <tr>
+                                <td style="color: var(--text-secondary); white-space: nowrap;">\${new Date(t.created_at).toLocaleTimeString()}</td>
+                                <td style="font-family: monospace; font-size: 12px; color: var(--text-secondary);">\${t.request_id.substring(0, 8)}...</td>
+                                <td><span class="badge badge-tool">\${t.tool_used}</span></td>
+                                <td>\${t.description}</td>
+                                <td><span class="badge badge-provider">\${t.provider}</span></td>
+                                <td style="font-size: 12px; color: var(--text-secondary);">\${t.fallbacks_tried || '-'}</td>
+                                <td>\${t.latency_ms}ms</td>
+                                <td><span class="status-\${t.status}">\${t.status.toUpperCase()}</span></td>
+                            </tr>
+                        \`).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
+        res.send(html);
+    } catch (err) {
+        res.status(500).send(`Observability error: ${err.message}`);
+    }
+});
+
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 
 function startN8n() {
@@ -956,9 +1277,11 @@ function startN8n() {
 const PORT = process.env.PORT || 10000;
 Promise.all([
     initAgentModes(pool),
-    initGoogleAuthTable(pool)
+    initGoogleAuthTable(pool),
+    initTraceTable(pool)
 ]).then(() => {
     startAutoLearning(ghostLearn, pool);
+    cleanupTraces(pool);
 });
 const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Ghost AI Engine Online on port ${PORT}.`);

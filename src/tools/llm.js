@@ -7,14 +7,25 @@ const MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'groq/compoun
 async function chat(messages, { model = MODELS[0], systemPrompt = null, maxTokens = 1024, retryCount = 0 } = {}) {
   const msgs = systemPrompt ? [{ role: 'system', content: systemPrompt }, ...messages] : messages;
   
+  let store;
+  try {
+    store = require('../../services/traceStore.js').traceLocalStorage.getStore();
+  } catch(e) {}
+
   if (process.env.GROQ_API_KEY && !process.env.GROQ_API_KEY.startsWith('dummy') && !process.env.GROQ_API_KEY.includes('invalid')) {
     try {
       const res = await groq.chat.completions.create({ model, messages: msgs, max_tokens: maxTokens });
       const usage = res.usage || {};
       trackCost(model, usage.prompt_tokens || 0, usage.completion_tokens || 0);
+      if (store) {
+        store.llmCalls.push({ provider: 'Groq', model, status: 'success' });
+      }
       return res.choices[0].message.content;
     } catch (err) {
       console.warn(`[llm] Groq chat error: ${err.message}. Trying OpenRouter fallback...`);
+      if (store) {
+        store.llmCalls.push({ provider: 'Groq', model, status: 'failed', error: err.message });
+      }
     }
   }
 
@@ -37,9 +48,15 @@ async function chat(messages, { model = MODELS[0], systemPrompt = null, maxToken
       if (data.error) throw new Error(data.error.message || 'OpenRouter API Error');
       const usage = data.usage || {};
       trackCost(openRouterModel, usage.prompt_tokens || 0, usage.completion_tokens || 0);
+      if (store) {
+        store.llmCalls.push({ provider: 'OpenRouter', model: openRouterModel, status: 'success' });
+      }
       return data.choices[0].message.content;
     } catch (err) {
       console.error('[llm] OpenRouter fallback failed:', err.message);
+      if (store) {
+        store.llmCalls.push({ provider: 'OpenRouter', model: 'meta-llama/llama-3.3-70b-instruct', status: 'failed', error: err.message });
+      }
     }
   }
 
