@@ -19,6 +19,7 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 import { classifyComplexity, analyzeIntent, buildTaskPlan, generateToolParams, verifyGoalSatisfaction } from './services/intentPlanner.js';
 import { loadCatalog, routeCapabilityToTools } from './services/toolRouter.js';
 import { initAgentModes, activateMorningDigest, activateScheduledMonitor } from './services/agentModes.js';
+import { runPythonSandbox } from './services/pythonSandbox.js';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -267,55 +268,7 @@ function extractToolCommand(text) {
     return null;
 }
 
-// ============================================================
-// PYTHON SANDBOX SECURITY
-// ============================================================
 
-// Dangerous Python imports that could be used for network access or system compromise
-const BLOCKED_PYTHON_IMPORTS = [
-    'requests', 'urllib', 'http.client', 'socket', 'subprocess', 
-    'shutil', 'pathlib', '__import__', 'importlib', 'ctypes',
-    'pickle', 'shelve', 'multiprocessing', 'threading'
-];
-
-/**
- * Validate Python code before execution.
- * Returns { safe: boolean, reason: string }
- */
-function validatePythonCode(code) {
-    if (!code || typeof code !== 'string') return { safe: false, reason: 'Empty code' };
-    
-    // Max code size: 50KB
-    if (code.length > 50000) return { safe: false, reason: 'Code exceeds maximum size limit (50KB)' };
-    
-    const lowerCode = code.toLowerCase();
-    
-    // Check for blocked imports
-    for (const imp of BLOCKED_PYTHON_IMPORTS) {
-        const importPatterns = [
-            new RegExp(`import\\s+${imp}`, 'i'),
-            new RegExp(`from\\s+${imp}`, 'i'),
-            new RegExp(`__import__\\s*\\(\\s*['"]${imp}`, 'i')
-        ];
-        for (const pattern of importPatterns) {
-            if (pattern.test(code)) {
-                return { safe: false, reason: `Blocked import: ${imp} — network/system access not allowed in sandbox` };
-            }
-        }
-    }
-    
-    // Check for dangerous system calls
-    if (/os\.system\s*\(/i.test(code) || /os\.popen\s*\(/i.test(code) || /os\.exec/i.test(code)) {
-        return { safe: false, reason: 'System command execution blocked in sandbox' };
-    }
-    
-    // Check for file system traversal
-    if (/\.\.\//.test(code) || /~\//.test(code)) {
-        return { safe: false, reason: 'Path traversal blocked in sandbox' };
-    }
-    
-    return { safe: true };
-}
 
 // ============================================================
 // AUTH & RATE LIMITING
@@ -650,27 +603,22 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
         }
 
         // ============================================================
-        // PYTHON SANDBOX — hardened with import validation
+        // PYTHON SANDBOX — hardened with OS limits
         // ============================================================
         const codeRegex = /[\x60]{3}python\n([\s\S]*?)[\x60]{3}/i;
         const match = fullResponse ? fullResponse.match(codeRegex) : null;
         if (ghostCodeMode && match && match[1]) {
+            actionTriggered = "python_execution";
             const pythonCode = match[1].trim();
-            const validation = validatePythonCode(pythonCode);
-            
-            if (!validation.safe) {
-                replyText = fullResponse.replace(match[0], `[Python Sandbox Blocked]: ${validation.reason}`);
-            } else {
-                actionTriggered = "python_execution";
-                // Use random UUID filenames to prevent race conditions during concurrent runs
-                const tempFileName = `ghost_${crypto.randomUUID()}.py`;
-                const tempFilePath = path.join(__dirname, tempFileName);
-                fs.writeFileSync(tempFilePath, pythonCode);
-                try {
-                    const executionOutput = execSync(`python3 ${tempFilePath}`, { timeout: 15000, encoding: 'utf-8' });
-                    replyText = fullResponse.replace(match[0], `\n\`\`\`html\n${executionOutput.trim()}\n\`\`\`\n`);
-                } catch (execError) { replyText = fullResponse.replace(match[0], `[Python Error]: ${execError.stderr || execError.message}`); }
-                if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+            try {
+                const executionResult = await runPythonSandbox(pythonCode);
+                if (executionResult.success) {
+                    replyText = fullResponse.replace(match[0], `\n\`\`\`html\n${executionResult.output.trim()}\n\`\`\`\n`);
+                } else {
+                    replyText = fullResponse.replace(match[0], `[Python Error]: ${executionResult.error}`);
+                }
+            } catch (err) {
+                replyText = fullResponse.replace(match[0], `[Python Error]: ${err.message}`);
             }
         }
 

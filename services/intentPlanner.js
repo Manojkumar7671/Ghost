@@ -31,7 +31,7 @@ export function classifyComplexity(userMessage) {
     const complexWords = [
         'research', 'deep dive', 'deep_research', 'analyze', 
         'summarize and', 'compare', 'monitor', 'find and email',
-        'scrape and', 'search for'
+        'scrape and', 'search for', 'email', 'someone'
     ];
     if (complexWords.some(word => msg.includes(word)) && msg.split(' ').length > 4) {
         return 'complex';

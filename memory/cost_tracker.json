@@ -1,6 +1,6 @@
 {
-  "total_tokens": 33721,
-  "total_cost_usd": 0.021514989999999994,
+  "total_tokens": 34838,
+  "total_cost_usd": 0.02223681999999999,
   "calls": [
     {
       "model": "llama-3.3-70b-versatile",
@@ -701,6 +701,34 @@
       "output_tokens": 21,
       "cost": 0.00028681,
       "ts": "2026-07-19T08:26:44.541Z"
+    },
+    {
+      "model": "meta-llama/llama-3.3-70b-instruct",
+      "input_tokens": 452,
+      "output_tokens": 62,
+      "cost": 0.00031566,
+      "ts": "2026-07-19T08:28:25.816Z"
+    },
+    {
+      "model": "meta-llama/llama-3.3-70b-instruct",
+      "input_tokens": 42,
+      "output_tokens": 150,
+      "cost": 0.00014328,
+      "ts": "2026-07-19T08:28:33.026Z"
+    },
+    {
+      "model": "meta-llama/llama-3.3-70b-instruct",
+      "input_tokens": 128,
+      "output_tokens": 34,
+      "cost": 0.00010237999999999999,
+      "ts": "2026-07-19T08:28:34.589Z"
+    },
+    {
+      "model": "meta-llama/llama-3.3-70b-instruct",
+      "input_tokens": 181,
+      "output_tokens": 68,
+      "cost": 0.00016051,
+      "ts": "2026-07-19T08:29:29.921Z"
     }
   ]
 }
