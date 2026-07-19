@@ -59,7 +59,7 @@ if (process.env.SUPABASE_DB_URL) {
     pool = new Pool({
         connectionString: process.env.SUPABASE_DB_URL,
         ssl: { rejectUnauthorized: false },
-        max: 5,
+        max: 2,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
         keepAlive: true
@@ -634,6 +634,7 @@ function startN8n() {
         ...process.env,
         N8N_PORT: '5678',
         N8N_PATH: '/n8n',
+        N8N_PROXY_HOPS: '1',
         N8N_EDITOR_BASE_URL: process.env.RENDER_EXTERNAL_URL 
             ? `${process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '')}/n8n/` 
             : 'https://ghost-34qz.onrender.com/n8n/',

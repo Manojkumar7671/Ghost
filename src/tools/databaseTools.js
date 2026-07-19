@@ -4,7 +4,8 @@ let pool;
 if (process.env.SUPABASE_DB_URL) {
   pool = new Pool({
     connectionString: process.env.SUPABASE_DB_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
+    max: 2
   });
 } else {
   console.warn("[Database Tools] Warning: SUPABASE_DB_URL is not set. Database query tool will not be functional.");

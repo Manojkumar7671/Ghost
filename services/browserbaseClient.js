@@ -4,7 +4,7 @@ import pkg from 'pg';
 const { Pool } = pkg;
 let pool;
 if (process.env.SUPABASE_DB_URL) {
-    pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
+    pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false }, max: 2 });
 }
 
 class BrowserbaseClient {
