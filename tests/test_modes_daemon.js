@@ -89,23 +89,27 @@ async function runTests() {
   // ==========================================
   // 4. MAC DRIVER DESKTOP AUTOMATION
   // ==========================================
-  console.log('\nTesting macOS Control Driver...');
-  
-  // Test runScript returns AppleScript evaluation result
-  const appleScriptRes = await runScript('return "Hello AppleScript"');
-  assert.strictEqual(appleScriptRes.success, true);
-  assert.strictEqual(appleScriptRes.stdout, 'Hello AppleScript');
-  console.log('✓ macOS runScript works');
+  if (process.platform === 'darwin') {
+    console.log('\nTesting macOS Control Driver...');
+    
+    // Test runScript returns AppleScript evaluation result
+    const appleScriptRes = await runScript('return "Hello AppleScript"');
+    assert.strictEqual(appleScriptRes.success, true);
+    assert.strictEqual(appleScriptRes.stdout, 'Hello AppleScript');
+    console.log('✓ macOS runScript works');
 
-  // Test openUrl
-  const urlRes = openUrl('https://example.com');
-  assert.strictEqual(urlRes.success, true);
-  console.log('✓ macOS openUrl executes');
+    // Test openUrl
+    const urlRes = openUrl('https://example.com');
+    assert.strictEqual(urlRes.success, true);
+    console.log('✓ macOS openUrl executes');
 
-  // Test openApp
-  const appRes = openApp('Safari');
-  assert.strictEqual(appRes.success, true);
-  console.log('✓ macOS openApp executes');
+    // Test openApp
+    const appRes = openApp('Safari');
+    assert.strictEqual(appRes.success, true);
+    console.log('✓ macOS openApp executes');
+  } else {
+    console.log(`\n[Test Skip] Skipping macOS Control Driver tests on platform ${process.platform}`);
+  }
 
   console.log('\n=== ALL MODE & DAEMON TESTS PASSED SUCCESSFULLY ===');
   process.exit(0);
