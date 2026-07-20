@@ -17,11 +17,7 @@ if (process.env.SUPABASE_DB_URL) {
  */
 async function executeQuery(payload) {
   const { sql, params = [], userContext } = payload;
-  
-  if (!pool) {
-    return { error: "Database not connected. SUPABASE_DB_URL env variable is missing or empty." };
-  }
-  
+
   // If GHOST_DEPLOYMENT_MODE is 'public' (or unset), block non-admin writes
   const isPublic = (process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public';
   if (isPublic && (!userContext || !userContext.isAdmin)) {
@@ -50,6 +46,10 @@ async function executeQuery(payload) {
     })) {
       return { error: "Database execution failed: Writing and schema-modifying queries are restricted to admin clearance in public deployment mode." };
     }
+  }
+
+  if (!pool) {
+    return { error: "Database not connected. SUPABASE_DB_URL env variable is missing or empty." };
   }
   
   // Guard check to block destructive operations on system tables or credentials
