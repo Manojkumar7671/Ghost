@@ -108,6 +108,7 @@ async function runTests() {
   console.log('✓ macOS openApp executes');
 
   console.log('\n=== ALL MODE & DAEMON TESTS PASSED SUCCESSFULLY ===');
+  process.exit(0);
 }
 
 runTests().catch(e => {

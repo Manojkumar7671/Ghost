@@ -44,7 +44,7 @@ jobs:
 
       - name: Run Test Suites
         env:
-          SUPABASE_DB_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           JWT_SECRET: ci-jwt-secret-key-must-be-long-enough
           ADMIN_PASSPHRASE: ci-admin-passphrase-clearance
           GOOGLE_TOKEN_ENCRYPTION_KEY: ci-token-encryption-key-32-chars-long

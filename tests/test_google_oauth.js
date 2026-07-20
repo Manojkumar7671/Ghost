@@ -193,6 +193,7 @@ async function runTests() {
     globalThis.fetch = originalFetch;
 
     console.log('=== ALL TESTS PASSED SUCCESSFULLY ===');
+    process.exit(0);
   } catch (err) {
     console.error('Test Suite Failed:', err);
     process.exit(1);
