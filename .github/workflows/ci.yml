@@ -37,7 +37,7 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
       - name: Run Syntax Checks
         run: node --check server.js
@@ -58,7 +58,7 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
 
     steps:
       - name: Trigger Render Deploy
