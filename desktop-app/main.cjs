@@ -138,11 +138,21 @@ ipcMain.on('desktop-notify', (event, { title, body }) => {
 
 // Main Electron Lifecycle Init
 app.whenReady().then(async () => {
+  try {
+    app.setLoginItemSettings({
+      openAtLogin: true,
+      openAsHidden: false
+    });
+    console.log('[Desktop Main] Enabled native openAtLogin setting.');
+  } catch (err) {
+    console.warn('[Desktop Main] Failed to set login item settings:', err.message);
+  }
+
   const running = await isServerRunning();
   if (!running) {
     startGhostServer();
-    // Wait for server port 3000 to become ready
-    for (let i = 0; i < 15; i++) {
+    // Wait for server port 3000 to become ready (up to 15 seconds)
+    for (let i = 0; i < 30; i++) {
       await new Promise((res) => setTimeout(res, 500));
       if (await isServerRunning()) break;
     }
