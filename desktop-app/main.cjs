@@ -1,7 +1,7 @@
 const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, nativeImage } = require('electron');
 const path = require('path');
 const http = require('http');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 
 let mainWindow = null;
 let tray = null;
@@ -24,18 +24,19 @@ function isServerRunning() {
 }
 
 /**
- * Spawns the Ghost Node.js server (server.js) locally with dotenv loaded
+ * Starts the Ghost and FreeLLMAPI backend processes via PM2
  */
 function startGhostServer() {
-  console.log('[Desktop Main] Spawning local Ghost server (server.js)...');
-  serverProcess = spawn('node', ['-r', 'dotenv/config', 'server.js'], {
+  console.log('[Desktop Main] Starting PM2 processes (ghost-ai & freellmapi)...');
+  // Use spawn to run 'pm2 start ecosystem.config.cjs'
+  const pm2Process = spawn('pm2', ['start', 'ecosystem.config.cjs'], {
     cwd: ROOT_DIR,
-    env: { ...process.env, PORT: '3000' },
-    stdio: 'inherit'
+    stdio: 'inherit',
+    shell: true
   });
 
-  serverProcess.on('error', (err) => {
-    console.error('[Desktop Main] Server spawn error:', err.message);
+  pm2Process.on('error', (err) => {
+    console.error('[Desktop Main] PM2 process startup error:', err.message);
   });
 }
 
@@ -120,11 +121,17 @@ function createTray() {
  * Cleanly terminates child processes and exits app
  */
 function cleanupAndQuit() {
-  if (serverProcess) {
-    console.log('[Desktop Main] Terminating spawned Ghost server process...');
-    try {
-      serverProcess.kill('SIGTERM');
-    } catch (e) {}
+  console.log('[Desktop Main] Stopping PM2 processes (ghost-ai & freellmapi)...');
+  try {
+    // Run 'pm2 stop ecosystem.config.cjs' synchronously before exiting
+    spawnSync('pm2', ['stop', 'ecosystem.config.cjs'], {
+      cwd: ROOT_DIR,
+      stdio: 'inherit',
+      shell: true
+    });
+    console.log('[Desktop Main] PM2 backend stopped.');
+  } catch (e) {
+    console.error('[Desktop Main] Failed to stop PM2 on exit:', e.message);
   }
   app.quit();
 }
@@ -140,10 +147,10 @@ ipcMain.on('desktop-notify', (event, { title, body }) => {
 app.whenReady().then(async () => {
   try {
     app.setLoginItemSettings({
-      openAtLogin: true,
+      openAtLogin: false,
       openAsHidden: false
     });
-    console.log('[Desktop Main] Enabled native openAtLogin setting.');
+    console.log('[Desktop Main] Disabled native openAtLogin setting.');
   } catch (err) {
     console.warn('[Desktop Main] Failed to set login item settings:', err.message);
   }
