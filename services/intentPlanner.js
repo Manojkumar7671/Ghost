@@ -1,4 +1,5 @@
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 
@@ -116,6 +117,21 @@ function extractJsonFromResponse(raw) {
 }
 
 export async function generateToolParams(toolName, stepDescription, previousResults, originalMessage) {
+    let instructionsPrompt = '';
+    if (toolName === 'database_query') {
+        try {
+            const skillPath = path.join(__dirname, '../skills/db_query/SKILL.md');
+            if (fs.existsSync(skillPath)) {
+                const skillContent = fs.readFileSync(skillPath, 'utf8');
+                const match = skillContent.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n([\s\S]*)$/);
+                const body = match ? match[1].trim() : skillContent.trim();
+                instructionsPrompt = `\n\nUSE THESE GUIDELINES FOR GENERATING SQL:\n${body}`;
+            }
+        } catch (e) {
+            console.error('[IntentPlanner] Error loading db_query instructions:', e.message);
+        }
+    }
+
     const systemPrompt = `You are Ghost's Tool Parameter Generator. Generate the exact JSON parameters for the tool "${toolName}" to perform this step: "${stepDescription}".
 
 Original Goal: "${originalMessage}"
@@ -124,7 +140,7 @@ ${previousResults.map((r, i) => `- Step: ${r.description}\n  Result: ${String(r.
 
 Respond ONLY with a valid raw JSON object representing the parameters for this tool. Follow the schema/naming of typical tool arguments (e.g. for web_search: { "query": "..." }, for database_query: { "sql": "..." }, for workspace_edit_file: { "path": "...", "targetContent": "...", "replacementContent": "..." }).
 
-CRITICAL: If the tool is "workspace_edit_file", note that the previous step's file view result includes line numbers like "1: code", "2: code". These line numbers are NOT in the actual file! You MUST strip "1: ", "2: " prefixes from the code when writing the "targetContent" and "replacementContent" parameters!`;
+CRITICAL: If the tool is "workspace_edit_file", note that the previous step's file view result includes line numbers like "1: code", "2: code". These line numbers are NOT in the actual file! You MUST strip "1: ", "2: " prefixes from the code when writing the "targetContent" and "replacementContent" parameters!${instructionsPrompt}`;
 
     const res = await chat(
         [{ role: 'user', content: `Generate params for ${toolName}` }],

@@ -15,8 +15,31 @@ if (process.env.SUPABASE_DB_URL) {
  * Executes a PostgreSQL query directly against the connected Supabase instance.
  * Allows the Ghost AI brain to dynamically inspect tables, update states, and save logs.
  */
+async function logTrajectory(userGoal, sql, resultOutput, status) {
+  if (!pool) return;
+  try {
+    await pool.query(
+      `CREATE TABLE IF NOT EXISTS skillopt_trajectories (
+        id SERIAL PRIMARY KEY,
+        user_goal TEXT,
+        generated_sql TEXT,
+        result_output TEXT,
+        status TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )`
+    );
+    await pool.query(
+      `INSERT INTO skillopt_trajectories (user_goal, generated_sql, result_output, status)
+       VALUES ($1, $2, $3, $4)`,
+      [userGoal || 'Unknown', sql, JSON.stringify(resultOutput), status]
+    );
+  } catch (err) {
+    console.error('[SkillOpt Logger] Error logging trajectory:', err.message);
+  }
+}
+
 async function executeQuery(payload) {
-  const { sql, params = [], userContext } = payload;
+  const { sql, params = [], userContext, userGoal } = payload;
 
   // If GHOST_DEPLOYMENT_MODE is 'public' (or unset), block non-admin writes
   const isPublic = (process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public';
@@ -33,7 +56,9 @@ async function executeQuery(payload) {
 
     // 3. Whitelist check: must start with SELECT (or SHOW/DESCRIBE)
     if (firstWord !== 'select' && firstWord !== 'show' && firstWord !== 'describe') {
-      return { error: "Database execution failed: Writing and schema-modifying queries are restricted to admin clearance in public deployment mode." };
+      const err = { error: "Database execution failed: Writing and schema-modifying queries are restricted to admin clearance in public deployment mode." };
+      logTrajectory(userGoal, sql, err, 'fail').catch(() => {});
+      return err;
     }
 
     // 4. Blocklist check: check if any write keyword appears anywhere in the comment-free SQL
@@ -44,30 +69,40 @@ async function executeQuery(payload) {
       const regex = new RegExp('\\b' + keyword + '\\b');
       return regex.test(queryLower);
     })) {
-      return { error: "Database execution failed: Writing and schema-modifying queries are restricted to admin clearance in public deployment mode." };
+      const err = { error: "Database execution failed: Writing and schema-modifying queries are restricted to admin clearance in public deployment mode." };
+      logTrajectory(userGoal, sql, err, 'fail').catch(() => {});
+      return err;
     }
   }
 
   if (!pool) {
-    return { error: "Database not connected. SUPABASE_DB_URL env variable is missing or empty." };
+    const err = { error: "Database not connected. SUPABASE_DB_URL env variable is missing or empty." };
+    logTrajectory(userGoal, sql, err, 'fail').catch(() => {});
+    return err;
   }
   
   // Guard check to block destructive operations on system tables or credentials
   const blockedKeywords = ['drop database', 'drop table users', 'delete from users', 'truncate table users', 'grant ', 'revoke '];
   const queryLower = sql.toLowerCase();
   if (blockedKeywords.some(keyword => queryLower.includes(keyword))) {
-    return { error: "Query blocked: Action attempts destructive modifications on restricted tables." };
+    const err = { error: "Query blocked: Action attempts destructive modifications on restricted tables." };
+    logTrajectory(userGoal, sql, err, 'fail').catch(() => {});
+    return err;
   }
   
   try {
     const res = await pool.query(sql, params);
-    return { 
+    const output = { 
       success: true, 
       rowCount: res.rowCount,
       rows: res.rows.slice(0, 100) // Truncate rows to prevent token limit overflows
     };
+    logTrajectory(userGoal, sql, output, 'pass').catch(() => {});
+    return output;
   } catch (err) {
-    return { error: `Postgres execution failed: ${err.message}` };
+    const errorOutput = { error: `Postgres execution failed: ${err.message}` };
+    logTrajectory(userGoal, sql, errorOutput, 'fail').catch(() => {});
+    return errorOutput;
   }
 }
 

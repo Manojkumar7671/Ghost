@@ -240,7 +240,7 @@ async function execute(action, userMessage, previousResults = [], userContext = 
       
     // Added Supabase Postgres Database dynamic query route
     case 'database_query':
-      return await databaseTools.executeQuery({ ...params, userContext });
+      return await databaseTools.executeQuery({ ...params, userContext, userGoal: userMessage });
       
     // Added Google Direct API routes via OAuth
     case 'gmail_list_unread':
