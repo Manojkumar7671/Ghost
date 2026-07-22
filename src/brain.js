@@ -1,5 +1,5 @@
 const { chat } = require('./tools/llm');
-const { saveMessage, getHistory, remember } = require('./tools/memory');
+const { saveMessage, getHistory, remember, saveMemory, queryMemory } = require('./tools/memory');
 const { recordLearning, getRelevantLearnings } = require('./learningStore');
 const orchestrator = require('./agents/orchestrator');
 const workspaceTools = require('./tools/workspaceTools');
@@ -60,9 +60,18 @@ function extractJSON(raw) {
   return null;
 }
 
-async function plan(userMessage, userContext = { safeUser: 'guest', isAdmin: false }) {
+async function plan(userMessage, userContext = { safeUser: 'guest', isAdmin: false }, memoryContext = '') {
   const learnings = userContext.isAdmin ? getRelevantLearnings(userMessage) : "No past learnings available.";
   
+  let mcpToolsPrompt = '';
+  try {
+    const mcpClient = await import('../mcpClient.js');
+    const mcpTools = await mcpClient.listMcpTools();
+    if (mcpTools.length > 0) {
+      mcpToolsPrompt = '\nCONNECTED MCP TOOLS:\n' + mcpTools.map(t => `- "${t.name}": ${t.description}`).join('\n');
+    }
+  } catch (e) {}
+
   const response = await chat(
     [{ role: 'user', content: userMessage }],
     {
@@ -79,11 +88,15 @@ CRITICAL ROUTING RULES:
 4. WORKSPACE OPERATION: If the user asks you to view, edit, or modify files in their workspace, or run a terminal command locally, you MUST use workspace_view_file, workspace_edit_file, or workspace_run_command.
 5. DATABASE ACCESS: If the user asks to query tables, inspect schemas, save task metrics, or run database commands on Supabase, you MUST use database_query.
 
+RELEVANT PAST MEMORIES (RAG):
+${memoryContext || "No past memory context matched."}
+
 LEARNINGS FROM PAST TASKS:
 Use these past task outcomes to bias your tool selection (prefer tools that succeeded for similar tasks):
 ${learnings}
+${mcpToolsPrompt}
 
-Available tools: [chat, orchestrator_run, web_search, web_scrape, email_draft, email_send, github_repos, github_analyze, github_push, image_generate, notion_search, notion_create, goal_run, self_analyze, voice_speak, schedule, briefing, memory_save, memory_get, workspace_view_file, workspace_edit_file, workspace_run_command, database_query]
+Available tools: [chat, orchestrator_run, web_search, web_scrape, email_draft, email_send, github_repos, github_analyze, github_push, image_generate, notion_search, notion_create, goal_run, self_analyze, voice_speak, schedule, briefing, memory_save, memory_get, workspace_view_file, workspace_edit_file, workspace_run_command, database_query, mcp_call]
 
 RESPONSE FORMAT: Output ONLY a valid JSON array. No markdown fences, no explanation, no preamble.
 Example: [{"tool":"web_search","params":{"query":"latest AI news"},"reason":"User asked for current information"}]`,
@@ -104,16 +117,42 @@ Example: [{"tool":"web_search","params":{"query":"latest AI news"},"reason":"Use
   return [{ tool: 'orchestrator_run', params: { task: userMessage }, reason: 'Fallback to orchestrator — plan parse failed' }];
 }
 
+function getSystemPrompt(userContext = {}) {
+  const isAdmin = !!userContext.isAdmin;
+  const name = userContext.safeUser && userContext.safeUser !== 'guest' ? userContext.safeUser.toUpperCase() : 'VISITOR';
+  const greetingRule = isAdmin
+    ? `- Address the user as "Master Manoj" with a dry, crisp, British demeanor — impeccably polite and slightly witty.`
+    : `- Address the user as "${name}" (who is a guest visitor, not the admin). Impeccably polite, professional, but do NOT call them "Master Manoj" because they have not authenticated with the admin clearance key.`;
+
+  return `You are Ghost, a personal AI agent built and run by Manoj Kumar. You are not a generic chatbot — you have persistent memory, real tool access (file system, terminal, database, web automation, scheduled tasks), MCP tool access, and you route between multiple LLM providers for intelligence.
+
+Behavior rules:
+${greetingRule}
+- Be direct and concise. No filler, no over-apologizing.
+- When you have relevant memory of past conversations, use it naturally without announcing "I recall..." — just use the fact.
+- When a task requires a tool (file, terminal, database, webhook, scheduling, MCP), use it rather than just describing what could be done. Prefer acting over explaining when intent is clear.
+- Before saying something can't be done, check what tools/resources you actually have available (built-in tools, connected MCP servers, scheduler, memory) — don't default to "I can't" if a resource exists to do it.
+- If a tool call fails or a credential is missing, say so plainly and suggest the fix — don't pretend it worked.
+- You are honest about your own limitations — you are not Claude, GPT-4, or any frontier model; you route to free/open models and should be upfront if a task is beyond current capability rather than bluffing.
+- When you notice a gap in your own capabilities during a task (a missing tool, a stubbed integration, an env var that's not set), flag it clearly to the admin as a suggested improvement rather than silently working around it or failing quietly.
+- Keep track of recurring requests or friction points across conversations (via memory) and proactively suggest capability upgrades when a pattern repeats, instead of waiting to be asked.
+- Never fabricate a capability you don't have. If uncertain whether a tool/resource is available, check first, then answer.`;
+}
+
 async function execute(action, userMessage, previousResults = [], userContext = {}) {
   const { tool, params } = action;
   const context = previousResults.map(r => r.output).join('\n');
   switch (tool) {
     case 'chat': {
       const { safeUser = 'guest', isAdmin = false } = userContext;
-      return await chat([...getHistory(safeUser, 15), { role: 'user', content: userMessage }], {
-        systemPrompt: isAdmin
-          ? 'You are Ghost, a sharp autonomous AI assistant for Manoj. Be concise and helpful.'
-          : 'You are Ghost, an AI assistant. Be concise and helpful.'
+      const history = getHistory(safeUser, 15);
+      if (history.length > 0 && history[history.length - 1].role === 'user' && history[history.length - 1].content === userMessage) {
+        return await chat(history, {
+          systemPrompt: getSystemPrompt(userContext)
+        });
+      }
+      return await chat([...history, { role: 'user', content: userMessage }], {
+        systemPrompt: getSystemPrompt(userContext)
       });
     }
     case 'orchestrator_run':
@@ -225,8 +264,19 @@ async function execute(action, userMessage, previousResults = [], userContext = 
       return await sendDaemonCommand('runScript', { script: params.script });
     }
       
+    case 'mcp_call': {
+      const mcpClient = await import('../mcpClient.js');
+      const res = await mcpClient.callMcpTool(params.name || params.toolName, params.args || params);
+      return typeof res === 'string' ? res : JSON.stringify(res);
+    }
+      
     default:
-      return await chat([{ role: 'user', content: userMessage }], { systemPrompt: 'You are Ghost.' });
+      if (tool && tool.startsWith('mcp_')) {
+        const mcpClient = await import('../mcpClient.js');
+        const res = await mcpClient.callMcpTool(tool, params);
+        return typeof res === 'string' ? res : JSON.stringify(res);
+      }
+      return await chat([{ role: 'user', content: userMessage }], { systemPrompt: getSystemPrompt(userContext) });
   }
 }
 
@@ -284,8 +334,14 @@ async function summarize(userMessage, actions, results) {
 async function think(userMessage, userContext = { safeUser: 'guest', isAdmin: false }) {
   const username = userContext.safeUser || 'guest';
   saveMessage(username, 'user', userMessage);
+
+  // RAG: Query relevant past memories
+  const pastMemories = await queryMemory(userMessage, 3);
+  const memoryContext = pastMemories && pastMemories.length > 0
+    ? pastMemories.map(m => `- ${m.text}`).join('\n')
+    : '';
   
-  const actions = await plan(userMessage, userContext);
+  const actions = await plan(userMessage, userContext, memoryContext);
   const results = [];
   let executionSuccess = true;
 
@@ -301,6 +357,9 @@ async function think(userMessage, userContext = { safeUser: 'guest', isAdmin: fa
   
   const reply = await summarize(userMessage, actions, results);
   saveMessage(username, 'assistant', reply);
+
+  // Save exchange to persistent vector memory
+  await saveMemory(`User: ${userMessage} | Ghost: ${reply}`, { safeUser: username });
 
   if (userContext.isAdmin) {
     recordLearning(

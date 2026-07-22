@@ -1,20 +1,40 @@
 const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
+const os = require('os');
 
 const PROJECT_ROOT = path.resolve(__dirname, '../../');
 
 // Resolves and guarantees path safety, blocking path traversal outside of the Ghost project directory
 function resolveSafePath(relativePath) {
-  const resolved = path.resolve(PROJECT_ROOT, relativePath);
-  if (!resolved.startsWith(PROJECT_ROOT)) {
+  let absolutePath;
+  if (relativePath === '~') {
+    absolutePath = os.homedir();
+  } else if (relativePath.startsWith('~/') || relativePath.startsWith('~\\')) {
+    absolutePath = path.resolve(os.homedir(), relativePath.slice(2));
+  } else if (relativePath.startsWith('~')) {
+    absolutePath = path.resolve(os.homedir(), relativePath.slice(1));
+  } else {
+    const isLocal = (process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'local';
+    const resolvedProject = path.resolve(PROJECT_ROOT, relativePath);
+    if (isLocal && !fs.existsSync(resolvedProject)) {
+      const resolvedHome = path.resolve(os.homedir(), relativePath);
+      if (fs.existsSync(resolvedHome)) {
+        return resolvedHome;
+      }
+    }
+    absolutePath = resolvedProject;
+  }
+
+  const isLocal = (process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'local';
+  if (!isLocal && !absolutePath.startsWith(PROJECT_ROOT)) {
     throw new Error("Access Denied: Path traversal attempted outside project boundary.");
   }
-  return resolved;
+  return absolutePath;
 }
 
 /**
- * View specific line ranges of a workspace file (1-indexed)
+ * View specific line ranges of a workspace file or list directory contents (1-indexed)
  */
 async function viewFile(payload) {
   const { path: relPath, startLine = 1, endLine = 80 } = payload;
@@ -22,6 +42,16 @@ async function viewFile(payload) {
     const filePath = resolveSafePath(relPath);
     if (!fs.existsSync(filePath)) return { error: `File not found: ${relPath}` };
     
+    const stat = fs.statSync(filePath);
+    if (stat.isDirectory()) {
+      const files = fs.readdirSync(filePath);
+      return {
+        path: relPath,
+        isDirectory: true,
+        files: files.slice(0, 100)
+      };
+    }
+
     const content = fs.readFileSync(filePath, 'utf-8');
     const lines = content.split('\n');
     const startIdx = Math.max(0, startLine - 1);
@@ -46,7 +76,14 @@ async function editFile(payload) {
   const { path: relPath, targetContent, replacementContent } = payload;
   try {
     const filePath = resolveSafePath(relPath);
-    if (!fs.existsSync(filePath)) return { error: `File not found: ${relPath}` };
+    if (!fs.existsSync(filePath)) {
+      if (!targetContent) {
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        fs.writeFileSync(filePath, replacementContent || '', 'utf-8');
+        return { success: true, path: relPath, message: "File created successfully." };
+      }
+      return { error: `File not found: ${relPath}` };
+    }
     
     const content = fs.readFileSync(filePath, 'utf-8');
     
@@ -80,7 +117,14 @@ async function runWorkspaceCommand(payload) {
     return { error: "Command blocked: contains restricted system modifiers." };
   }
 
-  const { classifyCommand } = await import('../../../services/commandGate.js');
+  const { checkProcessSpawn } = await import('../../services/securityMonitor.js');
+  try {
+    checkProcessSpawn(command);
+  } catch (err) {
+    return { error: err.message };
+  }
+
+  const { classifyCommand } = await import('../../services/commandGate.js');
   const gateRes = classifyCommand(command);
   if (!gateRes.safe) {
     return { error: gateRes.reason };

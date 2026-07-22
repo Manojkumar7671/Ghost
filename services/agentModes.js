@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import path from 'path';
 import { safeFetch } from './urlSafety.js';
 import { createRequire } from 'module';
+import { runAutonomous } from './autonomousLoop.js';
 
 const require = createRequire(import.meta.url);
 const llm = require('../src/tools/llm.js');
@@ -154,4 +155,105 @@ Does the content meet or trigger the condition? Respond with a JSON object:
 
 export function listActiveJobs() {
     return Array.from(activeJobs.keys());
+}
+
+export async function deepResearch(query, userContext = {}, pool = null) {
+  const username = userContext.safeUser || 'guest';
+  let currentQuery = query;
+  let aggregatedData = [];
+  let visitedQueries = new Set();
+  let iteration = 1;
+  const maxIterations = 8;
+
+  console.log(`[Deep Research] Starting deep research for query: "${query}"`);
+  saveMessage(username, 'assistant', `[Deep Research] Initiating deep research on: "${query}"...`);
+
+  while (iteration <= maxIterations) {
+    if (visitedQueries.has(currentQuery.toLowerCase())) {
+      console.log(`[Deep Research] Query "${currentQuery}" already searched. Ending research.`);
+      break;
+    }
+    visitedQueries.add(currentQuery.toLowerCase());
+
+    console.log(`[Deep Research] Iteration ${iteration}: Searching for "${currentQuery}"`);
+    saveMessage(username, 'assistant', `[Deep Research] Searching angle ${iteration}: "${currentQuery}"...`);
+
+    let searchResult;
+    try {
+      searchResult = await webAgent.searchWeb(currentQuery);
+    } catch (e) {
+      searchResult = { summary: `Error: ${e.message}` };
+    }
+
+    const summary = searchResult.summary || JSON.stringify(searchResult);
+    aggregatedData.push({ query: currentQuery, summary });
+
+    const prompt = `We are performing exhaustive research on the topic: "${query}".
+So far we have gathered:
+${aggregatedData.map((d, i) => `Angle ${i+1} (${d.query}): ${d.summary.slice(0, 400)}`).join('\n')}
+
+Based on the goal and current findings, is there any remaining gap, missing details, or unresolved angle that we must search for to make this research complete?
+
+Respond ONLY with a valid raw JSON object (no markdown, no other text):
+{
+  "hasNewInfo": true or false,
+  "newQuery": "The next search query to resolve the identified gap (empty if none)",
+  "explanation": "Brief explanation of what gap is resolved by this new query"
+}`;
+
+    const checkRes = await chat([{ role: 'user', content: prompt }], {
+      systemPrompt: "You are Ghost's deep research planner. Respond only with valid raw JSON.",
+      model: 'google/gemini-2.5-flash'
+    });
+
+    let plan = { hasNewInfo: false, newQuery: '' };
+    try {
+      const cleaned = checkRes.replace(/```(?:json)?/g, '').trim();
+      plan = JSON.parse(cleaned);
+    } catch (e) {
+      const objMatch = checkRes.match(/\{[\s\S]*\}/);
+      if (objMatch) plan = JSON.parse(objMatch[0]);
+    }
+
+    if (!plan.hasNewInfo || !plan.newQuery) {
+      console.log(`[Deep Research] No new angles identified. Synthesis starting.`);
+      break;
+    }
+
+    currentQuery = plan.newQuery;
+    iteration++;
+  }
+
+  saveMessage(username, 'assistant', `[Deep Research] Research angles completed. Synthesizing all findings...`);
+
+  // Synthesis
+  const synthesisPrompt = `Synthesize all the research findings collected for the query: "${query}".
+Findings gathered:
+${aggregatedData.map((d, i) => `Angle ${i+1} (${d.query}):\n${d.summary}`).join('\n\n')}
+
+Write a highly detailed, comprehensive research report that covers all these aspects thoroughly. Use markdown formatting.`;
+
+  const finalReport = await chat([{ role: 'user', content: synthesisPrompt }], {
+    systemPrompt: "You are Ghost, Manoj's loyal AI researcher. Write a comprehensive research report.",
+    model: 'google/gemini-2.5-flash'
+  });
+
+  saveMessage(username, 'assistant', finalReport);
+  return finalReport;
+}
+
+export async function buildTask(goal, userContext = {}, pool = null) {
+  const username = userContext.safeUser || 'guest';
+  saveMessage(username, 'assistant', `[Build Task] Initiating build task autonomous execution for goal: "${goal}"...`);
+  const result = await runAutonomous(goal, userContext, pool);
+  
+  let finalMsg;
+  if (result.status === 'fixed') {
+    finalMsg = `[Build Task] Success! Goal accomplished: "${goal}"\n\nResult:\n${result.message}`;
+  } else {
+    finalMsg = `[Build Task] Failed or requires feedback: "${goal}"\n\nReason:\n${result.reason}`;
+  }
+  
+  saveMessage(username, 'assistant', finalMsg);
+  return result;
 }

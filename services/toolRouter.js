@@ -150,7 +150,9 @@ export async function routeCapabilityToTools(requiredCapability, stepDescription
         browser_automation: ['browser_automation', 'scrape', 'playwright', 'browserbase'],
         email: ['email', 'gmail', 'mail', 'calendar', 'email_send', 'email_draft'],
         db_query: ['database_query', 'sql', 'db', 'postgres', 'db_query'],
-        code_exec: ['workspace_run_command', 'shell', 'python', 'exec']
+        code_exec: ['workspace_run_command', 'shell', 'python', 'exec'],
+        workspace_edit: ['workspace_edit_file', 'edit_file', 'write_file', 'workspace'],
+        workspace_view: ['workspace_view_file', 'view_file', 'read_file', 'workspace']
     };
 
     const targetTags = capToTags[requiredCapability] || [];

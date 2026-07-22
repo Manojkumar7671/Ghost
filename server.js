@@ -1,5 +1,6 @@
 import { checkToolAccess } from './adminGate.js';
 import { startAutoLearning } from './ghostLearnScheduler.js';
+import { initCronScheduler } from './services/cronScheduler.js';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
@@ -23,10 +24,12 @@ import { runPythonSandbox } from './services/pythonSandbox.js';
 import { initGoogleAuthTable, generateAuthUrl, handleOAuthCallback, revokeAccess } from './services/googleAuth.js';
 import { wss, authenticateUpgrade } from './services/localControlServer.js';
 import { traceLocalStorage, initTraceTable, saveTrace, cleanupTraces } from './services/traceStore.js';
+import { loadPlugins, matchAndRun } from './services/pluginSystem.js';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 const brain = require('./src/brain.js');
+const { callLLM: routerCallLLM } = require('./llmRouter.js');
 
 if (!process.env.ADMIN_PASSPHRASE || !process.env.JWT_SECRET || !process.env.N8N_ENCRYPTION_KEY) {
     console.error("\n[CRITICAL FATAL ERROR]: ADMIN_PASSPHRASE, JWT_SECRET, or N8N_ENCRYPTION_KEY missing.");
@@ -196,28 +199,7 @@ const PROVIDER_MATRIX = [
 ];
 
 async function callLLM(messages, maxTokens) {
-    for (const provider of PROVIDER_MATRIX) {
-        if (!provider.apiKey) continue;
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); 
-        try {
-            const res = await fetch(provider.endpoint, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: provider.model, messages, temperature: 0.1, max_tokens: maxTokens }),
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId); 
-            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-            const data = await res.json();
-            if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-            if (provider.name === 'Gemini' && (!data.choices || !data.choices[0] || !data.choices[0].message)) throw new Error("Invalid Gemini response structure.");
-            return data.choices[0].message.content;
-        } catch (e) {
-            clearTimeout(timeoutId);
-        }
-    }
-    throw new Error("Critical Gateway Failure: All matrix nodes unreachable.");
+    return await routerCallLLM(messages, { maxTokens });
 }
 
 // ============================================================
@@ -300,6 +282,10 @@ app.post('/api/auth', authLimiter, async (req, res) => {
             [success ? 'Master Manoj' : 'Failed Auth Attempt', success ? 'Login Success (Admin)' : `Login Failed (IP: ${ip})`, ip, userAgent]).catch(e => {});
     }
     if (success) return res.json({ success: true, role: 'admin' });
+    
+    const { recordFailedAuth } = await import('./services/securityMonitor.js');
+    recordFailedAuth(ip);
+
     res.clearCookie('ghost_session'); 
     return res.json({ success: true, role: 'guest' });
 });
@@ -486,6 +472,22 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                     if (Array.isArray(rawData)) userHistory = rawData;
                 }
             } catch (err) {}
+        }
+
+        const ghostContext = {
+            chat: (msg, opts) => brain.think(msg, opts),
+            execute: (action, goal, prev, context) => brain.execute(action, goal, prev, context),
+            db: pool,
+            userContext: { safeUser, isAdmin }
+        };
+        const pluginResult = await matchAndRun(message, ghostContext);
+        if (pluginResult.matched) {
+            if (pluginResult.error) {
+                res.json({ success: false, error: pluginResult.error });
+            } else {
+                res.json({ success: true, text: pluginResult.result });
+            }
+            return;
         }
 
         const lowerMsg = (message || '').toLowerCase().trim();
@@ -884,6 +886,17 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
     if (cachedAction.type === 'pipeline') {
         return res.status(400).json({ success: false, error: 'Use /api/pipeline/execute-action for pipeline actions.' });
     }
+    if (cachedAction.type === 'autonomous_loop') {
+        pendingActions.delete(actionId);
+        if (Date.now() > cachedAction.expiresAt) return res.status(400).json({ success: false, error: "Confirmation window timed out." });
+        try {
+            const { runAutonomous } = await import('./services/autonomousLoop.js');
+            const result = await runAutonomous(cachedAction.goal, cachedAction.userContext, pool, cachedAction.state);
+            return res.json({ success: true, result });
+        } catch (err) {
+            return res.status(500).json({ success: false, error: err.message });
+        }
+    }
     pendingActions.delete(actionId);
     if (Date.now() > cachedAction.expiresAt) return res.status(400).json({ success: false, error: "Confirmation window timed out." });
     const memoryUser = cachedAction.requestedBy || 'master_manoj';
@@ -927,9 +940,42 @@ app.post('/api/pipeline/execute', async (req, res) => {
     res.json({ success: true, result: `Pipeline executed with skills: ${skills.join(', ')}, input: ${input}` });
 });
 
+app.post('/api/admin/toggle-autonomy', requireAdminToken, async (req, res) => {
+    const { mode } = req.body;
+    try {
+        const { setAutonomousMode } = await import('./services/autonomousLoop.js');
+        const activeMode = setAutonomousMode(mode);
+        res.json({ success: true, mode: activeMode, message: `Ghost Autonomous Mode updated to [${activeMode}].` });
+    } catch (err) {
+        res.status(400).json({ success: false, error: err.message });
+    }
+});
+
 app.post('/api/voice/activate', async (req, res) => {
     const { wakeWord } = req.body;
     res.json({ success: true, message: `Voice activation ready for wake-word: ${wakeWord}` });
+});
+
+app.post('/api/voice/transcribe', async (req, res) => {
+    try {
+        const { audioBase64, filename } = req.body;
+        if (!audioBase64) return res.status(400).json({ error: 'Missing audioBase64 in request body.' });
+
+        const base64Data = audioBase64.replace(/^data:audio\/\w+;base64,/, '');
+        const audioBuffer = Buffer.from(base64Data, 'base64');
+
+        const voiceAgent = require('./src/agents/voiceAgent.js');
+        const result = await voiceAgent.transcribeAudio(audioBuffer, filename || 'recording.webm');
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: `Server audio processing error: ${err.message}` });
+    }
+});
+
+app.post('/api/desktop/notify', (req, res) => {
+    const { title, message } = req.body || {};
+    console.log(`[Desktop Notification Request] 🔔 ${title}: ${message}`);
+    res.json({ success: true, message: 'Notification event logged.' });
 });
 
 app.post('/api/browser/navigate', async (req, res) => {
@@ -1278,13 +1324,15 @@ const PORT = process.env.PORT || 10000;
 Promise.all([
     initAgentModes(pool),
     initGoogleAuthTable(pool),
-    initTraceTable(pool)
+    initTraceTable(pool),
+    loadPlugins()
 ]).then(() => {
     startAutoLearning(ghostLearn, pool);
     cleanupTraces(pool);
 });
 const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Ghost AI Engine Online on port ${PORT}.`);
+    initCronScheduler();
     startN8n();
     if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'local') {
         console.log('[Local Control Server] Auto-spawning Local Control Daemon client...');

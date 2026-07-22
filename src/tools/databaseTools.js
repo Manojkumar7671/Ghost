@@ -71,6 +71,25 @@ async function executeQuery(payload) {
   }
 }
 
+/**
+ * Simple connection test function for Supabase Postgres pool.
+ */
+async function testConnection() {
+  if (!pool) {
+    return { success: false, connected: false, message: "SUPABASE_DB_URL is not configured." };
+  }
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS _ghost_conn_test (id SERIAL PRIMARY KEY, test_val TEXT, created_at TIMESTAMPTZ DEFAULT NOW())`);
+    const val = `ghost_ping_${Date.now()}`;
+    const insertRes = await pool.query(`INSERT INTO _ghost_conn_test (test_val) VALUES ($1) RETURNING *`, [val]);
+    const selectRes = await pool.query(`SELECT * FROM _ghost_conn_test WHERE id = $1`, [insertRes.rows[0].id]);
+    return { success: true, connected: true, written: insertRes.rows[0], readBack: selectRes.rows[0] };
+  } catch (err) {
+    return { success: false, connected: false, error: err.message };
+  }
+}
+
 module.exports = {
-  executeQuery
+  executeQuery,
+  testConnection
 };

@@ -57,7 +57,7 @@ ${JSON.stringify(conversationContext || {})}
 
     const response = await chat(
         [{ role: 'user', content: userMessage }],
-        { systemPrompt, maxTokens: 512 }
+        { systemPrompt, maxTokens: 512, model: 'google/gemini-2.5-flash' }
     );
 
     console.log('[Intent Planner Debug] Raw response from chat:', response);
@@ -67,28 +67,25 @@ ${JSON.stringify(conversationContext || {})}
 }
 
 export async function buildTaskPlan(intent) {
-    const systemPrompt = `You are the Task Planner for Ghost. Generate a dependency-oriented task plan (DAG) to execute the following goal.
+    const systemPrompt = `You are the Task Planner for Ghost. Generate a dependency-oriented task plan (DAG) in JSON format.
 
-Goal: ${intent.goal}
-Implied Steps: ${intent.impliedSteps.join(', ')}
-Constraints: ${intent.constraints.join(', ')}
+Goal: "${intent.goal}"
+Implied Steps: ${JSON.stringify(intent.impliedSteps)}
+Constraints: ${JSON.stringify(intent.constraints)}
 
-Respond ONLY with a raw JSON array of task objects (do not include markdown formatting or extra text outside the JSON). Each task object must have:
-- "id": A unique string ID (e.g. "step1", "step2")
-- "description": Clear, action-oriented description of what this step does
-- "requiredCapability": Must be exactly one of: "web_search", "browser_automation", "email", "db_query", "code_exec"
-- "dependsOn": Array of other step IDs that MUST finish before this step can start (empty array if no dependencies)
+Format your response strictly as a JSON array of objects. Do not write any markdown, explanation, code block, or text.
 
-Example:
-[
-  { "id": "step1", "description": "Search the web for news about LLMs", "requiredCapability": "web_search", "dependsOn": [] },
-  { "id": "step2", "description": "Summarize the findings and email to Manoj", "requiredCapability": "email", "dependsOn": ["step1"] }
-]
-`;
+Each task must have:
+- "id": (string, e.g. "step1")
+- "description": (string description of the action)
+- "requiredCapability": (exactly one of "web_search", "browser_automation", "email", "db_query", "code_exec", "workspace_edit", "workspace_view")
+- "dependsOn": (array of previous step IDs)
+
+Ensure the output is valid JSON. Keep it simple and short.`;
 
     const response = await chat(
-        [{ role: 'user', content: `Goal: ${intent.goal}` }],
-        { systemPrompt, maxTokens: 512 }
+        [{ role: 'user', content: "Generate the task plan JSON array now." }],
+        { systemPrompt, maxTokens: 512, model: 'google/gemini-2.5-flash' }
     );
 
     return extractJsonFromResponse(response);
@@ -96,17 +93,20 @@ Example:
 
 function extractJsonFromResponse(raw) {
     if (!raw || typeof raw !== 'string') return null;
+    let cleaned = raw
+        .replace(/:\s*(code_exec|web_search|browser_automation|email|db_query|workspace_edit|workspace_view)(?=\s*[,}\n])/g, ': "$1"')
+        .replace(/```(?:json)?/g, '')
+        .trim();
     try {
-        const cleaned = raw.replace(/```(?:json)?/g, '').trim();
         return JSON.parse(cleaned);
     } catch {}
-    const objectMatch = raw.match(/\{[\s\S]*\}/);
+    const objectMatch = cleaned.match(/\{[\s\S]*\}/);
     if (objectMatch) {
         try {
             return JSON.parse(objectMatch[0]);
         } catch {}
     }
-    const arrayMatch = raw.match(/\[[\s\S]*\]/);
+    const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
     if (arrayMatch) {
         try {
             return JSON.parse(arrayMatch[0]);
@@ -116,15 +116,20 @@ function extractJsonFromResponse(raw) {
 }
 
 export async function generateToolParams(toolName, stepDescription, previousResults, originalMessage) {
-    const systemPrompt = `You are Ghost's Tool Parameter Generator. Generate the exact JSON parameters for the tool "${toolName}" to perform the following step: "${stepDescription}".
+    const systemPrompt = `You are Ghost's Tool Parameter Generator. Generate the exact JSON parameters for the tool "${toolName}" to perform this step: "${stepDescription}".
 
 Original Goal: "${originalMessage}"
 Previous Steps and Results:
 ${previousResults.map((r, i) => `- Step: ${r.description}\n  Result: ${String(r.output).slice(0, 500)}`).join('\n')}
 
-Respond ONLY with a valid raw JSON object representing the parameters for this tool. Follow the schema/naming of typical tool arguments (e.g. for web_search: { "query": "..." }, for email_send: { "to": "...", "subject": "...", "context": "..." }, for database_query: { "sql": "..." }, for workspace_edit_file: { "path": "...", "content": "..." }). No preamble, no explanation.`;
+Respond ONLY with a valid raw JSON object representing the parameters for this tool. Follow the schema/naming of typical tool arguments (e.g. for web_search: { "query": "..." }, for database_query: { "sql": "..." }, for workspace_edit_file: { "path": "...", "targetContent": "...", "replacementContent": "..." }).
 
-    const res = await chat([{ role: 'user', content: `Generate params for ${toolName}` }], { systemPrompt, maxTokens: 256 });
+CRITICAL: If the tool is "workspace_edit_file", note that the previous step's file view result includes line numbers like "1: code", "2: code". These line numbers are NOT in the actual file! You MUST strip "1: ", "2: " prefixes from the code when writing the "targetContent" and "replacementContent" parameters!`;
+
+    const res = await chat(
+        [{ role: 'user', content: `Generate params for ${toolName}` }],
+        { systemPrompt, maxTokens: 256, model: 'google/gemini-2.5-flash' }
+    );
     try {
         const cleaned = res.replace(/```(?:json)?/g, '').trim();
         return JSON.parse(cleaned);

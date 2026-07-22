@@ -9,9 +9,37 @@ const pendingCalls = new Map();
 
 export const wss = new WebSocketServer({ noServer: true });
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
   console.log('[Local Control Server] Daemon client connected successfully.');
   activeWs = ws;
+
+  const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  const connectionToken = urlObj.searchParams.get('token');
+
+  const intervalId = setInterval(() => {
+    const sessionFile = path.join(os.homedir(), '.ghost', 'daemon-session.json');
+    try {
+      if (!fs.existsSync(sessionFile)) {
+        console.warn('[Local Control Server] Session file deleted. Severing connection.');
+        clearInterval(intervalId);
+        ws.close(4000, 'Session file deleted');
+        return;
+      }
+      const sessionData = JSON.parse(fs.readFileSync(sessionFile, 'utf8'));
+      const currentPassphrase = process.env.ADMIN_PASSPHRASE;
+      const currentHash = currentPassphrase ? crypto.createHash('sha256').update(currentPassphrase).digest('hex') : '';
+      
+      if (sessionData.token !== connectionToken || sessionData.expiresAt < Date.now() || sessionData.passphraseHash !== currentHash) {
+        console.warn('[Local Control Server] Session modified or invalid. Severing connection.');
+        clearInterval(intervalId);
+        ws.close(4000, 'Session token mismatch or expired');
+      }
+    } catch (e) {
+      console.warn('[Local Control Server] Session check failed. Severing connection:', e.message);
+      clearInterval(intervalId);
+      ws.close(4000, 'Session verification error');
+    }
+  }, 3000);
 
   ws.on('message', (data) => {
     try {
@@ -32,6 +60,7 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     console.log('[Local Control Server] Daemon client disconnected.');
+    clearInterval(intervalId);
     if (activeWs === ws) {
       activeWs = null;
     }

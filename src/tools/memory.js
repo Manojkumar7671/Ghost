@@ -68,4 +68,15 @@ function getCostSummary() {
   const c = loadCosts();
   return { total_tokens: c.total_tokens, total_cost_usd: c.total_cost_usd.toFixed(6), total_calls: c.calls.length, today: c.calls.filter(x => x.ts.startsWith(new Date().toISOString().slice(0, 10))).length };
 }
-module.exports = { saveMessage, getHistory, clearHistory, remember, recall, forgetKey, allMemory, trackCost, getCostSummary };
+
+async function saveMemory(entry, metadata) {
+  const mem = await import('../../memory.js');
+  return mem.saveMemory(entry, metadata);
+}
+
+async function queryMemory(query, topK) {
+  const mem = await import('../../memory.js');
+  return mem.queryMemory(query, topK);
+}
+
+module.exports = { saveMessage, getHistory, clearHistory, remember, recall, forgetKey, allMemory, trackCost, getCostSummary, saveMemory, queryMemory };

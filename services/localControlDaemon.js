@@ -139,6 +139,12 @@ async function start() {
           result = await driver.openApp(args.appName);
         } else if (command === 'runScript') {
           result = await driver.runScript(args.script);
+        } else if (command === 'readFile') {
+          result = await driver.readFile(args.path);
+        } else if (command === 'editFile') {
+          result = await driver.editFile(args.path, args.oldStr, args.newStr);
+        } else if (command === 'createFile') {
+          result = await driver.createFile(args.path, args.content);
         } else {
           throw new Error(`Unknown automation command: ${command}`);
         }

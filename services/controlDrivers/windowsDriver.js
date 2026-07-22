@@ -1,8 +1,6 @@
 import { spawn } from 'child_process';
-import { createRequire } from 'module';
 
-const require = createRequire(import.meta.url);
-const { classifyCommand } = require('../commandGate.js');
+import { classifyCommand } from '../commandGate.js';
 
 const WINDOWS_APP_LOOKUP = {
   browser: 'msedge.exe',
