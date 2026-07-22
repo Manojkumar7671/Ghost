@@ -13,5 +13,19 @@ module.exports = {
       out_file: "./logs/out.log",
       merge_logs: true,
     },
+    {
+      name: "freellmapi",
+      script: "npm",
+      args: "run dev",
+      cwd: "./freellmapi",
+      watch: false,
+      env: {
+        NODE_ENV: "development",
+      },
+      log_date_format: "YYYY-MM-DD HH:mm:ss",
+      error_file: "./logs/err.log",
+      out_file: "./logs/out.log",
+      merge_logs: true,
+    }
   ],
 };

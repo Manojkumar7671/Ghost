@@ -11,8 +11,15 @@
 
 export function getProviders() {
   const freeLLMBase = (process.env.FREELLMAPI_BASE_URL || 'http://localhost:3001/v1').replace(/\/+$/, '');
+  const baseSlash = freeLLMBase.endsWith('/v1') ? '' : '/v1';
   
   return [
+    {
+      name: 'Groq',
+      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+      model: 'llama-3.3-70b-versatile',
+      apiKey: process.env.GROQ_API_KEY
+    },
     {
       name: 'NVIDIA NIM',
       endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions',
@@ -20,16 +27,16 @@ export function getProviders() {
       apiKey: process.env.NVIDIA_API_KEY
     },
     {
-      name: 'FreeLLMAPI',
-      endpoint: `${freeLLMBase}/chat/completions`,
-      model: 'auto',
-      apiKey: process.env.FREELLMAPI_API_KEY
+      name: 'DeepSeek',
+      endpoint: 'https://api.deepseek.com/chat/completions',
+      model: 'deepseek-chat',
+      apiKey: process.env.DEEPSEEK_API_KEY
     },
     {
-      name: 'Groq',
-      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-      model: 'llama-3.3-70b-versatile',
-      apiKey: process.env.GROQ_API_KEY
+      name: 'Gemini',
+      endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+      model: 'gemini-1.5-flash',
+      apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
     },
     {
       name: 'OpenRouter',
@@ -38,10 +45,16 @@ export function getProviders() {
       apiKey: process.env.OPENROUTER_API_KEY
     },
     {
-      name: 'Gemini',
-      endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-      model: 'gemini-1.5-flash',
-      apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
+      name: 'MiniMax',
+      endpoint: 'https://api.minimax.io/v1/chat/completions',
+      model: 'MiniMax-M3',
+      apiKey: process.env.MINIMAX_API_KEY
+    },
+    {
+      name: 'FreeLLMAPI',
+      endpoint: `${freeLLMBase}${baseSlash}/chat/completions`,
+      model: 'auto',
+      apiKey: process.env.FREELLMAPI_API_KEY
     }
   ];
 }
