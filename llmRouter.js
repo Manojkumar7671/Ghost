@@ -53,7 +53,7 @@ export function getProviders() {
     {
       name: 'FreeLLMAPI',
       endpoint: `${freeLLMBase}${baseSlash}/chat/completions`,
-      model: 'auto',
+      model: 'deepseek-chat',
       apiKey: process.env.FREELLMAPI_API_KEY
     }
   ];
