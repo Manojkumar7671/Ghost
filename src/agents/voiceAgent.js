@@ -14,7 +14,16 @@ async function textToSpeech(text, filename = `speech_${Date.now()}.mp3`) {
   const voiceId = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM';
   const res = await axios.post(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-    { text, model_id: 'eleven_monolingual_v1', voice_settings: { stability: 0.5, similarity_boost: 0.75 } },
+    { 
+      text, 
+      model_id: 'eleven_multilingual_v2', 
+      voice_settings: { 
+        stability: 0.4, 
+        similarity_boost: 0.75, 
+        style: 0.05, 
+        use_speaker_boost: true 
+      } 
+    },
     { headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json' }, responseType: 'arraybuffer' }
   );
   const filePath = path.join(OUTPUT_DIR, filename);

@@ -1,4 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        document.documentElement.classList.add('theme-batcave');
+    }
     let availableVoices = [];
     window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); };
 

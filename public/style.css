@@ -563,3 +563,182 @@ pre {
   border: none;
   background: #fff;
 }
+
+/* ==========================================
+   BATCAVE / BATCOMPUTER THEME OVERRIDES
+   ========================================== */
+.theme-batcave {
+  /* Restructure core variables */
+  --bg-dark: #000000;
+  --bg-card: #060913;
+  --bg-card-hover: #0b1124;
+  --sidebar-bg: #03050a;
+  --border-color: rgba(0, 240, 255, 0.25);
+  --border-active: rgba(0, 240, 255, 0.85);
+  
+  --accent-cyan: #00f0ff;
+  --accent-blue: #00a8ff;
+  --accent-violet: #7000ff;
+  --accent-rose: #ff0055;
+  --accent-emerald: #00ffaa;
+
+  --text-main: #d0f8ff;
+  --text-muted: #7ca8b8;
+  --text-dim: #4d6d7b;
+
+  --font-heading: 'Fira Code', 'Courier New', monospace;
+  --font-body: 'Fira Code', 'Courier New', monospace;
+}
+
+/* Force sharp angular panels and buttons */
+.theme-batcave,
+.theme-batcave * {
+  border-radius: 0 !important;
+}
+
+/* HUD grid / CRT scanline overlay */
+.theme-batcave::before {
+  content: " ";
+  display: block;
+  position: fixed;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%);
+  z-index: 9999;
+  background-size: 100% 4px;
+  pointer-events: none;
+  opacity: 0.3;
+}
+
+/* Authentication clearance screen overrides */
+.theme-batcave #loginOverlay {
+  background: radial-gradient(circle at center, #020408 0%, #000 100%) !important;
+  border: 1px solid var(--border-active);
+  box-shadow: inset 0 0 100px rgba(0, 240, 255, 0.1);
+}
+
+.theme-batcave .brand-badge {
+  background: rgba(0, 240, 255, 0.03);
+  border: 1px solid var(--border-active);
+  padding: 6px 14px;
+  color: var(--accent-cyan);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+}
+
+.theme-batcave #loginOverlay h1 {
+  letter-spacing: 0.25em;
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.6), 0 0 30px rgba(0, 240, 255, 0.3);
+}
+
+.theme-batcave #authInput {
+  background: #04060b;
+  border: 1px solid var(--border-color);
+  font-family: var(--font-mono);
+  box-shadow: inset 0 0 15px rgba(0, 240, 255, 0.05);
+}
+
+.theme-batcave #authInput:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.4), inset 0 0 15px rgba(0, 240, 255, 0.1);
+}
+
+/* Left Sidebar & Panel Overrides */
+.theme-batcave .sidebar {
+  border-right: 2px solid var(--border-color);
+  background-color: var(--sidebar-bg);
+}
+
+.theme-batcave .status-card {
+  border: 1px solid var(--border-color);
+  background-color: #03050a;
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-batcave .status-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; width: 3px; height: 100%;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 8px var(--accent-cyan);
+}
+
+.theme-batcave .btn-icon {
+  border: 1px solid var(--border-color);
+  background: #05080f;
+  font-family: var(--font-mono);
+}
+
+.theme-batcave .btn-icon:hover {
+  background: #090e1a;
+  border-color: var(--accent-cyan);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+}
+
+/* Main Workspace HUD & Message stream */
+.theme-batcave .chat-container {
+  background: #000 !important;
+}
+
+.theme-batcave .chat-header {
+  border-bottom: 2px solid var(--border-color);
+}
+
+.theme-batcave .user-tag-badge {
+  border: 1px solid var(--border-active);
+  background: rgba(0, 240, 255, 0.05);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.1);
+}
+
+.theme-batcave .bubble {
+  border: 1px solid var(--border-color);
+  background: #04070d;
+  box-shadow: inset 0 0 10px rgba(0, 240, 255, 0.02);
+}
+
+.theme-batcave .message-card.user .bubble {
+  border-color: var(--border-active);
+  background: rgba(0, 240, 255, 0.05);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.05);
+}
+
+.theme-batcave .input-bar {
+  background: #020306 !important;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(0, 240, 255, 0.02);
+}
+
+.theme-batcave .input-bar:focus-within {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+}
+
+.theme-batcave .send-btn {
+  background: transparent;
+  border: 1px solid var(--accent-cyan);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.15);
+}
+
+.theme-batcave .send-btn:hover {
+  background: var(--accent-cyan);
+  color: #000;
+  box-shadow: 0 0 15px var(--accent-cyan);
+  transform: none;
+}
+
+.theme-batcave #code-sidebar {
+  border-left: 2px solid var(--border-color);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.9);
+}
+
+.theme-batcave #app-viewer {
+  border: 2px solid var(--accent-cyan);
+  box-shadow: 0 0 40px rgba(0, 240, 255, 0.3);
+}
+
+.theme-batcave pre {
+  background: #020305;
+  border: 1px solid rgba(0, 240, 255, 0.15);
+}
+
