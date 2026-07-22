@@ -3,6 +3,7 @@ module.exports = {
     {
       name: "ghost-ai",
       script: "server.js",
+      node_args: "--env-file=.env",
       watch: true,
       ignore_watch: ["node_modules", "logs"],
       env: {
