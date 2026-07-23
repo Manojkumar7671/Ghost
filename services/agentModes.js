@@ -165,17 +165,17 @@ export async function deepResearch(query, userContext = {}, pool = null) {
   let iteration = 1;
   const maxIterations = 8;
 
-  console.log(`[Deep Research] Starting deep research for query: "${query}"`);
+  console.log(`[Deep Research] [${new Date().toISOString()}] [TriggerSource: automated_flow] Starting deep research loop for query: "${query}"`);
   saveMessage(username, 'assistant', `[Deep Research] Initiating deep research on: "${query}"...`);
 
   while (iteration <= maxIterations) {
     if (visitedQueries.has(currentQuery.toLowerCase())) {
-      console.log(`[Deep Research] Query "${currentQuery}" already searched. Ending research.`);
+      console.log(`[Deep Research] [${new Date().toISOString()}] [TriggerSource: automated_flow] Query "${currentQuery}" already searched. Ending research.`);
       break;
     }
     visitedQueries.add(currentQuery.toLowerCase());
 
-    console.log(`[Deep Research] Iteration ${iteration}: Searching for "${currentQuery}"`);
+    console.log(`[Deep Research] [${new Date().toISOString()}] [TriggerSource: automated_flow] Iteration ${iteration}/${maxIterations}: Searching for "${currentQuery}"`);
     saveMessage(username, 'assistant', `[Deep Research] Searching angle ${iteration}: "${currentQuery}"...`);
 
     let searchResult;

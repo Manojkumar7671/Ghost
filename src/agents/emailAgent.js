@@ -17,6 +17,11 @@ function checkPublicModeWrite(userContext) {
 
 async function sendEmail({ to, subject, body }, userContext) {
   checkPublicModeWrite(userContext);
+  const triggerSource = userContext?.triggerSource || 'automated_flow';
+  console.log(`[Security Audit] emailAgent.sendEmail triggered by source: ${triggerSource}`);
+  if (triggerSource !== 'user_message') {
+    throw new Error(`Email Agent blocked: Sending emails is restricted in automated or background flows (trigger source: ${triggerSource}).`);
+  }
 
   // Check for Google OAuth token
   const userId = 'master_manoj'; // Default to admin

@@ -152,14 +152,16 @@ export async function runAutonomous(goal, userContext = {}, pool = null, resumeS
       });
     }
 
+    console.log(`[Autonomous Loop] [${new Date().toISOString()}] [TriggerSource: ${userContext.triggerSource || 'manual'}] Entering step execution loop with plan length ${plan.length}`);
     while (stepIndex < plan.length) {
       const step = plan[stepIndex];
-      console.log(`\n[Autonomous Loop] Executing step ${stepIndex + 1}/${plan.length}: "${step.description}"`);
+      console.log(`\n[Autonomous Loop] [${new Date().toISOString()}] [TriggerSource: ${userContext.triggerSource || 'manual'}] Executing step ${stepIndex + 1}/${plan.length}: "${step.description}"`);
 
       let retryCount = isResuming ? resumeRetryCount : 0;
       let stepSuccess = false;
       let lastErrorMsg = isResuming ? resumeLastErrorMsg : '';
 
+      console.log(`[Autonomous Loop] [${new Date().toISOString()}] [TriggerSource: ${userContext.triggerSource || 'manual'}] Entering retry evaluation loop for step "${step.id}" (current retryCount: ${retryCount})`);
       while (retryCount < 3 && !stepSuccess) {
         let action;
         let selectedTool;
@@ -209,10 +211,12 @@ export async function runAutonomous(goal, userContext = {}, pool = null, resumeS
         // Reset isResuming flag
         isResuming = false;
 
+        const loopContext = { ...userContext, triggerSource: 'automated_flow' };
+
         const startTime = Date.now();
         let output;
         try {
-          output = await brain.execute(action, goal, previousResults, userContext);
+          output = await brain.execute(action, goal, previousResults, loopContext);
           await saveTrace(pool, {
             requestId,
             stepId: step.id,
@@ -230,7 +234,7 @@ export async function runAutonomous(goal, userContext = {}, pool = null, resumeS
         const verifyDecision = await decideVerification(step, action, output);
         let verifyOutput;
         try {
-          verifyOutput = await brain.execute(verifyDecision, goal, previousResults, userContext);
+          verifyOutput = await brain.execute(verifyDecision, goal, previousResults, loopContext);
         } catch (err) {
           verifyOutput = `Verification execution failed: ${err.message}`;
         }

@@ -17,7 +17,9 @@ export function startAutoLearning(ghostLearnFn, pool) {
                 return;
             }
 
+            console.log(`[ghostLearn] [${new Date().toISOString()}] [TriggerSource: auto-scheduler] Starting learning review loop for ${rows.length} memory rows`);
             for (const row of rows) {
+                console.log(`[ghostLearn] [${new Date().toISOString()}] Reviewing memory for user: ${row.username}`);
                 await ghostLearnFn({
                     safeUser: row.username,
                     message: 'auto-review',

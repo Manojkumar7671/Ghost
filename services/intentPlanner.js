@@ -44,6 +44,9 @@ export function classifyComplexity(userMessage) {
 export async function analyzeIntent(userMessage, conversationContext) {
     const systemPrompt = `You are the Intent Analyzer for Ghost. Analyze the user's message and the conversation context to understand their goal, identify any ambiguities, highlight constraints, and infer the implied steps required to accomplish the goal.
 
+CRITICAL PRONOUN / REFERENCE RESOLUTION RULE:
+If the user message contains pronouns or references like "it", "that file", "the app", "open it", "play it", etc., you MUST examine the Conversation Context below to identify the last-mentioned file, application, URL, or entity and resolve the pronoun to that exact entity in the generated "goal" and "impliedSteps". Do not use literal pronouns in the goal or steps if the entity is identifiable from context.
+
 You must respond with a raw JSON object matching this schema (do not include markdown formatting or extra text outside the JSON):
 {
   "goal": "The ultimate goal the user wants to achieve",
@@ -56,10 +59,13 @@ Conversation Context:
 ${JSON.stringify(conversationContext || {})}
 `;
 
+    const startTime = Date.now();
     const response = await chat(
         [{ role: 'user', content: userMessage }],
         { systemPrompt, maxTokens: 512, model: 'google/gemini-2.5-flash' }
     );
+    const latency = Date.now() - startTime;
+    console.log(`[Intent Planner Timing] analyzeIntent completed in ${latency}ms`);
 
     console.log('[Intent Planner Debug] Raw response from chat:', response);
     const parsed = extractJsonFromResponse(response);
@@ -84,10 +90,13 @@ Each task must have:
 
 Ensure the output is valid JSON. Keep it simple and short.`;
 
+    const startTime = Date.now();
     const response = await chat(
         [{ role: 'user', content: "Generate the task plan JSON array now." }],
         { systemPrompt, maxTokens: 512, model: 'google/gemini-2.5-flash' }
     );
+    const latency = Date.now() - startTime;
+    console.log(`[Intent Planner Timing] buildTaskPlan completed in ${latency}ms`);
 
     return extractJsonFromResponse(response);
 }
@@ -130,6 +139,13 @@ export async function generateToolParams(toolName, stepDescription, previousResu
         } catch (e) {
             console.error('[IntentPlanner] Error loading db_query instructions:', e.message);
         }
+    } else if (toolName === 'browser_automation') {
+        try {
+            const browserbaseClient = (await import('./browserbaseClient.js')).default;
+            instructionsPrompt = `\n\nUSE THESE GUIDELINES FOR browser_automation:\n${browserbaseClient.getPromptString()}`;
+        } catch (e) {
+            console.error('[IntentPlanner] Error loading browser_automation instructions:', e.message);
+        }
     }
 
     const systemPrompt = `You are Ghost's Tool Parameter Generator. Generate the exact JSON parameters for the tool "${toolName}" to perform this step: "${stepDescription}".
@@ -142,10 +158,13 @@ Respond ONLY with a valid raw JSON object representing the parameters for this t
 
 CRITICAL: If the tool is "workspace_edit_file", note that the previous step's file view result includes line numbers like "1: code", "2: code". These line numbers are NOT in the actual file! You MUST strip "1: ", "2: " prefixes from the code when writing the "targetContent" and "replacementContent" parameters!${instructionsPrompt}`;
 
+    const startTime = Date.now();
     const res = await chat(
         [{ role: 'user', content: `Generate params for ${toolName}` }],
         { systemPrompt, maxTokens: 256, model: 'google/gemini-2.5-flash' }
     );
+    const latency = Date.now() - startTime;
+    console.log(`[Intent Planner Timing] generateToolParams for "${toolName}" completed in ${latency}ms`);
     try {
         const cleaned = res.replace(/```(?:json)?/g, '').trim();
         return JSON.parse(cleaned);
@@ -170,7 +189,10 @@ Verify if the goal has been fully met. Respond with a JSON object matching this 
 }
 `;
 
+    const startTime = Date.now();
     const res = await chat([{ role: 'user', content: 'Verify results' }], { systemPrompt: verifyPrompt, maxTokens: 256 });
+    const latency = Date.now() - startTime;
+    console.log(`[Intent Planner Timing] verifyGoalSatisfaction completed in ${latency}ms`);
     try {
         const cleaned = res.replace(/```(?:json)?/g, '').trim();
         return JSON.parse(cleaned);

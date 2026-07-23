@@ -1,6 +1,7 @@
 import { checkToolAccess } from './adminGate.js';
 import { startAutoLearning } from './ghostLearnScheduler.js';
 import { initCronScheduler } from './services/cronScheduler.js';
+import { startWatchdog } from './services/watchdog.js';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
@@ -30,6 +31,8 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const brain = require('./src/brain.js');
 const { callLLM: routerCallLLM } = require('./llmRouter.js');
+
+startWatchdog();
 
 if (!process.env.ADMIN_PASSPHRASE || !process.env.JWT_SECRET || !process.env.N8N_ENCRYPTION_KEY) {
     console.error("\n[CRITICAL FATAL ERROR]: ADMIN_PASSPHRASE, JWT_SECRET, or N8N_ENCRYPTION_KEY missing.");
@@ -606,6 +609,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
 
             if (isComplex && process.env.GHOST_PLANNER_ENABLED !== 'false') {
                 console.log('[Intent Planner] Complex goal detected, initializing intent planner pipeline...');
+                const planningStart = Date.now();
                 try {
                     // 1. Analyze intent
                     const intent = await analyzeIntent(finalMessage, userHistory);
@@ -627,7 +631,11 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                     const plan = await buildTaskPlan(intent);
                     console.log('[Intent Planner] Generated Task Plan:', JSON.stringify(plan));
 
+                    const planningLatency = Date.now() - planningStart;
+                    console.log(`[Intent Planner Timing] Overall planning phase latency: ${planningLatency}ms`);
+
                     // 4. Resolve capabilities to tools, parameterize, and execute
+                    const executionStart = Date.now();
                     const previousResults = [];
                     const activeMode = isCodeAssistant ? 'code_assistant' : isDeepResearch ? 'deep_research' : null;
                     const fullCatalog = await loadCatalog();
@@ -646,7 +654,8 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                             safeUser: safeUser || 'guest', 
                             isAdmin, 
                             isCodeAssistant, 
-                            isDeepResearch 
+                            isDeepResearch,
+                            triggerSource: 'user_message'
                         };
 
                         let output;
@@ -708,7 +717,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                                 const selectedTool = candidates[0] || { name: 'chat' };
                                 const params = await generateToolParams(selectedTool.name, failedStep.description, previousResults, finalMessage);
                                 const action = { tool: selectedTool.name, params };
-                                const output = await brain.execute(action, finalMessage, previousResults, { safeUser: safeUser || 'guest', isAdmin, isCodeAssistant, isDeepResearch });
+                                const output = await brain.execute(action, finalMessage, previousResults, { safeUser: safeUser || 'guest', isAdmin, isCodeAssistant, isDeepResearch, triggerSource: 'user_message' });
                                 
                                 const index = previousResults.findIndex(r => r.id === failedStep.id);
                                 if (index !== -1) {
@@ -723,14 +732,17 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
 
                     // 6. Compile and summarize final answer
                     const summarySystemPrompt = isCodeAssistant
-                        ? `You are Ghost, Manoj's loyal AI coding assistant. Summarize the completed plan execution and results clearly. Scoped file and command executions are enabled.`
-                        : `You are Ghost, an elite autonomous AI. Summarize the completed plan execution and results clearly and directly for the user. Do not include tool syntax. Provide citations for sources if this is a deep research task.`;
+                        ? `You are Ghost, Manoj's loyal AI coding assistant. Summarize the completed plan execution and results clearly. Scoped file and command executions are enabled. Never invent, fabricate, or hallucinate any sources or citations. Only cite sources explicitly returned in the tool execution results. If no real sources are present, do not include any sources or citations section.`
+                        : `You are Ghost, an elite autonomous AI. Summarize the completed plan execution and results clearly and directly for the user. Do not include tool syntax. Provide citations for sources ONLY if this is a deep research task and real source URLs were explicitly returned in the search/tool results. Under no circumstance should you invent, fabricate, or hallucinate fake sources, documentation links, or disclaimers. If no real source URLs are present in the execution results, omit the sources section completely.`;
 
                     const { chat: localChat } = require('./src/tools/llm.js');
                     const finalSummary = await localChat(
                         [{ role: 'user', content: `Goal: "${finalMessage}"\n\nResults:\n${previousResults.map(r => `Step: ${r.description}\nTool Used: ${r.tool}\nResult: ${r.output}`).join('\n\n')}` }],
                         { systemPrompt: summarySystemPrompt, maxTokens: 1024 }
                     );
+
+                    const executionLatency = Date.now() - executionStart;
+                    console.log(`[Intent Planner Timing] Overall execution phase latency: ${executionLatency}ms`);
 
                     const traceText = `[Intent Planner ➔ Plan Executed]\n` + 
                         plan.map(s => `- [x] ${s.description} (routed to: ${s.requiredCapability})`).join('\n') + 
@@ -756,7 +768,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                     msgToThink = `[SESSION MODE: CODE ASSISTANT IS ACTIVE. You have broader workspace execution access.]\n${finalMessage}`;
                 }
                 const startTime = Date.now();
-                const brainResult = await brain.think(msgToThink, { safeUser, isAdmin });
+                const brainResult = await brain.think(msgToThink, { safeUser, isAdmin, triggerSource: 'user_message' });
                 const latencyMs = Date.now() - startTime;
 
                 const lastCalls = requestContext.llmCalls || [];

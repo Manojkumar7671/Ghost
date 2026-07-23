@@ -7,30 +7,28 @@
   "scripts": {
     "start": "node server.js",
     "desktop": "npx electron ./desktop-app/main.cjs",
-    "desktop:build": "npx electron-builder --config.directories.output=dist"
+    "desktop:build": "npx electron-builder --config.directories.output=dist",
+    "package:mac": "node scratch/build_mac.js"
   },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "axios": "^1.6.8",
-    "chokidar": "^5.0.0",
-    "cookie-parser": "^1.4.6",
-    "express": "^4.19.2",
-    "express-rate-limit": "^7.2.0",
-    "fs-extra": "^11.3.6",
-    "groq-sdk": "^1.3.0",
-    "http-proxy-middleware": "^3.0.0",
-    "jsonwebtoken": "^9.0.2",
-    "kokoro-js": "^1.2.1",
-    "n8n": "^1.47.1",
-    "node-cron": "^4.6.0",
-    "nodemailer": "^9.0.3",
-    "pg": "^8.11.5",
-    "playwright-core": "^1.61.1",
-    "uuid": "^14.0.1",
-    "ws": "^8.21.1"
+  "build": {
+    "appId": "com.manojkumar.ghost",
+    "productName": "Ghost",
+    "asar": false,
+    "npmRebuild": false,
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": "dmg"
+    },
+    "files": [
+      "desktop-app/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    }
   },
+  "dependencies": {},
   "devDependencies": {
-    "electron": "^43.1.1",
+    "electron": "43.1.1",
     "electron-builder": "^26.15.3"
   }
 }

@@ -11,12 +11,15 @@ class BrowserbaseClient {
     constructor() {
         this.apiKey = process.env.BROWSERBASE_API_KEY;
         this.projectId = process.env.BROWSERBASE_PROJECT_ID;
-        this.isConnected = !!(this.apiKey && this.projectId);
+        // Always connected since we have local Playwright fallback as well
+        this.isConnected = true;
+        this.activeBrowser = null;
+        this.activePage = null;
     }
 
     getPromptString() {
         return `
-To control the headless browser, use the "browserbase_execute" tool.
+To control the browser, use the "browser_automation" tool.
 Payload must include a "url" and an "actions" array.
 Supported actions: "click" (requires selector), "type" (requires selector, text), "scroll" (requires amount), "extract" (requires selector).
 Example payload:
@@ -51,30 +54,101 @@ Example payload:
     }
 
     async executeTool(actionName, payload) {
-        if (!this.isConnected) throw new Error('Browserbase is not configured.');
         if (actionName !== 'load_url_or_extract_data' && actionName !== 'execute_actions') {
             throw new Error(`Unsupported browser action: ${actionName}`);
         }
 
-        const { url, actions = [], runId = null, resumeFromStep = 0, safeUser = 'unknown' } = payload;
-        if (!url) throw new Error('URL is required for browserbase_execute.');
+        let { url, actions = [], runId = null, resumeFromStep = 0, safeUser = 'unknown', triggerSource = 'automated_flow' } = payload;
+        console.log(`[Security Audit] browserbaseClient.executeTool triggered by source: ${triggerSource}`);
+        if (triggerSource !== 'user_message') {
+            throw new Error(`Browser automation blocked: Browser execution is restricted in automated or background flows (trigger source: ${triggerSource}).`);
+        }
+
+        if (!url) {
+            if (this.activePage && !this.activePage.isClosed()) {
+                url = this.activePage.url();
+                console.log(`[Browserbase] No URL specified in payload, reusing active page URL: ${url}`);
+            } else {
+                url = 'https://www.google.com';
+                console.log(`[Browserbase] No URL specified and no active page open, defaulting to: ${url}`);
+            }
+        }
 
         const effectiveRunId = runId || `run_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         const wsEndpoint = `wss://connect.browserbase.com?apiKey=${this.apiKey}&projectId=${this.projectId}`;
-        let browser;
         const results = [];
 
         try {
-            browser = await chromium.connectOverCDP(wsEndpoint);
-            const context = browser.contexts()[0];
-            const page = await context.newPage();
+            let browser;
+            const useBrowserbase = !!(this.apiKey && this.projectId);
 
-            await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-            results.push({ step: 'navigation', status: 'success', url });
+            if (useBrowserbase) {
+                if (this.activeBrowser && this.activeBrowser.isConnected()) {
+                    console.log('[Browserbase] Reusing active Browserbase session...');
+                    browser = this.activeBrowser;
+                } else {
+                    console.log('[Browserbase] Connecting new Browserbase session...');
+                    browser = await chromium.connectOverCDP(wsEndpoint);
+                    this.activeBrowser = browser;
+                    this.activePage = null;
+                }
+            } else {
+                if (this.activeBrowser && this.activeBrowser.isConnected()) {
+                    console.log('[Browserbase] Reusing active local browser session...');
+                    browser = this.activeBrowser;
+                } else {
+                    console.log('[Browserbase] Launching local Chromium browser...');
+                    browser = await chromium.launch({ headless: false });
+                    this.activeBrowser = browser;
+                    this.activePage = null;
+                }
+            }
+
+            let page;
+            if (this.activePage && !this.activePage.isClosed()) {
+                console.log('[Browserbase] Reusing active browser page...');
+                page = this.activePage;
+            } else {
+                console.log('[Browserbase] Opening new page...');
+                const context = browser.contexts()[0] || await browser.newContext();
+                page = await context.newPage();
+                this.activePage = page;
+            }
+
+            // Determine if we need to navigate or if we are already on the target URL/page
+            const currentUrl = page.url();
+            let needsNavigation = true;
+            if (currentUrl && currentUrl !== 'about:blank') {
+                try {
+                    const pageDomain = new URL(currentUrl).hostname.replace('www.', '');
+                    const targetUrlObj = new URL(url);
+                    const targetDomain = targetUrlObj.hostname.replace('www.', '');
+                    const isTargetGenericLanding = targetUrlObj.pathname === '/' || targetUrlObj.pathname === '';
+                    
+                    if (pageDomain === targetDomain) {
+                        const cleanCurrent = currentUrl.replace(/\/$/, '');
+                        const cleanTarget = url.replace(/\/$/, '');
+                        if (isTargetGenericLanding || cleanCurrent === cleanTarget) {
+                            console.log(`[Browserbase] Already on target domain/URL "${pageDomain}" (${currentUrl}), skipping navigation.`);
+                            needsNavigation = false;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[Browserbase] URL matching failed:', e.message);
+                }
+            }
+
+            if (needsNavigation) {
+                console.log(`[Browserbase] Navigating to URL: ${url}`);
+                await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+                results.push({ step: 'navigation', status: 'success', url });
+            } else {
+                results.push({ step: 'navigation', status: 'success', url: currentUrl, note: 'reused existing page' });
+            }
 
             for (let i = resumeFromStep; i < actions.length; i++) {
                 const step = actions[i];
-                const stepTimeout = step.timeout || 10000;
+                const stepTimeout = step.timeout || 15000;
 
                 try {
                     if (step.action === 'click') {
@@ -121,8 +195,6 @@ Example payload:
         } catch (error) {
             console.error('Browserbase Execution Error:', error);
             throw new Error(`Browser automation failed: ${error.message}`);
-        } finally {
-            if (browser) await browser.close();
         }
     }
 }

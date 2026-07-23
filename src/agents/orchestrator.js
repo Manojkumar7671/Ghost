@@ -45,7 +45,7 @@ function createAgent(name, instructions) {
   
   // Register the agent in memory
   instantiateVirtualAgent(safeName, instructions);
-  console.log(`[Orchestrator] Spun up new virtual agent: ${safeName}`);
+  console.log(`[Orchestrator] [${new Date().toISOString()}] [TriggerSource: automated_flow] Spun up new virtual agent: ${safeName}`);
 
   // Persist the metadata to dynamic_agents.json
   try {

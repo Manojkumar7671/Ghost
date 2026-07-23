@@ -60,7 +60,7 @@ function extractJSON(raw) {
   return null;
 }
 
-async function plan(userMessage, userContext = { safeUser: 'guest', isAdmin: false }, memoryContext = '') {
+async function plan(userMessage, userContext = { safeUser: 'guest', isAdmin: false }, memoryContext = '', history = []) {
   const learnings = userContext.isAdmin ? getRelevantLearnings(userMessage) : "No past learnings available.";
   
   let mcpToolsPrompt = '';
@@ -72,6 +72,10 @@ async function plan(userMessage, userContext = { safeUser: 'guest', isAdmin: fal
     }
   } catch (e) {}
 
+  const historyPrompt = history && history.length > 0
+    ? `\nCONVERSATION HISTORY (for pronoun & reference resolution):\n${history.map(h => `- ${h.role}: ${h.content}`).join('\n')}`
+    : '';
+
   const response = await chat(
     [{ role: 'user', content: userMessage }],
     {
@@ -80,6 +84,9 @@ Respond ONLY with a JSON array of actions. Each action has:
 - "tool": tool name
 - "params": object with required params
 - "reason": why you're using this tool (1 sentence)
+
+CRITICAL PRONOUN / REFERENCE RESOLUTION RULE:
+If the user's message contains pronouns or context references like "open it", "run that file", "send it to her", "play it", etc., you MUST examine the CONVERSATION HISTORY below to identify the last mentioned entity (file path, email recipient, URL, application name, etc.) and resolve the pronoun to that specific entity when choosing the tool and generating parameters. Do not pass literal pronouns in parameters.
 
 CRITICAL ROUTING RULES:
 1. DEFAULT TO TOOLS: Never use "chat" to answer factual questions or perform tasks. Use "chat" ONLY for pure greetings (e.g. "hi") or simple opinions.
@@ -95,8 +102,9 @@ LEARNINGS FROM PAST TASKS:
 Use these past task outcomes to bias your tool selection (prefer tools that succeeded for similar tasks):
 ${learnings}
 ${mcpToolsPrompt}
+${historyPrompt}
 
-Available tools: [chat, orchestrator_run, web_search, web_scrape, email_draft, email_send, github_repos, github_analyze, github_push, image_generate, notion_search, notion_create, goal_run, self_analyze, voice_speak, schedule, briefing, memory_save, memory_get, workspace_view_file, workspace_edit_file, workspace_run_command, database_query, mcp_call]
+Available tools: [chat, orchestrator_run, web_search, web_scrape, email_draft, email_send, github_repos, github_analyze, github_push, image_generate, notion_search, notion_create, goal_run, self_analyze, voice_speak, schedule, briefing, memory_save, memory_get, workspace_view_file, workspace_edit_file, workspace_run_command, database_query, mcp_call, browser_automation]
 
 RESPONSE FORMAT: Output ONLY a valid JSON array. No markdown fences, no explanation, no preamble.
 Example: [{"tool":"web_search","params":{"query":"latest AI news"},"reason":"User asked for current information"}]`,
@@ -244,11 +252,24 @@ async function execute(action, userMessage, previousResults = [], userContext = 
       
     // Added Google Direct API routes via OAuth
     case 'gmail_list_unread':
-      return await googleAgent.listUnreadEmails('master_manoj');
+      return await googleAgent.listUnreadEmails('master_manoj', userContext);
     case 'calendar_create':
       return await googleAgent.createCalendarEvent('master_manoj', userContext, params);
     case 'sheets_append':
       return await googleAgent.appendSheetsValue('master_manoj', userContext, params);
+      
+    // Added Playwright/Browserbase Browser Automation route
+    case 'browser_automation': {
+      const browserbaseClient = (await import('../services/browserbaseClient.js')).default;
+      const actionName = params.actions ? 'execute_actions' : 'load_url_or_extract_data';
+      const result = await browserbaseClient.executeTool(actionName, {
+        url: params.url,
+        actions: params.actions || [],
+        safeUser: userContext.safeUser || 'guest',
+        triggerSource: userContext.triggerSource || 'automated_flow'
+      });
+      return typeof result === 'string' ? result : JSON.stringify(result);
+    }
       
     // Added Local Control Daemon automation tools
     case 'local_open_url': {
@@ -341,7 +362,11 @@ async function think(userMessage, userContext = { safeUser: 'guest', isAdmin: fa
     ? pastMemories.map(m => `- ${m.text}`).join('\n')
     : '';
   
-  const actions = await plan(userMessage, userContext, memoryContext);
+  // Retrieve short-term conversation history for pronoun resolution
+  const history = getHistory(username, 15);
+  
+  const actions = await plan(userMessage, userContext, memoryContext, history);
+  console.log('[Brain Debug] Planned actions:', JSON.stringify(actions));
   const results = [];
   let executionSuccess = true;
 

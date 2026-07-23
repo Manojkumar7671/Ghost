@@ -1,9 +1,13 @@
+const fs = require('fs');
+const projectEnv = '/Users/manojkumarmathangi/Ghost/.env';
+const envPath = fs.existsSync(projectEnv) ? projectEnv : '.env';
+
 module.exports = {
   apps: [
     {
       name: "ghost-ai",
       script: "server.js",
-      node_args: "--env-file=.env",
+      node_args: `--env-file=${envPath}`,
       watch: true,
       ignore_watch: ["node_modules", "logs"],
       env: {

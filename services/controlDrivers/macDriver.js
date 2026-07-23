@@ -1,6 +1,44 @@
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { classifyCommand } from '../commandGate.js';
 import { checkProcessSpawn } from '../securityMonitor.js';
+import fs from 'fs';
+
+function resolveAppPath(appName) {
+  if (appName.startsWith('/') && appName.endsWith('.app') && fs.existsSync(appName)) {
+    return appName;
+  }
+  const cleanName = appName.replace(/\.app$/, '');
+  try {
+    const query = `kMDItemContentType == "com.apple.application-bundle" && kMDItemFSName == "${cleanName}.app"`;
+    const stdout = execSync(`mdfind '${query}'`, { encoding: 'utf8' }).trim();
+    if (stdout) {
+      const paths = stdout.split('\n');
+      if (paths.length > 0 && paths[0].endsWith('.app')) {
+        console.log(`[Mac Driver] Resolved app name "${appName}" to path: ${paths[0]}`);
+        return paths[0];
+      }
+    }
+  } catch (e) {
+    console.warn(`[Mac Driver] Spotlight search exact match failed for "${appName}":`, e.message);
+  }
+
+  try {
+    const fallbackQuery = `kMDItemContentType == "com.apple.application-bundle" && kMDItemFSName == "*${cleanName}*.app"`;
+    const stdout = execSync(`mdfind '${fallbackQuery}'`, { encoding: 'utf8' }).trim();
+    if (stdout) {
+      const paths = stdout.split('\n');
+      const validPath = paths.find(p => p.endsWith('.app'));
+      if (validPath) {
+        console.log(`[Mac Driver] Resolved app name "${appName}" to fallback path: ${validPath}`);
+        return validPath;
+      }
+    }
+  } catch (e) {
+    console.warn(`[Mac Driver] Spotlight search fallback failed for "${appName}":`, e.message);
+  }
+
+  return appName;
+}
 
 export function openUrl(url) {
   checkProcessSpawn(url);
@@ -22,8 +60,9 @@ export function openApp(appName) {
     throw new Error(gateRes.reason);
   }
 
-  console.log(`[Mac Driver] Opening App: ${appName}`);
-  const child = spawn('open', ['-a', appName]);
+  const resolved = resolveAppPath(appName);
+  console.log(`[Mac Driver] Opening App: ${resolved}`);
+  const child = resolved.startsWith('/') ? spawn('open', [resolved]) : spawn('open', ['-a', resolved]);
   child.unref();
   return { success: true };
 }
@@ -55,7 +94,6 @@ export function runScript(script) {
   });
 }
 
-import fs from 'fs';
 import path from 'path';
 import os from 'os';
 

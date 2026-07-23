@@ -11,7 +11,13 @@ function checkPublicModeWrite(userContext) {
   }
 }
 
-async function listUnreadEmails(userId) {
+async function listUnreadEmails(userId, userContext) {
+  const triggerSource = userContext?.triggerSource || 'automated_flow';
+  console.log(`[Security Audit] googleAgent.listUnreadEmails triggered by source: ${triggerSource}`);
+  if (triggerSource !== 'user_message') {
+    throw new Error(`Google Agent blocked: API calls are restricted in automated or background flows (trigger source: ${triggerSource}).`);
+  }
+
   const googleAuth = await getGoogleAuthService();
   const token = await googleAuth.getValidAccessToken(userId);
 
@@ -65,6 +71,11 @@ async function listUnreadEmails(userId) {
 
 async function createCalendarEvent(userId, userContext, details) {
   checkPublicModeWrite(userContext);
+  const triggerSource = userContext?.triggerSource || 'automated_flow';
+  console.log(`[Security Audit] googleAgent.createCalendarEvent triggered by source: ${triggerSource}`);
+  if (triggerSource !== 'user_message') {
+    throw new Error(`Google Agent blocked: API calls are restricted in automated or background flows (trigger source: ${triggerSource}).`);
+  }
 
   const googleAuth = await getGoogleAuthService();
   const token = await googleAuth.getValidAccessToken(userId);
@@ -109,6 +120,11 @@ async function createCalendarEvent(userId, userContext, details) {
 
 async function appendSheetsValue(userId, userContext, details) {
   checkPublicModeWrite(userContext);
+  const triggerSource = userContext?.triggerSource || 'automated_flow';
+  console.log(`[Security Audit] googleAgent.appendSheetsValue triggered by source: ${triggerSource}`);
+  if (triggerSource !== 'user_message') {
+    throw new Error(`Google Agent blocked: API calls are restricted in automated or background flows (trigger source: ${triggerSource}).`);
+  }
 
   const googleAuth = await getGoogleAuthService();
   const token = await googleAuth.getValidAccessToken(userId);

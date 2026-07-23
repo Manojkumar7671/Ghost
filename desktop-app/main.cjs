@@ -2,13 +2,15 @@ const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, n
 const path = require('path');
 const http = require('http');
 const { spawn, spawnSync } = require('child_process');
+const fs = require('fs');
 
 let mainWindow = null;
 let tray = null;
 let serverProcess = null;
 
 const SERVER_URL = 'http://localhost:3000';
-const ROOT_DIR = path.join(__dirname, '..');
+const PROJECT_DIR = '/Users/manojkumarmathangi/Ghost';
+const ROOT_DIR = fs.existsSync(PROJECT_DIR) ? PROJECT_DIR : path.join(__dirname, '..');
 
 /**
  * Checks if the Ghost server is already listening on localhost:3000
@@ -193,6 +195,10 @@ app.on('activate', () => {
     mainWindow.show();
     mainWindow.focus();
   }
+});
+
+app.on('before-quit', () => {
+  app.isQuitting = true;
 });
 
 app.on('will-quit', () => {
