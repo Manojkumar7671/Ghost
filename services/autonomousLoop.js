@@ -10,17 +10,21 @@ const brain = require('../src/brain.js');
 const llm = require('../src/tools/llm.js');
 const chat = llm.chat;
 
-if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
-  throw new Error("Security Lockdown: Autonomous Loop cannot be initialized in public deployment mode.");
+function checkPublicModeLockdown() {
+  if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
+    throw new Error("Security Lockdown: Autonomous Loop cannot be initialized in public deployment mode.");
+  }
 }
 
 let currentAutonomousMode = 'supervised'; // resets to supervised on boot/restart
 
 export function getAutonomousMode() {
+  checkPublicModeLockdown();
   return currentAutonomousMode;
 }
 
 export function setAutonomousMode(mode) {
+  checkPublicModeLockdown();
   if (mode !== 'supervised' && mode !== 'trusted') {
     throw new Error("Invalid autonomous mode. Must be 'supervised' or 'trusted'.");
   }
@@ -109,6 +113,7 @@ Respond ONLY with a valid raw JSON object matching this schema (do not include m
 }
 
 export async function runAutonomous(goal, userContext = {}, pool = null, resumeState = null) {
+  checkPublicModeLockdown();
   const requestId = userContext.requestId || crypto.randomUUID();
   
   console.log(`[Autonomous Loop] Starting/Resuming autonomous cycle for goal: "${goal}"`);
