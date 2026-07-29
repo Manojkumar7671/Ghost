@@ -138,7 +138,7 @@ async function runTests() {
       SELECT 'master_manoj', access_token, refresh_token, expires_at, scopes FROM google_oauth_tokens WHERE user_id = $1
     `, [testUserId]);
 
-    const emailList = await googleAgent.listUnreadEmails('master_manoj');
+    const emailList = await googleAgent.listUnreadEmails('master_manoj', { triggerSource: 'user_message' });
     assert.strictEqual(emailList.success, true);
     assert.strictEqual(emailList.emails[0].subject, 'Hello Test');
     assert.strictEqual(emailList.emails[0].snippet, 'Test snippet');
@@ -150,15 +150,15 @@ async function runTests() {
     
     // Normal user (non-admin) should be blocked on write/send actions
     await assert.rejects(
-      emailAgent.sendEmail({ to: 't@t.com', subject: 'S', body: 'B' }, { isAdmin: false }),
+      emailAgent.sendEmail({ to: 't@t.com', subject: 'S', body: 'B' }, { isAdmin: false, triggerSource: 'user_message' }),
       /Access Denied/
     );
     await assert.rejects(
-      googleAgent.createCalendarEvent('master_manoj', { isAdmin: false }, { summary: 'S', startTime: 'T', endTime: 'T' }),
+      googleAgent.createCalendarEvent('master_manoj', { isAdmin: false, triggerSource: 'user_message' }, { summary: 'S', startTime: 'T', endTime: 'T' }),
       /Access Denied/
     );
     await assert.rejects(
-      googleAgent.appendSheetsValue('master_manoj', { isAdmin: false }, { spreadsheetId: '1', range: 'A', values: [[]] }),
+      googleAgent.appendSheetsValue('master_manoj', { isAdmin: false, triggerSource: 'user_message' }, { spreadsheetId: '1', range: 'A', values: [[]] }),
       /Access Denied/
     );
     
@@ -168,7 +168,7 @@ async function runTests() {
         json: async () => ({ id: 'ok-id' })
       };
     };
-    const sendRes = await emailAgent.sendEmail({ to: 't@t.com', subject: 'S', body: 'B' }, { isAdmin: true });
+    const sendRes = await emailAgent.sendEmail({ to: 't@t.com', subject: 'S', body: 'B' }, { isAdmin: true, triggerSource: 'user_message' });
     assert.strictEqual(sendRes.success, true);
     console.log('✓ Public mode restrictions verified successfully');
 
