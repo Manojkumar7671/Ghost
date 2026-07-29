@@ -118,6 +118,10 @@ ${historyPrompt}
 
 Available tools: [chat, orchestrator_run, web_search, web_scrape, email_draft, email_send, github_repos, github_analyze, github_push, image_generate, notion_search, notion_create, goal_run, self_analyze, voice_speak, schedule, briefing, memory_save, memory_get, workspace_view_file, workspace_edit_file, workspace_run_command, database_query, mcp_call, browser_automation]
 
+CRITICAL ROUTING DIRECTIVES:
+- image_generate: ONLY for visual image/picture generation (PNG/JPG graphics). NEVER use image_generate for writing code, python scripts, HTML pages, or programming.
+- workspace_edit_file / workspace_run_command: For writing, generating, or running code (Python, JS, HTML, scripts). Any prompt asking to write/generate python, code, login pages, or scripts MUST route here.
+
 RESPONSE FORMAT: Output ONLY a valid JSON array. No markdown fences, no explanation, no preamble.
 Example: [{"tool":"web_search","params":{"query":"latest AI news"},"reason":"User asked for current information"}]`,
       maxTokens: 512
@@ -129,7 +133,22 @@ Example: [{"tool":"web_search","params":{"query":"latest AI news"},"reason":"Use
   if (parsed && Array.isArray(parsed) && parsed.length > 0) {
     // Validate each action has at minimum a 'tool' field
     const valid = parsed.filter(a => a && typeof a.tool === 'string');
-    if (valid.length > 0) return valid;
+    if (valid.length > 0) {
+      // Intent routing fix: ensure coding prompts never route to image_generate
+      const lowerUser = (userMessage || '').toLowerCase();
+      const codeKeywords = ['python', 'script', 'code', 'html', 'javascript', 'js', 'css', 'function', 'login page', 'app', 'program', 'write a', 'build a'];
+      if (codeKeywords.some(k => lowerUser.includes(k))) {
+        for (const act of valid) {
+          if (act.tool === 'image_generate') {
+            console.warn('[Brain Routing Fix] Overriding image_generate to workspace_edit_file for code prompt:', userMessage);
+            act.tool = 'workspace_edit_file';
+            act.params = { path: 'app.py', instruction: userMessage };
+            act.reason = 'Routed code generation request to workspace code tool';
+          }
+        }
+      }
+      return valid;
+    }
   }
   
   // Safe fallback — delegate to orchestrator rather than crashing

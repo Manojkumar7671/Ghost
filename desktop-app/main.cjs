@@ -84,7 +84,7 @@ function createWindow() {
 
 
   mainWindow.loadURL(SERVER_URL);
-  mainWindow.webContents.openDevTools();
+  // mainWindow.webContents.openDevTools();
 
   mainWindow.on('close', (event) => {
     if (!app.isQuitting) {

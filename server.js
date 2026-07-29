@@ -294,6 +294,27 @@ app.post('/api/auth', authLimiter, async (req, res) => {
     return res.json({ success: true, role: 'guest' });
 });
 
+app.post('/api/verify-auth', async (req, res) => {
+    const { token } = req.body;
+    if (!token) return res.json({ success: false, isAdmin: false });
+
+    try {
+        const suppliedHash = crypto.createHash('sha256').update(String(token || '')).digest();
+        const expectedHash = crypto.createHash('sha256').update(ADMIN_PASSPHRASE).digest();
+        if (crypto.timingSafeEqual(suppliedHash, expectedHash)) {
+            const jwtToken = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
+            res.cookie('ghost_session', jwtToken, { httpOnly: true, secure: true, sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
+            return res.json({ success: true, isAdmin: true, user: 'Master Manoj' });
+        }
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded && decoded.role === 'admin') {
+            return res.json({ success: true, isAdmin: true, user: 'Master Manoj' });
+        }
+    } catch(e) {}
+
+    return res.json({ success: false, isAdmin: false });
+});
+
 // ============================================================
 // GOOGLE OAUTH ROUTES
 // ============================================================
@@ -460,12 +481,26 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
     const requestContext = { requestId, llmCalls: [] };
     await traceLocalStorage.run(requestContext, async () => {
         try {
-            const { message, user, image, fileContent, ghostCodeMode = true } = req.body;
+            const { message, user, image, fileContent } = req.body;
+            const ghostCodeActive = req.body.ghostCodeEnabled !== undefined ? req.body.ghostCodeEnabled : (req.body.ghostCodeMode !== undefined ? req.body.ghostCodeMode : true);
+            const ghostCodeMode = ghostCodeActive;
             const isAdmin = checkIsAdmin(req);
         const safeUser = isAdmin ? 'master_manoj' : (user && user.trim() && user.trim().toLowerCase() !== 'guest') ? user.trim().toLowerCase() : null;
         const activeTokens = isAdmin ? 4000 : 1000;
         const maxMemory = isAdmin ? 12 : 6;
         let userHistory = [];
+
+        const lowerMsg = (message || '').toLowerCase().trim();
+        const codeKeywords = ['python', 'javascript', 'js', 'html', 'css', 'sql', 'script', 'function', 'write code', 'build an app', 'generate code', 'create file', 'code', 'coding', 'generate a login page', 'build a login page', 'create a script'];
+        const isCodingRequest = codeKeywords.some(k => lowerMsg.includes(k));
+
+        if (!ghostCodeActive && isCodingRequest) {
+            res.json({
+                success: true,
+                text: "Ghost Code mode is currently turned OFF. Please turn Ghost Code ON in the sidebar controls to allow code generation and execution."
+            });
+            return;
+        }
         
         if (pool && safeUser) {
             try {
@@ -494,7 +529,6 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             return;
         }
 
-        const lowerMsg = (message || '').toLowerCase().trim();
         const isPublic = (process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public';
 
         if (lowerMsg.startsWith('activate morning') || lowerMsg.startsWith('activate scheduled monitor') || lowerMsg.startsWith('activate code assistant') || lowerMsg.startsWith('activate code_assistant')) {
@@ -776,7 +810,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                         await pool.query('UPDATE user_memories SET history_json = $2, updated_at = CURRENT_TIMESTAMP WHERE username = $1', [safeUser, JSON.stringify(userHistory.slice(-15))]);
                     }
 
-                    res.json({ success: true, text: traceText });
+                    res.json({ success: true, text: traceText, plan });
                     return;
                 } catch (err) {
                     console.error('[Intent Planner] Execution pipeline failed, falling back to direct brain.think:', err.message);

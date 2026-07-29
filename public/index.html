@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ghost AI Matrix</title>
     <link rel="stylesheet" href="/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';</script>
 </head>
@@ -28,25 +29,35 @@
                 </div>
             </div>
 
-            <!-- SYSTEM STATUS DASHBOARD -->
-            <div class="status-section">
-                <div class="status-card">
-                    <span class="status-label">LLM ROUTER</span>
-                    <span class="status-value" id="status-router"><span class="pill"></span>Multi-Provider Fallback</span>
-                </div>
-                <div class="status-card">
-                    <span class="status-label">VECTOR MEMORY</span>
-                    <span class="status-value" id="status-memory"><span class="pill"></span>384d Dense RAG</span>
-                </div>
-                <div class="status-card">
-                    <span class="status-label">MCP CLIENT</span>
-                    <span class="status-value" id="status-mcp"><span class="pill"></span>Ready / Standby</span>
+            <!-- 4D HOLOGRAPHIC PARTICLE GLOBE VISUALIZER -->
+            <div id="visualizerContainer" class="visualizer-container"></div>
+
+            <!-- CORE CONTROL TOGGLES -->
+            <div class="sidebar-nav">
+                <div class="control-group">
+                    <span class="control-title">Core Controls</span>
+                    <button class="toggle-card active" id="ghostCodeBtn">
+                        <span class="toggle-indicator"></span>
+                        <div class="toggle-info">
+                            <span class="toggle-name">Ghost Code</span>
+                            <span class="toggle-sub" id="ghostCodeStatus">ON // Code Execution Active</span>
+                        </div>
+                    </button>
+                    <button class="toggle-card" id="handsFreeBtn">
+                        <span class="toggle-indicator"></span>
+                        <div class="toggle-info">
+                            <span class="toggle-name">Hands-Free Mode</span>
+                            <span class="toggle-sub" id="handsFreeStatus">OFF // Spoken Audio Idle</span>
+                        </div>
+                    </button>
                 </div>
             </div>
 
-            <!-- ACTIONS / TOGGLES -->
-            <div class="status-section" style="margin-top: auto;">
-                <button class="btn-icon" id="ghostCodeBtn" style="width: 100%; text-align: left;">[ GHOST CODE: ON ]</button>
+            <div class="sidebar-footer">
+                <div class="system-status-badge">
+                    <span class="status-dot"></span>
+                    <span>System Ready</span>
+                </div>
             </div>
         </aside>
 

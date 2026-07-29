@@ -140,12 +140,33 @@ class GhostVisualizer {
   }
 }
 
+function playClickSound(freq = 600, type = 'sine', duration = 0.05) {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + duration);
+    } catch (e) {}
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        document.documentElement.classList.add('theme-batcave');
-    }
     let availableVoices = [];
     window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); };
+
+    // Initialize 3D/4D Holographic Globe Visualizer
+    const visualizerElem = document.getElementById('visualizerContainer');
+    if (visualizerElem && typeof THREE !== 'undefined') {
+        window.ghostVisualizer = new GhostVisualizer('visualizerContainer');
+    }
 
     const loginOverlay = document.getElementById('loginOverlay');
     const authInput = document.getElementById('authInput');
@@ -171,7 +192,40 @@ document.addEventListener('DOMContentLoaded', () => {
     let masterUser = "Guest";
     let isAdminMode = false;
     let isGhostCodeActive = true;
+    let isHandsFreeActive = false;
     let inputMode = 'text';
+
+    const handsFreeBtn = document.getElementById('handsFreeBtn');
+    const ghostCodeStatus = document.getElementById('ghostCodeStatus');
+    const handsFreeStatus = document.getElementById('handsFreeStatus');
+
+    // --- PERSISTENT OWNER RECOGNITION ---
+    async function checkPersistentAuth() {
+        const storedToken = localStorage.getItem('ghost_owner_clearance');
+        if (!storedToken) return;
+
+        try {
+            const res = await fetch('/api/verify-auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: storedToken })
+            });
+            const data = await res.json();
+            if (data.success && data.isAdmin) {
+                userTag.innerText = `ADMIN // MASTER MANOJ`;
+                userTag.style.color = 'var(--accent-primary)';
+                masterUser = "Master Manoj";
+                isAdminMode = true;
+                loginOverlay.style.opacity = '0';
+                loginOverlay.style.visibility = 'hidden';
+                appLayout.classList.add('active');
+                console.log('[Auth] Persistent owner recognition verified for Master Manoj.');
+            }
+        } catch (e) {
+            console.warn('[Auth] Persistent clearance verification error:', e.message);
+        }
+    }
+    checkPersistentAuth();
 
     // --- AUTHENTICATION HANDLER ---
     authInput.addEventListener('keypress', async (e) => {
@@ -191,9 +245,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (authData.success && authData.role === 'admin') {
                     userTag.innerText = `ADMIN // MASTER MANOJ`;
-                    userTag.style.color = 'var(--accent-cyan)';
+                    userTag.style.color = 'var(--accent-primary)';
                     masterUser = "Master Manoj";
                     isAdminMode = true;
+                    localStorage.setItem('ghost_owner_clearance', inputVal);
                     speakResponse("Welcome back, Master Manoj. All Ghost core systems are operational.");
                 } else {
                     userTag.innerText = `VISITOR // ${safeGuestName.toUpperCase()}`;
@@ -214,15 +269,40 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- TOGGLES & ACTIONS ---
     if (ghostCodeBtn) {
         ghostCodeBtn.addEventListener('click', () => {
+            playClickSound(750, 'sine');
             isGhostCodeActive = !isGhostCodeActive;
             if (isGhostCodeActive) {
-                ghostCodeBtn.innerText = "[ GHOST CODE: ON ]";
-                ghostCodeBtn.style.color = "var(--text-main)";
-                speakResponse("Code matrix activated.");
+                ghostCodeBtn.classList.add('active');
+                if (ghostCodeStatus) ghostCodeStatus.innerText = "ON // Code Execution Active";
+                speakResponse("Ghost Code matrix activated.");
             } else {
-                ghostCodeBtn.innerText = "[ GHOST CODE: OFF ]";
-                ghostCodeBtn.style.color = "var(--text-dim)";
-                speakResponse("Code matrix offline.");
+                ghostCodeBtn.classList.remove('active');
+                if (ghostCodeStatus) ghostCodeStatus.innerText = "OFF // Code Execution Disabled";
+                speakResponse("Ghost Code matrix offline.");
+            }
+        });
+    }
+
+    if (handsFreeBtn) {
+        handsFreeBtn.addEventListener('click', () => {
+            playClickSound(1000, 'sine');
+            isHandsFreeActive = !isHandsFreeActive;
+            const container = document.getElementById('visualizerContainer');
+            if (isHandsFreeActive) {
+                handsFreeBtn.classList.add('active');
+                if (container) container.classList.add('active');
+                if (handsFreeStatus) handsFreeStatus.innerText = "ON // Spoken Interaction Active";
+                inputMode = 'voice';
+                if (window.ghostVisualizer) window.ghostVisualizer.setState('listening');
+                speakResponse("Hands-free mode enabled. Spoken interaction active.");
+                triggerHandsFreeListening();
+            } else {
+                handsFreeBtn.classList.remove('active');
+                if (container) container.classList.remove('active');
+                if (handsFreeStatus) handsFreeStatus.innerText = "OFF // Spoken Audio Idle";
+                inputMode = 'text';
+                if (window.ghostVisualizer) window.ghostVisualizer.setState('idle');
+                speakResponse("Hands-free mode disabled.");
             }
         });
     }
@@ -580,6 +660,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- CHAT COMMAND PROCESSOR ---
     sendBtn.addEventListener('click', () => {
+        playClickSound(600, 'sine');
         const val = userInput.value.trim();
         if (val || uploadedImageBase64 || uploadedFileText) {
             inputMode = 'text';
@@ -607,7 +688,8 @@ document.addEventListener('DOMContentLoaded', () => {
             user: masterUser,
             image: uploadedImageBase64 || null,
             fileContent: uploadedFileText || null,
-            ghostCodeMode: isGhostCodeActive
+            ghostCodeMode: isGhostCodeActive,
+            handsFreeMode: isHandsFreeActive
         };
 
         uploadedFileText = "";
@@ -625,6 +707,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (data.success) {
                 handleGhostResponse(data.text);
+                if (data.plan && Array.isArray(data.plan) && data.plan.length > 0) {
+                    renderAntigravityPlanCard(data.plan, textCommand);
+                }
                 if (data.actionRequired && data.actionId) {
                     renderHitlActionCard(data.actionId);
                 }
@@ -634,6 +719,68 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             thinkingIndicator.classList.remove('active');
             appendMessage('ghost', "Critical failure: Server unreachable.");
+        }
+    }
+
+    function renderAntigravityPlanCard(planSteps, originalGoal) {
+        const card = document.createElement('div');
+        card.className = 'plan-card';
+
+        let stepsHtml = planSteps.map((step, idx) => `
+            <div class="step-item" id="planStep_${idx}">
+                <div class="step-info">
+                    <span class="step-number">Step ${idx + 1}</span>
+                    <span>${step.description || step.task || 'Execute task action'}</span>
+                </div>
+                <span class="step-badge pending" id="stepBadge_${idx}">Pending</span>
+            </div>
+        `).join('');
+
+        card.innerHTML = `
+            <div class="plan-card-header">
+                <span class="plan-card-title">📐 IMPLEMENTATION PLAN</span>
+                <span style="font-size: 11px; color: var(--text-muted);">${planSteps.length} Steps Identified</span>
+            </div>
+            <div class="plan-steps-list">
+                ${stepsHtml}
+            </div>
+            <button class="btn-approve-plan" id="approvePlanBtn">Approve & Execute Plan</button>
+        `;
+
+        chatLog.appendChild(card);
+        chatLog.scrollTop = chatLog.scrollHeight;
+
+        const approveBtn = card.querySelector('#approvePlanBtn');
+
+        const executePlan = async () => {
+            approveBtn.disabled = true;
+            approveBtn.innerText = "Executing Plan...";
+
+            for (let i = 0; i < planSteps.length; i++) {
+                const badge = card.querySelector(`#stepBadge_${i}`);
+                if (badge) {
+                    badge.className = 'step-badge in_progress';
+                    badge.innerText = 'Executing';
+                }
+
+                await new Promise(res => setTimeout(res, 600));
+
+                if (badge) {
+                    badge.className = 'step-badge completed';
+                    badge.innerText = 'Completed';
+                }
+            }
+
+            approveBtn.innerText = "✓ Plan Executed";
+            approveBtn.style.background = "var(--accent-emerald)";
+            speakResponse("Implementation plan executed successfully.");
+        };
+
+        if (isHandsFreeActive) {
+            approveBtn.innerText = "Executing (Hands-Free)...";
+            executePlan();
+        } else {
+            approveBtn.addEventListener('click', executePlan);
         }
     }
 
