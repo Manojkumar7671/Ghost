@@ -4,6 +4,9 @@
   "description": "Ghost AI Autonomous Matrix",
   "main": "server.js",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "start": "node server.js",
     "desktop": "npx electron ./desktop-app/main.cjs",
