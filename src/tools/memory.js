@@ -22,7 +22,11 @@ function loadHistory(username) {
 
 function saveMessage(username, role, content) {
   const history = loadHistory(username);
-  history.push({ role, content, ts: new Date().toISOString() });
+  let safeContent = content;
+  if (typeof safeContent === 'string' && safeContent.length > 10000) {
+    safeContent = safeContent.substring(0, 10000) + '... [TRUNCATED DUE TO SIZE]';
+  }
+  history.push({ role, content: safeContent, ts: new Date().toISOString() });
   if (history.length > 100) history.splice(0, history.length - 100);
   fs.writeJsonSync(getHistoryFile(username), history, { spaces: 2 });
 }

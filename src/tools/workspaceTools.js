@@ -7,6 +7,9 @@ const PROJECT_ROOT = path.resolve(__dirname, '../../');
 
 // Resolves and guarantees path safety, blocking path traversal outside of the Ghost project directory
 function resolveSafePath(relativePath) {
+  if (!relativePath || typeof relativePath !== 'string') {
+    relativePath = './';
+  }
   let absolutePath;
   if (relativePath === '~') {
     absolutePath = os.homedir();
@@ -37,7 +40,9 @@ function resolveSafePath(relativePath) {
  * View specific line ranges of a workspace file or list directory contents (1-indexed)
  */
 async function viewFile(payload) {
-  const { path: relPath, startLine = 1, endLine = 80 } = payload;
+  const relPath = payload.path || payload.filePath || './';
+  const startLine = payload.startLine || 1;
+  const endLine = payload.endLine || 80;
   try {
     const filePath = resolveSafePath(relPath);
     if (!fs.existsSync(filePath)) return { error: `File not found: ${relPath}` };
@@ -130,12 +135,15 @@ async function runWorkspaceCommand(payload) {
     return { error: gateRes.reason };
   }
   
+  const { redactSecrets } = await import('../../services/secretRedactor.js');
   return new Promise((resolve) => {
     exec(command, { cwd: PROJECT_ROOT, timeout: 20000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+      const cleanStdout = redactSecrets(stdout.trim());
+      const cleanStderr = redactSecrets(stderr.trim());
       if (err) {
-        resolve({ success: false, error: err.message, stderr: stderr.trim(), stdout: stdout.trim() });
+        resolve({ success: false, error: redactSecrets(err.message), stderr: cleanStderr, stdout: cleanStdout });
       } else {
-        resolve({ success: true, stdout: stdout.trim(), stderr: stderr.trim() });
+        resolve({ success: true, stdout: cleanStdout, stderr: cleanStderr });
       }
     });
   });

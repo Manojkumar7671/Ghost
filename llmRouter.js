@@ -9,6 +9,7 @@
  * 5. Google AI Studio / Gemini (https://generativelanguage.googleapis.com/v1beta/openai)
  */
 import crypto from 'crypto';
+import { redactSecrets } from './services/secretRedactor.js';
 
 export function getProviders() {
   const freeLLMBase = (process.env.FREELLMAPI_BASE_URL || 'http://localhost:3001/v1').replace(/\/+$/, '');
@@ -152,12 +153,12 @@ export async function callLLM(messages = [], options = {}) {
 
       if (!res.ok) {
         const errorText = await res.text().catch(() => '');
-        throw new Error(`HTTP ${res.status} ${res.statusText}: ${errorText.slice(0, 150)}`);
+        throw new Error(`HTTP ${res.status} ${res.statusText}: ${redactSecrets(errorText.slice(0, 150))}`);
       }
 
       const data = await res.json();
       if (data.error) {
-        throw new Error(data.error.message || JSON.stringify(data.error));
+        throw new Error(redactSecrets(data.error.message || JSON.stringify(data.error)));
       }
 
       const content = data.choices?.[0]?.message?.content;
@@ -171,14 +172,14 @@ export async function callLLM(messages = [], options = {}) {
     } catch (err) {
       clearTimeout(timeoutId);
       const isAbort = err.name === 'AbortError';
-      const errMsg = isAbort ? `Timeout after ${timeoutMs}ms` : err.message;
+      const errMsg = redactSecrets(isAbort ? `Timeout after ${timeoutMs}ms` : err.message);
       const latencyMs = Date.now() - startProviderTime;
       console.warn(`[LLM Router Timing] Provider ${provider.name} failed in ${latencyMs}ms (${errMsg}). Trying next provider...`);
       errors.push(`${provider.name}: ${errMsg}`);
     }
   }
 
-  throw new Error(`All LLM providers failed in fallback chain:\n- ${errors.join('\n- ')}`);
+  throw new Error(redactSecrets(`All LLM providers failed in fallback chain:\n- ${errors.join('\n- ')}`));
 }
 
 export default { callLLM, getProviders };

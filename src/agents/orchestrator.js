@@ -111,17 +111,50 @@ Respond ONLY with a JSON array of string subtasks. No markdown.`;
   }
 
   const promises = subtasks.map(async (st) => {
-    const { name, agent } = await evaluate(st);
+    let { name, agent } = await evaluate(st);
     let result = '';
+    let attempts = 0;
+    const maxAttempts = 2;
+    let success = false;
+    let lastError = null;
 
-    try {
-      if (agent && typeof agent.run === 'function') {
-        result = await agent.run(st, globalContext);
-      } else {
-        result = `Agent ${name} missing standard run() method.`;
+    while (attempts < maxAttempts && !success) {
+      attempts++;
+      try {
+        if (agent && typeof agent.run === 'function') {
+          result = await agent.run(st, globalContext);
+          
+          // Detect failures (e.g. 404s, HTTP errors, rate limits, or explicit refuses)
+          const lowerRes = (result || '').toLowerCase();
+          if (lowerRes.includes('error:') || lowerRes.includes('404 not found') || lowerRes.includes('failed to fetch') || lowerRes.includes('rate limit exceeded') || lowerRes.includes('cannot complete') || lowerRes.includes('unable to handle')) {
+            throw new Error(`Execution returned fallback-triggering result: ${result.substring(0, 100)}`);
+          }
+          success = true;
+        } else {
+          throw new Error(`Agent ${name} missing standard run() method.`);
+        }
+      } catch (err) {
+        lastError = err;
+        console.warn(`[Orchestrator] Attempt ${attempts} failed for subtask "${st}" using agent ${name}: ${err.message}`);
+        
+        if (attempts < maxAttempts) {
+          console.log(`[Orchestrator] Retrying subtask "${st}" with alternate approach.`);
+          // Switch to a fallback general-purpose agent with a custom system prompt
+          agent = createAgent('genericFallback', 'You are a general-purpose fallback assistant. Find alternative ways to achieve the user goal if direct tools fail.');
+          name = 'genericFallback';
+        }
       }
-    } catch (err) {
-      result = `Error executing ${name}: ${err.message}`;
+    }
+
+    if (!success) {
+      // Reframe limitation/failure in a solution-oriented way
+      const reframePrompt = `The task "${st}" failed with error: "${lastError ? lastError.message : 'Unknown failure'}". 
+Instead of reporting a flat refusal or giving up, write a helpful, solution-oriented response explaining what happened, suggesting next steps or alternative workarounds. Keep it concise.`;
+      try {
+        result = await chat([{ role: 'user', content: reframePrompt }], { maxTokens: 250 });
+      } catch (e) {
+        result = `I encountered an issue executing this step: ${lastError ? lastError.message : 'Unknown error'}. You might want to try adjusting the input parameters or checking if the service is online.`;
+      }
     }
 
     return `[Agent: ${name}] Subtask: "${st}"\nResult: ${result}`;

@@ -40,6 +40,9 @@ export const webSearchSkill = new BaseSkill({
 // n8nMcpClient is injected at registry-build time (see buildSkillRegistry below)
 // so this file doesn't need to import server.js directly (avoids circular imports).
 
+import { businessSkill } from './business/businessSkill.js';
+import { nvidiaSkill } from './nvidia_tools/nvidiaSkill.js';
+
 export function buildSkillRegistry(n8nMcpClient, securityAuditSkill) {
     const sendEmailSkill = new BaseSkill({
         name: 'sendEmail',
@@ -65,10 +68,30 @@ export function buildSkillRegistry(n8nMcpClient, securityAuditSkill) {
         }
     });
 
+    // Wrap the business object so it matches the expected interface
+    const businessBaseSkill = new BaseSkill({
+        name: businessSkill.name,
+        inputSchema: businessSkill.inputSchema,
+        outputSchema: businessSkill.outputSchema,
+        requiresApproval: businessSkill.requiresApproval,
+        execute: businessSkill.execute
+    });
+
+    // Wrap the nvidia tools object so it matches the expected interface
+    const nvidiaBaseSkill = new BaseSkill({
+        name: nvidiaSkill.name,
+        inputSchema: nvidiaSkill.inputSchema,
+        outputSchema: nvidiaSkill.outputSchema,
+        requiresApproval: nvidiaSkill.requiresApproval,
+        execute: nvidiaSkill.execute
+    });
+
     return {
         webSearch: webSearchSkill,
         sendEmail: sendEmailSkill,
         calendar: calendarSkill,
-        securityAudit: securityAuditSkill
+        securityAudit: securityAuditSkill,
+        business_action: businessBaseSkill,
+        nvidia_tools: nvidiaBaseSkill
     };
 }

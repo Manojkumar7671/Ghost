@@ -1,3 +1,4 @@
+import './services/secretHook.js';
 import { checkToolAccess } from './adminGate.js';
 import { startAutoLearning } from './ghostLearnScheduler.js';
 import { initCronScheduler } from './services/cronScheduler.js';
@@ -551,6 +552,25 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             return;
         }
 
+        if (lowerMsg === 'hi alfred') {
+            if (isAdmin) {
+                sessionModes.set(safeUser || 'guest', 'business');
+                res.json({ success: true, text: `[GHOST CONTROLLER]: Business Mode activated. How can I assist you with operations today?` });
+            } else {
+                res.json({ success: true, text: `[GHOST CONTROLLER]: Unauthorized.` });
+            }
+            return;
+        }
+
+        if (lowerMsg === 'deactivate business') {
+            if (sessionModes.get(safeUser || 'guest') === 'business') {
+                sessionModes.delete(safeUser || 'guest');
+                res.json({ success: true, text: `[GHOST CONTROLLER]: Business Mode deactivated.` });
+            }
+            return;
+        }
+
+
         if (lowerMsg === 'connect google' || lowerMsg === 'connect gmail') {
             const redirectUrl = process.env.RENDER_EXTERNAL_URL 
                 ? `${process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '')}/api/auth/google/connect`
@@ -605,7 +625,8 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
         } else {
             const isDeepResearch = lowerMsg.includes('research') || lowerMsg.includes('deep dive') || sessionModes.get(safeUser || 'guest') === 'deep_research';
             const isCodeAssistant = sessionModes.get(safeUser || 'guest') === 'code_assistant';
-            const isComplex = classifyComplexity(finalMessage) === 'complex' || isDeepResearch;
+            const isBusinessMode = sessionModes.get(safeUser || 'guest') === 'business';
+            const isComplex = classifyComplexity(finalMessage) === 'complex' || isDeepResearch || isBusinessMode;
 
             if (isComplex && process.env.GHOST_PLANNER_ENABLED !== 'false') {
                 console.log('[Intent Planner] Complex goal detected, initializing intent planner pipeline...');
@@ -637,7 +658,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                     // 4. Resolve capabilities to tools, parameterize, and execute
                     const executionStart = Date.now();
                     const previousResults = [];
-                    const activeMode = isCodeAssistant ? 'code_assistant' : isDeepResearch ? 'deep_research' : null;
+                    const activeMode = isCodeAssistant ? 'code_assistant' : isDeepResearch ? 'deep_research' : isBusinessMode ? 'business' : null;
                     const fullCatalog = await loadCatalog();
                     const catalog = filterCatalogByMode(fullCatalog, activeMode);
 
@@ -655,6 +676,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                             isAdmin, 
                             isCodeAssistant, 
                             isDeepResearch,
+                            isBusinessMode,
                             triggerSource: 'user_message'
                         };
 
@@ -717,7 +739,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                                 const selectedTool = candidates[0] || { name: 'chat' };
                                 const params = await generateToolParams(selectedTool.name, failedStep.description, previousResults, finalMessage);
                                 const action = { tool: selectedTool.name, params };
-                                const output = await brain.execute(action, finalMessage, previousResults, { safeUser: safeUser || 'guest', isAdmin, isCodeAssistant, isDeepResearch, triggerSource: 'user_message' });
+                                const output = await brain.execute(action, finalMessage, previousResults, { safeUser: safeUser || 'guest', isAdmin, isCodeAssistant, isDeepResearch, isBusinessMode, triggerSource: 'user_message' });
                                 
                                 const index = previousResults.findIndex(r => r.id === failedStep.id);
                                 if (index !== -1) {
@@ -766,9 +788,11 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                 let msgToThink = finalMessage;
                 if (isCodeAssistant) {
                     msgToThink = `[SESSION MODE: CODE ASSISTANT IS ACTIVE. You have broader workspace execution access.]\n${finalMessage}`;
+                } else if (isBusinessMode) {
+                    msgToThink = `[SESSION MODE: BUSINESS IS ACTIVE. Handle routine tasks, queue approvals, and alert owner.]\n${finalMessage}`;
                 }
                 const startTime = Date.now();
-                const brainResult = await brain.think(msgToThink, { safeUser, isAdmin, triggerSource: 'user_message' });
+                const brainResult = await brain.think(msgToThink, { safeUser, isAdmin, isBusinessMode, triggerSource: 'user_message' });
                 const latencyMs = Date.now() - startTime;
 
                 const lastCalls = requestContext.llmCalls || [];

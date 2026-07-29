@@ -80,7 +80,8 @@ const MODE_SKILLS = {
   morning_digest: ['web_search', 'email', 'email_send', 'email_draft'],
   deep_research: ['web_search', 'web_scrape'],
   code_assistant: ['workspace_view_file', 'workspace_edit_file', 'workspace_run_command', 'web_search'],
-  scheduled_monitor: ['web_search', 'web_scrape', 'email', 'email_send', 'email_draft']
+  scheduled_monitor: ['web_search', 'web_scrape', 'email', 'email_send', 'email_draft'],
+  business: ['business_action', 'web_search', 'workspace_view_file']
 };
 
 export function filterCatalogByMode(catalog, mode) {

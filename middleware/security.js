@@ -85,8 +85,9 @@ function securityMiddleware(req, res, next) {
   // For chat endpoints, sanitize and check for injection
   if (req.body && req.body.message) {
     const injection = detectPromptInjection(req.body.message);
-    if (!injection.safe) {
-      console.warn(`[Security] Prompt injection blocked from IP ${req.ip}: ${req.body.message.substring(0, 100)}`);
+    if (injection.isInjection) {
+      const { redactSecrets } = require('../services/secretRedactor.js');
+      console.warn(`[Security] Prompt injection blocked from IP ${req.ip}: ${redactSecrets(req.body.message.substring(0, 100))}`);
       return res.status(403).json({ success: false, error: injection.reason });
     }
     

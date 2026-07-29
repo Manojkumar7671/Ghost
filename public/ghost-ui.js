@@ -1,3 +1,145 @@
+// --- 3D/4D HOLOGRAPHIC THREE.JS VISUALIZER GLOBE ---
+class GhostVisualizer {
+  constructor(containerId) {
+    this.container = document.getElementById(containerId);
+    if (!this.container) return;
+    
+    this.state = 'idle'; // 'idle', 'listening', 'responding'
+    this.micLevel = 0;
+    
+    this.initThree();
+    this.animate();
+    
+    window.addEventListener('resize', () => this.onResize());
+  }
+  
+  initThree() {
+    const width = this.container.clientWidth || 600;
+    const height = this.container.clientHeight || 420;
+    
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    this.camera.position.z = 6;
+    
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    this.renderer.setSize(width, height);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.container.appendChild(this.renderer.domElement);
+    
+    // Create particle sphere using IcosahedronGeometry
+    this.geometry = new THREE.IcosahedronGeometry(2.2, 4); // Radius 2.2, detail 4
+    this.originalVertices = [];
+    
+    const pos = this.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      this.originalVertices.push(new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)));
+    }
+    
+    // Material for glowing particles
+    this.material = new THREE.PointsMaterial({
+      color: 0x00f0ff,
+      size: 0.05,
+      transparent: true,
+      opacity: 0.8,
+      blending: THREE.AdditiveBlending
+    });
+    
+    this.points = new THREE.Points(this.geometry, this.material);
+    this.scene.add(this.points);
+    
+    // Add subtle wireframe mesh underneath for extra structure
+    const wireGeometry = new THREE.IcosahedronGeometry(1.98, 3);
+    const wireMaterial = new THREE.MeshBasicMaterial({
+      color: 0x00a8ff,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.12,
+      blending: THREE.AdditiveBlending
+    });
+    this.wireMesh = new THREE.Mesh(wireGeometry, wireMaterial);
+    this.scene.add(this.wireMesh);
+    
+    this.clock = new THREE.Clock();
+    
+    // Color interpolation properties
+    this.targetColor = new THREE.Color(0x00f0ff);
+    this.currentColor = new THREE.Color(0x00f0ff);
+  }
+  
+  setState(state) {
+    this.state = state;
+    if (state === 'idle') {
+      this.targetColor.setHex(0x00f0ff); // Cyan
+    } else if (state === 'listening') {
+      this.targetColor.setHex(0x00a8ff); // Electric Blue
+    } else if (state === 'responding') {
+      this.targetColor.setHex(0x7000ff); // Deep Violet
+    }
+  }
+  
+  setMicLevel(level) {
+    this.micLevel = level; // normalized 0 to 1
+  }
+  
+  onResize() {
+    if (!this.container) return;
+    const width = this.container.clientWidth;
+    const height = this.container.clientHeight;
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(width, height);
+  }
+  
+  animate() {
+    requestAnimationFrame(() => this.animate());
+    
+    const time = this.clock.getElapsedTime();
+    
+    // Rotate elements
+    let rotSpeed = 0.15;
+    if (this.state === 'listening') rotSpeed = 0.3;
+    else if (this.state === 'responding') rotSpeed = 0.55;
+    
+    this.points.rotation.y = time * rotSpeed;
+    this.points.rotation.x = time * (rotSpeed * 0.5);
+    this.wireMesh.rotation.y = -time * (rotSpeed * 0.7);
+    
+    // Interpolate colors
+    this.currentColor.lerp(this.targetColor, 0.08);
+    this.material.color.copy(this.currentColor);
+    this.wireMesh.material.color.copy(this.currentColor);
+    
+    // Deform geometry
+    const pos = this.geometry.attributes.position;
+    const count = pos.count;
+    
+    for (let i = 0; i < count; i++) {
+      const orig = this.originalVertices[i];
+      
+      let displacement = 0;
+      if (this.state === 'idle') {
+        // Small slow wave
+        displacement = Math.sin(orig.x * 2.0 + time * 1.5) * Math.cos(orig.y * 2.0 + time * 1.5) * 0.08;
+      } else if (this.state === 'listening') {
+        // Pulses reactive to mic input volume
+        displacement = Math.sin(orig.x * 4.0 + time * 8.0) * Math.cos(orig.y * 4.0 + time * 8.0) * (0.05 + this.micLevel * 0.85);
+      } else if (this.state === 'responding') {
+        // procedural voice waveform pattern
+        displacement = Math.sin(orig.z * 5.0 + time * 14.0) * 0.22 + Math.cos(orig.y * 3.0 + time * 10.0) * 0.08;
+      }
+      
+      // Offset position along vertex normal (since center is 0,0,0, normal is normalized orig vector)
+      const normal = orig.clone().normalize();
+      const newPos = orig.clone().add(normal.multiplyScalar(displacement));
+      
+      pos.setXYZ(i, newPos.x, newPos.y, newPos.z);
+    }
+    
+    this.geometry.attributes.position.needsUpdate = true;
+    this.renderer.render(this.scene, this.camera);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         document.documentElement.classList.add('theme-batcave');
@@ -29,6 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let masterUser = "Guest";
     let isAdminMode = false;
     let isGhostCodeActive = true;
+    let inputMode = 'text';
 
     // --- AUTHENTICATION HANDLER ---
     authInput.addEventListener('keypress', async (e) => {
@@ -69,18 +212,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- TOGGLES & ACTIONS ---
-    ghostCodeBtn.addEventListener('click', () => {
-        isGhostCodeActive = !isGhostCodeActive;
-        if (isGhostCodeActive) {
-            ghostCodeBtn.innerText = "[ GHOST CODE: ON ]";
-            ghostCodeBtn.style.color = "var(--text-main)";
-            speakResponse("Code matrix activated.");
-        } else {
-            ghostCodeBtn.innerText = "[ GHOST CODE: OFF ]";
-            ghostCodeBtn.style.color = "var(--text-dim)";
-            speakResponse("Code matrix offline.");
-        }
-    });
+    if (ghostCodeBtn) {
+        ghostCodeBtn.addEventListener('click', () => {
+            isGhostCodeActive = !isGhostCodeActive;
+            if (isGhostCodeActive) {
+                ghostCodeBtn.innerText = "[ GHOST CODE: ON ]";
+                ghostCodeBtn.style.color = "var(--text-main)";
+                speakResponse("Code matrix activated.");
+            } else {
+                ghostCodeBtn.innerText = "[ GHOST CODE: OFF ]";
+                ghostCodeBtn.style.color = "var(--text-dim)";
+                speakResponse("Code matrix offline.");
+            }
+        });
+    }
 
     newChatBtn.addEventListener('click', () => {
         chatLog.innerHTML = `
@@ -125,9 +270,25 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (state === 'transcribing') micToggleBtn.innerText = '⏳';
         else if (state === 'speaking') micToggleBtn.innerText = '🔊';
         else micToggleBtn.innerText = '🎤';
+
+        if (window.ghostVisualizer) {
+            if (state === 'listening') window.ghostVisualizer.setState('listening');
+            else if (state === 'speaking') window.ghostVisualizer.setState('responding');
+            else if (state === 'transcribing') window.ghostVisualizer.setState('responding');
+            else window.ghostVisualizer.setState('idle');
+        }
+
+        // Restart wake-word recognition if returning to idle
+        if (state === 'idle' && !isRecording && !recognitionActive) {
+            startWakeWordRecognition();
+        }
     }
 
     function speakResponse(text) {
+        if (inputMode !== 'voice') {
+            console.log('[TTS] Input mode is text, skipping voice audio output.');
+            return;
+        }
         if (!window.speechSynthesis) return;
         let cleanText = text.replace(/[\x60]{3}[\s\S]*?[\x60]{3}/g, '')
                             .replace(/<think>[\s\S]*?<\/think>/g, '')
@@ -136,6 +297,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!cleanText) cleanText = "Execution complete.";
         window.speechSynthesis.cancel();
+        
+        // Stop any background recognition when speaking to prevent echoing as wake word
+        if (recognitionInstance && recognitionActive) {
+            try { recognitionInstance.stop(); } catch(e) {}
+        }
+        
         setMicState('speaking');
 
         const utterance = new SpeechSynthesisUtterance(cleanText);
@@ -150,21 +317,162 @@ document.addEventListener('DOMContentLoaded', () => {
         window.speechSynthesis.speak(utterance);
     }
 
-    // --- BACKEND WHISPER RECORDING MATRIX ---
+    // --- AUDIO PIPELINE, WAKE-WORD & SILENCE DETECTION ---
     let mediaRecorder = null;
     let audioChunks = [];
     let isRecording = false;
+    let globalAudioContext = null;
+    let globalAnalyser = null;
+    let globalStream = null;
+    let recognitionInstance = null;
+    let recognitionActive = false;
 
-    micToggleBtn.addEventListener('click', () => {
-        if (!isRecording) startRecording();
-        else stopRecording();
-    });
-
-    async function startRecording() {
+    async function initAudioPipeline() {
         try {
+            console.log('[Audio Pipeline] Requesting microphone access...');
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
+            globalStream = stream;
+            console.log('[Audio Pipeline] Microphone access granted.');
+
+            globalAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = globalAudioContext.createMediaStreamSource(stream);
+            globalAnalyser = globalAudioContext.createAnalyser();
+            globalAnalyser.fftSize = 256;
+            source.connect(globalAnalyser);
+
+            const dataArray = new Uint8Array(globalAnalyser.frequencyBinCount);
+            let silenceStart = null;
+
+            function updateAudioLevels() {
+                requestAnimationFrame(updateAudioLevels);
+                if (!globalAnalyser) return;
+
+                globalAnalyser.getByteFrequencyData(dataArray);
+                let total = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                    total += dataArray[i];
+                }
+                const average = total / dataArray.length;
+                const normalized = average / 255; // 0 to 1
+
+                if (window.ghostVisualizer) {
+                    window.ghostVisualizer.setMicLevel(normalized);
+                }
+
+                // Real-time amplitude level logger to debug mic input activity
+                if (normalized > 0.005) {
+                    console.log(`[Audio Analyser] Mic volume level detected: ${(normalized * 100).toFixed(2)}%`);
+                }
+
+                // Volume-based trigger for Electron (hands-free wake fallback)
+                const isElectron = navigator.userAgent.toLowerCase().includes('electron');
+                if (isElectron && !isRecording && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
+                    if (normalized > 0.06) {
+                        console.log('[Audio Pipeline] Volume peak detected in Electron. Triggering active voice control.');
+                        triggerHandsFreeListening();
+                    }
+                }
+
+                // Silence detection while actively recording
+                if (isRecording) {
+                    if (normalized < 0.015) { // below 1.5% threshold
+                        if (!silenceStart) {
+                            silenceStart = Date.now();
+                        } else if (Date.now() - silenceStart > 2000) { // 2 seconds of silence
+                            console.log('[Audio Pipeline] Silence threshold reached. Concluding capture.');
+                            stopRecording();
+                            silenceStart = null;
+                        }
+                    } else {
+                        silenceStart = null;
+                    }
+                }
+            }
+            updateAudioLevels();
+
+            startWakeWordRecognition();
+        } catch (e) {
+            console.error('[Audio Pipeline Error] Failed to initialize microphone capture:', e);
+            appendMessage('ghost', "Microphone access is required for wake-word and hands-free control. Please check system permissions.");
+        }
+    }
+
+    function startWakeWordRecognition() {
+        const isElectron = navigator.userAgent.toLowerCase().includes('electron');
+        if (isElectron) {
+            console.log('[Wake Recognizer] Running inside Electron. Skipping webkitSpeechRecognition to use high-performance local volume trigger instead.');
+            return;
+        }
+
+        if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+            console.warn('[Wake Recognizer] SpeechRecognition API not supported in this browser.');
+            return;
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognitionInstance = new SpeechRecognition();
+        recognitionInstance.continuous = true;
+        recognitionInstance.interimResults = true;
+        recognitionInstance.lang = 'en-US';
+
+        recognitionInstance.onstart = () => {
+            recognitionActive = true;
+            console.log('[Wake Recognizer] Continuous wake-word recognition active.');
+        };
+
+        recognitionInstance.onresult = (event) => {
+            let interimTranscript = '';
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                const text = event.results[i][0].transcript.toLowerCase();
+                if (event.results[i].isFinal) {
+                    console.log('[Wake Recognizer] Final stream token:', text);
+                } else {
+                    interimTranscript += text;
+                }
+
+                // Look for wake words (ghost, hey ghost, wake up)
+                if (text.includes('ghost') && !isRecording && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
+                    console.log('[Wake Recognizer] Hot word match found! Starting active voice control.');
+                    try { recognitionInstance.stop(); } catch(e) {}
+                    triggerHandsFreeListening();
+                    break;
+                }
+            }
+        };
+
+        recognitionInstance.onend = () => {
+            recognitionActive = false;
+            // Loop continuous listening if idle
+            setTimeout(() => {
+                if (!isRecording && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
+                    try {
+                        recognitionInstance.start();
+                    } catch (e) {
+                        // Suppress already started warnings
+                    }
+                }
+            }, 500);
+        };
+
+        recognitionInstance.onerror = (err) => {
+            console.error('[Wake Recognizer Error]', err);
+        };
+
+        try {
+            recognitionInstance.start();
+        } catch(e) {}
+    }
+
+    async function triggerHandsFreeListening() {
+        if (isRecording) return;
+        console.log('[Audio Pipeline] Initializing active hands-free recording session.');
+        inputMode = 'voice';
+
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+
+        try {
             audioChunks = [];
+            mediaRecorder = new MediaRecorder(globalStream);
 
             mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) audioChunks.push(event.data);
@@ -206,18 +514,28 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             mediaRecorder.start();
-        } catch (e) {
+        } catch (err) {
+            console.error('[Audio Pipeline] Failed to start hands-free record:', err);
             setMicState('idle');
-            appendMessage('ghost', "Microphone access denied or unavailable.");
         }
     }
 
     function stopRecording() {
         if (mediaRecorder && isRecording) {
             mediaRecorder.stop();
-            mediaRecorder.stream.getTracks().forEach(track => track.stop());
         }
     }
+
+    micToggleBtn.addEventListener('click', () => {
+        if (!isRecording) {
+            if (recognitionInstance) {
+                try { recognitionInstance.stop(); } catch(e) {}
+            }
+            triggerHandsFreeListening();
+        } else {
+            stopRecording();
+        }
+    });
 
     // --- ATTACHMENTS & FILE BUFFERING ---
     let uploadedFileText = "", uploadedImageBase64 = "";
@@ -263,13 +581,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- CHAT COMMAND PROCESSOR ---
     sendBtn.addEventListener('click', () => {
         const val = userInput.value.trim();
-        if (val || uploadedImageBase64 || uploadedFileText) processCommand(val);
+        if (val || uploadedImageBase64 || uploadedFileText) {
+            inputMode = 'text';
+            processCommand(val);
+        }
     });
 
     userInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             const val = userInput.value.trim();
-            if (val || uploadedImageBase64 || uploadedFileText) processCommand(val);
+            if (val || uploadedImageBase64 || uploadedFileText) {
+                inputMode = 'text';
+                processCommand(val);
+            }
         }
     });
 
@@ -351,6 +675,40 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function highlightCode(codeText, lang) {
+        let esc = codeText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        
+        let tokens = [];
+        let id = 0;
+        
+        // Match string literals and comments to preserve them from inner keyword highlighting
+        esc = esc.replace(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|[\s\S]*?\/\*[\s\S]*?\*\/|\/\/.*|#.*)/g, (match) => {
+            const tokenId = `__TOKEN_HL_${id++}__`;
+            let color = '#00ffaa'; // string (emerald green)
+            if (match.startsWith('//') || match.startsWith('/*') || match.startsWith('#')) {
+                color = '#4d6d7b'; // comment (slate gray)
+            }
+            tokens.push({ id: tokenId, html: `<span style="color: ${color}">${match}</span>` });
+            return tokenId;
+        });
+
+        // Highlight Keywords
+        esc = esc.replace(/\b(const|let|var|function|return|import|export|from|class|extends|new|if|else|for|while|try|catch|async|await|def|print|elif|with|as|pass|lambda)\b/g, '<span style="color: #ff0055">$1</span>');
+        
+        // Highlight Numbers
+        esc = esc.replace(/\b(\d+)\b/g, '<span style="color: #7000ff">$1</span>');
+        
+        // Highlight Built-ins & Globals
+        esc = esc.replace(/\b(console|document|window|process|require|module|self|global|this|arguments)\b/g, '<span style="color: #00f0ff">$1</span>');
+
+        // Restore preserved string literals and comments
+        for (let t of tokens) {
+            esc = esc.replace(t.id, t.html);
+        }
+        
+        return esc;
+    }
+
     function handleGhostResponse(fullText) {
         if (fullText.includes('[EXECUTE_OPEN_TAB:')) {
             const urlMatch = fullText.match(/\[EXECUTE_OPEN_TAB:(.*?)\]/);
@@ -358,14 +716,60 @@ document.addEventListener('DOMContentLoaded', () => {
             fullText = fullText.replace(/\[EXECUTE_OPEN_TAB:.*?\]/g, 'Opening web oracle tab.');
         }
 
-        const codeRegex = /[\x60]{3}[a-z]*\n([\s\S]*?)[\x60]{3}/gi;
+        // Match backticks and language tag
+        const codeRegex = /[\x60]{3}([a-zA-Z0-9_-]*)\n([\s\S]*?)[\x60]{3}/gi;
         let match, foundHtml = false, htmlContentToRender = "", spokenText = fullText;
         codeContent.innerHTML = '';
 
         while ((match = codeRegex.exec(fullText)) !== null) {
-            let codeBlock = match[1].trim();
-            let safeBlock = codeBlock.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            codeContent.innerHTML += `<pre><code>${safeBlock}</code></pre>`;
+            let lang = match[1] || 'code';
+            let codeBlock = match[2].trim();
+            
+            // Try to extract a filename from the code comments
+            let filename = 'Source Code';
+            const firstLine = codeBlock.split('\n')[0].trim();
+            const fileMatch = firstLine.match(/(?:\/\/|#)\s*([a-zA-Z0-9_\-\.\/]+\.[a-zA-Z0-9]+)/);
+            if (fileMatch && fileMatch[1]) {
+                filename = fileMatch[1];
+            }
+
+            // Create visual code container matching premium batcave theme
+            let blockContainer = document.createElement('div');
+            blockContainer.className = 'code-block-container';
+            blockContainer.style.marginBottom = '20px';
+
+            let header = document.createElement('div');
+            header.className = 'code-block-header';
+            
+            let label = document.createElement('span');
+            label.innerText = `${filename} (${lang})`;
+            
+            let copyBtn = document.createElement('button');
+            copyBtn.className = 'copy-btn';
+            copyBtn.innerText = 'Copy';
+            copyBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(codeBlock);
+                copyBtn.innerText = 'Copied!';
+                copyBtn.style.color = 'var(--accent-cyan)';
+                setTimeout(() => {
+                    copyBtn.innerText = 'Copy';
+                    copyBtn.style.color = '';
+                }, 2000);
+            });
+            
+            header.appendChild(label);
+            header.appendChild(copyBtn);
+            
+            let pre = document.createElement('pre');
+            let code = document.createElement('code');
+            code.innerHTML = highlightCode(codeBlock, lang);
+            pre.appendChild(code);
+            
+            blockContainer.appendChild(header);
+            blockContainer.appendChild(pre);
+            
+            codeContent.appendChild(blockContainer);
+
             if (codeBlock.includes('<!DOCTYPE html>') || (codeBlock.includes('<html') && codeBlock.includes('</html>'))) {
                 foundHtml = true;
                 htmlContentToRender = codeBlock.substring(codeBlock.indexOf('<!DOCTYPE html>') !== -1 ? codeBlock.indexOf('<!DOCTYPE html>') : codeBlock.indexOf('<html'));
@@ -382,5 +786,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         appendMessage('ghost', spokenText.trim() || "Execution complete.");
         speakResponse(spokenText);
+    }
+
+    // --- INITIALIZE VISUALIZER & MIC ON LOAD ---
+    window.ghostVisualizer = new GhostVisualizer('visualizer-container');
+    window.addEventListener('resize', () => {
+        if (window.ghostVisualizer && typeof window.ghostVisualizer.onResize === 'function') {
+            window.ghostVisualizer.onResize();
+        }
+    });
+    initAudioPipeline();
+
+    // --- DOUBLE CLICK TO FOCUS MESSAGE INPUT ---
+    const chatContainer = document.querySelector('.chat-container');
+    if (chatContainer) {
+        chatContainer.addEventListener('dblclick', (e) => {
+            if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                userInput.focus();
+            }
+        });
     }
 });

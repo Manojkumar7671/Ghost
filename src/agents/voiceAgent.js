@@ -2,6 +2,7 @@ const axios = require('axios');
 const fs = require('fs-extra');
 const path = require('path');
 const FormData = require('form-data');
+const crypto = require('crypto');
 
 const OUTPUT_DIR = path.join(__dirname, '../../logs/audio');
 fs.ensureDirSync(OUTPUT_DIR);
@@ -87,16 +88,32 @@ async function textToSpeech(text, filename) {
  * Audio Transcription using Whisper API (Groq or OpenAI endpoint)
  */
 async function transcribeAudio(audioBuffer, filename = 'input.webm') {
-  const apiKey = process.env.WHISPER_API_KEY || process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    return { error: 'WHISPER_API_KEY (or GROQ_API_KEY/OPENAI_API_KEY) not set in environment variables.' };
-  }
+  let apiKey = process.env.WHISPER_API_KEY || process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY;
+  let endpoint = 'https://api.openai.com/v1/audio/transcriptions';
+  let model = 'whisper-1';
 
   const isGroq = !process.env.WHISPER_API_KEY && !process.env.OPENAI_API_KEY && process.env.GROQ_API_KEY;
-  const endpoint = isGroq
-    ? 'https://api.groq.com/openai/v1/audio/transcriptions'
-    : 'https://api.openai.com/v1/audio/transcriptions';
-  const model = isGroq ? 'whisper-large-v3' : 'whisper-1';
+  let isDeadGroq = false;
+  if (isGroq && apiKey) {
+    const keyHash = crypto.createHash('md5').update(apiKey).digest('hex');
+    if (keyHash === 'b23ae22d91912ece3d633446484ff97b') {
+      isDeadGroq = true;
+    }
+  }
+
+  if ((!apiKey || isDeadGroq) && process.env.NVIDIA_API_KEY) {
+    console.log('[voiceAgent] Falling back to NVIDIA NIM audio transcription (openai/whisper-large-v3).');
+    apiKey = process.env.NVIDIA_API_KEY;
+    endpoint = 'https://integrate.api.nvidia.com/v1/audio/transcriptions';
+    model = 'openai/whisper-large-v3';
+  } else if (isGroq) {
+    endpoint = 'https://api.groq.com/openai/v1/audio/transcriptions';
+    model = 'whisper-large-v3';
+  }
+
+  if (!apiKey) {
+    return { error: 'No valid transcription API key (WHISPER_API_KEY, GROQ_API_KEY, OPENAI_API_KEY, or NVIDIA_API_KEY) found in environment.' };
+  }
 
   try {
     const form = new FormData();
