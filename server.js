@@ -540,7 +540,42 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
 
             console.log(`[Chat Trace] Received input: "${message}" | user: "${safeUser}" | fileAttached: ${Boolean(fileContent || fileBase64)}`);
 
-            // 1. Intercept Native Application Requests ("open camera", "open photo booth", "open calculator", "open terminal")
+            // 0. Support compound multi-action sentences ("open camera, then open youtube in safari, then tell me a joke")
+            const isCompound = /\b(then|and)\b|,/i.test(message) && (lowerMsg.includes('open') || lowerMsg.includes('launch') || lowerMsg.includes('tell') || lowerMsg.includes('play'));
+            if (isCompound) {
+                const parts = message.split(/\s+(?:then|and)\s+|,/gi).map(p => p.trim()).filter(Boolean);
+                if (parts.length > 1) {
+                    console.log(`[Multi-Action Chain] Splitting compound sentence into ${parts.length} sub-actions:`, parts);
+                    let chainResults = [];
+                    for (const subCmd of parts) {
+                        const lowerSub = subCmd.toLowerCase();
+                        if (lowerSub.includes('open camera') || lowerSub.includes('open photo booth')) {
+                            const { exec } = await import('child_process');
+                            exec('open -a "Photo Booth"');
+                            chainResults.push('[Ghost System]: Photo Booth (Camera) application visually opened on desktop.');
+                        } else if (lowerSub.startsWith('open ') || lowerSub.startsWith('launch ')) {
+                            const openMatch = lowerSub.match(/^(?:open|launch)\s+([^\s]+)(?:\s+in\s+([^\s]+))?$/i);
+                            if (openMatch) {
+                                let rawSite = openMatch[1];
+                                let rawBrowser = openMatch[2] || 'safari';
+                                let browserApp = rawBrowser.includes('safari') ? 'Safari' : 'Google Chrome';
+                                let targetUrl = rawSite.startsWith('http') ? rawSite : (rawSite.includes('youtube') ? 'https://www.youtube.com' : `https://www.${rawSite}.com`);
+                                const { exec } = await import('child_process');
+                                exec(`open -a "${browserApp}" "${targetUrl}"`);
+                                chainResults.push(`[Ghost System]: Visually opened ${targetUrl} in ${browserApp}.`);
+                            } else {
+                                const { exec } = await import('child_process');
+                                exec(`open -a "Safari" "https://www.google.com"`);
+                                chainResults.push(`[Ghost System]: Processed browser command: ${subCmd}`);
+                            }
+                        } else {
+                            const brainRes = await brain.think(subCmd, { safeUser, isAdmin });
+                            chainResults.push(typeof brainRes === 'string' ? brainRes : (brainRes.text || brainRes.output || JSON.stringify(brainRes)));
+                        }
+                    }
+                    return res.json({ success: true, text: chainResults.join('\n\n') });
+                }
+            }
             if (lowerMsg === 'open camera' || lowerMsg === 'open photo booth' || lowerMsg.includes('open camera') || lowerMsg.includes('open photo booth')) {
                 console.log(`[Chat Trace] Intercepted native app launch -> Photo Booth (Camera)`);
                 const { exec } = await import('child_process');
