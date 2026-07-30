@@ -154,18 +154,122 @@ function playClickSound(freq = 600, type = 'sine', duration = 0.05) {
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start();
-        osc.stop(ctx.currentTime + duration);
     } catch (e) {}
+}
+
+// --- DESKTOP WHITE AUDIO WAVEFORM VISUALIZER (ELECTRON ONLY) ---
+class GhostWaveformVisualizer {
+  constructor(containerId) {
+    this.container = document.getElementById(containerId);
+    if (!this.container) return;
+
+    this.state = 'idle'; // 'idle', 'listening', 'responding'
+    this.micLevel = 0;
+
+    this.canvas = document.createElement('canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.container.innerHTML = '';
+    this.container.appendChild(this.canvas);
+
+    this.onResize();
+    window.addEventListener('resize', () => this.onResize());
+
+    this.phase = 0;
+    this.animate();
+  }
+
+  setState(state) {
+    this.state = state;
+  }
+
+  setMicLevel(level) {
+    this.micLevel = level; // normalized 0.0 to 1.0
+  }
+
+  onResize() {
+    if (!this.container || !this.canvas) return;
+    this.width = this.container.clientWidth || 300;
+    this.height = this.container.clientHeight || 160;
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = this.width * dpr;
+    this.canvas.height = this.height * dpr;
+    this.canvas.style.width = `${this.width}px`;
+    this.canvas.style.height = `${this.height}px`;
+    this.ctx.scale(dpr, dpr);
+  }
+
+  animate() {
+    requestAnimationFrame(() => this.animate());
+    this.phase += 0.09;
+
+    const width = this.width;
+    const height = this.height;
+    const ctx = this.ctx;
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Dark sleek container background
+    ctx.fillStyle = 'rgba(15, 15, 18, 0.95)';
+    ctx.fillRect(0, 0, width, height);
+
+    const barCount = 56;
+    const barGap = 3;
+    const barWidth = Math.max(2, (width - 32 - (barCount * barGap)) / barCount);
+    const startX = (width - (barCount * (barWidth + barGap))) / 2;
+    const centerY = height / 2;
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
+
+    for (let i = 0; i < barCount; i++) {
+      const x = startX + i * (barWidth + barGap);
+      const normPos = (i - barCount / 2) / (barCount / 2);
+      const envelope = Math.cos(normPos * Math.PI * 0.45);
+
+      let targetAmp = 0.08;
+
+      if (this.state === 'listening') {
+        const noise = Math.sin(i * 0.45 + this.phase * 2.2) * Math.cos(i * 0.25 - this.phase * 1.1);
+        targetAmp = 0.08 + (0.85 * this.micLevel * Math.abs(noise) + 0.12 * Math.abs(noise)) * envelope;
+      } else if (this.state === 'responding') {
+        const wave = Math.sin(i * 0.35 + this.phase * 3.2) * Math.cos(i * 0.15 + this.phase * 1.5);
+        targetAmp = 0.12 + Math.abs(wave) * 0.72 * envelope;
+      } else {
+        const idleWave = Math.sin(i * 0.2 + this.phase * 0.8) * 0.06;
+        targetAmp = 0.08 + Math.abs(idleWave) * envelope;
+      }
+
+      targetAmp = Math.min(1.0, Math.max(0.04, targetAmp));
+      const barHeight = Math.max(4, targetAmp * (height - 24));
+
+      ctx.shadowBlur = targetAmp > 0.3 ? 8 : 0;
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(x, centerY - barHeight / 2, barWidth, barHeight, barWidth / 2);
+      } else {
+        ctx.rect(x, centerY - barHeight / 2, barWidth, barHeight);
+      }
+      ctx.fill();
+    }
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     let availableVoices = [];
     window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); };
 
-    // Initialize 3D/4D Holographic Globe Visualizer
+    // DUAL VISUALIZER PLATFORM MOUNT: Desktop Waveform vs Render Web 4D Particle Globe
+    const isDesktopApp = !!(window.ghostDesktop && window.ghostDesktop.isDesktop) || window.navigator.userAgent.includes('Electron');
     const visualizerElem = document.getElementById('visualizerContainer');
-    if (visualizerElem && typeof THREE !== 'undefined') {
-        window.ghostVisualizer = new GhostVisualizer('visualizerContainer');
+
+    if (visualizerElem) {
+        if (isDesktopApp) {
+            console.log('[Visualizer] Desktop environment detected — mounting GhostWaveformVisualizer (white audio waveform spikes).');
+            window.ghostVisualizer = new GhostWaveformVisualizer('visualizerContainer');
+        } else if (typeof THREE !== 'undefined') {
+            console.log('[Visualizer] Web environment detected — mounting GhostVisualizer (4D Three.js particle sphere).');
+            window.ghostVisualizer = new GhostVisualizer('visualizerContainer');
+        }
     }
 
     const loginOverlay = document.getElementById('loginOverlay');
@@ -392,8 +496,27 @@ document.addEventListener('DOMContentLoaded', () => {
         utterance.rate = 1.05;
         utterance.pitch = 0.95;
 
-        utterance.onend = () => setMicState('idle');
-        utterance.onerror = () => setMicState('idle');
+        utterance.onend = () => {
+            setMicState('idle');
+            if (isHandsFreeActive) {
+                console.log('[Hands-Free Loop] TTS playback ended. Automatically re-opening mic for continuous conversation.');
+                setTimeout(() => {
+                    if (isHandsFreeActive && !isRecording) {
+                        triggerHandsFreeListening();
+                    }
+                }, 400);
+            }
+        };
+        utterance.onerror = () => {
+            setMicState('idle');
+            if (isHandsFreeActive) {
+                setTimeout(() => {
+                    if (isHandsFreeActive && !isRecording) {
+                        triggerHandsFreeListening();
+                    }
+                }, 400);
+            }
+        };
         window.speechSynthesis.speak(utterance);
     }
 
@@ -935,8 +1058,7 @@ document.addEventListener('DOMContentLoaded', () => {
         speakResponse(spokenText);
     }
 
-    // --- INITIALIZE VISUALIZER & MIC ON LOAD ---
-    window.ghostVisualizer = new GhostVisualizer('visualizer-container');
+    // --- INITIALIZE MIC ON LOAD ---
     window.addEventListener('resize', () => {
         if (window.ghostVisualizer && typeof window.ghostVisualizer.onResize === 'function') {
             window.ghostVisualizer.onResize();
