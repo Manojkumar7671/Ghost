@@ -524,6 +524,10 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
         try {
             const { user, image, fileContent, fileBase64, fileName } = req.body;
             const message = sanitizeUserInput(req.body.message);
+            if (!message || !message.trim()) {
+                console.log('[Chat Trace] Blocked empty or whitespace-only message request.');
+                return res.status(400).json({ success: false, error: "Message content cannot be empty." });
+            }
             const ghostCodeActive = req.body.ghostCodeEnabled !== undefined ? req.body.ghostCodeEnabled : (req.body.ghostCodeMode !== undefined ? req.body.ghostCodeMode : true);
             const ghostCodeMode = ghostCodeActive;
             const isAdmin = checkIsAdmin(req);
