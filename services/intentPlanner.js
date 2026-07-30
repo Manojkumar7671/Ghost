@@ -44,8 +44,11 @@ export function classifyComplexity(userMessage) {
 export async function analyzeIntent(userMessage, conversationContext) {
     const systemPrompt = `You are the Intent Analyzer for Ghost. Analyze the user's message and the conversation context to understand their goal, identify any ambiguities, highlight constraints, and infer the implied steps required to accomplish the goal.
 
-CRITICAL PRONOUN / REFERENCE RESOLUTION RULE:
-If the user message contains pronouns or references like "it", "that file", "the app", "open it", "play it", etc., you MUST examine the Conversation Context below to identify the last-mentioned file, application, URL, or entity and resolve the pronoun to that exact entity in the generated "goal" and "impliedSteps". Do not use literal pronouns in the goal or steps if the entity is identifiable from context.
+CRITICAL RULE FOR BUILT-IN AGENTS & CREDENTIALS:
+Ghost has pre-authenticated built-in agents (githubAgent, notionAgent, stockAgent, sysMonAgent, docAgent, webAgent, emailAgent) and system credentials pre-configured in environment variables. Do NOT list missing GitHub credentials, API keys, stock tokens, or system authentication as blocking ambiguities! Only list genuinely missing target parameters (e.g. if the user says "email this to someone" without specifying an email address).
+
+CRITICAL RULE FOR ATTACHED DOCUMENTS:
+If the prompt contains "[ATTACHED PDF DOCUMENT:...]" or "[Document Uploaded:]", the document text has ALREADY been fully extracted into the prompt context! Do NOT list "PDF processing required" or missing PDF text as an ambiguity. Treat the document content as immediately available and generate steps to summarize or answer questions about it directly.
 
 You must respond with a raw JSON object matching this schema (do not include markdown formatting or extra text outside the JSON):
 {

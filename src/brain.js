@@ -122,6 +122,7 @@ CRITICAL ROUTING DIRECTIVES:
 - chat: Use "chat" tool for direct Q&A, general conversation, or when an attached document ([ATTACHED PDF DOCUMENT: ...]) is provided. NEVER use web_search or web_scrape when a document is attached!
 - image_generate: ONLY for visual image/picture generation (PNG/JPG graphics). NEVER use image_generate for writing code, python scripts, HTML pages, or programming.
 - workspace_edit_file / workspace_run_command: For writing, generating, or running code (Python, JS, HTML, scripts). Any prompt asking to write/generate python, code, login pages, or scripts MUST route here.
+- orchestrator_run / chat: For creative design, game design, architecture planning, blueprinting, or multi-step creation requests ("design a game", "write a story", "create a plan", "architect a system"). NEVER use web_search for creative generation requests unless the user explicitly asks to search the web!
 
 RESPONSE FORMAT: Output ONLY a valid JSON array. No markdown fences, no explanation, no preamble.
 Example: [{"tool":"web_search","params":{"query":"latest AI news"},"reason":"User asked for current information"}]`,
@@ -132,6 +133,11 @@ Example: [{"tool":"web_search","params":{"query":"latest AI news"},"reason":"Use
   // Use robust multi-strategy JSON extraction instead of brittle regex
   const parsed = extractJSON(response);
   if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+    const isCreativeDesignPrompt = /\b(design|create|architect|build|draft|write)\b.*\b(game|story|plan|blueprint|system|architecture|app|schema)\b/i.test(userMessage);
+    if (isCreativeDesignPrompt && parsed[0]?.tool === 'web_search' && !userMessage.toLowerCase().includes('search')) {
+      console.warn('[Brain Routing Fix] Overriding web_search to orchestrator_run for creative design prompt:', userMessage);
+      parsed[0] = { tool: 'orchestrator_run', params: { task: userMessage }, reason: 'Creative design generation' };
+    }
     // Hard Security Boundary: neutralize pseudo-system override and privilege escalation requests
     if (userMessage.includes('[neutralized request]') || /\b(system override|superuser admin|grant admin)\b/i.test(userMessage)) {
       return [{ tool: 'chat', params: { text: "System override and privilege escalation requests are denied by Ghost security policy." }, reason: 'Security boundary enforcement' }];
@@ -257,8 +263,31 @@ async function execute(action, userMessage, previousResults = [], userContext = 
       return `Briefing:\n${br}`;
     case 'memory_save': {
       const { safeUser = 'guest' } = userContext;
-      remember(safeUser, params.key || 'note', params.value || userMessage);
-      return `Remembered: ${params.key}`;
+      const history = getHistory(safeUser, 10);
+      let valToSave = params.value;
+      const isDemonstrative = !valToSave || 
+        valToSave === userMessage || 
+        /\b(that|this|it|the price|the value|the result)\b/i.test(valToSave) ||
+        valToSave.length > 50;
+
+      if (isDemonstrative && Array.isArray(history) && history.length > 0) {
+        for (let i = history.length - 1; i >= 0; i--) {
+          const msg = history[i];
+          if (msg.role === 'assistant' && msg.content) {
+            const priceMatch = msg.content.match(/\$\d+(?:\.\d+)?/);
+            if (priceMatch) { valToSave = priceMatch[0]; break; }
+            const numMatch = msg.content.match(/\b\d+(?:\.\d+)?\b/);
+            if (numMatch) { valToSave = numMatch[0]; break; }
+          }
+        }
+      }
+      valToSave = valToSave || userMessage;
+      const targetKey = params.key || 'note';
+      remember(safeUser, targetKey, valToSave);
+      if (targetKey !== 'note') {
+        remember(safeUser, 'note', valToSave);
+      }
+      return `Remembered: ${targetKey} = ${valToSave}`;
     }
     case 'memory_get': {
       const { safeUser = 'guest' } = userContext;

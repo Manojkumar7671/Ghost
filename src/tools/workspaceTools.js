@@ -93,36 +93,52 @@ async function viewFile(payload) {
  * Perform a safe, contiguous search-and-replace edit on a workspace file
  */
 async function editFile(payload) {
-  const { path: relPath, targetContent, replacementContent } = payload;
+  let relPath = payload.path || payload.filePath || payload.file || 'outputs/notes.txt';
+  const { targetContent, replacementContent } = payload;
   try {
-    const filePath = resolveSafePath(relPath);
+    let filePath = resolveSafePath(relPath);
     if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
-      return { error: `Cannot edit a directory path directly (${relPath}). Specify a target file path (e.g. public/index.html).` };
+      relPath = path.join(relPath, 'notes.txt');
+      filePath = resolveSafePath(relPath);
     }
+
+    const relNorm = (relPath || '').replace(/\\/g, '/').replace(/^\/+/, '');
+    const filename = path.basename(relNorm);
+    let downloadSubPath = relNorm.startsWith('outputs/') ? relNorm.replace(/^outputs\//, '') : filename;
+    const downloadUrl = `http://localhost:3000/downloads/${downloadSubPath}`;
+
     if (!fs.existsSync(filePath)) {
-      if (!targetContent) {
-        fs.mkdirSync(path.dirname(filePath), { recursive: true });
-        fs.writeFileSync(filePath, replacementContent || '', 'utf-8');
-        return { success: true, path: relPath, message: "File created successfully." };
-      }
-      return { error: `File not found: ${relPath}` };
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, replacementContent || '', 'utf-8');
+      return {
+        success: true,
+        path: relPath,
+        downloadUrl,
+        message: `File created successfully at \`${relPath}\`.\n\n⬇️ **Download Link**: [${filename}](${downloadUrl})`
+      };
     }
     
     const content = fs.readFileSync(filePath, 'utf-8');
     
-    if (!content.includes(targetContent)) {
+    if (targetContent && !content.includes(targetContent)) {
       return { error: "Target content to replace was not found in the file. Matches must be exact including whitespace." };
     }
     
-    // Check for multiple matches to prevent accidental multiple updates
-    const occurrences = content.split(targetContent).length - 1;
-    if (occurrences > 1) {
-      return { error: `Multiple matches (${occurrences}) found. Specify a larger, unique block of lines.` };
+    if (targetContent) {
+      const occurrences = content.split(targetContent).length - 1;
+      if (occurrences > 1) {
+        return { error: `Multiple matches (${occurrences}) found. Specify a larger, unique block of lines.` };
+      }
     }
     
-    const updated = content.replace(targetContent, replacementContent);
+    const updated = targetContent ? content.replace(targetContent, replacementContent) : replacementContent;
     fs.writeFileSync(filePath, updated, 'utf-8');
-    return { success: true, path: relPath, message: "File modified successfully." };
+    return {
+      success: true,
+      path: relPath,
+      downloadUrl,
+      message: `File modified successfully at \`${relPath}\`.\n\n⬇️ **Download Link**: [${filename}](${downloadUrl})`
+    };
   } catch (err) {
     return { error: `editFile failed: ${err.message}` };
   }

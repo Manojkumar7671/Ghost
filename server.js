@@ -496,21 +496,79 @@ function extractTextFromPdfBuffer(pdfBuffer) {
     try {
         const zlib = require('zlib');
         const pdfStr = pdfBuffer.toString('binary');
-        const textBlocks = [];
+        
+        // 1. Build /ToUnicode CMap character lookup dictionary
+        const cmapMap = new Map();
         const streamRegex = /stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g;
         let match;
+
         while ((match = streamRegex.exec(pdfStr)) !== null) {
+            let decompressed = '';
             try {
-                const decompressed = zlib.inflateSync(Buffer.from(match[1], 'binary')).toString('utf-8');
-                const extracted = decompressed.replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s+/g, ' ');
-                if (extracted.length > 20) textBlocks.push(extracted);
-            } catch (e) {}
+                decompressed = zlib.inflateSync(Buffer.from(match[1], 'binary')).toString('utf-8');
+            } catch(e) {
+                decompressed = match[1];
+            }
+
+            if (decompressed.includes('beginbfchar') || decompressed.includes('beginbfrange')) {
+                const bfcharMatches = decompressed.matchAll(/<([0-9a-fA-F]+)>\s+<([0-9a-fA-F]+)>/g);
+                for (const m of bfcharMatches) {
+                    const srcHex = m[1];
+                    const dstHex = m[2];
+                    const dstChar = String.fromCharCode(parseInt(dstHex, 16));
+                    cmapMap.set(srcHex, dstChar);
+                }
+                const bfrangeMatches = decompressed.matchAll(/<([0-9a-fA-F]+)>\s+<([0-9a-fA-F]+)>\s+<([0-9a-fA-F]+)>/g);
+                for (const m of bfrangeMatches) {
+                    const start = parseInt(m[1], 16);
+                    const end = parseInt(m[2], 16);
+                    const dstStart = parseInt(m[3], 16);
+                    for (let i = 0; i <= (end - start); i++) {
+                        const srcHex = (start + i).toString(16).padStart(m[1].length, '0');
+                        const dstChar = String.fromCharCode(dstStart + i);
+                        cmapMap.set(srcHex, dstChar);
+                    }
+                }
+            }
         }
-        let result = textBlocks.join('\n');
-        if (!result) {
-            result = pdfStr.replace(/[^\x20-\x7E\n\r\t]/g, ' ').slice(0, 8000);
+
+        // 2. Decode stream text using CMap dictionary & standard ASCII
+        let text = '';
+        let streamMatch;
+        const streamRegex2 = /stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g;
+
+        while ((streamMatch = streamRegex2.exec(pdfStr)) !== null) {
+            let decompressed = '';
+            try {
+                decompressed = zlib.inflateSync(Buffer.from(streamMatch[1], 'binary')).toString('utf-8');
+            } catch(e) {
+                decompressed = streamMatch[1];
+            }
+
+            if (cmapMap.size > 0) {
+                const tjMatches = decompressed.matchAll(/<([0-9a-fA-F]+)>\s*Tj/g);
+                for (const m of tjMatches) {
+                    const hex = m[1];
+                    if (cmapMap.has(hex)) text += cmapMap.get(hex);
+                    else {
+                        for (let i = 0; i < hex.length; i += 4) {
+                            const chunk = hex.slice(i, i + 4);
+                            if (cmapMap.has(chunk)) text += cmapMap.get(chunk);
+                        }
+                    }
+                }
+            }
+            const stringTj = decompressed.matchAll(/\(([^()]+)\)\s*Tj/g);
+            for (const m of stringTj) {
+                text += ' ' + m[1];
+            }
         }
-        return result.trim();
+
+        const cleaned = text.replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (cleaned.length > 50) return cleaned;
+
+        // Fallback standard text extraction
+        return pdfStr.replace(/[^\x20-\x7E\n\r\t]/g, ' ').slice(0, 8000).trim();
     } catch (e) {
         return "";
     }
@@ -966,7 +1024,18 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                     const intent = await analyzeIntent(finalMessage, userHistory);
                     console.log('[Intent Planner] Intent analysis:', JSON.stringify(intent));
 
-                    // 2. Check for blocking ambiguities and short-circuit if found
+                    // 2. Check for blocking ambiguities and short-circuit if found (filtering false credential complaints)
+                    if (intent.ambiguities && intent.ambiguities.length > 0) {
+                        intent.ambiguities = intent.ambiguities.filter(amb => {
+                            const lower = amb.toLowerCase();
+                            if (lower.includes('github') || lower.includes('credential') || lower.includes('api key') || lower.includes('token') || lower.includes('authentication') || lower.includes('account')) {
+                                console.log(`[Intent Planner] Suppressed false credential ambiguity: "${amb}"`);
+                                return false;
+                            }
+                            return true;
+                        });
+                    }
+
                     if (intent.ambiguities && intent.ambiguities.length > 0) {
                         const clarifyingQuestion = `I need a bit more info to plan this: ${intent.ambiguities[0]}`;
                         if (pool && safeUser) {
