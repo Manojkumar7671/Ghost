@@ -19,7 +19,7 @@ import { pendingActions as sharedPendingActions } from './state/pendingActions.j
 import createPipelineRoutes from './routes/pipelineRoutes.js';
 import { securityMiddleware } from './middleware/security.js';
 import { createProxyMiddleware } from 'http-proxy-middleware';
-import { classifyComplexity, analyzeIntent, buildTaskPlan, generateToolParams, verifyGoalSatisfaction } from './services/intentPlanner.js';
+import { classifyComplexity, analyzeIntent, buildTaskPlan, generateToolParams, verifyGoalSatisfaction, taskUnderstanding } from './services/intentPlanner.js';
 import { loadCatalog, routeCapabilityToTools, filterCatalogByMode } from './services/toolRouter.js';
 import { initAgentModes, activateMorningDigest, activateScheduledMonitor } from './services/agentModes.js';
 import { runPythonSandbox } from './services/pythonSandbox.js';
@@ -1020,15 +1020,29 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                 console.log('[Intent Planner] Complex goal detected, initializing intent planner pipeline...');
                 const planningStart = Date.now();
                 try {
+                    // 0. Task Understanding Pre-Check
+                    const breakdown = await taskUnderstanding(finalMessage, userHistory);
+                    console.log('[Task Understanding] Breakdown:', JSON.stringify(breakdown));
+
+                    if (breakdown.isAmbiguous && breakdown.clarifyingQuestion) {
+                        if (pool && safeUser) {
+                            userHistory.push({ role: 'user', content: finalMessage });
+                            userHistory.push({ role: 'assistant', content: breakdown.clarifyingQuestion });
+                            await pool.query('UPDATE user_memories SET history_json = $2, updated_at = CURRENT_TIMESTAMP WHERE username = $1', [safeUser, JSON.stringify(userHistory.slice(-15))]);
+                        }
+                        res.json({ success: true, text: breakdown.clarifyingQuestion });
+                        return;
+                    }
+
                     // 1. Analyze intent
                     const intent = await analyzeIntent(finalMessage, userHistory);
                     console.log('[Intent Planner] Intent analysis:', JSON.stringify(intent));
 
-                    // 2. Check for blocking ambiguities and short-circuit if found (filtering false credential complaints)
+                    // 2. Check for blocking ambiguities and short-circuit if found
                     if (intent.ambiguities && intent.ambiguities.length > 0) {
                         intent.ambiguities = intent.ambiguities.filter(amb => {
                             const lower = amb.toLowerCase();
-                            if (lower.includes('github') || lower.includes('credential') || lower.includes('api key') || lower.includes('token') || lower.includes('authentication') || lower.includes('account')) {
+                            if (lower.includes('email') || lower.includes('github') || lower.includes('credential') || lower.includes('api key') || lower.includes('token') || lower.includes('authentication') || lower.includes('account')) {
                                 console.log(`[Intent Planner] Suppressed false credential ambiguity: "${amb}"`);
                                 return false;
                             }
@@ -1054,21 +1068,52 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                     const planningLatency = Date.now() - planningStart;
                     console.log(`[Intent Planner Timing] Overall planning phase latency: ${planningLatency}ms`);
 
-                    // 4. Resolve capabilities to tools, parameterize, and execute
+                    // 4. Resolve capabilities to tools, parameterize, and execute with Bounded Persistence & Retries
                     const executionStart = Date.now();
                     const previousResults = [];
                     const activeMode = isCodeAssistant ? 'code_assistant' : isDeepResearch ? 'deep_research' : isBusinessMode ? 'business' : null;
                     const fullCatalog = await loadCatalog();
                     const catalog = filterCatalogByMode(fullCatalog, activeMode);
+                    const MAX_TOOL_CALLS = 8;
+                    let totalToolCalls = 0;
 
                     for (const step of plan) {
+                        if (totalToolCalls >= MAX_TOOL_CALLS) {
+                            console.warn(`[Intent Planner] Bounded tool call cap (${MAX_TOOL_CALLS}) reached. Summarizing partial progress.`);
+                            break;
+                        }
+
                         const candidates = await routeCapabilityToTools(step.requiredCapability, step.description, catalog);
-                        const selectedTool = candidates[0] || { name: 'chat' };
+                        const primaryTool = candidates[0] || { name: 'chat' };
+                        const fallbackTool = candidates[1] || null;
 
-                        console.log(`[Tool Router] Routing step "${step.description}" to tool "${selectedTool.name}"`);
+                        console.log(`[Tool Router] Routing step "${step.description}" to primary tool "${primaryTool.name}"`);
 
-                        const params = await generateToolParams(selectedTool.name, step.description, previousResults, finalMessage);
-                        const action = { tool: selectedTool.name, params };
+                        const params = await generateToolParams(primaryTool.name, step.description, previousResults, finalMessage);
+                        
+                        // Autonomous vs Gated Task Split check
+                        const isGated = (toolName, toolParams) => {
+                            if (toolName === 'email_send') {
+                                const msg = finalMessage.toLowerCase();
+                                return !(msg.includes('yes send') || msg.includes('confirm send') || msg.includes('proceed') || toolParams.confirmed);
+                            }
+                            if (toolName === 'workspace_edit_file' || toolName === 'workspace_run_command') {
+                                const p = (toolParams.path || toolParams.filePath || toolParams.command || '').toLowerCase();
+                                return (p.includes('rm -rf') || p.includes('.env') || p.includes('server.js'));
+                            }
+                            return false;
+                        };
+
+                        if (isGated(primaryTool.name, params)) {
+                            const gatedMsg = `[Gated Action Confirmation Required] The task step "${step.description}" involves gated tool "${primaryTool.name}". Please confirm if you wish to execute this action.`;
+                            if (pool && safeUser) {
+                                userHistory.push({ role: 'user', content: finalMessage });
+                                userHistory.push({ role: 'assistant', content: gatedMsg });
+                                await pool.query('UPDATE user_memories SET history_json = $2, updated_at = CURRENT_TIMESTAMP WHERE username = $1', [safeUser, JSON.stringify(userHistory.slice(-15))]);
+                            }
+                            res.json({ success: true, text: gatedMsg });
+                            return;
+                        }
 
                         const executionContext = { 
                             safeUser: safeUser || 'guest', 
@@ -1080,48 +1125,46 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                         };
 
                         let output;
-                        const startTime = Date.now();
-                        try {
-                            output = await brain.execute(action, finalMessage, previousResults, executionContext);
-                            const latencyMs = Date.now() - startTime;
+                        let stepSuccess = false;
+                        let attemptsTried = [];
+
+                        // Retry loop (max 2 attempts per step)
+                        for (let attempt = 1; attempt <= 2; attempt++) {
+                            totalToolCalls++;
+                            const currentTool = (attempt === 2 && fallbackTool) ? fallbackTool : primaryTool;
+                            const currentParams = (attempt === 2 && fallbackTool) 
+                                ? await generateToolParams(currentTool.name, step.description, previousResults, finalMessage)
+                                : params;
                             
-                            const lastCalls = requestContext.llmCalls || [];
-                            requestContext.llmCalls = []; // Clear for next step
-                            const primaryCall = lastCalls.find(c => c.status === 'success') || lastCalls[lastCalls.length - 1];
-                            const provider = primaryCall ? primaryCall.provider : 'n/a';
-                            const fallbacksTried = lastCalls.filter(c => c.status === 'failed').map(c => c.provider).join(', ');
+                            const action = { tool: currentTool.name, params: currentParams };
+                            const startTime = Date.now();
 
-                            saveTrace(pool, {
-                                requestId,
-                                stepId: step.id,
-                                description: step.description,
-                                toolUsed: selectedTool.name,
-                                provider,
-                                fallbacksTried,
-                                latencyMs,
-                                status: 'done'
-                            });
+                            try {
+                                output = await brain.execute(action, finalMessage, previousResults, executionContext);
+                                const latencyMs = Date.now() - startTime;
+                                
+                                attemptsTried.push({ tool: currentTool.name, output, status: 'done' });
+                                
+                                const isErrorOutput = typeof output === 'string' && (output.startsWith('Error:') || output.includes('failed with status'));
+                                if (!isErrorOutput) {
+                                    stepSuccess = true;
+                                    saveTrace(pool, { requestId, stepId: step.id, description: step.description, toolUsed: currentTool.name, provider: 'n/a', fallbacksTried: attemptsTried.map(a => a.tool).join(', '), latencyMs, status: 'done' });
+                                    previousResults.push({ id: step.id, description: step.description, tool: currentTool.name, output, status: 'done' });
+                                    break;
+                                } else {
+                                    console.warn(`[Intent Planner Retry] Step "${step.description}" attempt ${attempt} returned error: ${output}`);
+                                    if (attempt < 2) await new Promise(r => setTimeout(r, 500));
+                                }
+                            } catch (attemptErr) {
+                                console.warn(`[Intent Planner Retry] Step "${step.description}" attempt ${attempt} exception:`, attemptErr.message);
+                                attemptsTried.push({ tool: currentTool.name, output: `Error: ${attemptErr.message}`, status: 'failed' });
+                                if (attempt < 2) await new Promise(r => setTimeout(r, 500));
+                            }
+                        }
 
-                            previousResults.push({ id: step.id, description: step.description, tool: selectedTool.name, output, status: 'done' });
-                        } catch (stepErr) {
-                            const latencyMs = Date.now() - startTime;
-                            const lastCalls = requestContext.llmCalls || [];
-                            requestContext.llmCalls = [];
-                            const fallbacksTried = lastCalls.filter(c => c.status === 'failed').map(c => c.provider).join(', ');
-
-                            saveTrace(pool, {
-                                requestId,
-                                stepId: step.id,
-                                description: step.description,
-                                toolUsed: selectedTool.name,
-                                provider: 'n/a',
-                                fallbacksTried,
-                                latencyMs,
-                                status: 'failed'
-                            });
-
-                            console.warn(`[Intent Planner] Step "${step.description}" failed:`, stepErr.message);
-                            previousResults.push({ id: step.id, description: step.description, tool: selectedTool.name, output: `Error: ${stepErr.message}`, status: 'failed' });
+                        if (!stepSuccess) {
+                            const errorSummary = attemptsTried.map((a, i) => `Attempt ${i+1} (${a.tool}): ${a.output}`).join(' | ');
+                            previousResults.push({ id: step.id, description: step.description, tool: primaryTool.name, output: `Failed after ${attemptsTried.length} attempts. Details: ${errorSummary}`, status: 'failed' });
                         }
                     }
 

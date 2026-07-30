@@ -180,6 +180,51 @@ CRITICAL: If the tool is "workspace_edit_file", note that the previous step's fi
     }
 }
 
+export async function taskUnderstanding(userMessage, conversationContext = []) {
+    const systemPrompt = `You are Ghost's Task Understanding Module. Perform a fast pre-check breakdown of the user's request.
+Identify:
+1. "understoodGoal": A concise summary of what is actually being asked.
+2. "requiredCapabilities": Array of capabilities needed (e.g. ["github", "stock", "workspace_edit", "email"]).
+3. "isAmbiguous": boolean (true ONLY if critical required parameters are completely missing, e.g. "email this" without a recipient or content).
+4. "clarifyingQuestion": string (If isAmbiguous is true, provide exactly ONE specific clarifying question. Keep empty string if false).
+
+Respond ONLY with a valid raw JSON object matching this schema without markdown fences:
+{
+  "understoodGoal": "...",
+  "requiredCapabilities": [],
+  "isAmbiguous": false,
+  "clarifyingQuestion": ""
+}`;
+
+    try {
+        const responseText = await chat(
+            [{ role: 'user', content: `Message: "${userMessage}"` }],
+            { systemPrompt, maxTokens: 256 }
+        );
+
+        let cleanText = responseText.trim();
+        if (cleanText.startsWith('```json')) cleanText = cleanText.replace(/^```json/, '').replace(/```$/, '').trim();
+        if (cleanText.startsWith('```')) cleanText = cleanText.replace(/^```/, '').replace(/```$/, '').trim();
+
+        const breakdown = JSON.parse(cleanText);
+
+        const logsDir = path.join(__dirname, '../logs');
+        if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
+        const logEntry = `[${new Date().toISOString()}] Goal: "${breakdown.understoodGoal}" | Caps: [${(breakdown.requiredCapabilities || []).join(', ')}] | Ambiguous: ${breakdown.isAmbiguous}\n`;
+        fs.appendFileSync(path.join(logsDir, 'task_breakdowns.log'), logEntry);
+
+        return breakdown;
+    } catch (err) {
+        console.warn('[Task Understanding] Breakdown fallback:', err.message);
+        return {
+            understoodGoal: userMessage,
+            requiredCapabilities: [],
+            isAmbiguous: false,
+            clarifyingQuestion: ''
+        };
+    }
+}
+
 export async function verifyGoalSatisfaction(originalMessage, plan, previousResults) {
     const verifyPrompt = `Verify if the accumulated results satisfy the original user goal.
 Original Goal: "${originalMessage}"
@@ -207,3 +252,4 @@ Verify if the goal has been fully met. Respond with a JSON object matching this 
         return { satisfied: true, failedStepId: null, reason: 'Failed to parse verification' };
     }
 }
+
