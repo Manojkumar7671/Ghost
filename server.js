@@ -619,6 +619,28 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             } catch (err) {}
         }
 
+        // RAG Context Fallback for older facts outside sliding window:
+        let fullHistory = Array.isArray(req.body.history) && req.body.history.length > 0 ? req.body.history : userHistory;
+        if (Array.isArray(fullHistory) && fullHistory.length > maxMemory) {
+            const lowerQuery = message.toLowerCase();
+            const terms = lowerQuery.replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(t => t.length > 3);
+            if (terms.length > 0) {
+                const olderTurns = fullHistory.slice(0, fullHistory.length - maxMemory);
+                const matchingTurns = olderTurns.filter(h => {
+                    const content = (h.content || '').toLowerCase();
+                    return terms.some(t => content.includes(t));
+                });
+                if (matchingTurns.length > 0) {
+                    console.log(`[Memory RAG Trace] Recalled ${matchingTurns.length} relevant older turns from outside sliding window.`);
+                    userHistory = [...matchingTurns, ...fullHistory.slice(-maxMemory)];
+                } else {
+                    userHistory = fullHistory.slice(-maxMemory);
+                }
+            } else {
+                userHistory = fullHistory.slice(-maxMemory);
+            }
+        }
+
         const ghostContext = {
             chat: (msg, opts) => brain.think(msg, opts),
             execute: (action, goal, prev, context) => brain.execute(action, goal, prev, context),
@@ -945,7 +967,8 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                     msgToThink = `[SESSION MODE: BUSINESS IS ACTIVE. Handle routine tasks, queue approvals, and alert owner.]\n${finalMessage}`;
                 }
                 const startTime = Date.now();
-                const brainResult = await brain.think(msgToThink, { safeUser, isAdmin, isBusinessMode, triggerSource: 'user_message' });
+                console.log(`[Server] Routing plain-text request to brain.think() with ${userHistory.length} history turns...`);
+                const brainResult = await brain.think(msgToThink, { safeUser, isAdmin, isBusinessMode, triggerSource: 'user_message', history: userHistory });
                 const latencyMs = Date.now() - startTime;
 
                 const lastCalls = requestContext.llmCalls || [];
