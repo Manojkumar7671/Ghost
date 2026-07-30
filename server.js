@@ -616,6 +616,14 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                 return res.json({ success: approveRes.success, text: approveRes.text || approveRes.error });
             }
 
+            // CAD Drawing / Floor Plan Interceptor ("create a 15x10m floor plan", "site plan", "cad drawing")
+            if (lowerMsg.includes('floor plan') || lowerMsg.includes('site plan') || lowerMsg.includes('column grid') || lowerMsg.includes('cad drawing')) {
+                console.log(`[Chat Trace] Intercepted CAD Drawing request -> cadAgent`);
+                const cadAgent = require('./src/agents/cadAgent');
+                const cadRes = await cadAgent.run(message);
+                return res.json({ success: true, text: cadRes.text || cadRes.file });
+            }
+
             // 1. Intercept Native Application Requests ("open camera", "open photo booth", "open calculator", "open terminal")
             if (lowerMsg === 'open camera' || lowerMsg === 'open photo booth' || lowerMsg.includes('open camera') || lowerMsg.includes('open photo booth')) {
                 console.log(`[Chat Trace] Intercepted native app launch -> Photo Booth (Camera)`);
