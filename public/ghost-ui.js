@@ -709,18 +709,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         recognitionInstance.onend = () => {
             recognitionActive = false;
-            // Loop continuous listening
-            setTimeout(() => {
-                if (!isRecording && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
+            const isElectron = navigator.userAgent.toLowerCase().includes('electron');
+            if (!isElectron && !isRecording && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
+                setTimeout(() => {
                     try {
                         recognitionInstance.start();
                     } catch (e) {}
-                }
-            }, 300);
+                }, 1000);
+            }
         };
 
         recognitionInstance.onerror = (err) => {
-            console.error('[Wake Recognizer Error]', err);
+            console.warn('[Wake Recognizer] Native SpeechRecognition notice:', err.error || err);
+            recognitionActive = false;
         };
 
         try {
