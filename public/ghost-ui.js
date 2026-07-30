@@ -387,27 +387,68 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const handsFreeOverlay = document.getElementById('handsFreeOverlay');
+    const exitHandsFreeBtn = document.getElementById('exitHandsFreeBtn');
+    const handsFreeLiveText = document.getElementById('handsFreeLiveText');
+
+    function mountVisualizer(containerId) {
+        const isDesktopApp = !!(window.ghostDesktop && window.ghostDesktop.isDesktop) || window.navigator.userAgent.includes('Electron');
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        if (isDesktopApp) {
+            console.log('[Visualizer] Desktop environment — mounting GhostWaveformVisualizer into ' + containerId);
+            window.ghostVisualizer = new GhostWaveformVisualizer(containerId);
+        } else if (typeof THREE !== 'undefined') {
+            console.log('[Visualizer] Web environment — mounting GhostVisualizer into ' + containerId);
+            window.ghostVisualizer = new GhostVisualizer(containerId);
+        }
+    }
+
+    // Default sidebar mount on startup
+    mountVisualizer('visualizerContainer');
+
+    function enableHandsFreeMode() {
+        isHandsFreeActive = true;
+        inputMode = 'voice';
+        if (handsFreeBtn) handsFreeBtn.classList.add('active');
+        if (handsFreeStatus) handsFreeStatus.innerText = "ON // Spoken Interaction Active";
+        if (handsFreeOverlay) handsFreeOverlay.classList.add('active');
+
+        // Remount visualizer full-screen
+        mountVisualizer('fullscreenVisualizerContainer');
+        if (window.ghostVisualizer) window.ghostVisualizer.setState('listening');
+
+        if (handsFreeLiveText) handsFreeLiveText.innerText = "Hands-Free Mode Active. Speak anytime — mic is always on!";
+        speakResponse("Hands-free mode enabled. Mic is open. Speak anytime to command Ghost.");
+    }
+
+    function disableHandsFreeMode() {
+        isHandsFreeActive = false;
+        inputMode = 'text';
+        if (handsFreeBtn) handsFreeBtn.classList.remove('active');
+        if (handsFreeStatus) handsFreeStatus.innerText = "OFF // Spoken Audio Idle";
+        if (handsFreeOverlay) handsFreeOverlay.classList.remove('active');
+
+        // Remount visualizer back in sidebar
+        mountVisualizer('visualizerContainer');
+        if (window.ghostVisualizer) window.ghostVisualizer.setState('idle');
+
+        speakResponse("Hands-free mode disabled.");
+    }
+
     if (handsFreeBtn) {
         handsFreeBtn.addEventListener('click', () => {
             playClickSound(1000, 'sine');
-            isHandsFreeActive = !isHandsFreeActive;
-            const container = document.getElementById('visualizerContainer');
-            if (isHandsFreeActive) {
-                handsFreeBtn.classList.add('active');
-                if (container) container.classList.add('active');
-                if (handsFreeStatus) handsFreeStatus.innerText = "ON // Spoken Interaction Active";
-                inputMode = 'voice';
-                if (window.ghostVisualizer) window.ghostVisualizer.setState('listening');
-                speakResponse("Hands-free mode enabled. Spoken interaction active.");
-                triggerHandsFreeListening();
-            } else {
-                handsFreeBtn.classList.remove('active');
-                if (container) container.classList.remove('active');
-                if (handsFreeStatus) handsFreeStatus.innerText = "OFF // Spoken Audio Idle";
-                inputMode = 'text';
-                if (window.ghostVisualizer) window.ghostVisualizer.setState('idle');
-                speakResponse("Hands-free mode disabled.");
-            }
+            if (!isHandsFreeActive) enableHandsFreeMode();
+            else disableHandsFreeMode();
+        });
+    }
+
+    if (exitHandsFreeBtn) {
+        exitHandsFreeBtn.addEventListener('click', () => {
+            playClickSound(500, 'sine');
+            disableHandsFreeMode();
         });
     }
 
@@ -546,52 +587,66 @@ document.addEventListener('DOMContentLoaded', () => {
             const dataArray = new Uint8Array(globalAnalyser.frequencyBinCount);
             let silenceStart = null;
 
-            function updateAudioLevels() {
-                requestAnimationFrame(updateAudioLevels);
-                if (!globalAnalyser) return;
-
-                globalAnalyser.getByteFrequencyData(dataArray);
-                let total = 0;
-                for (let i = 0; i < dataArray.length; i++) {
-                    total += dataArray[i];
-                }
-                const average = total / dataArray.length;
-                const normalized = average / 255; // 0 to 1
-
-                if (window.ghostVisualizer) {
-                    window.ghostVisualizer.setMicLevel(normalized);
-                }
-
-                // Real-time amplitude level logger to debug mic input activity
-                if (normalized > 0.005) {
-                    console.log(`[Audio Analyser] Mic volume level detected: ${(normalized * 100).toFixed(2)}%`);
-                }
-
-                // Volume-based trigger for Electron (hands-free wake fallback)
-                const isElectron = navigator.userAgent.toLowerCase().includes('electron');
-                if (isElectron && !isRecording && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
-                    if (normalized > 0.06) {
-                        console.log('[Audio Pipeline] Volume peak detected in Electron. Triggering active voice control.');
-                        triggerHandsFreeListening();
-                    }
-                }
-
-                // Silence detection while actively recording
-                if (isRecording) {
-                    if (normalized < 0.015) { // below 1.5% threshold
-                        if (!silenceStart) {
-                            silenceStart = Date.now();
-                        } else if (Date.now() - silenceStart > 2000) { // 2 seconds of silence
-                            console.log('[Audio Pipeline] Silence threshold reached. Concluding capture.');
-                            stopRecording();
-                            silenceStart = null;
-                        }
-                    } else {
-                        silenceStart = null;
-                    }
-                }
+    function bargeInInterrupt() {
+        if (window.speechSynthesis && window.speechSynthesis.speaking) {
+            console.log('[Barge-In Interrupt] User voice detected during TTS playback. HARD STOPPING audio output!');
+            window.speechSynthesis.cancel();
+            setMicState('listening');
+            if (handsFreeLiveText) handsFreeLiveText.innerText = "Barge-in detected! Listening to Manoj...";
+            if (!isRecording) {
+                triggerHandsFreeListening();
             }
-            updateAudioLevels();
+        }
+    }
+
+    function updateAudioLevels() {
+        requestAnimationFrame(updateAudioLevels);
+        if (!globalAnalyser) return;
+
+        globalAnalyser.getByteFrequencyData(dataArray);
+        let total = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+            total += dataArray[i];
+        }
+        const average = total / dataArray.length;
+        const normalized = average / 255; // 0 to 1
+
+        if (window.ghostVisualizer) {
+            window.ghostVisualizer.setMicLevel(normalized);
+        }
+
+        // BARGE-IN INTERRUPT: Hard stop TTS if user speaks during playback
+        if (window.speechSynthesis && window.speechSynthesis.speaking) {
+            if (normalized > 0.04) {
+                bargeInInterrupt();
+            }
+            return;
+        }
+
+        // ALWAYS-ON MIC: Auto-record when speech is detected in Hands-Free Mode (zero button clicks)
+        if (isHandsFreeActive && !isRecording && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
+            if (normalized > 0.035) {
+                console.log(`[Always-On Mic] Speech activity detected (${(normalized * 100).toFixed(1)}%). Auto-initiating recording.`);
+                triggerHandsFreeListening();
+            }
+        }
+
+        // SILENCE AUTO-SUBMIT: Conclude capture after 1.0 second of silence
+        if (isRecording) {
+            if (normalized < 0.015) {
+                if (!silenceStart) {
+                    silenceStart = Date.now();
+                } else if (Date.now() - silenceStart > 1000) { // 1.0 second silence
+                    console.log('[Always-On Mic] 1.0s silence threshold reached. Concluding capture and submitting transcript.');
+                    stopRecording();
+                    silenceStart = null;
+                }
+            } else {
+                silenceStart = null;
+            }
+        }
+    }
+    updateAudioLevels();
 
             startWakeWordRecognition();
         } catch (e) {
