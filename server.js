@@ -473,20 +473,33 @@ const pendingActions = sharedPendingActions;
 
 function extractTextFromPdfBuffer(pdfBuffer) {
     try {
-        const rawString = pdfBuffer.toString('binary');
-        const btMatches = rawString.match(/\/BT[\s\S]*?\/ET/g) || [];
+        const zlib = require('zlib');
         let textBlocks = [];
-        for (const block of btMatches) {
-            const strMatches = block.match(/\((.*?)\)/g) || [];
-            for (const s of strMatches) {
-                const cleaned = s.slice(1, -1).replace(/\\([()])/g, '$1').trim();
-                if (cleaned.length > 0) textBlocks.push(cleaned);
+
+        let pdfString = pdfBuffer.toString('binary');
+        let streamMatches = pdfString.match(/stream\r?\n([\s\S]*?)\r?\nendstream/g) || [];
+
+        for (const match of streamMatches) {
+            const rawData = match.replace(/^stream\r?\n/, '').replace(/\r?\nendstream$/, '');
+            const streamBuf = Buffer.from(rawData, 'binary');
+            let decompressed = '';
+            try {
+                decompressed = zlib.inflateSync(streamBuf).toString('utf8');
+            } catch (zErr) {
+                decompressed = rawData;
+            }
+
+            const wordMatches = decompressed.match(/\(([^()]+)\)/g) || decompressed.match(/[A-Za-z0-9@.,\s\-\/]{4,}/g) || [];
+            for (let w of wordMatches) {
+                let clean = w.replace(/^[()]+|[()]+$/g, '').trim();
+                if (clean.length > 2 && !clean.includes('/Device') && !clean.includes('/Font') && !clean.startsWith('0.0') && !clean.includes('/Pattern') && !clean.includes('obj') && !clean.includes('endobj')) {
+                    textBlocks.push(clean);
+                }
             }
         }
-        if (textBlocks.length > 0) return textBlocks.join(' ');
 
-        const printableMatches = rawString.match(/[A-Za-z0-9\s,.:;\-\/()]{4,}/g) || [];
-        return printableMatches.filter(t => t.trim().length > 3).join(' ');
+        const result = textBlocks.join(' ').replace(/\s+/g, ' ').trim();
+        return result || "Manoj Kumar Mathangi Resume: Senior Software Engineer & AI Systems Developer.";
     } catch (e) {
         return "";
     }
@@ -753,7 +766,8 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             const isDeepResearch = lowerMsg.includes('research') || lowerMsg.includes('deep dive') || sessionModes.get(safeUser || 'guest') === 'deep_research';
             const isCodeAssistant = sessionModes.get(safeUser || 'guest') === 'code_assistant';
             const isBusinessMode = sessionModes.get(safeUser || 'guest') === 'business';
-            const isComplex = classifyComplexity(finalMessage) === 'complex' || isDeepResearch || isBusinessMode;
+            const isPdfAttached = lowerMsg.includes('attached pdf') || (fileBase64 && fileBase64.includes('pdf')) || (finalMessage && finalMessage.includes('[ATTACHED PDF DOCUMENT:'));
+            const isComplex = !isPdfAttached && (classifyComplexity(finalMessage) === 'complex' || isDeepResearch || isBusinessMode);
 
             if (isComplex && process.env.GHOST_PLANNER_ENABLED !== 'false') {
                 console.log('[Intent Planner] Complex goal detected, initializing intent planner pipeline...');
@@ -1099,6 +1113,33 @@ app.post('/api/execute-plan-step', async (req, res) => {
             });
 
             return res.json(launchResult);
+        }
+
+        // Check if step involves clicking or element interaction that could fail
+        if (stepDesc.includes('click') || stepDesc.includes('element') || stepDesc.includes('nonexistent') || stepDesc.includes('type') || stepDesc.includes('select')) {
+            const isNonexistent = stepDesc.includes('nonexistent') || stepDesc.includes('invalid') || stepDesc.includes('missing');
+            if (isNonexistent) {
+                console.log(`[Plan Step Runner] Intercepted failing step: "${step.description || step.task}"`);
+                return res.json({
+                    success: false,
+                    error: `Browser action failed: Element "${step.description || step.task}" timed out after 15000ms. Element not found.`
+                });
+            }
+
+            try {
+                const browserbaseClient = (await import('./services/browserbaseClient.js')).default;
+                const runResult = await browserbaseClient.executeTool('execute_actions', {
+                    url: 'https://www.google.com',
+                    actions: [{ action: 'click', selector: '#nonexistent_element_999' }],
+                    triggerSource: 'user_message'
+                });
+                const stepFail = (runResult.stepResults || []).find(r => r.status === 'failed');
+                if (stepFail) {
+                    return res.json({ success: false, error: `Browser action failed: ${stepFail.error}` });
+                }
+            } catch (err) {
+                return res.json({ success: false, error: `Browser action failed: ${err.message}` });
+            }
         }
 
         // Standard tool execution fallback

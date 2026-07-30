@@ -119,6 +119,7 @@ ${historyPrompt}
 Available tools: [chat, orchestrator_run, web_search, web_scrape, email_draft, email_send, github_repos, github_analyze, github_push, image_generate, notion_search, notion_create, goal_run, self_analyze, voice_speak, schedule, briefing, memory_save, memory_get, workspace_view_file, workspace_edit_file, workspace_run_command, database_query, mcp_call, browser_automation]
 
 CRITICAL ROUTING DIRECTIVES:
+- chat: Use "chat" tool for direct Q&A, general conversation, or when an attached document ([ATTACHED PDF DOCUMENT: ...]) is provided. NEVER use web_search or web_scrape when a document is attached!
 - image_generate: ONLY for visual image/picture generation (PNG/JPG graphics). NEVER use image_generate for writing code, python scripts, HTML pages, or programming.
 - workspace_edit_file / workspace_run_command: For writing, generating, or running code (Python, JS, HTML, scripts). Any prompt asking to write/generate python, code, login pages, or scripts MUST route here.
 
@@ -131,6 +132,10 @@ Example: [{"tool":"web_search","params":{"query":"latest AI news"},"reason":"Use
   // Use robust multi-strategy JSON extraction instead of brittle regex
   const parsed = extractJSON(response);
   if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+    // If an attached document is provided in prompt, force routing to 'chat'
+    if (userMessage.includes('[ATTACHED PDF DOCUMENT:') || userMessage.includes('[Document Uploaded:]')) {
+      return [{ tool: 'chat', params: { text: userMessage }, reason: 'Direct document Q&A for attached file' }];
+    }
     // Validate each action has at minimum a 'tool' field
     const valid = parsed.filter(a => a && typeof a.tool === 'string');
     if (valid.length > 0) {
