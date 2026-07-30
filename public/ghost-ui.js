@@ -806,12 +806,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- ATTACHMENTS & FILE BUFFERING ---
-    let uploadedFileText = "", uploadedImageBase64 = "";
+    let uploadedFileText = "", uploadedImageBase64 = "", uploadedFileBase64 = "", uploadedFileName = "";
     attachBtn.addEventListener('click', () => attachmentInput.click());
     attachmentInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
+        uploadedFileName = file.name;
         if (file.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onload = (ev) => {
@@ -820,22 +821,12 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             reader.readAsDataURL(file);
         } else if (file.type === 'application/pdf') {
-            const fileReader = new FileReader();
-            fileReader.onload = async function() {
-                try {
-                    const pdf = await pdfjsLib.getDocument(new Uint8Array(this.result)).promise;
-                    let text = "";
-                    for (let i = 1; i <= pdf.numPages; i++) {
-                        const content = await (await pdf.getPage(i)).getTextContent();
-                        text += content.items.map(item => item.str).join(' ') + "\n";
-                    }
-                    uploadedFileText = text;
-                    appendMessage('user', `[Attached PDF: ${file.name}]`);
-                } catch (err) {
-                    appendMessage('ghost', "Error parsing PDF attachment.");
-                }
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                uploadedFileBase64 = ev.target.result;
+                appendMessage('user', `[Attached PDF: ${file.name}]`);
             };
-            fileReader.readAsArrayBuffer(file);
+            reader.readAsDataURL(file);
         } else {
             const reader = new FileReader();
             reader.onload = (ev) => {
@@ -850,7 +841,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sendBtn.addEventListener('click', () => {
         playClickSound(600, 'sine');
         const val = userInput.value.trim();
-        if (val || uploadedImageBase64 || uploadedFileText) {
+        if (val || uploadedImageBase64 || uploadedFileText || uploadedFileBase64) {
             inputMode = 'text';
             processCommand(val);
         }
@@ -859,7 +850,7 @@ document.addEventListener('DOMContentLoaded', () => {
     userInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             const val = userInput.value.trim();
-            if (val || uploadedImageBase64 || uploadedFileText) {
+            if (val || uploadedImageBase64 || uploadedFileText || uploadedFileBase64) {
                 inputMode = 'text';
                 processCommand(val);
             }
@@ -876,12 +867,16 @@ document.addEventListener('DOMContentLoaded', () => {
             user: masterUser,
             image: uploadedImageBase64 || null,
             fileContent: uploadedFileText || null,
+            fileBase64: uploadedFileBase64 || null,
+            fileName: uploadedFileName || null,
             ghostCodeMode: isGhostCodeActive,
             handsFreeMode: isHandsFreeActive
         };
 
         uploadedFileText = "";
         uploadedImageBase64 = "";
+        uploadedFileBase64 = "";
+        uploadedFileName = "";
         attachmentInput.value = "";
 
         try {

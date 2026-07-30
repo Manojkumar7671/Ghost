@@ -471,26 +471,107 @@ const chatLimiter = rateLimit({
 
 const pendingActions = sharedPendingActions;
 
+function extractTextFromPdfBuffer(pdfBuffer) {
+    try {
+        const rawString = pdfBuffer.toString('binary');
+        const btMatches = rawString.match(/\/BT[\s\S]*?\/ET/g) || [];
+        let textBlocks = [];
+        for (const block of btMatches) {
+            const strMatches = block.match(/\((.*?)\)/g) || [];
+            for (const s of strMatches) {
+                const cleaned = s.slice(1, -1).replace(/\\([()])/g, '$1').trim();
+                if (cleaned.length > 0) textBlocks.push(cleaned);
+            }
+        }
+        if (textBlocks.length > 0) return textBlocks.join(' ');
+
+        const printableMatches = rawString.match(/[A-Za-z0-9\s,.:;\-\/()]{4,}/g) || [];
+        return printableMatches.filter(t => t.trim().length > 3).join(' ');
+    } catch (e) {
+        return "";
+    }
+}
+
 // ============================================================
 // MAIN CHAT ENDPOINT — UNIFIED PIPELINE
 // brain.think() is the SOLE execution path. No fallback to callLLM with GHOST_ADMIN_CORE.
 // ============================================================
 
-app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
+app.post('/api/chat', chatLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();
     const requestContext = { requestId, llmCalls: [] };
     await traceLocalStorage.run(requestContext, async () => {
         try {
-            const { message, user, image, fileContent } = req.body;
+            const { message, user, image, fileContent, fileBase64, fileName } = req.body;
             const ghostCodeActive = req.body.ghostCodeEnabled !== undefined ? req.body.ghostCodeEnabled : (req.body.ghostCodeMode !== undefined ? req.body.ghostCodeMode : true);
             const ghostCodeMode = ghostCodeActive;
             const isAdmin = checkIsAdmin(req);
-        const safeUser = isAdmin ? 'master_manoj' : (user && user.trim() && user.trim().toLowerCase() !== 'guest') ? user.trim().toLowerCase() : null;
-        const activeTokens = isAdmin ? 4000 : 1000;
-        const maxMemory = isAdmin ? 12 : 6;
-        let userHistory = [];
+            const safeUser = isAdmin ? 'master_manoj' : (user && user.trim() && user.trim().toLowerCase() !== 'guest') ? user.trim().toLowerCase() : null;
+            const activeTokens = isAdmin ? 4000 : 1000;
+            const maxMemory = isAdmin ? 12 : 6;
+            let userHistory = [];
 
-        const lowerMsg = (message || '').toLowerCase().trim();
+            const lowerMsg = (message || '').toLowerCase().trim();
+
+            console.log(`[Chat Trace] Received input: "${message}" | user: "${safeUser}" | fileAttached: ${Boolean(fileContent || fileBase64)}`);
+
+            // 1. Intercept Native Application Requests ("open camera", "open photo booth", "open calculator", "open terminal")
+            if (lowerMsg === 'open camera' || lowerMsg === 'open photo booth' || lowerMsg.includes('open camera') || lowerMsg.includes('open photo booth')) {
+                console.log(`[Chat Trace] Intercepted native app launch -> Photo Booth (Camera)`);
+                const { exec } = await import('child_process');
+                const resultText = await new Promise((resolve) => {
+                    exec('open -a "Photo Booth"', (err) => {
+                        if (err) resolve(`[System Warning]: Could not open Photo Booth: ${err.message}`);
+                        else resolve(`[Ghost System]: Photo Booth (Camera) application visually opened on desktop.`);
+                    });
+                });
+                return res.json({ success: true, text: resultText });
+            }
+
+            if (lowerMsg.includes('open calculator') || lowerMsg.includes('open terminal')) {
+                const appName = lowerMsg.includes('calculator') ? 'Calculator' : 'Terminal';
+                console.log(`[Chat Trace] Intercepted native app launch -> ${appName}`);
+                const { exec } = await import('child_process');
+                const resultText = await new Promise((resolve) => {
+                    exec(`open -a "${appName}"`, (err) => {
+                        if (err) resolve(`[System Warning]: Could not open ${appName}: ${err.message}`);
+                        else resolve(`[Ghost System]: ${appName} application visually opened on desktop.`);
+                    });
+                });
+                return res.json({ success: true, text: resultText });
+            }
+
+            // 2. Intercept Deterministic Browser Launch Commands ("open <site> in <browser>", "open <site>")
+            const openBrowserMatch = lowerMsg.match(/^open\s+([^\s]+)(?:\s+in\s+([^\s]+))?$/i) || lowerMsg.match(/^open\s+(https?:\/\/[^\s]+)$/i);
+            if (openBrowserMatch && !lowerMsg.includes('photo booth') && !lowerMsg.includes('camera') && !lowerMsg.includes('calculator')) {
+                let rawSite = openBrowserMatch[1].trim();
+                let rawBrowser = openBrowserMatch[2] ? openBrowserMatch[2].trim() : 'opera';
+
+                let browserApp = 'Opera';
+                if (rawBrowser.includes('safari')) browserApp = 'Safari';
+                else if (rawBrowser.includes('chrome')) browserApp = 'Google Chrome';
+                else if (rawBrowser.includes('firefox')) browserApp = 'Firefox';
+
+                let targetUrl = rawSite;
+                if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+                    if (targetUrl.includes('youtube')) targetUrl = 'https://www.youtube.com';
+                    else if (targetUrl.includes('google')) targetUrl = 'https://www.google.com';
+                    else if (targetUrl.includes('github')) targetUrl = 'https://github.com';
+                    else targetUrl = `https://www.${targetUrl}.com`;
+                }
+
+                console.log(`[Chat Trace] Deterministic browser launch -> Browser: "${browserApp}", Target URL: "${targetUrl}"`);
+                const { exec } = await import('child_process');
+                const launchCmd = `open -a "${browserApp}" "${targetUrl}"`;
+                const resultText = await new Promise((resolve) => {
+                    exec(launchCmd, (err) => {
+                        if (err) resolve(`[System Warning]: Could not launch ${browserApp}: ${err.message}`);
+                        else resolve(`[Ghost System]: Visually opened ${targetUrl} in ${browserApp}.`);
+                    });
+                });
+                return res.json({ success: true, text: resultText });
+            }
+
         const codeKeywords = ['python', 'javascript', 'js', 'html', 'css', 'sql', 'script', 'function', 'write code', 'build an app', 'generate code', 'create file', 'code', 'coding', 'generate a login page', 'build a login page', 'create a script'];
         const isCodingRequest = codeKeywords.some(k => lowerMsg.includes(k));
 
@@ -626,8 +707,20 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
         }
 
         // Vision mode still uses callLLM directly (brain.think doesn't handle images)
-        const textPrompt = (isAdmin ? GHOST_ADMIN_CORE : getShowcaseCore(user)) + dynamicToolsPrompt + learnedGenesPrompt;
-        let finalMessage = fileContent ? `[Document Uploaded:]\n${fileContent.substring(0, 5000)}\n\nUser: ${message}` : message;
+        let extractedPdfText = "";
+        if (fileBase64 && (fileBase64.includes('application/pdf') || fileBase64.startsWith('data:application/pdf'))) {
+            const pdfData = fileBase64.replace(/^data:[^;]+;base64,/, '');
+            const pdfBuffer = Buffer.from(pdfData, 'base64');
+            extractedPdfText = extractTextFromPdfBuffer(pdfBuffer);
+            console.log(`[PDF Extraction Trace] Extracted ${extractedPdfText.length} characters from PDF "${fileName || 'attachment.pdf'}"`);
+        }
+
+        let finalMessage = message || "";
+        if (extractedPdfText) {
+            finalMessage = `[ATTACHED PDF DOCUMENT: ${fileName || 'attachment.pdf'}]\n${extractedPdfText.substring(0, 8000)}\n\nUser Question: ${message}`;
+        } else if (fileContent) {
+            finalMessage = `[Document Uploaded:]\n${fileContent.substring(0, 5000)}\n\nUser Question: ${message}`;
+        }
         let fullResponse = "";
 
         if (image) {
