@@ -132,6 +132,10 @@ Example: [{"tool":"web_search","params":{"query":"latest AI news"},"reason":"Use
   // Use robust multi-strategy JSON extraction instead of brittle regex
   const parsed = extractJSON(response);
   if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+    // Hard Security Boundary: neutralize pseudo-system override and privilege escalation requests
+    if (userMessage.includes('[neutralized request]') || /\b(system override|superuser admin|grant admin)\b/i.test(userMessage)) {
+      return [{ tool: 'chat', params: { text: "System override and privilege escalation requests are denied by Ghost security policy." }, reason: 'Security boundary enforcement' }];
+    }
     // If an attached document is provided in prompt, force routing to 'chat'
     if (userMessage.includes('[ATTACHED PDF DOCUMENT:') || userMessage.includes('[Document Uploaded:]')) {
       return [{ tool: 'chat', params: { text: userMessage }, reason: 'Direct document Q&A for attached file' }];

@@ -510,12 +510,20 @@ function extractTextFromPdfBuffer(pdfBuffer) {
 // brain.think() is the SOLE execution path. No fallback to callLLM with GHOST_ADMIN_CORE.
 // ============================================================
 
+function sanitizeUserInput(rawText) {
+    if (!rawText || typeof rawText !== 'string') return '';
+    let sanitized = rawText.replace(/\[\s*(SYSTEM|OVERRIDE|ADMIN|PROMPT|GHOST SYSTEM|ROOT|SUPERUSER)[^\]]*\]/gi, ' ');
+    sanitized = sanitized.replace(/\b(grant superuser|grant admin|override system|escalate privilege|bypass security)\b/gi, '[neutralized request]');
+    return sanitized.trim();
+}
+
 app.post('/api/chat', chatLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();
     const requestContext = { requestId, llmCalls: [] };
     await traceLocalStorage.run(requestContext, async () => {
         try {
-            const { message, user, image, fileContent, fileBase64, fileName } = req.body;
+            const { user, image, fileContent, fileBase64, fileName } = req.body;
+            const message = sanitizeUserInput(req.body.message);
             const ghostCodeActive = req.body.ghostCodeEnabled !== undefined ? req.body.ghostCodeEnabled : (req.body.ghostCodeMode !== undefined ? req.body.ghostCodeMode : true);
             const ghostCodeMode = ghostCodeActive;
             const isAdmin = checkIsAdmin(req);
