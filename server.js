@@ -576,8 +576,22 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                     return res.json({ success: true, text: chainResults.join('\n\n') });
                 }
             }
+            // Intercept cancellation for recent native application launches ("cancel that", "stop")
+            if (lowerMsg === 'cancel that' || lowerMsg === 'stop' || lowerMsg === 'stop that' || lowerMsg.includes('cancel recent') || lowerMsg.includes('close app')) {
+                if (global.lastSpawnedApp && (Date.now() - global.lastSpawnedApp.timestamp < 30000)) {
+                    const appToClose = global.lastSpawnedApp.appName;
+                    const { exec } = await import('child_process');
+                    exec(`killall "${appToClose}"`);
+                    global.lastSpawnedApp = null;
+                    console.log(`[Process Control] Cancelled recent native app: ${appToClose}`);
+                    return res.json({ success: true, text: `[Ghost System]: Successfully cancelled and closed recent native application (${appToClose}).` });
+                }
+            }
+
+            // 1. Intercept Native Application Requests ("open camera", "open photo booth", "open calculator", "open terminal")
             if (lowerMsg === 'open camera' || lowerMsg === 'open photo booth' || lowerMsg.includes('open camera') || lowerMsg.includes('open photo booth')) {
                 console.log(`[Chat Trace] Intercepted native app launch -> Photo Booth (Camera)`);
+                global.lastSpawnedApp = { appName: 'Photo Booth', timestamp: Date.now() };
                 const { exec } = await import('child_process');
                 const resultText = await new Promise((resolve) => {
                     exec('open -a "Photo Booth"', (err) => {
