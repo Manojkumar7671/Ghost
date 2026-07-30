@@ -95,11 +95,58 @@ If an existing agent fits, respond EXACTLY with just the agent's name.`;
   };
 }
 
-// 4. Parallel Execution Engine
+// Helper: Check if a subtask is relevant to the primary goal
+async function isSubtaskRelevant(primaryGoal, subtask) {
+  const lowerGoal = primaryGoal.toLowerCase();
+  const lowerSub = subtask.toLowerCase();
+
+  // Fast heuristic exclusions for known runaway patterns
+  if (lowerGoal.includes('floor plan') || lowerGoal.includes('cad') || lowerGoal.includes('house') || lowerGoal.includes('blueprint')) {
+    if (lowerSub.includes('gait') || lowerSub.includes('valve') || lowerSub.includes('gray water') || lowerSub.includes('shower') || lowerSub.includes('github') || lowerSub.includes('database') || lowerSub.includes('mcp')) {
+      console.log(`[Orchestrator Relevance Filter] Rejected irrelevant subtask "${subtask}" for goal "${primaryGoal}"`);
+      return false;
+    }
+  }
+
+  // LLM relevance verification
+  try {
+    const relPrompt = `Primary User Goal: "${primaryGoal}"\nProposed Subtask: "${subtask}"\nDoes this subtask directly contribute to achieving the primary user goal? Respond ONLY with YES or NO.`;
+    const ans = await chat([{ role: 'user', content: relPrompt }], { maxTokens: 10 });
+    const isRel = ans.trim().toUpperCase().includes('YES');
+    if (!isRel) {
+      console.log(`[Orchestrator Relevance Filter] LLM marked subtask "${subtask}" as IRRELEVANT to goal "${primaryGoal}"`);
+    }
+    return isRel;
+  } catch {
+    return true;
+  }
+}
+
+// 4. Execution Engine with Relevance Filtering, Hard Cap (Max 8), and Blocker Detection
 async function run(task, globalContext = '') {
-  const planPrompt = `Break this task down into 1 to 3 distinct subtasks. 
-If they can be done in parallel, list them. 
-Task: "${task}"
+  const MAX_TOOL_CALLS = 8;
+  let toolCallCount = 0;
+  const blockedAgents = new Set();
+  const blockerWarnings = [];
+
+  // 1. Primary Goal Extraction (Prevent long reference prose from becoming individual tasks)
+  let primaryGoal = task;
+  if (task.length > 150 || task.includes('\n')) {
+    try {
+      const goalPrompt = `Extract ONLY the core actionable user command from the input below. Ignore passive reference text, background descriptions, and feature lists.
+User Input: "${task.substring(0, 1000)}"
+Return ONLY a single concise sentence describing the user's primary goal.`;
+      const extracted = await chat([{ role: 'user', content: goalPrompt }], { maxTokens: 60 });
+      if (extracted && extracted.trim()) {
+        primaryGoal = extracted.trim();
+        console.log(`[Orchestrator Goal Extractor] Extracted primary goal: "${primaryGoal}" from raw input (${task.length} chars)`);
+      }
+    } catch (e) {}
+  }
+
+  // 2. Subtask Decomposition based on Primary Goal
+  const planPrompt = `Break this primary goal down into 1 to 3 distinct actionable subtasks. 
+Goal: "${primaryGoal}"
 Respond ONLY with a JSON array of string subtasks. No markdown.`;
 
   let subtasks = [];
@@ -107,11 +154,35 @@ Respond ONLY with a JSON array of string subtasks. No markdown.`;
     const planRes = await chat([{ role: 'user', content: planPrompt }]);
     subtasks = JSON.parse(planRes.match(/\[.*\]/s)[0]);
   } catch (e) {
-    subtasks = [task];
+    subtasks = [primaryGoal];
   }
 
-  const promises = subtasks.map(async (st) => {
+  // 3. Sequential & Relevant Subtask Execution with Hard Stopping Condition (Max 8)
+  const results = [];
+  for (const st of subtasks) {
+    if (toolCallCount >= MAX_TOOL_CALLS) {
+      console.warn(`[Orchestrator Hard Cap] Reached max tool execution limit (${MAX_TOOL_CALLS} calls). Halting subtasks.`);
+      results.push(`[Ghost System]: Reached max tool execution limit (${MAX_TOOL_CALLS} calls per turn). Halting further automated subtasks to prevent runaways.`);
+      break;
+    }
+
+    // Check relevance against primary goal
+    const relevant = await isSubtaskRelevant(primaryGoal, st);
+    if (!relevant) {
+      results.push(`[Agent: Skipped] Subtask: "${st}"\nResult: Skipped (Filtered out as irrelevant to primary goal "${primaryGoal}").`);
+      continue;
+    }
+
     let { name, agent } = await evaluate(st);
+
+    // Blocker Check: Skip agents known to be offline or failing auth
+    if (blockedAgents.has(name)) {
+      console.log(`[Orchestrator Blocker] Skipping blocked agent "${name}" for subtask "${st}"`);
+      results.push(`[Agent: ${name}] Subtask: "${st}"\nResult: Skipped (Agent "${name}" is blocked due to invalid/expired API key).`);
+      continue;
+    }
+
+    toolCallCount++;
     let result = '';
     let attempts = 0;
     const maxAttempts = 2;
@@ -124,8 +195,18 @@ Respond ONLY with a JSON array of string subtasks. No markdown.`;
         if (agent && typeof agent.run === 'function') {
           result = await agent.run(st, globalContext);
           
-          // Detect failures (e.g. 404s, HTTP errors, rate limits, or explicit refuses)
           const lowerRes = (result || '').toLowerCase();
+          
+          // Real Blocker Detection (API Key / Auth Failure)
+          if (lowerRes.includes('invalid_api_key') || lowerRes.includes('expired api key') || lowerRes.includes('api key invalid') || lowerRes.includes('401 unauthorized') || lowerRes.includes('invalid api key')) {
+            blockedAgents.add(name);
+            const warningMsg = `[Blocker Surface]: Agent "${name}" failed due to invalid/expired API key. Disabling ${name} for this turn.`;
+            blockerWarnings.push(warningMsg);
+            console.warn(`[Orchestrator Blocker Surface] ${warningMsg}`);
+            throw new Error(`API Key/Auth Failure: ${result.substring(0, 100)}`);
+          }
+
+          // Detect generic failures
           if (lowerRes.includes('error:') || lowerRes.includes('404 not found') || lowerRes.includes('failed to fetch') || lowerRes.includes('rate limit exceeded') || lowerRes.includes('cannot complete') || lowerRes.includes('unable to handle')) {
             throw new Error(`Execution returned fallback-triggering result: ${result.substring(0, 100)}`);
           }
@@ -137,9 +218,8 @@ Respond ONLY with a JSON array of string subtasks. No markdown.`;
         lastError = err;
         console.warn(`[Orchestrator] Attempt ${attempts} failed for subtask "${st}" using agent ${name}: ${err.message}`);
         
-        if (attempts < maxAttempts) {
+        if (attempts < maxAttempts && !blockedAgents.has(name)) {
           console.log(`[Orchestrator] Retrying subtask "${st}" with alternate approach.`);
-          // Switch to a fallback general-purpose agent with a custom system prompt
           agent = createAgent('genericFallback', 'You are a general-purpose fallback assistant. Find alternative ways to achieve the user goal if direct tools fail.');
           name = 'genericFallback';
         }
@@ -147,21 +227,26 @@ Respond ONLY with a JSON array of string subtasks. No markdown.`;
     }
 
     if (!success) {
-      // Reframe limitation/failure in a solution-oriented way
-      const reframePrompt = `The task "${st}" failed with error: "${lastError ? lastError.message : 'Unknown failure'}". 
-Instead of reporting a flat refusal or giving up, write a helpful, solution-oriented response explaining what happened, suggesting next steps or alternative workarounds. Keep it concise.`;
-      try {
-        result = await chat([{ role: 'user', content: reframePrompt }], { maxTokens: 250 });
-      } catch (e) {
-        result = `I encountered an issue executing this step: ${lastError ? lastError.message : 'Unknown error'}. You might want to try adjusting the input parameters or checking if the service is online.`;
+      if (blockedAgents.has(name)) {
+        result = `[Blocker Surface]: Step skipped — Agent "${name}" requires a valid API key.`;
+      } else {
+        const reframePrompt = `The task "${st}" failed with error: "${lastError ? lastError.message : 'Unknown failure'}". Write a brief, solution-oriented response explaining what happened and suggested next steps.`;
+        try {
+          result = await chat([{ role: 'user', content: reframePrompt }], { maxTokens: 150 });
+        } catch (e) {
+          result = `I encountered an issue executing this step: ${lastError ? lastError.message : 'Unknown error'}.`;
+        }
       }
     }
 
-    return `[Agent: ${name}] Subtask: "${st}"\nResult: ${result}`;
-  });
+    results.push(`[Agent: ${name}] Subtask: "${st}"\nResult: ${result}`);
+  }
 
-  const results = await Promise.all(promises);
-  return results.join('\n\n---\n\n');
+  const finalOutput = results.join('\n\n---\n\n');
+  if (blockerWarnings.length > 0) {
+    return `${blockerWarnings.join('\n')}\n\n${finalOutput}`;
+  }
+  return finalOutput;
 }
 
 module.exports = { run, evaluate, createAgent };

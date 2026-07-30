@@ -444,10 +444,30 @@ async function think(userMessage, userContext = { safeUser: 'guest', isAdmin: fa
 
   const results = [];
   let executionSuccess = true;
+  let toolCallCount = 0;
+  const MAX_BRAIN_TOOL_CALLS = 8;
+  const blockedTools = new Set();
 
   for (const action of actions) {
+    if (toolCallCount >= MAX_BRAIN_TOOL_CALLS) {
+      console.warn(`[Brain Hard Cap] Reached max tool call limit (${MAX_BRAIN_TOOL_CALLS}) in brain.think(). Halting further execution.`);
+      results.push({ tool: action.tool, output: `[Ghost System]: Reached max tool execution limit (${MAX_BRAIN_TOOL_CALLS} tool calls per turn). Halting further actions.`, reason: action.reason, status: 'failed' });
+      break;
+    }
+
+    if (blockedTools.has(action.tool)) {
+      console.log(`[Brain Blocker] Skipping blocked tool ${action.tool}`);
+      results.push({ tool: action.tool, output: `[Blocker Surface]: Tool "${action.tool}" disabled due to invalid/expired API key.`, reason: action.reason, status: 'failed' });
+      continue;
+    }
+
+    toolCallCount++;
     try {
       const output = await execute(action, userMessage, results, userContext);
+      const lowerOut = (typeof output === 'string' ? output : JSON.stringify(output)).toLowerCase();
+      if (lowerOut.includes('invalid_api_key') || lowerOut.includes('expired api key') || lowerOut.includes('api key invalid')) {
+        blockedTools.add(action.tool);
+      }
       results.push({ tool: action.tool, output, reason: action.reason, status: 'done' });
     } catch (err) {
       executionSuccess = false;
