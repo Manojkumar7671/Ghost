@@ -115,24 +115,26 @@ function generateColumn(params) {
 }
 
 // ── LLM Parser ────────────────────────────────────────────────────────────────
+const { chat } = require('../tools/llm');
+
 async function parseIntent(description) {
-  const res = await groq.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
-    messages: [
-      { role: 'system', content: `Parse CAD drawing requests into JSON. Return ONLY JSON.
+  const systemPrompt = `Parse CAD drawing requests into JSON. Return ONLY JSON.
 Types: floor_plan, road, site_plan, column_grid
 Examples:
 - "10x8 room 2 doors 4 windows" → {"type":"floor_plan","width":10,"height":8,"doors":2,"windows":4}
 - "road 200m long 7m wide 2m footpath" → {"type":"road","length":200,"width":7,"footpath":2}
 - "site plan 20x30 plot 3m setback" → {"type":"site_plan","plotW":20,"plotH":30,"setback":3}
-- "column grid 4x3 at 5m spacing" → {"type":"column_grid","cols":4,"rows":3,"spacing":5}` },
-      { role: 'user', content: description }
-    ],
-    temperature: 0.1, max_tokens: 256
-  });
+- "column grid 4x3 at 5m spacing" → {"type":"column_grid","cols":4,"rows":3,"spacing":5}`;
+
   try {
-    return JSON.parse(res.choices[0].message.content.replace(/```json|```/g,'').trim());
-  } catch { return { type: 'floor_plan', width: 10, height: 8 }; }
+    const rawRes = await chat([
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: description }
+    ], { temperature: 0.1, maxTokens: 256 });
+    return JSON.parse(rawRes.replace(/```json|```/g, '').trim());
+  } catch {
+    return { type: 'floor_plan', width: 10, height: 8 };
+  }
 }
 
 // ── Main run ──────────────────────────────────────────────────────────────────

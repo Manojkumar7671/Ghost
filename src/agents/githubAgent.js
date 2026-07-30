@@ -1,7 +1,13 @@
 const axios = require('axios');
 const { chat } = require('../tools/llm');
 const BASE = 'https://api.github.com';
-const h = () => ({ Authorization: `token ${process.env.GITHUB_TOKEN}`, Accept: 'application/vnd.github.v3+json' });
+const h = () => {
+  const headers = { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'GhostAI-Client' };
+  if (process.env.GITHUB_TOKEN && process.env.GITHUB_TOKEN.trim()) {
+    headers.Authorization = `token ${process.env.GITHUB_TOKEN.trim()}`;
+  }
+  return headers;
+};
 
 async function listRepos(username) {
   const u = username || process.env.GITHUB_USERNAME;
