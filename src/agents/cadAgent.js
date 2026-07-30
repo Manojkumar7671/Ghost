@@ -165,12 +165,17 @@ async function run(description) {
   const outPath = path.join(OUTPUT_DIR, filename);
   fs.writeFileSync(outPath, dxf);
 
+  const port = process.env.PORT || 3000;
+  const baseUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
+  const downloadUrl = `${baseUrl}/downloads/cad/${filename}`;
+
   return {
     success: true,
     file: outPath,
+    downloadUrl,
     type: params.type,
     params,
-    text: `CAD file generated: ${filename}\nSaved to: ${outPath}\nOpen in AutoCAD, FreeCAD, or any DXF viewer.`
+    text: `📐 **CAD File Generated**: [${filename}](${downloadUrl})\n\n⬇️ **Download Link**: ${downloadUrl}\n📁 **Local File Path**: \`${outPath}\``
   };
 }
 

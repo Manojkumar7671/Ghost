@@ -473,6 +473,25 @@ const chatLimiter = rateLimit({
 
 const pendingActions = sharedPendingActions;
 
+// Secure File Download Route (GET /downloads/*)
+app.get('/downloads/*', (req, res) => {
+    const rawPath = req.params[0] || '';
+    const OUTPUTS_DIR = path.resolve(__dirname, 'outputs');
+    const targetPath = path.resolve(OUTPUTS_DIR, path.normalize(rawPath).replace(/^(\.\.[\/\\])+/, ''));
+
+    // Security Gate: Path Traversal Prevention
+    if (!targetPath.startsWith(OUTPUTS_DIR)) {
+        console.warn(`[Security Alert] Blocked path traversal attempt on /downloads/*: ${req.url}`);
+        return res.status(403).json({ success: false, error: 'Forbidden: Invalid file path.' });
+    }
+
+    if (!fs.existsSync(targetPath) || fs.statSync(targetPath).isDirectory()) {
+        return res.status(404).json({ success: false, error: 'File not found.' });
+    }
+
+    res.download(targetPath);
+});
+
 function extractTextFromPdfBuffer(pdfBuffer) {
     try {
         const zlib = require('zlib');

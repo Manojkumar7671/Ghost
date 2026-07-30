@@ -78,6 +78,16 @@ function createWindow() {
     console.error(`[Browser Error] Render process gone: ${JSON.stringify(details)}`);
   });
 
+  const { shell } = require('electron');
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.includes('/downloads/') || url.startsWith('http:') || url.startsWith('https:')) {
+      console.log(`[Desktop Main] Opening external/download link in OS default browser: ${url}`);
+      shell.openExternal(url);
+      return { action: 'deny' };
+    }
+    return { action: 'allow' };
+  });
+
   mainWindow.on('unresponsive', () => {
     console.error('[Browser Error] Window became unresponsive.');
   });
