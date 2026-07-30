@@ -88,7 +88,7 @@ Format your response strictly as a JSON array of objects. Do not write any markd
 Each task must have:
 - "id": (string, e.g. "step1")
 - "description": (string description of the action)
-- "requiredCapability": (exactly one of "web_search", "browser_automation", "email", "db_query", "code_exec", "workspace_edit", "workspace_view")
+- "requiredCapability": (exactly one of "web_search", "browser_automation", "email", "db_query", "code_exec", "workspace_edit", "workspace_view", "github", "stock")
 - "dependsOn": (array of previous step IDs)
 
 Ensure the output is valid JSON. Keep it simple and short.`;
@@ -158,6 +158,8 @@ Previous Steps and Results:
 ${previousResults.map((r, i) => `- Step: ${r.description}\n  Result: ${String(r.output).slice(0, 500)}`).join('\n')}
 
 Respond ONLY with a valid raw JSON object representing the parameters for this tool. Follow the schema/naming of typical tool arguments (e.g. for web_search: { "query": "..." }, for database_query: { "sql": "..." }, for workspace_edit_file: { "path": "...", "targetContent": "...", "replacementContent": "..." }).
+
+CRITICAL: If the tool is "workspace_edit_file", to CREATE a new file, set "targetContent" to null or empty string "" and specify the full content in "replacementContent"! Only specify "targetContent" when modifying an existing file. If the previous step returned output data, include that output in "replacementContent"!
 
 CRITICAL: If the tool is "workspace_edit_file", note that the previous step's file view result includes line numbers like "1: code", "2: code". These line numbers are NOT in the actual file! You MUST strip "1: ", "2: " prefixes from the code when writing the "targetContent" and "replacementContent" parameters!${instructionsPrompt}`;
 
