@@ -959,8 +959,28 @@ app.post('/api/execute-plan-step', async (req, res) => {
 
         console.log(`[Plan Step Runner] Executing Step ${stepIndex + 1}: "${step.description || step.task}"`);
 
-        // Check if step or goal involves browser automation / desktop browser launch
+        // Check if step or goal involves app launch vs browser automation
+        const isAppRequest = stepDesc.includes('camera') || goalDesc.includes('camera') || stepDesc.includes('calculator') || goalDesc.includes('calculator') || stepDesc.includes('terminal') || goalDesc.includes('terminal');
         const isBrowserRequest = stepDesc.includes('opera') || stepDesc.includes('chrome') || stepDesc.includes('youtube') || stepDesc.includes('browser') || stepDesc.includes('open') || goalDesc.includes('opera') || goalDesc.includes('youtube');
+
+        if (isAppRequest) {
+            const { exec } = await import('child_process');
+            let appName = "Photo Booth";
+            if (stepDesc.includes('calculator') || goalDesc.includes('calculator')) appName = "Calculator";
+            if (stepDesc.includes('terminal') || goalDesc.includes('terminal')) appName = "Terminal";
+
+            console.log(`[Plan Step Runner] Opening native application: ${appName}`);
+            const appResult = await new Promise((resolve) => {
+                exec(`open -a "${appName}"`, (err, stdout, stderr) => {
+                    if (err) {
+                        resolve({ success: false, error: `Could not open ${appName}: ${err.message}` });
+                    } else {
+                        resolve({ success: true, output: `Visually opened native application: ${appName}` });
+                    }
+                });
+            });
+            return res.json(appResult);
+        }
 
         if (isBrowserRequest) {
             const { exec } = await import('child_process');
