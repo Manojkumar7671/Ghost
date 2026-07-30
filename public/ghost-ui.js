@@ -490,11 +490,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- SPEECH SYNTHESIS & VOICE OUTPUT ---
     function setMicState(state) {
-        micToggleBtn.className = `mic-btn ${state}`;
-        if (state === 'listening') micToggleBtn.innerText = '🔴';
-        else if (state === 'transcribing') micToggleBtn.innerText = '⏳';
-        else if (state === 'speaking') micToggleBtn.innerText = '🔊';
-        else micToggleBtn.innerText = '🎤';
+        if (micToggleBtn) {
+            micToggleBtn.className = `mic-btn ${state}`;
+            if (state === 'listening') micToggleBtn.innerText = '🔴';
+            else if (state === 'transcribing') micToggleBtn.innerText = '⏳';
+            else if (state === 'speaking') micToggleBtn.innerText = '🔊';
+            else micToggleBtn.innerText = '🎤';
+        }
 
         if (window.ghostVisualizer) {
             if (state === 'listening') window.ghostVisualizer.setState('listening');
@@ -656,14 +658,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function startWakeWordRecognition() {
-        const isElectron = navigator.userAgent.toLowerCase().includes('electron');
-        if (isElectron) {
-            console.log('[Wake Recognizer] Running inside Electron. Skipping webkitSpeechRecognition to use high-performance local volume trigger instead.');
-            return;
-        }
-
         if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-            console.warn('[Wake Recognizer] SpeechRecognition API not supported in this browser.');
+            console.warn('[Wake Recognizer] SpeechRecognition API not supported in this browser environment.');
             return;
         }
 
@@ -675,24 +671,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
         recognitionInstance.onstart = () => {
             recognitionActive = true;
-            console.log('[Wake Recognizer] Continuous wake-word recognition active.');
+            console.log('[Wake Recognizer] Continuous voice recognition active.');
         };
 
         recognitionInstance.onresult = (event) => {
             let interimTranscript = '';
             for (let i = event.resultIndex; i < event.results.length; ++i) {
-                const text = event.results[i][0].transcript.toLowerCase();
-                if (event.results[i].isFinal) {
+                const text = event.results[i][0].transcript;
+                const lowerText = text.toLowerCase();
+
+                if (isHandsFreeActive) {
+                    const liveTextEl = document.getElementById('handsFreeLiveText');
+                    if (liveTextEl) {
+                        liveTextEl.innerText = `Manoj: "${text}"`;
+                    }
+                    if (event.results[i].isFinal && text.trim().length > 0) {
+                        if (!window.speechSynthesis || !window.speechSynthesis.speaking) {
+                            console.log('[Hands-Free Voice] Final voice transcript captured:', text);
+                            inputMode = 'voice';
+                            processCommand(text);
+                        }
+                    }
+                } else if (event.results[i].isFinal) {
                     console.log('[Wake Recognizer] Final stream token:', text);
                 } else {
-                    interimTranscript += text;
+                    interimTranscript += lowerText;
                 }
 
-                // Look for wake words (ghost, hey ghost, wake up)
-                if (text.includes('ghost') && !isRecording && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
-                    console.log('[Wake Recognizer] Hot word match found! Starting active voice control.');
-                    try { recognitionInstance.stop(); } catch(e) {}
-                    triggerHandsFreeListening();
+                // Look for wake words when hands-free is inactive
+                if (!isHandsFreeActive && lowerText.includes('ghost') && !isRecording && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
+                    console.log('[Wake Recognizer] Hot word match found! Activating hands-free mode.');
+                    enableHandsFreeMode();
                     break;
                 }
             }
@@ -700,16 +709,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         recognitionInstance.onend = () => {
             recognitionActive = false;
-            // Loop continuous listening if idle
+            // Loop continuous listening
             setTimeout(() => {
                 if (!isRecording && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
                     try {
                         recognitionInstance.start();
-                    } catch (e) {
-                        // Suppress already started warnings
-                    }
+                    } catch (e) {}
                 }
-            }, 500);
+            }, 300);
         };
 
         recognitionInstance.onerror = (err) => {
@@ -784,16 +791,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    micToggleBtn.addEventListener('click', () => {
-        if (!isRecording) {
-            if (recognitionInstance) {
-                try { recognitionInstance.stop(); } catch(e) {}
+    if (micToggleBtn) {
+        micToggleBtn.addEventListener('click', () => {
+            if (!isRecording) {
+                if (recognitionInstance) {
+                    try { recognitionInstance.stop(); } catch(e) {}
+                }
+                triggerHandsFreeListening();
+            } else {
+                stopRecording();
             }
-            triggerHandsFreeListening();
-        } else {
-            stopRecording();
-        }
-    });
+        });
+    }
 
     // --- ATTACHMENTS & FILE BUFFERING ---
     let uploadedFileText = "", uploadedImageBase64 = "";

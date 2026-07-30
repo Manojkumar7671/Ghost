@@ -1082,7 +1082,7 @@ app.post('/api/voice/transcribe', async (req, res) => {
         const { audioBase64, filename } = req.body;
         if (!audioBase64) return res.status(400).json({ error: 'Missing audioBase64 in request body.' });
 
-        const base64Data = audioBase64.replace(/^data:audio\/\w+;base64,/, '');
+        const base64Data = audioBase64.replace(/^data:[^;]+;base64,/, '');
         const audioBuffer = Buffer.from(base64Data, 'base64');
 
         const voiceAgent = require('./src/agents/voiceAgent.js');

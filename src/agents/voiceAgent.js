@@ -88,34 +88,7 @@ async function textToSpeech(text, filename) {
  * Audio Transcription using Whisper API (Groq or OpenAI endpoint)
  */
 async function transcribeAudio(audioBuffer, filename = 'input.webm') {
-  let apiKey = process.env.WHISPER_API_KEY || process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY;
-  let endpoint = 'https://api.openai.com/v1/audio/transcriptions';
-  let model = 'whisper-1';
-
-  const isGroq = !process.env.WHISPER_API_KEY && !process.env.OPENAI_API_KEY && process.env.GROQ_API_KEY;
-  let isDeadGroq = false;
-  if (isGroq && apiKey) {
-    const keyHash = crypto.createHash('md5').update(apiKey).digest('hex');
-    if (keyHash === 'b23ae22d91912ece3d633446484ff97b') {
-      isDeadGroq = true;
-    }
-  }
-
-  if ((!apiKey || isDeadGroq) && process.env.NVIDIA_API_KEY) {
-    console.log('[voiceAgent] Falling back to NVIDIA NIM audio transcription (openai/whisper-large-v3).');
-    apiKey = process.env.NVIDIA_API_KEY;
-    endpoint = 'https://integrate.api.nvidia.com/v1/audio/transcriptions';
-    model = 'openai/whisper-large-v3';
-  } else if (isGroq) {
-    endpoint = 'https://api.groq.com/openai/v1/audio/transcriptions';
-    model = 'whisper-large-v3';
-  }
-
-  if (!apiKey) {
-    return { error: 'No valid transcription API key (WHISPER_API_KEY, GROQ_API_KEY, OPENAI_API_KEY, or NVIDIA_API_KEY) found in environment.' };
-  }
-
-  try {
+  const tryTranscribe = async (endpoint, apiKey, model) => {
     const form = new FormData();
     form.append('file', audioBuffer, { filename, contentType: 'audio/webm' });
     form.append('model', model);
@@ -124,15 +97,47 @@ async function transcribeAudio(audioBuffer, filename = 'input.webm') {
       headers: {
         ...form.getHeaders(),
         'Authorization': `Bearer ${apiKey}`
-      }
+      },
+      timeout: 15000
     });
+    return res.data?.text || res.data?.text_output || '';
+  };
 
-    return { success: true, text: res.data.text };
-  } catch (err) {
-    const errorMsg = err.response?.data?.error?.message || err.message;
-    console.error('[voiceAgent] Whisper transcription failed:', errorMsg);
-    return { error: `Whisper transcription failed: ${errorMsg}` };
+  // 1. Try Groq Whisper API
+  if (process.env.GROQ_API_KEY) {
+    try {
+      console.log('[voiceAgent] Attempting Groq Whisper transcription (whisper-large-v3-turbo)...');
+      const text = await tryTranscribe('https://api.groq.com/openai/v1/audio/transcriptions', process.env.GROQ_API_KEY, 'whisper-large-v3-turbo');
+      if (text) return { success: true, text };
+    } catch (err) {
+      console.warn('[voiceAgent] Groq Whisper transcription failed:', err.response?.data?.error?.message || err.message);
+    }
   }
+
+  // 2. Try NVIDIA NIM Audio Transcription
+  if (process.env.NVIDIA_API_KEY) {
+    try {
+      console.log('[voiceAgent] Attempting NVIDIA NIM audio transcription (nvidia/canary-1b)...');
+      const text = await tryTranscribe('https://integrate.api.nvidia.com/v1/audio/transcriptions', process.env.NVIDIA_API_KEY, 'nvidia/canary-1b');
+      if (text) return { success: true, text };
+    } catch (err) {
+      console.warn('[voiceAgent] NVIDIA NIM audio transcription failed:', err.response?.data?.error?.message || err.message);
+    }
+  }
+
+  // 3. Try OpenAI Whisper API
+  if (process.env.OPENAI_API_KEY || process.env.WHISPER_API_KEY) {
+    const key = process.env.WHISPER_API_KEY || process.env.OPENAI_API_KEY;
+    try {
+      console.log('[voiceAgent] Attempting OpenAI Whisper transcription...');
+      const text = await tryTranscribe('https://api.openai.com/v1/audio/transcriptions', key, 'whisper-1');
+      if (text) return { success: true, text };
+    } catch (err) {
+      console.warn('[voiceAgent] OpenAI Whisper transcription failed:', err.response?.data?.error?.message || err.message);
+    }
+  }
+
+  return { error: 'Voice transcription failed across all available provider endpoints.' };
 }
 
 module.exports = { textToSpeech, transcribeAudio };
