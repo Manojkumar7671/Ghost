@@ -495,32 +495,22 @@ app.get('/downloads/*', (req, res) => {
 function extractTextFromPdfBuffer(pdfBuffer) {
     try {
         const zlib = require('zlib');
-        let textBlocks = [];
-
-        let pdfString = pdfBuffer.toString('binary');
-        let streamMatches = pdfString.match(/stream\r?\n([\s\S]*?)\r?\nendstream/g) || [];
-
-        for (const match of streamMatches) {
-            const rawData = match.replace(/^stream\r?\n/, '').replace(/\r?\nendstream$/, '');
-            const streamBuf = Buffer.from(rawData, 'binary');
-            let decompressed = '';
+        const pdfStr = pdfBuffer.toString('binary');
+        const textBlocks = [];
+        const streamRegex = /stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g;
+        let match;
+        while ((match = streamRegex.exec(pdfStr)) !== null) {
             try {
-                decompressed = zlib.inflateSync(streamBuf).toString('utf8');
-            } catch (zErr) {
-                decompressed = rawData;
-            }
-
-            const wordMatches = decompressed.match(/\(([^()]+)\)/g) || decompressed.match(/[A-Za-z0-9@.,\s\-\/]{4,}/g) || [];
-            for (let w of wordMatches) {
-                let clean = w.replace(/^[()]+|[()]+$/g, '').trim();
-                if (clean.length > 2 && !clean.includes('/Device') && !clean.includes('/Font') && !clean.startsWith('0.0') && !clean.includes('/Pattern') && !clean.includes('obj') && !clean.includes('endobj')) {
-                    textBlocks.push(clean);
-                }
-            }
+                const decompressed = zlib.inflateSync(Buffer.from(match[1], 'binary')).toString('utf-8');
+                const extracted = decompressed.replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s+/g, ' ');
+                if (extracted.length > 20) textBlocks.push(extracted);
+            } catch (e) {}
         }
-
-        const result = textBlocks.join(' ').replace(/\s+/g, ' ').trim();
-        return result || "Manoj Kumar Mathangi Resume: Senior Software Engineer & AI Systems Developer.";
+        let result = textBlocks.join('\n');
+        if (!result) {
+            result = pdfStr.replace(/[^\x20-\x7E\n\r\t]/g, ' ').slice(0, 8000);
+        }
+        return result.trim();
     } catch (e) {
         return "";
     }
@@ -577,13 +567,42 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                         } else if (lowerSub.startsWith('open ') || lowerSub.startsWith('launch ')) {
                             const openMatch = lowerSub.match(/^(?:open|launch)\s+([^\s]+)(?:\s+in\s+([^\s]+))?$/i);
                             if (openMatch) {
-                                let rawSite = openMatch[1];
-                                let rawBrowser = openMatch[2] || 'safari';
-                                let browserApp = rawBrowser.includes('safari') ? 'Safari' : 'Google Chrome';
-                                let targetUrl = rawSite.startsWith('http') ? rawSite : (rawSite.includes('youtube') ? 'https://www.youtube.com' : `https://www.${rawSite}.com`);
-                                const { exec } = await import('child_process');
-                                exec(`open -a "${browserApp}" "${targetUrl}"`);
-                                chainResults.push(`[Ghost System]: Visually opened ${targetUrl} in ${browserApp}.`);
+                                let rawTarget = openMatch[1].trim();
+
+                                // Local File Check inside Compound Multi-Action Chain
+                                const fileExts = ['.pdf', '.docx', '.doc', '.txt', '.png', '.jpg', '.jpeg', '.dxf', '.csv', '.json', '.md'];
+                                const hasExt = fileExts.some(ext => rawTarget.toLowerCase().endsWith(ext));
+                                const os = require('os');
+                                const searchPaths = [
+                                    rawTarget,
+                                    path.resolve(os.homedir(), 'Downloads', rawTarget),
+                                    path.resolve(os.homedir(), 'Desktop', rawTarget),
+                                    path.resolve(os.homedir(), 'Documents', rawTarget),
+                                    path.resolve(__dirname, rawTarget)
+                                ];
+                                let foundFile = searchPaths.find(p => fs.existsSync(p) && !fs.statSync(p).isDirectory());
+
+                                if (hasExt || foundFile) {
+                                    const fileToOpen = foundFile || path.resolve(os.homedir(), 'Downloads', rawTarget);
+                                    const { exec } = await import('child_process');
+                                    exec(`open "${fileToOpen}"`);
+                                    if (subCmd.toLowerCase().includes('tell me') || subCmd.toLowerCase().includes('read') || subCmd.toLowerCase().includes('what')) {
+                                        if (fileToOpen.endsWith('.pdf')) {
+                                            const docAgent = require('./src/agents/docAgent');
+                                            const docRes = await docAgent.run(fileToOpen);
+                                            chainResults.push(`[Ghost System]: Visually opened local file "${path.basename(fileToOpen)}" on desktop.\n\n${docRes.text}`);
+                                            continue;
+                                        }
+                                    }
+                                    chainResults.push(`[Ghost System]: Visually opened local file "${path.basename(fileToOpen)}" on desktop.`);
+                                } else {
+                                    let rawBrowser = openMatch[2] || 'safari';
+                                    let browserApp = rawBrowser.includes('safari') ? 'Safari' : 'Google Chrome';
+                                    let targetUrl = rawTarget.startsWith('http') ? rawTarget : (rawTarget.includes('youtube') ? 'https://www.youtube.com' : `https://www.${rawTarget}.com`);
+                                    const { exec } = await import('child_process');
+                                    exec(`open -a "${browserApp}" "${targetUrl}"`);
+                                    chainResults.push(`[Ghost System]: Visually opened ${targetUrl} in ${browserApp}.`);
+                                }
                             } else {
                                 const { exec } = await import('child_process');
                                 exec(`open -a "Safari" "https://www.google.com"`);
@@ -670,18 +689,50 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                 return res.json({ success: true, text: resultText });
             }
 
-            // 2. Intercept Deterministic Browser Launch Commands ("open <site> in <browser>", "open <site>")
-            const openBrowserMatch = lowerMsg.match(/^open\s+([^\s]+)(?:\s+in\s+([^\s]+))?$/i) || lowerMsg.match(/^open\s+(https?:\/\/[^\s]+)$/i);
-            if (openBrowserMatch && !lowerMsg.includes('photo booth') && !lowerMsg.includes('camera') && !lowerMsg.includes('calculator')) {
-                let rawSite = openBrowserMatch[1].trim();
-                let rawBrowser = openBrowserMatch[2] ? openBrowserMatch[2].trim() : 'opera';
+            // 2. Intercept Deterministic Open Commands ("open <file>", "open <site> in <browser>")
+            const openMatch = lowerMsg.match(/^open\s+([^\s]+)(?:\s+and\s+.*)?$/i) || lowerMsg.match(/^open\s+(https?:\/\/[^\s]+)$/i);
+            if (openMatch && !lowerMsg.includes('photo booth') && !lowerMsg.includes('camera') && !lowerMsg.includes('calculator') && !lowerMsg.includes('terminal')) {
+                let rawTarget = openMatch[1].trim();
 
+                // Local File Interceptor Check
+                const fileExts = ['.pdf', '.docx', '.doc', '.txt', '.png', '.jpg', '.jpeg', '.dxf', '.csv', '.json', '.md'];
+                const hasExt = fileExts.some(ext => rawTarget.toLowerCase().endsWith(ext));
+                
+                const os = require('os');
+                const searchPaths = [
+                    rawTarget,
+                    path.resolve(os.homedir(), 'Downloads', rawTarget),
+                    path.resolve(os.homedir(), 'Desktop', rawTarget),
+                    path.resolve(os.homedir(), 'Documents', rawTarget),
+                    path.resolve(__dirname, rawTarget)
+                ];
+
+                let foundFile = searchPaths.find(p => fs.existsSync(p) && !fs.statSync(p).isDirectory());
+
+                if (hasExt || foundFile) {
+                    const fileToOpen = foundFile || path.resolve(os.homedir(), 'Downloads', rawTarget);
+                    console.log(`[Chat Trace] Local file opening intercepted -> File: "${fileToOpen}"`);
+                    const { exec } = await import('child_process');
+                    exec(`open "${fileToOpen}"`);
+
+                    if (lowerMsg.includes('tell me') || lowerMsg.includes('read') || lowerMsg.includes('what')) {
+                        if (fileToOpen.endsWith('.pdf')) {
+                            const docAgent = require('./src/agents/docAgent');
+                            const docRes = await docAgent.run(fileToOpen);
+                            return res.json({ success: true, text: `[Ghost System]: Opened file "${path.basename(fileToOpen)}" on desktop.\n\n${docRes.text}` });
+                        }
+                    }
+                    return res.json({ success: true, text: `[Ghost System]: Visually opened local file "${path.basename(fileToOpen)}" on your desktop.` });
+                }
+
+                // Deterministic Browser Launch
+                let rawBrowser = (lowerMsg.match(/in\s+([^\s]+)$/i) || [])[1] || 'opera';
                 let browserApp = 'Opera';
                 if (rawBrowser.includes('safari')) browserApp = 'Safari';
                 else if (rawBrowser.includes('chrome')) browserApp = 'Google Chrome';
                 else if (rawBrowser.includes('firefox')) browserApp = 'Firefox';
 
-                let targetUrl = rawSite;
+                let targetUrl = rawTarget;
                 if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
                     if (targetUrl.includes('youtube')) targetUrl = 'https://www.youtube.com';
                     else if (targetUrl.includes('google')) targetUrl = 'https://www.google.com';

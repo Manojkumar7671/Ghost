@@ -10,18 +10,33 @@ function resolveSafePath(relativePath) {
   if (!relativePath || typeof relativePath !== 'string') {
     relativePath = './';
   }
+
+  const homeDir = os.homedir();
   let absolutePath;
+
+  // Handle common home folder expansion (/Downloads, Downloads, ~/Downloads)
+  const stripped = relativePath.replace(/^[\/\\]+/, '');
+  const lowerStripped = stripped.toLowerCase();
+  
+  if (lowerStripped === 'downloads' || lowerStripped.startsWith('downloads/') || lowerStripped.startsWith('downloads\\') ||
+      lowerStripped === 'desktop' || lowerStripped.startsWith('desktop/') || lowerStripped.startsWith('desktop\\') ||
+      lowerStripped === 'documents' || lowerStripped.startsWith('documents/') || lowerStripped.startsWith('documents\\')) {
+    const candidateHome = path.resolve(homeDir, stripped);
+    if (fs.existsSync(candidateHome)) {
+      return candidateHome;
+    }
+  }
+
   if (relativePath === '~') {
-    absolutePath = os.homedir();
+    absolutePath = homeDir;
   } else if (relativePath.startsWith('~/') || relativePath.startsWith('~\\')) {
-    absolutePath = path.resolve(os.homedir(), relativePath.slice(2));
+    absolutePath = path.resolve(homeDir, relativePath.slice(2));
   } else if (relativePath.startsWith('~')) {
-    absolutePath = path.resolve(os.homedir(), relativePath.slice(1));
+    absolutePath = path.resolve(homeDir, relativePath.slice(1));
   } else {
-    const isLocal = (process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'local';
     const resolvedProject = path.resolve(PROJECT_ROOT, relativePath);
-    if (isLocal && !fs.existsSync(resolvedProject)) {
-      const resolvedHome = path.resolve(os.homedir(), relativePath);
+    if (!fs.existsSync(resolvedProject)) {
+      const resolvedHome = path.resolve(homeDir, stripped);
       if (fs.existsSync(resolvedHome)) {
         return resolvedHome;
       }
@@ -81,6 +96,9 @@ async function editFile(payload) {
   const { path: relPath, targetContent, replacementContent } = payload;
   try {
     const filePath = resolveSafePath(relPath);
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
+      return { error: `Cannot edit a directory path directly (${relPath}). Specify a target file path (e.g. public/index.html).` };
+    }
     if (!fs.existsSync(filePath)) {
       if (!targetContent) {
         fs.mkdirSync(path.dirname(filePath), { recursive: true });

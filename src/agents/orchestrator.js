@@ -108,6 +108,13 @@ async function isSubtaskRelevant(primaryGoal, subtask) {
     }
   }
 
+  if (lowerGoal.includes('website') || lowerGoal.includes('web app') || lowerGoal.includes('site') || lowerGoal.includes('portfolio') || lowerGoal.includes('resume')) {
+    if (lowerSub.includes('briefing') || lowerSub.includes('scheduler') || lowerSub.includes('morning') || lowerSub.includes('stock') || lowerSub.includes('email') || lowerSub.includes('database') || lowerSub.includes('npm install')) {
+      console.log(`[Orchestrator Relevance Filter] Rejected irrelevant subtask "${subtask}" for website goal "${primaryGoal}"`);
+      return false;
+    }
+  }
+
   // LLM relevance verification
   try {
     const relPrompt = `Primary User Goal: "${primaryGoal}"\nProposed Subtask: "${subtask}"\nDoes this subtask directly contribute to achieving the primary user goal? Respond ONLY with YES or NO.`;

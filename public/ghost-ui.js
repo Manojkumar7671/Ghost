@@ -469,6 +469,30 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => appIframe.srcdoc = "", 400);
     });
 
+    function parseMarkdown(text) {
+        if (!text) return '';
+        let html = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        // Code blocks ```...```
+        html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+        // Inline code `...`
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+        // Bold **text**
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        // Italic *text*
+        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        // Markdown Links [text](url)
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="chat-download-link" style="color:#00f0ff;text-decoration:underline;">$1 ⬇️</a>');
+        // Plain URLs (not inside href)
+        html = html.replace(/(^|[^"])((?:https?):\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" class="chat-download-link" style="color:#00f0ff;text-decoration:underline;">$2</a>');
+        // Newlines
+        html = html.replace(/\n/g, '<br>');
+        return html;
+    }
+
     // --- CHAT MESSAGE UI RENDERING ---
     function appendMessage(sender, text) {
         const card = document.createElement('div');
@@ -480,7 +504,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const bubble = document.createElement('div');
         bubble.className = 'bubble';
-        bubble.innerText = text;
+        bubble.innerHTML = parseMarkdown(text);
 
         card.appendChild(avatar);
         card.appendChild(bubble);
