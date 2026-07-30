@@ -934,6 +934,10 @@ document.addEventListener('DOMContentLoaded', () => {
             approveBtn.disabled = true;
             approveBtn.innerText = "Executing Plan...";
 
+            let planHasFailed = false;
+            let failedStepNumber = 0;
+            let failureReason = "";
+
             for (let i = 0; i < planSteps.length; i++) {
                 const badge = card.querySelector(`#stepBadge_${i}`);
                 if (badge) {
@@ -941,17 +945,58 @@ document.addEventListener('DOMContentLoaded', () => {
                     badge.innerText = 'Executing';
                 }
 
-                await new Promise(res => setTimeout(res, 600));
+                try {
+                    const response = await fetch('/api/execute-plan-step', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            step: planSteps[i],
+                            goal: originalGoal,
+                            stepIndex: i
+                        })
+                    });
+                    const resData = await response.json();
 
-                if (badge) {
-                    badge.className = 'step-badge completed';
-                    badge.innerText = 'Completed';
+                    const outputText = (resData.output || resData.error || '').toLowerCase();
+                    const isSuccess = resData.success === true && !outputText.includes('failed') && !outputText.includes('timeout') && !outputText.includes('error');
+
+                    if (isSuccess) {
+                        if (badge) {
+                            badge.className = 'step-badge completed';
+                            badge.innerText = 'Completed ✓';
+                        }
+                    } else {
+                        planHasFailed = true;
+                        failedStepNumber = i + 1;
+                        failureReason = resData.error || resData.output || 'Step execution timed out or failed';
+                        if (badge) {
+                            badge.className = 'step-badge failed';
+                            badge.innerText = 'Failed ✗';
+                        }
+                        break;
+                    }
+                } catch (err) {
+                    planHasFailed = true;
+                    failedStepNumber = i + 1;
+                    failureReason = err.message;
+                    if (badge) {
+                        badge.className = 'step-badge failed';
+                        badge.innerText = 'Failed ✗';
+                    }
+                    break;
                 }
             }
 
-            approveBtn.innerText = "✓ Plan Executed";
-            approveBtn.style.background = "var(--accent-emerald)";
-            speakResponse("Implementation plan executed successfully.");
+            if (planHasFailed) {
+                approveBtn.innerText = `❌ Plan Failed at Step ${failedStepNumber}`;
+                approveBtn.style.background = "#f43f5e";
+                appendMessage('ghost', `[Plan Execution Error]: Step ${failedStepNumber} failed: ${failureReason}. Ghost could not complete the requested action.`);
+                speakResponse(`I could not complete the plan because step ${failedStepNumber} failed.`);
+            } else {
+                approveBtn.innerText = "✓ Plan Executed";
+                approveBtn.style.background = "var(--accent-emerald)";
+                speakResponse("Implementation plan executed successfully.");
+            }
         };
 
         if (isHandsFreeActive) {

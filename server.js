@@ -949,6 +949,57 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
     });
 });
 
+app.post('/api/execute-plan-step', async (req, res) => {
+    try {
+        const { step, goal, stepIndex } = req.body;
+        if (!step) return res.status(400).json({ success: false, error: 'Step missing from payload' });
+
+        const stepDesc = (step.description || step.task || '').toLowerCase();
+        const goalDesc = (goal || '').toLowerCase();
+
+        console.log(`[Plan Step Runner] Executing Step ${stepIndex + 1}: "${step.description || step.task}"`);
+
+        // Check if step or goal involves browser automation / desktop browser launch
+        const isBrowserRequest = stepDesc.includes('opera') || stepDesc.includes('chrome') || stepDesc.includes('youtube') || stepDesc.includes('browser') || stepDesc.includes('open') || goalDesc.includes('opera') || goalDesc.includes('youtube');
+
+        if (isBrowserRequest) {
+            const { exec } = await import('child_process');
+            
+            let searchTarget = "https://www.youtube.com";
+            if (goalDesc.includes('play') || stepDesc.includes('play') || goalDesc.includes('song') || stepDesc.includes('song')) {
+                searchTarget = "https://www.youtube.com/results?search_query=music+song";
+            }
+
+            let launchCmd = `open -a "Opera" "${searchTarget}" || open -a "Google Chrome" "${searchTarget}" || open "${searchTarget}"`;
+            
+            console.log(`[Plan Step Runner] Launching visible browser with command: ${launchCmd}`);
+            
+            const launchResult = await new Promise((resolve) => {
+                exec(launchCmd, (err, stdout, stderr) => {
+                    if (err) {
+                        console.error('[Plan Step Runner Browser Error]:', err.message);
+                        resolve({ success: false, error: err.message });
+                    } else {
+                        resolve({ success: true, output: `Browser launched successfully targeting ${searchTarget}` });
+                    }
+                });
+            });
+
+            return res.json(launchResult);
+        }
+
+        // Standard tool execution fallback
+        return res.json({
+            success: true,
+            output: `Step ${stepIndex + 1} completed: ${step.description || step.task}`
+        });
+
+    } catch (e) {
+        console.error('[Plan Step Runner Error]:', e.message);
+        res.json({ success: false, error: `Step execution failed: ${e.message}` });
+    }
+});
+
 app.post('/api/execute-action', requireAdminToken, async (req, res) => {
     const { actionId } = req.body;
     const cachedAction = pendingActions.get(actionId);

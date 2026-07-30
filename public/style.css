@@ -506,6 +506,12 @@ body {
   color: var(--accent-emerald);
 }
 
+.step-badge.failed {
+  background: rgba(244, 63, 94, 0.15);
+  color: #f43f5e;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+
 @keyframes pulseBadge {
   0%, 100% { opacity: 0.7; }
   50% { opacity: 1; }
