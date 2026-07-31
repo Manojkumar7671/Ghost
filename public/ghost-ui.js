@@ -469,6 +469,14 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => appIframe.srcdoc = "", 400);
     });
 
+    function cleanUrl(rawUrl) {
+        if (!rawUrl) return '';
+        return rawUrl.trim()
+            .replace(/[^\x21-\x7E]/g, '')
+            .replace(/[)\]>;,.'"\\-]+$/, '')
+            .replace(/^["'(]+/g, '');
+    }
+
     function parseMarkdown(text) {
         if (!text) return '';
         let html = text
@@ -484,10 +492,31 @@ document.addEventListener('DOMContentLoaded', () => {
         html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
         // Italic *text*
         html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-        // Markdown Links [text](url)
-        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="chat-download-link" style="color:#00f0ff;text-decoration:underline;">$1 ⬇️</a>');
-        // Plain URLs (not inside href)
-        html = html.replace(/(^|[^"])((?:https?):\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" class="chat-download-link" style="color:#00f0ff;text-decoration:underline;">$2</a>');
+
+        const links = [];
+
+        // 1. Markdown Links [text](url)
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label, rawUrl) => {
+            const url = cleanUrl(rawUrl);
+            const placeholder = `___LINK_PLACEHOLDER_${links.length}___`;
+            const displayLabel = label.trim();
+            links.push(`<a href="${url}" target="_blank" class="chat-download-link" style="color:#00f0ff;text-decoration:underline;font-weight:600;">${displayLabel} ⬇️</a>`);
+            return placeholder;
+        });
+
+        // 2. Plain URLs (not inside href)
+        html = html.replace(/(^|[^"])((?:https?):\/\/[^\s<>\)"'\`]+)/g, (match, prefix, rawUrl) => {
+            const url = cleanUrl(rawUrl);
+            const placeholder = `___LINK_PLACEHOLDER_${links.length}___`;
+            links.push(`<a href="${url}" target="_blank" class="chat-download-link" style="color:#00f0ff;text-decoration:underline;font-weight:600;">${url} ⬇️</a>`);
+            return prefix + placeholder;
+        });
+
+        // 3. Restore placeholders
+        links.forEach((linkHtml, index) => {
+            html = html.replace(`___LINK_PLACEHOLDER_${index}___`, linkHtml);
+        });
+
         // Newlines
         html = html.replace(/\n/g, '<br>');
         return html;

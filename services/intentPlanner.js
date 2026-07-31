@@ -17,7 +17,7 @@ export function classifyComplexity(userMessage) {
     // Coordinating conjunctions or sequencing terms indicate multi-step intents
     const complexSequences = [
         ' and ', ' then ', ' after ', ' before ', ' next ', ' also ', ' then write ', 
-        ' later ', ' followed by ', ' in addition to ', ' first '
+        ' later ', ' followed by ', ' in addition to ', ' first ', ', '
     ];
     if (complexSequences.some(seq => msg.includes(seq))) {
         return 'complex';
@@ -45,7 +45,7 @@ export async function analyzeIntent(userMessage, conversationContext) {
     const systemPrompt = `You are the Intent Analyzer for Ghost. Analyze the user's message and the conversation context to understand their goal, identify any ambiguities, highlight constraints, and infer the implied steps required to accomplish the goal.
 
 CRITICAL RULE FOR BUILT-IN AGENTS & CREDENTIALS:
-Ghost has pre-authenticated built-in agents (githubAgent, notionAgent, stockAgent, sysMonAgent, docAgent, webAgent, emailAgent) and system credentials pre-configured in environment variables. Do NOT list missing GitHub credentials, API keys, stock tokens, or system authentication as blocking ambiguities! Only list genuinely missing target parameters (e.g. if the user says "email this to someone" without specifying an email address).
+Ghost has pre-authenticated built-in agents (githubAgent, notionAgent, stockAgent, sysMonAgent, docAgent, webAgent, emailAgent, cadAgent) and defaults for floor plan generation (defaults to local output directory). Do NOT list floor plan location, missing GitHub credentials, API keys, stock tokens, or system authentication as blocking ambiguities! Only list genuinely missing target parameters (e.g. if the user says "email this to someone" without specifying an email address).
 
 CRITICAL RULE FOR ATTACHED DOCUMENTS:
 If the prompt contains "[ATTACHED PDF DOCUMENT:...]" or "[Document Uploaded:]", the document text has ALREADY been fully extracted into the prompt context! Do NOT list "PDF processing required" or missing PDF text as an ambiguity. Treat the document content as immediately available and generate steps to summarize or answer questions about it directly.
@@ -65,7 +65,7 @@ ${JSON.stringify(conversationContext || {})}
     const startTime = Date.now();
     const response = await chat(
         [{ role: 'user', content: userMessage }],
-        { systemPrompt, maxTokens: 512, model: 'google/gemini-2.5-flash' }
+        { systemPrompt, maxTokens: 2048, model: 'google/gemini-2.5-flash' }
     );
     const latency = Date.now() - startTime;
     console.log(`[Intent Planner Timing] analyzeIntent completed in ${latency}ms`);
@@ -88,7 +88,9 @@ Format your response strictly as a JSON array of objects. Do not write any markd
 Each task must have:
 - "id": (string, e.g. "step1")
 - "description": (string description of the action)
-- "requiredCapability": (exactly one of "web_search", "browser_automation", "email", "db_query", "code_exec", "workspace_edit", "workspace_view", "github", "stock")
+- "requiredCapability": (exactly one of "web_search", "browser_automation", "email", "db_query", "code_exec", "workspace_edit", "workspace_view", "github", "stock", "cad")
+
+CRITICAL RULE: Any step involving saving, writing, storing, or creating a file MUST use "requiredCapability": "workspace_edit" (never "workspace_view" or "code_exec")! Do NOT generate redundant intermediate steps for "summarizing" or "formatting text" — combine formatting directly into the file saving step!
 - "dependsOn": (array of previous step IDs)
 
 Ensure the output is valid JSON. Keep it simple and short.`;
@@ -96,7 +98,7 @@ Ensure the output is valid JSON. Keep it simple and short.`;
     const startTime = Date.now();
     const response = await chat(
         [{ role: 'user', content: "Generate the task plan JSON array now." }],
-        { systemPrompt, maxTokens: 512, model: 'google/gemini-2.5-flash' }
+        { systemPrompt, maxTokens: 2048, model: 'google/gemini-2.5-flash' }
     );
     const latency = Date.now() - startTime;
     console.log(`[Intent Planner Timing] buildTaskPlan completed in ${latency}ms`);
@@ -159,14 +161,14 @@ ${previousResults.map((r, i) => `- Step: ${r.description}\n  Result: ${String(r.
 
 Respond ONLY with a valid raw JSON object representing the parameters for this tool. Follow the schema/naming of typical tool arguments (e.g. for web_search: { "query": "..." }, for database_query: { "sql": "..." }, for workspace_edit_file: { "path": "...", "targetContent": "...", "replacementContent": "..." }).
 
-CRITICAL: If the tool is "workspace_edit_file", to CREATE a new file, set "targetContent" to null or empty string "" and specify the full content in "replacementContent"! Only specify "targetContent" when modifying an existing file. If the previous step returned output data, include that output in "replacementContent"!
+CRITICAL: If the tool is "workspace_edit_file", to CREATE a new file, set "targetContent" to null or empty string "" and specify the full content in "replacementContent"! You MUST explicitly copy the EXACT real data values (e.g. real repository names, exact prices, specific names) returned in the Previous Steps and Results! Do NOT invent generic template URLs or placeholder strings like "repository-1" or "your-username"!
 
 CRITICAL: If the tool is "workspace_edit_file", note that the previous step's file view result includes line numbers like "1: code", "2: code". These line numbers are NOT in the actual file! You MUST strip "1: ", "2: " prefixes from the code when writing the "targetContent" and "replacementContent" parameters!${instructionsPrompt}`;
 
     const startTime = Date.now();
     const res = await chat(
         [{ role: 'user', content: `Generate params for ${toolName}` }],
-        { systemPrompt, maxTokens: 256, model: 'google/gemini-2.5-flash' }
+        { systemPrompt, maxTokens: 1024, model: 'google/gemini-2.5-flash' }
     );
     const latency = Date.now() - startTime;
     console.log(`[Intent Planner Timing] generateToolParams for "${toolName}" completed in ${latency}ms`);

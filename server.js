@@ -712,9 +712,10 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                 return res.json({ success: approveRes.success, text: approveRes.text || approveRes.error });
             }
 
-            // CAD Drawing / Floor Plan Interceptor ("create a 15x10m floor plan", "site plan", "cad drawing")
-            if (lowerMsg.includes('floor plan') || lowerMsg.includes('site plan') || lowerMsg.includes('column grid') || lowerMsg.includes('cad drawing')) {
-                console.log(`[Chat Trace] Intercepted CAD Drawing request -> cadAgent`);
+            // CAD Drawing / Floor Plan Interceptor (ONLY for single standalone requests)
+            const isCompoundCad = classifyComplexity(message) === 'complex';
+            if (!isCompoundCad && (lowerMsg.includes('floor plan') || lowerMsg.includes('site plan') || lowerMsg.includes('column grid') || lowerMsg.includes('cad drawing'))) {
+                console.log(`[Chat Trace] Intercepted single CAD Drawing request -> cadAgent`);
                 const cadAgent = require('./src/agents/cadAgent');
                 const cadRes = await cadAgent.run(message);
                 return res.json({ success: true, text: cadRes.text || cadRes.file });
@@ -1042,7 +1043,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                     if (intent.ambiguities && intent.ambiguities.length > 0) {
                         intent.ambiguities = intent.ambiguities.filter(amb => {
                             const lower = amb.toLowerCase();
-                            if (lower.includes('email') || lower.includes('github') || lower.includes('credential') || lower.includes('api key') || lower.includes('token') || lower.includes('authentication') || lower.includes('account')) {
+                            if (lower.includes('location') || lower.includes('email') || lower.includes('github') || lower.includes('credential') || lower.includes('api key') || lower.includes('token') || lower.includes('authentication') || lower.includes('account')) {
                                 console.log(`[Intent Planner] Suppressed false credential ambiguity: "${amb}"`);
                                 return false;
                             }
@@ -1090,6 +1091,13 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                         console.log(`[Tool Router] Routing step "${step.description}" to primary tool "${primaryTool.name}"`);
 
                         const params = await generateToolParams(primaryTool.name, step.description, previousResults, finalMessage);
+                        
+                        if (primaryTool.name === 'workspace_edit_file' && (!params.targetContent || params.targetContent === '')) {
+                            const rawOutputs = previousResults.map(r => r.output).filter(Boolean).join('\n\n');
+                            if (rawOutputs) {
+                                params.replacementContent = rawOutputs;
+                            }
+                        }
                         
                         // Autonomous vs Gated Task Split check
                         const isGated = (toolName, toolParams) => {
