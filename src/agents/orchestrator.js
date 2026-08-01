@@ -101,12 +101,6 @@ async function isSubtaskRelevant(primaryGoal, subtask) {
   const lowerSub = subtask.toLowerCase();
 
   // Fast heuristic exclusions for known runaway patterns
-  if (lowerGoal.includes('floor plan') || lowerGoal.includes('cad') || lowerGoal.includes('house') || lowerGoal.includes('blueprint')) {
-    if (lowerSub.includes('gait') || lowerSub.includes('valve') || lowerSub.includes('gray water') || lowerSub.includes('shower') || lowerSub.includes('github') || lowerSub.includes('database') || lowerSub.includes('mcp')) {
-      console.log(`[Orchestrator Relevance Filter] Rejected irrelevant subtask "${subtask}" for goal "${primaryGoal}"`);
-      return false;
-    }
-  }
 
   if (lowerGoal.includes('website') || lowerGoal.includes('web app') || lowerGoal.includes('site') || lowerGoal.includes('portfolio') || lowerGoal.includes('resume')) {
     if (lowerSub.includes('briefing') || lowerSub.includes('scheduler') || lowerSub.includes('morning') || lowerSub.includes('stock') || lowerSub.includes('email') || lowerSub.includes('database') || lowerSub.includes('npm install')) {

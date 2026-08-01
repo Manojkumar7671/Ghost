@@ -45,7 +45,7 @@ export async function analyzeIntent(userMessage, conversationContext) {
     const systemPrompt = `You are the Intent Analyzer for Ghost. Analyze the user's message and the conversation context to understand their goal, identify any ambiguities, highlight constraints, and infer the implied steps required to accomplish the goal.
 
 CRITICAL RULE FOR BUILT-IN AGENTS & CREDENTIALS:
-Ghost has pre-authenticated built-in agents (githubAgent, notionAgent, stockAgent, sysMonAgent, docAgent, webAgent, emailAgent, cadAgent) and defaults for floor plan generation (defaults to local output directory). Do NOT list floor plan location, missing GitHub credentials, API keys, stock tokens, or system authentication as blocking ambiguities! Only list genuinely missing target parameters (e.g. if the user says "email this to someone" without specifying an email address).
+Ghost has pre-authenticated built-in agents (githubAgent, notionAgent, stockAgent, sysMonAgent, docAgent, webAgent, emailAgent). Do NOT list missing GitHub credentials, API keys, stock tokens, or system authentication as blocking ambiguities! Only list genuinely missing target parameters (e.g. if the user says "email this to someone" without specifying an email address).
 
 CRITICAL RULE FOR ATTACHED DOCUMENTS:
 If the prompt contains "[ATTACHED PDF DOCUMENT:...]" or "[Document Uploaded:]", the document text has ALREADY been fully extracted into the prompt context! Do NOT list "PDF processing required" or missing PDF text as an ambiguity. Treat the document content as immediately available and generate steps to summarize or answer questions about it directly.
@@ -88,7 +88,7 @@ Format your response strictly as a JSON array of objects. Do not write any markd
 Each task must have:
 - "id": (string, e.g. "step1")
 - "description": (string description of the action)
-- "requiredCapability": (exactly one of "web_search", "browser_automation", "email", "db_query", "code_exec", "workspace_edit", "workspace_view", "github", "stock", "cad")
+- "requiredCapability": (exactly one of "web_search", "browser_automation", "email", "db_query", "code_exec", "workspace_edit", "workspace_view", "github", "stock")
 
 CRITICAL RULE: Any step involving saving, writing, storing, or creating a file MUST use "requiredCapability": "workspace_edit" (never "workspace_view" or "code_exec")! Do NOT generate redundant intermediate steps for "summarizing" or "formatting text" — combine formatting directly into the file saving step!
 - "dependsOn": (array of previous step IDs)

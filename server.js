@@ -26,6 +26,7 @@ import { runPythonSandbox } from './services/pythonSandbox.js';
 import { initGoogleAuthTable, generateAuthUrl, handleOAuthCallback, revokeAccess } from './services/googleAuth.js';
 import { wss, authenticateUpgrade } from './services/localControlServer.js';
 import { traceLocalStorage, initTraceTable, saveTrace, cleanupTraces } from './services/traceStore.js';
+import { loadPlugins, matchAndRun } from './services/pluginSystem.js';
 import { recordSelfEdit, getSelfEditLessons } from './services/selfEditMemory.js';
 import { runClaudeReasoningPrestep } from './services/claudeReasoning.js';
 import { createRequire } from 'module';
@@ -713,14 +714,6 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                 return res.json({ success: approveRes.success, text: approveRes.text || approveRes.error });
             }
 
-            // CAD Drawing / Floor Plan Interceptor (ONLY for single standalone requests)
-            const isCompoundCad = classifyComplexity(message) === 'complex';
-            if (!isCompoundCad && (lowerMsg.includes('floor plan') || lowerMsg.includes('site plan') || lowerMsg.includes('column grid') || lowerMsg.includes('cad drawing'))) {
-                console.log(`[Chat Trace] Intercepted single CAD Drawing request -> cadAgent`);
-                const cadAgent = require('./src/agents/cadAgent');
-                const cadRes = await cadAgent.run(message);
-                return res.json({ success: true, text: cadRes.text || cadRes.file });
-            }
 
             // 1. Intercept Native Application Requests ("open camera", "open photo booth", "open calculator", "open terminal")
             if (lowerMsg === 'open camera' || lowerMsg === 'open photo booth' || lowerMsg.includes('open camera') || lowerMsg.includes('open photo booth')) {

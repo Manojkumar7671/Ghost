@@ -161,8 +161,7 @@ export async function routeCapabilityToTools(requiredCapability, stepDescription
         db_query: ['database_query', 'sql', 'db', 'postgres', 'db_query'],
         code_exec: ['workspace_run_command', 'shell', 'python', 'exec'],
         workspace_edit: ['workspace_edit_file', 'edit_file', 'write_file', 'workspace'],
-        workspace_view: ['workspace_view_file', 'view_file', 'read_file', 'workspace'],
-        cad: ['cadAgent', 'cad_draw', 'cad', 'dxf', 'floor_plan', 'blueprint']
+        workspace_view: ['workspace_view_file', 'view_file', 'read_file', 'workspace']
     };
 
     const targetTags = capToTags[requiredCapability] || [];
