@@ -37,21 +37,21 @@ export const webSearchSkill = new BaseSkill({
     }
 });
 
-// n8nMcpClient is injected at registry-build time (see buildSkillRegistry below)
+// mcpClient is injected at registry-build time (see buildSkillRegistry below)
 // so this file doesn't need to import server.js directly (avoids circular imports).
 
 import { businessSkill } from './business/businessSkill.js';
 import { nvidiaSkill } from './nvidia_tools/nvidiaSkill.js';
 
-export function buildSkillRegistry(n8nMcpClient, securityAuditSkill) {
+export function buildSkillRegistry(mcpClient, securityAuditSkill) {
     const sendEmailSkill = new BaseSkill({
         name: 'sendEmail',
         inputSchema: { workflowName: 'string', payload: 'object' },
         outputSchema: { result: 'object' },
         requiresApproval: true,
         execute: async (inputs) => {
-            console.log(`[Skill: sendEmail] Executing n8n workflow: ${inputs.workflowName}`);
-            const result = await n8nMcpClient.executeTool(inputs.workflowName, inputs.payload);
+            console.log(`[Skill: sendEmail] Executing workflow: ${inputs.workflowName}`);
+            const result = await mcpClient.executeTool(inputs.workflowName, inputs.payload);
             return { result };
         }
     });
@@ -62,8 +62,8 @@ export function buildSkillRegistry(n8nMcpClient, securityAuditSkill) {
         outputSchema: { result: 'object' },
         requiresApproval: true,
         execute: async (inputs) => {
-            console.log(`[Skill: calendar] Executing n8n workflow: ${inputs.workflowName}`);
-            const result = await n8nMcpClient.executeTool(inputs.workflowName, inputs.payload);
+            console.log(`[Skill: calendar] Executing workflow: ${inputs.workflowName}`);
+            const result = await mcpClient.executeTool(inputs.workflowName, inputs.payload);
             return { result };
         }
     });

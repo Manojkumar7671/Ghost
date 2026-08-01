@@ -37,8 +37,8 @@ const { callLLM: routerCallLLM } = require('./llmRouter.js');
 
 startWatchdog();
 
-if (!process.env.ADMIN_PASSPHRASE || !process.env.JWT_SECRET || !process.env.N8N_ENCRYPTION_KEY) {
-    console.error("\n[CRITICAL FATAL ERROR]: ADMIN_PASSPHRASE, JWT_SECRET, or N8N_ENCRYPTION_KEY missing.");
+if (!process.env.ADMIN_PASSPHRASE || !process.env.JWT_SECRET) {
+    console.error("\n[CRITICAL FATAL ERROR]: ADMIN_PASSPHRASE or JWT_SECRET missing.");
     console.error("Halting server boot sequence to prevent fallback vulnerabilities.\n");
     process.exit(1); 
 }
@@ -171,9 +171,9 @@ Schema:
 \`\`\`json
 {"tool": "trigger_webhook", "action": "description_of_action", "payload": { "key": "value" }}
 \`\`\`
-To trigger a live n8n workflow:
+To trigger a built-in workflow:
 \`\`\`json
-{"tool": "n8n_execute", "action": "exact_workflow_name", "payload": { "key": "value matching the workflow's schema" }}
+{"tool": "workflow_execute", "action": "exact_workflow_name", "payload": { "key": "value" }}
 \`\`\`
 To control the headless browser via Browserbase:
 \`\`\`json
@@ -951,7 +951,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
 
         let dynamicToolsPrompt = "", learnedGenesPrompt = "";
         if (isAdmin) {
-            dynamicToolsPrompt += `\n\n[GHOST BUILT-IN WORKFLOWS AVAILABLE]\nUse "tool": "n8n_execute" with these exact action names and schemas:\n${workflowEngine.getPromptString()}`;
+            dynamicToolsPrompt += `\n\n[GHOST BUILT-IN WORKFLOWS AVAILABLE]\nUse "tool": "workflow_execute" with these exact action names and schemas:\n${workflowEngine.getPromptString()}`;
             if (browserbaseClient.isConnected) dynamicToolsPrompt += `\n\n${browserbaseClient.getPromptString()}`;
             if (pool) {
                 try {
@@ -1287,7 +1287,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
         const toolCommand = extractToolCommand(fullResponse);
 
         if (toolCommand) {
-            if (toolCommand.tool === "trigger_webhook" || toolCommand.tool === "n8n_execute" || toolCommand.tool === "browserbase_execute") {
+            if (toolCommand.tool === "trigger_webhook" || toolCommand.tool === "workflow_execute" || toolCommand.tool === "browserbase_execute") {
                 if (!isAdmin) {
                     res.json({ success: true, text: "[SYSTEM OVERRIDE]: External network actions are restricted to Admin clearance. Blocked." });
                     return;
@@ -1499,7 +1499,7 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
         const access = checkToolAccess(cachedAction.type, memoryUser);
         if (!access.allowed) return res.status(403).json({ success: false, error: access.reason });
 
-        if (cachedAction.type === 'n8n_execute') {
+        if (cachedAction.type === 'workflow_execute') {
             const result = await workflowEngine.executeTool(cachedAction.action, cachedAction.payload);
             appendToUserMemory(memoryUser, [{ role: 'assistant', content: `[Ghost Workflow "${cachedAction.action}" executed. Result: ${JSON.stringify(result).slice(0, 1500)}]` }]);
             return res.json({ success: true, message: `Ghost Workflow [${cachedAction.action}] executed successfully.`, result });
@@ -1600,19 +1600,7 @@ app.post('/api/modes/activate', requireAdminToken, async (req, res) => {
     res.status(400).json({ error: 'Invalid mode specified' });
 });
 
-app.use(
-    '/n8n',
-    requireAdminToken,
-    createProxyMiddleware({
-        target: 'http://localhost:5678',
-        changeOrigin: true,
-        ws: true,
-        logger: console,
-        pathRewrite: (path, req) => {
-            return '/n8n' + path; // Preserves /n8n prefix for correct n8n routing
-        }
-    })
-);
+
 
 app.get('/api/admin/observability', requireAdminToken, async (req, res) => {
     try {
@@ -1877,43 +1865,6 @@ app.get('/api/admin/observability', requireAdminToken, async (req, res) => {
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 
-function startN8n() {
-    console.log("[n8n Sidecar] Spawning self-hosted n8n engine (SQLite storage)...");
-    const n8nEnv = {
-        ...process.env,
-        N8N_PORT: '5678',
-        N8N_PATH: '/n8n',
-        N8N_PROXY_HOPS: '1',
-        N8N_EDITOR_BASE_URL: process.env.RENDER_EXTERNAL_URL 
-            ? `${process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '')}/n8n/` 
-            : 'https://ghost-34qz.onrender.com/n8n/',
-        WEBHOOK_URL: process.env.RENDER_EXTERNAL_URL 
-            ? `${process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '')}/n8n/` 
-            : 'https://ghost-34qz.onrender.com/n8n/',
-        N8N_ENCRYPTION_KEY: process.env.N8N_ENCRYPTION_KEY, // strictly required, no fallback!
-        N8N_BLOCK_ENV_ACCESS_IN_NODE: 'true',
-        N8N_RUNNERS_ENABLED: 'false',
-        N8N_GIT_NODE_DISABLE_BARE_REPOS: 'true'
-    };
-
-    const n8nProcess = spawn('npx', ['n8n', 'start'], {
-        env: n8nEnv,
-        stdio: 'inherit',
-        shell: true
-    });
-
-    n8nProcess.on('error', (err) => {
-        console.error('[n8n Sidecar] Failed to start n8n process:', err.message);
-    });
-
-    n8nProcess.on('exit', (code) => {
-        if (code !== 0 && code !== null) {
-            console.warn(`[n8n Sidecar] n8n process exited with code ${code}. Restarting in 5s...`);
-            setTimeout(startN8n, 5000);
-        }
-    });
-}
-
 const PORT = process.env.PORT || 10000;
 Promise.all([
     initAgentModes(pool),
@@ -1927,7 +1878,6 @@ Promise.all([
 const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Ghost AI Engine Online on port ${PORT}.`);
     initCronScheduler();
-    startN8n();
     if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'local') {
         console.log('[Local Control Server] Auto-spawning Local Control Daemon client...');
         spawn('node', ['./services/localControlDaemon.js'], { stdio: 'inherit' });

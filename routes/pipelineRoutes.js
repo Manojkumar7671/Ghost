@@ -5,9 +5,9 @@ import { pendingActions } from '../state/pendingActions.js';
 import { buildSkillRegistry } from '../skills/BaseSkill.js';
 import { securityAuditSkill } from '../skills/securityAuditSkill.js';
 
-export default function createPipelineRoutes(n8nMcpClient) {
+export default function createPipelineRoutes(mcpClient) {
     const router = express.Router();
-    const skillRegistry = buildSkillRegistry(n8nMcpClient, securityAuditSkill);
+    const skillRegistry = buildSkillRegistry(mcpClient, securityAuditSkill);
 
     router.post('/run', async (req, res) => {
         try {

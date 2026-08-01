@@ -88,78 +88,6 @@ class GhostWorkflowEngine {
                 return { sent: true, title, message };
             }
         });
-
-        this.workflows.set('n8n_webhook', {
-            name: 'n8n_webhook',
-            description: 'Trigger a workflow webhook on the self-hosted local n8n instance or N8N_MCP_URL.',
-            inputSchema: {
-                properties: {
-                    path: { type: 'string', description: 'The webhook path (e.g., webhook/my-flow or webhook-test/my-flow)' },
-                    method: { type: 'string', description: 'HTTP method (GET, POST)' },
-                    payload: { type: 'object', description: 'JSON payload to send' }
-                }
-            },
-            handler: async (args) => {
-                const { path = '', method = 'POST', payload } = args || {};
-                let url;
-                if (process.env.N8N_MCP_URL) {
-                    url = process.env.N8N_MCP_URL;
-                    if (path) {
-                        const cleanPath = path.startsWith('/') ? path : `/${path}`;
-                        url = `${process.env.N8N_MCP_URL.replace(/\/+$/, '')}${cleanPath}`;
-                    }
-                } else {
-                    if (!path) throw new Error('Workflow "n8n_webhook" requires a "path" argument when N8N_MCP_URL is not set.');
-                    const cleanPath = path.startsWith('/') ? path : `/${path}`;
-                    url = `http://localhost:5678/n8n${cleanPath}`;
-                }
-
-                const headers = { 'Content-Type': 'application/json' };
-                if (process.env.N8N_MCP_TOKEN) {
-                    headers['X-N8N-Token'] = process.env.N8N_MCP_TOKEN;
-                    headers['Authorization'] = `Bearer ${process.env.N8N_MCP_TOKEN}`;
-                }
-
-                const fetchOpts = { method, headers };
-                if (method === 'POST' && payload) {
-                    fetchOpts.body = JSON.stringify(payload);
-                }
-
-                const res = await fetch(url, fetchOpts);
-                const responseText = await res.text();
-                let jsonResponse;
-                try { jsonResponse = JSON.parse(responseText); } catch (e) { jsonResponse = responseText; }
-                return { status: res.status, ok: res.ok, response: jsonResponse, url };
-            }
-        });
-
-        this.workflows.set('n8n_execute', {
-            name: 'n8n_execute',
-            description: 'Execute a saved n8n workflow directly by its ID.',
-            inputSchema: {
-                properties: {
-                    workflowId: { type: 'string', description: 'The n8n workflow ID (e.g., "1")' },
-                    payload: { type: 'object', description: 'Optional input payload' }
-                }
-            },
-            handler: async (args) => {
-                const { workflowId, payload } = args;
-                if (!workflowId) throw new Error('Workflow "n8n_execute" requires a "workflowId" argument.');
-                if (!SAFE_WORKFLOW_ID.test(workflowId)) {
-                    throw new Error('Invalid workflowId format — must be alphanumeric, dashes, or underscores only.');
-                }
-                const n8nEnv = {
-                    ...process.env,
-                    N8N_PORT: '5678',
-                    N8N_PATH: '/n8n/'
-                    // Intentionally no DB_TYPE/DB_POSTGRESDB_* here — n8n runs on its own
-                    // isolated SQLite store (see server.js startN8n()), not Ghost's shared
-                    // Supabase pool. Reconnecting it here would reintroduce pool contention.
-                };
-                const output = execFileSync('npx', ['n8n', 'execute', '--id', workflowId], { env: n8nEnv, encoding: 'utf-8' });
-                return { success: true, workflowId, output: output.trim() };
-            }
-        });
     }
 
     getPromptString() {
@@ -187,12 +115,6 @@ class GhostWorkflowEngine {
     register(name, description, inputSchema, handler) {
         this.workflows.set(name, { name, description, inputSchema, handler });
         console.log(`[Ghost Workflow] Registered custom workflow: "${name}"`);
-    }
-
-    async testN8nWebhook(payload = { ping: true, source: 'ghost_test' }) {
-        const handler = this.workflows.get('n8n_webhook')?.handler;
-        if (!handler) throw new Error('n8n_webhook handler not registered.');
-        return await handler({ path: '', method: 'POST', payload });
     }
 }
 
