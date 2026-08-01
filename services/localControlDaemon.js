@@ -25,6 +25,9 @@ function sha256(text) {
 }
 
 function promptPassphrase() {
+  if (!process.stdin.isTTY) {
+    return Promise.resolve(process.env.ADMIN_PASSPHRASE || '');
+  }
   return new Promise((resolve) => {
     const rl = readline.createInterface({
       input: process.stdin,
