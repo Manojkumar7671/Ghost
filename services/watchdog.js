@@ -51,9 +51,8 @@ if (!isMainThread) {
     // Monitor response health every 5 seconds
     setInterval(() => {
         const delay = Date.now() - mainLastResponse;
-        if (delay > 15000) {
-            console.error(`[Watchdog] [${new Date().toISOString()}] CRITICAL: Event loop blocked for ${delay}ms! Runaway CPU spin detected. Terminating process...`);
-            process.exit(1);
+        if (delay > 60000) {
+            console.warn(`[Watchdog] [${new Date().toISOString()}] WARN: Event loop blocked for ${delay}ms.`);
         }
     }, 5000);
 }
