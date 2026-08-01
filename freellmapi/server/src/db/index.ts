@@ -100,6 +100,11 @@ export function initDb(
 
   if (!isEncryptionKeyInitialized()) initEncryptionKey(db);
 
+  const overrideKey = process.env.FREELLMAPI_API_KEY || process.env.FREEAPI_UNIFIED_API_KEY;
+  if (overrideKey) {
+    db.prepare("INSERT INTO settings (key, value) VALUES ('unified_api_key', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(overrideKey);
+  }
+
   return db;
 }
 
