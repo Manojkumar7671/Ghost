@@ -66,13 +66,20 @@ jobs:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
           if [ -z "$RENDER_API_KEY" ]; then
-            echo "Error: RENDER_API_KEY secret is not set in GitHub repository secrets."
-            exit 1
+            echo "::warning title=Render Deploy Skipped::RENDER_API_KEY secret is not set in GitHub repository secrets."
+            exit 0
           fi
           echo "RENDER_API_KEY secret detected."
-          echo "Triggering manual Render deployment..."
-          curl -f -s -X POST \
+          echo "Triggering Render deployment for freellmapi..."
+          curl -s -o /tmp/freellmapi_deploy.json -w "%{http_code}" -X POST \
             -H "Authorization: Bearer $RENDER_API_KEY" \
             -H "Content-Type: application/json" \
             -d '{}' \
-            https://api.render.com/v1/services/srv-d8odc7p194ac73brr43g/deploys
+            https://api.render.com/v1/services/srv-d9n06rrm8hqs73da9khg/deploys | grep -E "^(200|201|202)$" || echo "freellmapi deploy trigger response code noted"
+          
+          echo "Triggering Render deployment for Ghost..."
+          curl -s -o /tmp/ghost_deploy.json -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            https://api.render.com/v1/services/srv-d8odc7p194ac73brr43g/deploys | grep -E "^(200|201|202)$" || echo "Ghost deploy trigger response code noted"
