@@ -1867,14 +1867,14 @@ app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html'
 
 const PORT = process.env.PORT || 10000;
 Promise.all([
-    initAgentModes(pool),
-    initGoogleAuthTable(pool),
-    initTraceTable(pool),
-    loadPlugins()
+    initAgentModes(pool).catch(err => console.error('[Agent Modes Init Warn]:', err.message)),
+    initGoogleAuthTable(pool).catch(err => console.error('[Google Auth Init Warn]:', err.message)),
+    initTraceTable(pool).catch(err => console.error('[Trace Store Init Warn]:', err.message)),
+    loadPlugins().catch(err => console.error('[Plugins Load Warn]:', err.message))
 ]).then(() => {
     startAutoLearning(ghostLearn, pool);
-    cleanupTraces(pool);
-});
+    cleanupTraces(pool).catch(err => console.error('[Cleanup Traces Warn]:', err.message));
+}).catch(err => console.error('[Startup Init Error]:', err.message));
 const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Ghost AI Engine Online on port ${PORT}.`);
     initCronScheduler();
