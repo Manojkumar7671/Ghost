@@ -26,7 +26,8 @@ import { runPythonSandbox } from './services/pythonSandbox.js';
 import { initGoogleAuthTable, generateAuthUrl, handleOAuthCallback, revokeAccess } from './services/googleAuth.js';
 import { wss, authenticateUpgrade } from './services/localControlServer.js';
 import { traceLocalStorage, initTraceTable, saveTrace, cleanupTraces } from './services/traceStore.js';
-import { loadPlugins, matchAndRun } from './services/pluginSystem.js';
+import { recordSelfEdit, getSelfEditLessons } from './services/selfEditMemory.js';
+import { runClaudeReasoningPrestep } from './services/claudeReasoning.js';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -1035,6 +1036,20 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                         return;
                     }
 
+                    // Optional Pre-Step: Claude Code Reasoning Brain Pre-Step
+                    const claudeResult = runClaudeReasoningPrestep(finalMessage);
+                    if (claudeResult.reasoning) {
+                        console.log('[Intent Planner] Injected Claude Code Pre-Step Reasoning into context');
+                        userHistory.push({ role: 'system', content: `[CLAUDE CODE PRE-STEP REASONING]: ${claudeResult.reasoning}` });
+                    }
+
+                    // Optional Self-Edit Memory Retrieval (SEAL-inspired)
+                    const pastLessons = getSelfEditLessons(finalMessage);
+                    if (pastLessons && pastLessons.length > 0) {
+                        console.log(`[Intent Planner] Retrieved ${pastLessons.length} Self-Edit Memory Lessons for context`);
+                        userHistory.push({ role: 'system', content: `[SELF-EDIT MEMORY LESSONS (SEAL Protocol)]:\n- ${pastLessons.join('\n- ')}` });
+                    }
+
                     // 1. Analyze intent
                     const intent = await analyzeIntent(finalMessage, userHistory);
                     console.log('[Intent Planner] Intent analysis:', JSON.stringify(intent));
@@ -1172,6 +1187,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
 
                         if (!stepSuccess) {
                             const errorSummary = attemptsTried.map((a, i) => `Attempt ${i+1} (${a.tool}): ${a.output}`).join(' | ');
+                            recordSelfEdit({ username: safeUser || 'guest', goal: finalMessage, failedStep: step.description, tool: primaryTool.name, error: errorSummary, attemptsTried }, pool);
                             previousResults.push({ id: step.id, description: step.description, tool: primaryTool.name, output: `Failed after ${attemptsTried.length} attempts. Details: ${errorSummary}`, status: 'failed' });
                         }
                     }

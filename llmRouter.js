@@ -57,6 +57,12 @@ export function getProviders() {
       endpoint: `${freeLLMBase}${baseSlash}/chat/completions`,
       model: 'deepseek-chat',
       apiKey: process.env.FREELLMAPI_API_KEY
+    },
+    {
+      name: 'Kimi K2',
+      endpoint: process.env.KIMI_ENDPOINT || 'https://api.moonshot.ai/v1/chat/completions',
+      model: 'kimi-k2-0905',
+      apiKey: process.env.KIMI_API_KEY
     }
   ];
 }
@@ -127,6 +133,8 @@ export async function callLLM(messages = [], options = {}) {
         if (customModel.includes('llama-3.3-70b')) {
           selectedModel = 'llama-3.3-70b-versatile';
         }
+      } else if (provider.name === 'Kimi K2') {
+        selectedModel = customModel.includes('kimi') ? customModel : 'kimi-k2-0905';
       }
     }
     const controller = new AbortController();
