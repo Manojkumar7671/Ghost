@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: freellmapi
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start -w server
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PROXY_RATE_LIMIT_RPM
+        value: "120"
