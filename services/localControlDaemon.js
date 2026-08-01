@@ -5,8 +5,8 @@ import crypto from 'crypto';
 import readline from 'readline';
 import WebSocket from 'ws';
 
-if (process.env.GHOST_DEPLOYMENT_MODE !== 'local') {
-  console.error('[Daemon] Local Control Daemon can only run when GHOST_DEPLOYMENT_MODE=local. Exiting.');
+if (process.env.GHOST_DEPLOYMENT_MODE !== 'local' || process.platform === 'linux') {
+  console.log('[Daemon] Local Control Daemon is intended for local desktop environments (macOS/Windows). Disabled.');
   process.exit(0);
 }
 
@@ -103,8 +103,8 @@ async function start() {
   } else if (process.platform === 'win32') {
     driver = await import('./controlDrivers/windowsDriver.js');
   } else {
-    console.error(`[Daemon] Unsupported OS platform: ${process.platform}. Exiting.`);
-    process.exit(1);
+    console.log(`[Daemon] Unsupported OS platform: ${process.platform}. Exiting cleanly.`);
+    process.exit(0);
   }
 
   // 2. Authenticate and retrieve token
