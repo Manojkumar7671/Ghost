@@ -59,7 +59,7 @@ export function getProviders() {
     providers.push({
       name: 'FreeLLMAPI (Render Cloud)',
       endpoint: `${freeLLMCloud}${cloudSlash}/chat/completions`,
-      model: 'deepseek-chat',
+      model: 'auto',
       apiKey: process.env.FREELLMAPI_API_KEY || 'free'
     });
   }
@@ -68,7 +68,7 @@ export function getProviders() {
   providers.push({
     name: 'FreeLLMAPI (Local)',
     endpoint: `${freeLLMLocal}${localSlash}/chat/completions`,
-    model: 'deepseek-chat',
+    model: 'auto',
     apiKey: process.env.FREELLMAPI_API_KEY || 'free'
   });
 
@@ -113,14 +113,19 @@ export async function callLLM(messages = [], options = {}) {
     maxTokens = 1024,
     temperature = 0.2,
     timeoutMs = 10000,
-    model: customModel = null
+    model: customModel = null,
+    providerFilter = null
   } = options;
 
   const formattedMessages = systemPrompt
     ? [{ role: 'system', content: systemPrompt }, ...messages]
     : messages;
 
-  const providers = getProviders();
+  let providers = getProviders();
+  if (providerFilter) {
+    providers = providers.filter(p => p.name.toLowerCase().includes(providerFilter.toLowerCase()));
+  }
+
   const errors = [];
 
   console.log(`[LLM Router] [${new Date().toISOString()}] Starting provider fallback loop for model: "${customModel || 'default'}"`);
