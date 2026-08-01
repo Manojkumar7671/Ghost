@@ -2237,6 +2237,11 @@ function backfillFallback(db: Db) {
 }
 
 function ensureUnifiedKey(db: Db) {
+  const envKey = process.env.FREELLMAPI_API_KEY || process.env.FREEAPI_UNIFIED_API_KEY;
+  if (envKey) {
+    db.prepare("INSERT INTO settings (key, value) VALUES ('unified_api_key', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(envKey);
+    return;
+  }
   const existing = db.prepare("SELECT value FROM settings WHERE key = 'unified_api_key'").get() as { value: string } | undefined;
   if (!existing) {
     const key = `freellmapi-${crypto.randomBytes(24).toString('hex')}`;
