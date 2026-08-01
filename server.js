@@ -63,6 +63,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 
+app.get('/health', (req, res) => res.status(200).send('OK'));
+
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '10mb' })); // Restricted standard payload sizes to prevent memory-limit DoS attacks
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
