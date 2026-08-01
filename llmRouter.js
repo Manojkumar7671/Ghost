@@ -66,8 +66,8 @@ export function getProviders() {
     },
     {
       name: 'Osaurus Local',
-      endpoint: process.env.OSAURUS_ENDPOINT || 'http://localhost:8080/v1/chat/completions',
-      model: process.env.OSAURUS_MODEL || 'local-model',
+      endpoint: process.env.OSAURUS_ENDPOINT || 'http://localhost:1337/v1/chat/completions',
+      model: process.env.OSAURUS_MODEL || 'foundation',
       apiKey: 'osaurus_local_key'
     }
   ];
