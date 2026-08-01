@@ -5,6 +5,7 @@ const { Pool } = pkg;
 let pool;
 if (process.env.SUPABASE_DB_URL) {
     pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false }, max: 2 });
+    pool.on('error', (err) => console.error('[Browserbase Pool Error]:', err.message));
 }
 
 class BrowserbaseClient {

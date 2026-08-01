@@ -7,6 +7,7 @@ if (process.env.SUPABASE_DB_URL) {
     ssl: (process.env.SUPABASE_DB_URL.includes('localhost') || process.env.SUPABASE_DB_URL.includes('127.0.0.1')) ? false : { rejectUnauthorized: false },
     max: 2
   });
+  pool.on('error', (err) => console.error('[Database Tools Pool Error]:', err.message));
 } else {
   console.warn("[Database Tools] Warning: SUPABASE_DB_URL is not set. Database query tool will not be functional.");
 }
