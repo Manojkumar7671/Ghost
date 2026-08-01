@@ -69,8 +69,9 @@ export function getSelfEditLessons(goal = '') {
       return null;
     }).filter(Boolean);
 
-    // Return the 3 most recent unique lessons
-    return Array.from(new Set(lessons)).slice(-3);
+    const result = Array.from(new Set(lessons)).slice(-3);
+    console.log(`[Self-Edit Memory Retrieval] [Goal: "${goal}"] Found ${result.length} past lesson(s):\n${result.map(l => `  -> ${l}`).join('\n')}`);
+    return result;
   } catch (e) {
     console.error('[Self-Edit Memory] Failed to read lessons:', e.message);
     return [];

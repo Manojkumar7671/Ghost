@@ -138,6 +138,11 @@ Example: [{"tool":"web_search","params":{"query":"latest AI news"},"reason":"Use
       console.warn('[Brain Routing Fix] Overriding web_search to orchestrator_run for creative design prompt:', userMessage);
       parsed[0] = { tool: 'orchestrator_run', params: { task: userMessage }, reason: 'Creative design generation' };
     }
+    // Out-of-Scope Boundary: CAD, floor plans, blueprints, and 3D modeling
+    if (/\b(floor\s*plan|cad\s*drawing|architectural\s*blueprint|3d\s*model)\b/i.test(userMessage)) {
+      console.log(`[Brain Security/Scope Boundary] Rejecting out-of-scope floor plan/CAD request: "${userMessage}"`);
+      return [{ tool: 'chat', params: { text: "Ghost is a Jarvis-style personal assistant focused on information, automation, communications, and memory. Floor plan generation and CAD design are out of scope." }, reason: 'Scope boundary enforcement' }];
+    }
     // Hard Security Boundary: neutralize pseudo-system override and privilege escalation requests
     if (userMessage.includes('[neutralized request]') || /\b(system override|superuser admin|grant admin)\b/i.test(userMessage)) {
       return [{ tool: 'chat', params: { text: "System override and privilege escalation requests are denied by Ghost security policy." }, reason: 'Security boundary enforcement' }];

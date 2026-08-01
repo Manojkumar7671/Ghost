@@ -132,6 +132,11 @@ async function run(task, globalContext = '') {
 
   // 1. Primary Goal Extraction (Prevent long reference prose from becoming individual tasks)
   let primaryGoal = task;
+  const lowerTask = task.toLowerCase();
+  if (lowerTask.includes('floor plan') || lowerTask.includes('cad drawing') || lowerTask.includes('architectural blueprint') || lowerTask.includes('3d model')) {
+    console.log(`[Orchestrator] Rejecting out-of-scope task: "${task}"`);
+    return `Ghost is a Jarvis-style assistant focused on information, automation, communications, and memory. Floor plan generation and CAD design are out of scope.`;
+  }
   if (task.length > 150 || task.includes('\n')) {
     try {
       const goalPrompt = `Extract ONLY the core actionable user command from the input below. Ignore passive reference text, background descriptions, and feature lists.
