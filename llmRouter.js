@@ -63,12 +63,6 @@ export function getProviders() {
       endpoint: process.env.KIMI_ENDPOINT || 'https://api.moonshot.ai/v1/chat/completions',
       model: 'kimi-k2-0905',
       apiKey: process.env.KIMI_API_KEY
-    },
-    {
-      name: 'Osaurus Local',
-      endpoint: process.env.OSAURUS_ENDPOINT || 'http://localhost:1337/v1/chat/completions',
-      model: process.env.OSAURUS_MODEL || 'foundation',
-      apiKey: 'osaurus_local_key'
     }
   ];
 }
@@ -79,7 +73,6 @@ export function getProviders() {
 function isValidKey(key) {
   if (!key || typeof key !== 'string') return false;
   const lower = key.trim().toLowerCase();
-  if (lower === 'osaurus_local_key' || lower === 'local') return true;
   if (lower === '' || lower.startsWith('your_') || lower.startsWith('dummy') || lower.includes('invalid')) {
     return false;
   }
