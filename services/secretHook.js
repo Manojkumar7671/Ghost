@@ -66,14 +66,18 @@ export function initSecretHook() {
   const originalStdoutWrite = process.stdout.write.bind(process.stdout);
   const originalStderrWrite = process.stderr.write.bind(process.stderr);
 
-  process.stdout.write = function (chunk, encoding, callback) {
-    const sanitized = sanitizeStreamChunk(chunk);
-    return originalStdoutWrite(sanitized, encoding, callback);
+  process.stdout.write = function (...args) {
+    if (args[0] !== null && args[0] !== undefined) {
+      args[0] = sanitizeStreamChunk(args[0]);
+    }
+    return originalStdoutWrite.apply(process.stdout, args);
   };
 
-  process.stderr.write = function (chunk, encoding, callback) {
-    const sanitized = sanitizeStreamChunk(chunk);
-    return originalStderrWrite(sanitized, encoding, callback);
+  process.stderr.write = function (...args) {
+    if (args[0] !== null && args[0] !== undefined) {
+      args[0] = sanitizeStreamChunk(args[0]);
+    }
+    return originalStderrWrite.apply(process.stderr, args);
   };
 
   console.log('[SecretHook] Global process stdout/stderr secret redaction hook initialized.');
