@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { spawnSync, execSync } from 'child_process';
 
 /**
  * Runs an optional pre-execution reasoning step using Claude Code CLI.
@@ -11,22 +11,39 @@ export function runClaudeReasoningPrestep(userPrompt = '') {
   }
 
   try {
-    // Check if claude command exists on PATH
     execSync('which claude', { stdio: 'pipe' });
   } catch (err) {
-    console.warn('[Claude Pre-Step] Claude CLI ("claude") not found on PATH. Skipping pre-step.');
+    console.warn('[Claude Pre-Step] Claude CLI ("claude") not found on PATH.');
     return { enabled: true, reasoning: null, reason: 'Claude CLI ("claude") not installed or not on PATH' };
   }
 
   try {
-    console.log('[Claude Pre-Step] Invoking Claude Code CLI for pre-execution reasoning...');
-    const safePrompt = String(userPrompt).replace(/"/g, '\\"');
-    const stdout = execSync(`claude -p "Provide a brief 2-sentence tactical plan for: ${safePrompt}" < /dev/null`, {
-      timeout: 5000,
+    console.log('[Claude Pre-Step] Invoking Claude Code CLI via spawnSync...');
+    const promptText = `Provide a brief 2-sentence tactical reasoning breakdown for: ${userPrompt}`;
+    
+    const result = spawnSync('claude', [
+      '-p', promptText,
+      '--output-format', 'text'
+    ], {
+      timeout: 15000,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env }
-    }).trim();
+    });
+
+    if (result.error) {
+      console.warn('[Claude Pre-Step Error]:', result.error.message);
+      return { enabled: true, reasoning: null, reason: result.error.message };
+    }
+
+    const stdout = (result.stdout || '').trim();
+    const stderr = (result.stderr || '').trim();
+
+    if (result.status !== 0) {
+      const errDetail = stderr || stdout || `Exit code ${result.status}`;
+      console.warn('[Claude Pre-Step Non-Zero Exit]:', errDetail);
+      return { enabled: true, reasoning: null, reason: errDetail };
+    }
 
     console.log('[Claude Pre-Step Output]:', stdout.slice(0, 150));
     return { enabled: true, reasoning: stdout, reason: null };
