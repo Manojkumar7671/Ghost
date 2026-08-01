@@ -63,7 +63,95 @@ function createAgent(name, instructions) {
 }
 
 // 3. Evaluation and Subtask Routing
+async function getPlanMemory() {
+  try {
+    return await import('../../services/planMemory.js');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Detects underspecified or ambiguous user goals missing critical parameters.
+ */
+function detectAmbiguity(primaryGoal) {
+  const lowerGoal = primaryGoal.toLowerCase();
+
+  // Email missing target email address or content
+  if (/\b(send email|email|draft email)\b/i.test(lowerGoal)) {
+    const hasEmailAddr = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/.test(primaryGoal);
+    const hasBodyContent = /\b(saying|with body|message|content|about|that)\b/i.test(lowerGoal);
+    if (!hasEmailAddr || !hasBodyContent) {
+      return {
+        isAmbiguous: true,
+        question: "To send an email, please specify the recipient's email address and the message body/subject content."
+      };
+    }
+  }
+
+  // Code push missing repo or commit message
+  if (/\b(push code|git push|commit code)\b/i.test(lowerGoal)) {
+    const hasRepoOrCommit = /\b(repo|repository|commit|message|branch)\b/i.test(lowerGoal);
+    if (!hasRepoOrCommit) {
+      return {
+        isAmbiguous: true,
+        question: "To push code, please specify the target repository/branch and commit message."
+      };
+    }
+  }
+
+  // PDF / Document QA missing filename
+  if (/\b(summarize document|read pdf|parse resume|pdf qa)\b/i.test(lowerGoal)) {
+    const hasDocFile = /\b(\.pdf|\.docx|\.txt|document|file|resume)\b/i.test(lowerGoal);
+    if (!hasDocFile) {
+      return {
+        isAmbiguous: true,
+        question: "To process a document, please provide the specific file name or file path."
+      };
+    }
+  }
+
+  return { isAmbiguous: false };
+}
+
 async function evaluate(subtask) {
+  const lowerSub = subtask.toLowerCase();
+
+  // Fast domain keyword routing with explicit reasoning logging
+  let domainMatch = null;
+  let domainReason = '';
+
+  if (/\b(stock|stock price|financial metrics|aapl|googl|msft|nasdaq)\b/i.test(lowerSub) && availableAgents.stockAgent) {
+    domainMatch = 'stockAgent';
+    domainReason = 'Subtask targets stock market quotes or financial metrics.';
+  } else if (/\b(repo|github|commit|pull request|issue)\b/i.test(lowerSub) && availableAgents.githubAgent) {
+    domainMatch = 'githubAgent';
+    domainReason = 'Subtask targets GitHub repository or version control operations.';
+  } else if (/\b(pdf|document|pageindex|resume)\b/i.test(lowerSub) && availableAgents.docAgent) {
+    domainMatch = 'docAgent';
+    domainReason = 'Subtask targets document indexing or PDF QA.';
+  } else if (/\b(cpu|memory|disk|system health|system metrics)\b/i.test(lowerSub) && availableAgents.sysMonAgent) {
+    domainMatch = 'sysMonAgent';
+    domainReason = 'Subtask targets system hardware monitoring and diagnostics.';
+  } else if (/\b(daily briefing|morning summary)\b/i.test(lowerSub) && availableAgents.dailyBriefingAgent) {
+    domainMatch = 'dailyBriefingAgent';
+    domainReason = 'Subtask targets morning briefing generation.';
+  } else if (/\b(code review|refactor|lint)\b/i.test(lowerSub) && availableAgents.codeReviewAgent) {
+    domainMatch = 'codeReviewAgent';
+    domainReason = 'Subtask targets automated code review and quality checks.';
+  } else if (/\b(quiz|spaced repetition|self study)\b/i.test(lowerSub) && availableAgents.selfStudyAgent) {
+    domainMatch = 'selfStudyAgent';
+    domainReason = 'Subtask targets user learning or spaced-repetition quizzes.';
+  } else if (/\b(send email|draft email)\b/i.test(lowerSub) && availableAgents.emailAgent) {
+    domainMatch = 'emailAgent';
+    domainReason = 'Subtask targets email composition and dispatch.';
+  }
+
+  if (domainMatch) {
+    console.log(`[Orchestrator Agent Selector] Selected domain-specific agent "${domainMatch}" for subtask "${subtask}". Reasoning: ${domainReason}`);
+    return { name: domainMatch, agent: availableAgents[domainMatch] };
+  }
+
   const agentNames = Object.keys(availableAgents).join(', ');
   const prompt = `You are Ghost's Orchestrator. Decide which agent should handle this subtask: "${subtask}"
 
@@ -223,20 +311,35 @@ Return ONLY a single concise sentence describing the user's primary goal.`;
     } catch (e) {}
   }
 
-  // 2. Subtask Decomposition based on Primary Goal
-  const planPrompt = `Break this primary goal down into 1 to 3 distinct actionable subtasks. 
+  // 2. Ambiguity Clarification Gating
+  const ambiguityCheck = detectAmbiguity(primaryGoal);
+  if (ambiguityCheck.isAmbiguous) {
+    console.log(`[Orchestrator Ambiguity Gate] Gating ambiguous request: "${primaryGoal}"`);
+    return `[AMBIGUITY CLARIFICATION REQUIRED]: ${ambiguityCheck.question}`;
+  }
+
+  // 3. Subtask Decomposition or Plan Memory Reuse
+  let subtasks = [];
+  const planMem = await getPlanMemory();
+  const cachedPlan = planMem?.getMatchingPlanStructure ? planMem.getMatchingPlanStructure(primaryGoal) : null;
+
+  if (cachedPlan && Array.isArray(cachedPlan.subtasks) && cachedPlan.subtasks.length > 0) {
+    subtasks = cachedPlan.subtasks;
+    console.log(`[Orchestrator Plan Memory] Reusing proven plan structure (${subtasks.length} subtask(s)) for goal: "${primaryGoal}"`);
+  } else {
+    const planPrompt = `Break this primary goal down into 1 to 3 distinct actionable subtasks. 
 Goal: "${primaryGoal}"
 Respond ONLY with a JSON array of string subtasks. No markdown.`;
 
-  let subtasks = [];
-  try {
-    const planRes = await chat([{ role: 'user', content: planPrompt }]);
-    subtasks = JSON.parse(planRes.match(/\[.*\]/s)[0]);
-  } catch (e) {
-    subtasks = [primaryGoal];
+    try {
+      const planRes = await chat([{ role: 'user', content: planPrompt }]);
+      subtasks = JSON.parse(planRes.match(/\[.*\]/s)[0]);
+    } catch (e) {
+      subtasks = [primaryGoal];
+    }
   }
 
-  // 3. Multi-Step Plan Critique Pass
+  // 4. Multi-Step Plan Critique Pass
   subtasks = await critiquePlan(primaryGoal, subtasks);
 
   // 4. Sequential & Relevant Subtask Execution with Confidence Gating & Hard Cap (Max 8)
@@ -331,6 +434,13 @@ Respond ONLY with a JSON array of string subtasks. No markdown.`;
     }
 
     results.push(`[Agent: ${name}] Subtask: "${st}"\nResult: ${result}`);
+  }
+
+  // Record proven plan structure if execution completed
+  if (planMem?.recordPlanStructure && subtasks.length > 0) {
+    try {
+      planMem.recordPlanStructure(primaryGoal, subtasks);
+    } catch (e) {}
   }
 
   const finalOutput = results.join('\n\n---\n\n');

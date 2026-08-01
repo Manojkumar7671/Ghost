@@ -1,0 +1,13 @@
+[
+  {
+    "id": "plan_1785578448348",
+    "goalKey": "aapl_health_price_stock_system",
+    "primaryGoal": "Check AAPL stock price and system health",
+    "subtasks": [
+      "Break this primary goal down into 1 to 3 distinct actionable subtasks. \nGoal: \"Check AAPL stock price and system health\"\nRespond ONLY with a JSON array of string subtasks. No markdown."
+    ],
+    "count": 6,
+    "createdAt": "2026-08-01T10:00:48.348Z",
+    "updatedAt": "2026-08-01T10:01:10.566Z"
+  }
+]

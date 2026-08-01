@@ -11,6 +11,10 @@ const scheduler = require('./agents/scheduler');
 const dailyBriefingAgent = require('./agents/dailyBriefingAgent');
 const codeReviewAgent = require('./agents/codeReviewAgent');
 const selfStudyAgent = require('./agents/selfStudyAgent');
+const stockAgent = require('./agents/stockAgent');
+const docAgent = require('./agents/docAgent');
+const sysMonAgent = require('./agents/sysMonAgent');
+const fileAgent = require('./agents/fileAgent');
 
 // Helper function to extract structured parameters from a natural language task
 async function extractParams(agentName, task, context, jsonSchemaInstruction) {
@@ -142,7 +146,31 @@ const adaptedScheduler = {
     const br = await scheduler.generateBriefing();
     return `Briefing:\n${br}`;
   }
-}
+};
+
+const adaptedStockAgent = {
+  run: async (task, context) => {
+    const res = await stockAgent.run(task);
+    if (typeof res === 'string') return res;
+    return res.text || JSON.stringify(res);
+  }
+};
+
+const adaptedDocAgent = {
+  run: async (task, context) => {
+    const res = await docAgent.queryWithPageIndex ? await docAgent.queryWithPageIndex(task) : await docAgent.run(task);
+    if (typeof res === 'string') return res;
+    return res.text || res.answer || JSON.stringify(res);
+  }
+};
+
+const adaptedSysMonAgent = {
+  run: async (task, context) => {
+    const res = await sysMonAgent.getSystemHealth ? await sysMonAgent.getSystemHealth() : await sysMonAgent.run(task);
+    if (typeof res === 'string') return res;
+    return res.text || JSON.stringify(res);
+  }
+};
 
 module.exports = {
   webAgent: adaptedWebAgent,
@@ -156,5 +184,9 @@ module.exports = {
   scheduler: adaptedScheduler,
   dailyBriefingAgent,
   codeReviewAgent,
-  selfStudyAgent
+  selfStudyAgent,
+  stockAgent: adaptedStockAgent,
+  docAgent: adaptedDocAgent,
+  sysMonAgent: adaptedSysMonAgent,
+  fileAgent
 };
