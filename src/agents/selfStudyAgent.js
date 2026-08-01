@@ -73,6 +73,9 @@ async function recordGhostKnowledgeGap({ tool = '', failedStep = '', error = '' 
   };
 
   log.ghostKnowledgeGaps.push(studyItem);
+  if (log.ghostKnowledgeGaps.length > 50) {
+    log.ghostKnowledgeGaps = log.ghostKnowledgeGaps.slice(-50);
+  }
   saveStudyLog(log);
 
   console.log(`[Reflexive Self-Study Loop] Logged Ghost internal knowledge gap for tool "${tool}". Total study units: ${log.ghostKnowledgeGaps.length}`);

@@ -8,9 +8,9 @@
     },
     "Audit health check test prompt": {
       "firstSeen": "2026-08-01T09:41:59.247Z",
-      "reviewsCount": 2,
+      "reviewsCount": 4,
       "progress": "Learning",
-      "lastReviewed": "2026-08-01T09:45:01.724Z"
+      "lastReviewed": "2026-08-01T09:58:19.588Z"
     }
   },
   "ghostKnowledgeGaps": [
@@ -30,6 +30,20 @@
     },
     {
       "timestamp": "2026-08-01T09:45:04.389Z",
+      "tool": "test_tool",
+      "failedStep": "Step 1",
+      "error": "Audit test error",
+      "correctiveStudyPrompt": "Ghost Self-Study Unit: How to properly format and execute tool \"test_tool\" for step \"Step 1\" without triggering error \"Audit test error\"."
+    },
+    {
+      "timestamp": "2026-08-01T09:58:04.479Z",
+      "tool": "test_tool",
+      "failedStep": "Step 1",
+      "error": "Audit test error",
+      "correctiveStudyPrompt": "Ghost Self-Study Unit: How to properly format and execute tool \"test_tool\" for step \"Step 1\" without triggering error \"Audit test error\"."
+    },
+    {
+      "timestamp": "2026-08-01T09:58:19.785Z",
       "tool": "test_tool",
       "failedStep": "Step 1",
       "error": "Audit test error",

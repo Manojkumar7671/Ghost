@@ -29,6 +29,11 @@ export async function recordSelfEdit({ username = 'guest', goal = '', failedStep
   const line = `[${timestamp}] User: "${username}" | Goal: "${goal}" | Tool: "${tool}" | Error: "${record.error}" | Lesson: "${lessonText}"\n`;
   try {
     fs.appendFileSync(LOG_FILE, line, 'utf8');
+    // Ensure zero unbounded growth by capping log at last 200 lines
+    const logContent = fs.readFileSync(LOG_FILE, 'utf8').split('\n').filter(Boolean);
+    if (logContent.length > 200) {
+      fs.writeFileSync(LOG_FILE, logContent.slice(-200).join('\n') + '\n', 'utf8');
+    }
     console.log(`[Self-Edit Memory] Logged lesson to ${LOG_FILE}`);
   } catch (e) {
     console.error('[Self-Edit Memory] Failed to write log:', e.message);
@@ -71,6 +76,11 @@ export async function recordSuccessPattern({ username = 'guest', goal = '', tool
   const line = `[${timestamp}] [SUCCESS] User: "${username}" | Goal: "${goal}" | Tool: "${tool}" | Pattern: "${patternText}"\n`;
   try {
     fs.appendFileSync(LOG_FILE, line, 'utf8');
+    // Ensure zero unbounded growth by capping log at last 200 lines
+    const logContent = fs.readFileSync(LOG_FILE, 'utf8').split('\n').filter(Boolean);
+    if (logContent.length > 200) {
+      fs.writeFileSync(LOG_FILE, logContent.slice(-200).join('\n') + '\n', 'utf8');
+    }
     console.log(`[Self-Edit Memory] Logged success pattern to ${LOG_FILE}`);
   } catch (e) {
     console.error('[Self-Edit Memory] Failed to write success log:', e.message);
