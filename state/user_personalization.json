@@ -11,5 +11,14 @@
         "recorded_at": "2026-08-01T09:35:50.246Z"
       }
     }
+  },
+  "audit_user": {
+    "updated_at": "2026-08-01T09:45:04.390Z",
+    "preferences": {
+      "audit_pref_key": {
+        "value": "audit_pref_val",
+        "recorded_at": "2026-08-01T09:45:04.390Z"
+      }
+    }
   }
 }

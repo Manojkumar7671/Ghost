@@ -95454,3 +95454,303 @@
 2026-08-01 15:07:18: [Trace Store] pipeline_traces table verified/created.
 2026-08-01 15:07:18: [ghostLearn] scheduler started — running on "*/30 * * * *"
 2026-08-01 15:07:18: [Trace Store] Cleaned up obsolete traces. Rows deleted: 0
+2026-08-01 15:07:22: Permissions 0644 for n8n settings file /Users/manojkumarmathangi/.n8n/config are too wide. This is ignored for now, but in the future n8n will attempt to change the permissions automatically. To automatically enforce correct permissions now set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true (recommended), or turn this check off set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false.
+2026-08-01 15:07:22: Initializing n8n process
+2026-08-01 15:07:24: [SecretHook] Global process stdout/stderr secret redaction hook initialized.
+2026-08-01 15:07:25: [Watchdog] [2026-08-01T09:37:25.395Z] Spawning background watchdog worker thread...
+2026-08-01 15:07:25: [Ghost Workflow Engine] Online — 6 built-in workflows ready.
+2026-08-01 15:07:25: [Plugins] Loading Jarvis-style plugins...
+2026-08-01 15:07:25: [Plugins] Loaded plugin: sysinfo
+2026-08-01 15:07:25: [Plugins] Total plugins active: 1
+2026-08-01 15:07:25: Ghost AI Engine Online on port 3000.
+2026-08-01 15:07:25: [CronScheduler] Background task scheduler initialized ("0 0 * * *")
+2026-08-01 15:07:25: [n8n Sidecar] Spawning self-hosted n8n engine (SQLite storage)...
+2026-08-01 15:07:25: [Local Control Server] Auto-spawning Local Control Daemon client...
+2026-08-01 15:07:25: [Daemon] Local daemon session token expired or invalid.
+2026-08-01 15:07:25: 
+2026-08-01 15:07:25: [Agent Modes] monitor_state table verified/created.
+2026-08-01 15:07:25: [Trace Store] pipeline_traces table verified/created.
+2026-08-01 15:07:25: [Google Auth] google_oauth_tokens table verified/created.
+2026-08-01 15:07:25: [ghostLearn] scheduler started — running on "*/30 * * * *"
+2026-08-01 15:07:26: [Trace Store] Cleaned up obsolete traces. Rows deleted: 0
+2026-08-01 15:07:26: [SecretHook] Global process stdout/stderr secret redaction hook initialized.
+2026-08-01 15:07:27: [Watchdog] [2026-08-01T09:37:27.172Z] Spawning background watchdog worker thread...
+2026-08-01 15:07:27: [Ghost Workflow Engine] Online — 6 built-in workflows ready.
+2026-08-01 15:07:27: [Plugins] Loading Jarvis-style plugins...
+2026-08-01 15:07:27: [Plugins] Loaded plugin: sysinfo
+2026-08-01 15:07:27: [Plugins] Total plugins active: 1
+2026-08-01 15:07:27: Ghost AI Engine Online on port 3000.
+2026-08-01 15:07:27: [CronScheduler] Background task scheduler initialized ("0 0 * * *")
+2026-08-01 15:07:27: [n8n Sidecar] Spawning self-hosted n8n engine (SQLite storage)...
+2026-08-01 15:07:27: [Local Control Server] Auto-spawning Local Control Daemon client...
+2026-08-01 15:07:27: [Daemon] Local daemon session token expired or invalid.
+2026-08-01 15:07:27: 
+2026-08-01 15:07:27: [Google Auth] google_oauth_tokens table verified/created.
+2026-08-01 15:07:27: [Agent Modes] monitor_state table verified/created.
+2026-08-01 15:07:27: [Trace Store] pipeline_traces table verified/created.
+2026-08-01 15:07:27: [ghostLearn] scheduler started — running on "*/30 * * * *"
+2026-08-01 15:07:27: [Trace Store] Cleaned up obsolete traces. Rows deleted: 0
+2026-08-01 15:07:29: Permissions 0644 for n8n settings file /Users/manojkumarmathangi/.n8n/config are too wide. This is ignored for now, but in the future n8n will attempt to change the permissions automatically. To automatically enforce correct permissions now set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true (recommended), or turn this check off set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false.
+2026-08-01 15:07:29: Last session crashed
+2026-08-01 15:07:39: Initializing n8n process
+2026-08-01 15:07:40: n8n ready on ::, port 5678
+2026-08-01 15:07:40: 
+2026-08-01 15:07:40: There are deprecations related to your environment variables. Please take the recommended actions to update your configuration:
+2026-08-01 15:07:40:  - DB_SQLITE_POOL_SIZE -> Running SQLite without a pool of read connections is deprecated. Please set `DB_SQLITE_POOL_SIZE` to a value higher than zero. See: https://docs.n8n.io/hosting/configuration/environment-variables/database/#sqlite
+2026-08-01 15:07:40:  - N8N_RUNNERS_ENABLED -> Running n8n without task runners is deprecated. Task runners will be turned on by default in a future version. Please set `N8N_RUNNERS_ENABLED=true` to enable task runners now and avoid potential issues in the future. Learn more: https://docs.n8n.io/hosting/configuration/task-runners/
+2026-08-01 15:07:40: 
+2026-08-01 15:07:40: [license SDK] Skipping renewal on init: license cert is not initialized
+2026-08-01 15:07:43: Version: 1.123.66
+2026-08-01 15:07:43: 
+2026-08-01 15:07:43: Editor is now accessible via:
+2026-08-01 15:07:43: https://ghost-34qz.onrender.com/n8n
+2026-08-01 15:10:08: [SecretHook] Global process stdout/stderr secret redaction hook initialized.
+2026-08-01 15:10:08: [SecretHook] Global process stdout/stderr secret redaction hook initialized.
+2026-08-01 15:10:08: [Watchdog] [2026-08-01T09:40:08.752Z] Spawning background watchdog worker thread...
+2026-08-01 15:10:08: [Ghost Workflow Engine] Online — 6 built-in workflows ready.
+2026-08-01 15:10:08: [Plugins] Loading Jarvis-style plugins...
+2026-08-01 15:10:08: [Plugins] Loaded plugin: sysinfo
+2026-08-01 15:10:08: [Plugins] Total plugins active: 1
+2026-08-01 15:10:08: Ghost AI Engine Online on port 3000.
+2026-08-01 15:10:09: [CronScheduler] Background task scheduler initialized ("0 0 * * *")
+2026-08-01 15:10:09: [n8n Sidecar] Spawning self-hosted n8n engine (SQLite storage)...
+2026-08-01 15:10:09: [Local Control Server] Auto-spawning Local Control Daemon client...
+2026-08-01 15:10:09: [Daemon] Local daemon session token expired or invalid.
+2026-08-01 15:10:09: 
+2026-08-01 15:10:09: 🔐 Enter Ghost Admin Passphrase to authenticate Local Control Daemon: [Agent Modes] monitor_state table verified/created.
+2026-08-01 15:10:09: [Google Auth] google_oauth_tokens table verified/created.
+2026-08-01 15:10:09: [Trace Store] pipeline_traces table verified/created.
+2026-08-01 15:10:09: [ghostLearn] scheduler started — running on "*/30 * * * *"
+2026-08-01 15:10:09: [Trace Store] Cleaned up obsolete traces. Rows deleted: 0
+2026-08-01 15:10:13: Permissions 0644 for n8n settings file /Users/manojkumarmathangi/.n8n/config are too wide. This is ignored for now, but in the future n8n will attempt to change the permissions automatically. To automatically enforce correct permissions now set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true (recommended), or turn this check off set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false.
+2026-08-01 15:10:13: Last session crashed
+2026-08-01 15:10:23: Initializing n8n process
+2026-08-01 15:10:23: n8n ready on ::, port 5678
+2026-08-01 15:10:23: 
+2026-08-01 15:10:23: There are deprecations related to your environment variables. Please take the recommended actions to update your configuration:
+2026-08-01 15:10:23:  - DB_SQLITE_POOL_SIZE -> Running SQLite without a pool of read connections is deprecated. Please set `DB_SQLITE_POOL_SIZE` to a value higher than zero. See: https://docs.n8n.io/hosting/configuration/environment-variables/database/#sqlite
+2026-08-01 15:10:23:  - N8N_RUNNERS_ENABLED -> Running n8n without task runners is deprecated. Task runners will be turned on by default in a future version. Please set `N8N_RUNNERS_ENABLED=true` to enable task runners now and avoid potential issues in the future. Learn more: https://docs.n8n.io/hosting/configuration/task-runners/
+2026-08-01 15:10:23: 
+2026-08-01 15:10:23: [license SDK] Skipping renewal on init: license cert is not initialized
+2026-08-01 15:10:24: Version: 1.123.66
+2026-08-01 15:10:24: 
+2026-08-01 15:10:24: Editor is now accessible via:
+2026-08-01 15:10:24: https://ghost-34qz.onrender.com/n8n
+2026-08-01 15:11:59: [SecretHook] Global process stdout/stderr secret redaction hook initialized.
+2026-08-01 15:11:59: [Watchdog] [2026-08-01T09:41:59.859Z] Spawning background watchdog worker thread...
+2026-08-01 15:11:59: [Ghost Workflow Engine] Online — 6 built-in workflows ready.
+2026-08-01 15:11:59: [Plugins] Loading Jarvis-style plugins...
+2026-08-01 15:11:59: [Plugins] Loaded plugin: sysinfo
+2026-08-01 15:11:59: [Plugins] Total plugins active: 1
+2026-08-01 15:11:59: Ghost AI Engine Online on port 3000.
+2026-08-01 15:11:59: [CronScheduler] Background task scheduler initialized ("0 0 * * *")
+2026-08-01 15:11:59: [n8n Sidecar] Spawning self-hosted n8n engine (SQLite storage)...
+2026-08-01 15:11:59: [Local Control Server] Auto-spawning Local Control Daemon client...
+2026-08-01 15:11:59: [Daemon] Local daemon session token expired or invalid.
+2026-08-01 15:11:59: 
+2026-08-01 15:12:00: [Google Auth] google_oauth_tokens table verified/created.
+2026-08-01 15:12:00: [Trace Store] pipeline_traces table verified/created.
+2026-08-01 15:12:00: [Agent Modes] monitor_state table verified/created.
+2026-08-01 15:12:00: [ghostLearn] scheduler started — running on "*/30 * * * *"
+2026-08-01 15:12:00: [Trace Store] Cleaned up obsolete traces. Rows deleted: 0
+2026-08-01 15:12:02: [SecretHook] Global process stdout/stderr secret redaction hook initialized.
+2026-08-01 15:12:02: [Watchdog] [2026-08-01T09:42:02.433Z] Spawning background watchdog worker thread...
+2026-08-01 15:12:02: [Ghost Workflow Engine] Online — 6 built-in workflows ready.
+2026-08-01 15:12:02: [Plugins] Loading Jarvis-style plugins...
+2026-08-01 15:12:02: [Plugins] Loaded plugin: sysinfo
+2026-08-01 15:12:02: [Plugins] Total plugins active: 1
+2026-08-01 15:12:02: Ghost AI Engine Online on port 3000.
+2026-08-01 15:12:02: [CronScheduler] Background task scheduler initialized ("0 0 * * *")
+2026-08-01 15:12:02: [n8n Sidecar] Spawning self-hosted n8n engine (SQLite storage)...
+2026-08-01 15:12:02: [Local Control Server] Auto-spawning Local Control Daemon client...
+2026-08-01 15:12:02: [Daemon] Local daemon session token expired or invalid.
+2026-08-01 15:12:02: 
+2026-08-01 15:12:02: [Google Auth] google_oauth_tokens table verified/created.
+2026-08-01 15:12:02: [Agent Modes] monitor_state table verified/created.
+2026-08-01 15:12:02: [Trace Store] pipeline_traces table verified/created.
+2026-08-01 15:12:02: [ghostLearn] scheduler started — running on "*/30 * * * *"
+2026-08-01 15:12:02: [Trace Store] Cleaned up obsolete traces. Rows deleted: 0
+2026-08-01 15:12:03: Permissions 0644 for n8n settings file /Users/manojkumarmathangi/.n8n/config are too wide. This is ignored for now, but in the future n8n will attempt to change the permissions automatically. To automatically enforce correct permissions now set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true (recommended), or turn this check off set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false.
+2026-08-01 15:12:03: Last session crashed
+2026-08-01 15:12:13: Initializing n8n process
+2026-08-01 15:12:14: n8n ready on ::, port 5678
+2026-08-01 15:12:14: 
+2026-08-01 15:12:14: There are deprecations related to your environment variables. Please take the recommended actions to update your configuration:
+2026-08-01 15:12:14:  - DB_SQLITE_POOL_SIZE -> Running SQLite without a pool of read connections is deprecated. Please set `DB_SQLITE_POOL_SIZE` to a value higher than zero. See: https://docs.n8n.io/hosting/configuration/environment-variables/database/#sqlite
+2026-08-01 15:12:14:  - N8N_RUNNERS_ENABLED -> Running n8n without task runners is deprecated. Task runners will be turned on by default in a future version. Please set `N8N_RUNNERS_ENABLED=true` to enable task runners now and avoid potential issues in the future. Learn more: https://docs.n8n.io/hosting/configuration/task-runners/
+2026-08-01 15:12:14: 
+2026-08-01 15:12:14: [license SDK] Skipping renewal on init: license cert is not initialized
+2026-08-01 15:12:15: Version: 1.123.66
+2026-08-01 15:12:15: 
+2026-08-01 15:12:15: Editor is now accessible via:
+2026-08-01 15:12:15: https://ghost-34qz.onrender.com/n8n
+2026-08-01 15:13:19: Received SIGINT. Shutting down...
+2026-08-01 15:13:20: [SecretHook] Global process stdout/stderr secret redaction hook initialized.
+2026-08-01 15:13:22: [Watchdog] [2026-08-01T09:43:21.874Z] Spawning background watchdog worker thread...
+2026-08-01 15:13:22: [Ghost Workflow Engine] Online — 6 built-in workflows ready.
+2026-08-01 15:13:22: [Plugins] Loading Jarvis-style plugins...
+2026-08-01 15:13:22: [Plugins] Loaded plugin: sysinfo
+2026-08-01 15:13:22: [Plugins] Total plugins active: 1
+2026-08-01 15:13:22: Ghost AI Engine Online on port 3000.
+2026-08-01 15:13:22: [CronScheduler] Background task scheduler initialized ("0 0 * * *")
+2026-08-01 15:13:22: [n8n Sidecar] Spawning self-hosted n8n engine (SQLite storage)...
+2026-08-01 15:13:22: [Local Control Server] Auto-spawning Local Control Daemon client...
+2026-08-01 15:13:22: [Daemon] Local daemon session token expired or invalid.
+2026-08-01 15:13:22: 
+2026-08-01 15:13:22: [Google Auth] google_oauth_tokens table verified/created.
+2026-08-01 15:13:22: [Agent Modes] monitor_state table verified/created.
+2026-08-01 15:13:22: [Trace Store] pipeline_traces table verified/created.
+2026-08-01 15:13:22: [ghostLearn] scheduler started — running on "*/30 * * * *"
+2026-08-01 15:13:22: [Trace Store] Cleaned up obsolete traces. Rows deleted: 0
+2026-08-01 15:13:32: Permissions 0644 for n8n settings file /Users/manojkumarmathangi/.n8n/config are too wide. This is ignored for now, but in the future n8n will attempt to change the permissions automatically. To automatically enforce correct permissions now set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true (recommended), or turn this check off set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false.
+2026-08-01 15:13:32: Last session crashed
+2026-08-01 15:13:42: Initializing n8n process
+2026-08-01 15:13:43: n8n ready on ::, port 5678
+2026-08-01 15:13:43: 
+2026-08-01 15:13:43: There are deprecations related to your environment variables. Please take the recommended actions to update your configuration:
+2026-08-01 15:13:43:  - DB_SQLITE_POOL_SIZE -> Running SQLite without a pool of read connections is deprecated. Please set `DB_SQLITE_POOL_SIZE` to a value higher than zero. See: https://docs.n8n.io/hosting/configuration/environment-variables/database/#sqlite
+2026-08-01 15:13:43:  - N8N_RUNNERS_ENABLED -> Running n8n without task runners is deprecated. Task runners will be turned on by default in a future version. Please set `N8N_RUNNERS_ENABLED=true` to enable task runners now and avoid potential issues in the future. Learn more: https://docs.n8n.io/hosting/configuration/task-runners/
+2026-08-01 15:13:43: 
+2026-08-01 15:13:43: [license SDK] Skipping renewal on init: license cert is not initialized
+2026-08-01 15:13:46: Version: 1.123.66
+2026-08-01 15:13:46: 
+2026-08-01 15:13:46: Editor is now accessible via:
+2026-08-01 15:13:46: https://ghost-34qz.onrender.com/n8n
+2026-08-01 15:14:23: [SecretHook] Global process stdout/stderr secret redaction hook initialized.
+2026-08-01 15:14:23: [Watchdog] [2026-08-01T09:44:23.661Z] Spawning background watchdog worker thread...
+2026-08-01 15:14:23: [Ghost Workflow Engine] Online — 6 built-in workflows ready.
+2026-08-01 15:14:23: [Plugins] Loading Jarvis-style plugins...
+2026-08-01 15:14:23: [Plugins] Loaded plugin: sysinfo
+2026-08-01 15:14:23: [Plugins] Total plugins active: 1
+2026-08-01 15:14:23: Ghost AI Engine Online on port 3000.
+2026-08-01 15:14:23: [CronScheduler] Background task scheduler initialized ("0 0 * * *")
+2026-08-01 15:14:23: [n8n Sidecar] Spawning self-hosted n8n engine (SQLite storage)...
+2026-08-01 15:14:23: [Local Control Server] Auto-spawning Local Control Daemon client...
+2026-08-01 15:14:23: [Daemon] Local daemon session token expired or invalid.
+2026-08-01 15:14:23: 
+2026-08-01 15:14:23: [Google Auth] google_oauth_tokens table verified/created.
+2026-08-01 15:14:23: [Agent Modes] monitor_state table verified/created.
+2026-08-01 15:14:23: [Trace Store] pipeline_traces table verified/created.
+2026-08-01 15:14:23: [ghostLearn] scheduler started — running on "*/30 * * * *"
+2026-08-01 15:14:24: [Trace Store] Cleaned up obsolete traces. Rows deleted: 0
+2026-08-01 15:14:26: Permissions 0644 for n8n settings file /Users/manojkumarmathangi/.n8n/config are too wide. This is ignored for now, but in the future n8n will attempt to change the permissions automatically. To automatically enforce correct permissions now set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true (recommended), or turn this check off set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false.
+2026-08-01 15:14:26: Last session crashed
+2026-08-01 15:14:36: Initializing n8n process
+2026-08-01 15:14:36: n8n ready on ::, port 5678
+2026-08-01 15:14:36: 
+2026-08-01 15:14:36: There are deprecations related to your environment variables. Please take the recommended actions to update your configuration:
+2026-08-01 15:14:36:  - DB_SQLITE_POOL_SIZE -> Running SQLite without a pool of read connections is deprecated. Please set `DB_SQLITE_POOL_SIZE` to a value higher than zero. See: https://docs.n8n.io/hosting/configuration/environment-variables/database/#sqlite
+2026-08-01 15:14:36:  - N8N_RUNNERS_ENABLED -> Running n8n without task runners is deprecated. Task runners will be turned on by default in a future version. Please set `N8N_RUNNERS_ENABLED=true` to enable task runners now and avoid potential issues in the future. Learn more: https://docs.n8n.io/hosting/configuration/task-runners/
+2026-08-01 15:14:36: 
+2026-08-01 15:14:36: [license SDK] Skipping renewal on init: license cert is not initialized
+2026-08-01 15:14:38: Version: 1.123.66
+2026-08-01 15:14:38: 
+2026-08-01 15:14:38: Editor is now accessible via:
+2026-08-01 15:14:38: https://ghost-34qz.onrender.com/n8n
+2026-08-01 15:14:51: [SecretHook] Global process stdout/stderr secret redaction hook initialized.
+2026-08-01 15:14:51: [Watchdog] [2026-08-01T09:44:51.491Z] Spawning background watchdog worker thread...
+2026-08-01 15:14:51: [Ghost Workflow Engine] Online — 6 built-in workflows ready.
+2026-08-01 15:14:51: [Plugins] Loading Jarvis-style plugins...
+2026-08-01 15:14:51: [Plugins] Loaded plugin: sysinfo
+2026-08-01 15:14:51: [Plugins] Total plugins active: 1
+2026-08-01 15:14:51: Ghost AI Engine Online on port 3000.
+2026-08-01 15:14:51: [CronScheduler] Background task scheduler initialized ("0 0 * * *")
+2026-08-01 15:14:51: [n8n Sidecar] Spawning self-hosted n8n engine (SQLite storage)...
+2026-08-01 15:14:51: [Local Control Server] Auto-spawning Local Control Daemon client...
+2026-08-01 15:14:51: [Daemon] Local daemon session token expired or invalid.
+2026-08-01 15:14:51: 
+2026-08-01 15:14:51: [Google Auth] google_oauth_tokens table verified/created.
+2026-08-01 15:14:51: [Agent Modes] monitor_state table verified/created.
+2026-08-01 15:14:51: [Trace Store] pipeline_traces table verified/created.
+2026-08-01 15:14:51: [ghostLearn] scheduler started — running on "*/30 * * * *"
+2026-08-01 15:14:51: [Trace Store] Cleaned up obsolete traces. Rows deleted: 0
+2026-08-01 15:14:53: Permissions 0644 for n8n settings file /Users/manojkumarmathangi/.n8n/config are too wide. This is ignored for now, but in the future n8n will attempt to change the permissions automatically. To automatically enforce correct permissions now set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true (recommended), or turn this check off set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false.
+2026-08-01 15:14:54: Last session crashed
+2026-08-01 15:14:58: [SecretHook] Global process stdout/stderr secret redaction hook initialized.
+2026-08-01 15:14:58: [Watchdog] [2026-08-01T09:44:58.578Z] Spawning background watchdog worker thread...
+2026-08-01 15:14:58: [Ghost Workflow Engine] Online — 6 built-in workflows ready.
+2026-08-01 15:14:58: [Plugins] Loading Jarvis-style plugins...
+2026-08-01 15:14:58: [Plugins] Loaded plugin: sysinfo
+2026-08-01 15:14:58: [Plugins] Total plugins active: 1
+2026-08-01 15:14:58: Ghost AI Engine Online on port 3000.
+2026-08-01 15:14:58: [CronScheduler] Background task scheduler initialized ("0 0 * * *")
+2026-08-01 15:14:58: [n8n Sidecar] Spawning self-hosted n8n engine (SQLite storage)...
+2026-08-01 15:14:58: [Local Control Server] Auto-spawning Local Control Daemon client...
+2026-08-01 15:14:58: [Daemon] Local daemon session token expired or invalid.
+2026-08-01 15:14:58: 
+2026-08-01 15:14:58: [Google Auth] google_oauth_tokens table verified/created.
+2026-08-01 15:14:58: [Agent Modes] monitor_state table verified/created.
+2026-08-01 15:14:58: [Trace Store] pipeline_traces table verified/created.
+2026-08-01 15:14:58: [ghostLearn] scheduler started — running on "*/30 * * * *"
+2026-08-01 15:14:58: [Trace Store] Cleaned up obsolete traces. Rows deleted: 0
+2026-08-01 15:15:00: Permissions 0644 for n8n settings file /Users/manojkumarmathangi/.n8n/config are too wide. This is ignored for now, but in the future n8n will attempt to change the permissions automatically. To automatically enforce correct permissions now set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true (recommended), or turn this check off set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false.
+2026-08-01 15:15:00: Last session crashed
+2026-08-01 15:15:02: [SecretHook] Global process stdout/stderr secret redaction hook initialized.
+2026-08-01 15:15:02: [Watchdog] [2026-08-01T09:45:02.318Z] Spawning background watchdog worker thread...
+2026-08-01 15:15:02: [Ghost Workflow Engine] Online — 6 built-in workflows ready.
+2026-08-01 15:15:02: [Plugins] Loading Jarvis-style plugins...
+2026-08-01 15:15:02: [Plugins] Loaded plugin: sysinfo
+2026-08-01 15:15:02: [Plugins] Total plugins active: 1
+2026-08-01 15:15:02: Ghost AI Engine Online on port 3000.
+2026-08-01 15:15:02: [CronScheduler] Background task scheduler initialized ("0 0 * * *")
+2026-08-01 15:15:02: [n8n Sidecar] Spawning self-hosted n8n engine (SQLite storage)...
+2026-08-01 15:15:02: [Local Control Server] Auto-spawning Local Control Daemon client...
+2026-08-01 15:15:02: [Daemon] Local daemon session token expired or invalid.
+2026-08-01 15:15:02: 
+2026-08-01 15:15:02: [Agent Modes] monitor_state table verified/created.
+2026-08-01 15:15:02: [Trace Store] pipeline_traces table verified/created.
+2026-08-01 15:15:02: [Google Auth] google_oauth_tokens table verified/created.
+2026-08-01 15:15:02: [ghostLearn] scheduler started — running on "*/30 * * * *"
+2026-08-01 15:15:02: [Trace Store] Cleaned up obsolete traces. Rows deleted: 0
+2026-08-01 15:15:03: Permissions 0644 for n8n settings file /Users/manojkumarmathangi/.n8n/config are too wide. This is ignored for now, but in the future n8n will attempt to change the permissions automatically. To automatically enforce correct permissions now set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true (recommended), or turn this check off set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false.
+2026-08-01 15:15:04: Last session crashed
+2026-08-01 15:15:04: [SecretHook] Global process stdout/stderr secret redaction hook initialized.
+2026-08-01 15:15:05: [Watchdog] [2026-08-01T09:45:05.024Z] Spawning background watchdog worker thread...
+2026-08-01 15:15:05: [Ghost Workflow Engine] Online — 6 built-in workflows ready.
+2026-08-01 15:15:05: [Plugins] Loading Jarvis-style plugins...
+2026-08-01 15:15:05: [Plugins] Loaded plugin: sysinfo
+2026-08-01 15:15:05: [Plugins] Total plugins active: 1
+2026-08-01 15:15:05: Ghost AI Engine Online on port 3000.
+2026-08-01 15:15:05: [CronScheduler] Background task scheduler initialized ("0 0 * * *")
+2026-08-01 15:15:05: [n8n Sidecar] Spawning self-hosted n8n engine (SQLite storage)...
+2026-08-01 15:15:05: [Local Control Server] Auto-spawning Local Control Daemon client...
+2026-08-01 15:15:05: [Daemon] Local daemon session token expired or invalid.
+2026-08-01 15:15:05: 
+2026-08-01 15:15:05: [Google Auth] google_oauth_tokens table verified/created.
+2026-08-01 15:15:05: [Agent Modes] monitor_state table verified/created.
+2026-08-01 15:15:05: [Trace Store] pipeline_traces table verified/created.
+2026-08-01 15:15:05: [ghostLearn] scheduler started — running on "*/30 * * * *"
+2026-08-01 15:15:05: [Trace Store] Cleaned up obsolete traces. Rows deleted: 0
+2026-08-01 15:15:06: Permissions 0644 for n8n settings file /Users/manojkumarmathangi/.n8n/config are too wide. This is ignored for now, but in the future n8n will attempt to change the permissions automatically. To automatically enforce correct permissions now set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true (recommended), or turn this check off set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false.
+2026-08-01 15:15:06: Last session crashed
+2026-08-01 15:15:08: [SecretHook] Global process stdout/stderr secret redaction hook initialized.
+2026-08-01 15:15:08: [Watchdog] [2026-08-01T09:45:08.417Z] Spawning background watchdog worker thread...
+2026-08-01 15:15:08: [Ghost Workflow Engine] Online — 6 built-in workflows ready.
+2026-08-01 15:15:08: [Plugins] Loading Jarvis-style plugins...
+2026-08-01 15:15:08: [Plugins] Loaded plugin: sysinfo
+2026-08-01 15:15:08: [Plugins] Total plugins active: 1
+2026-08-01 15:15:08: Ghost AI Engine Online on port 3000.
+2026-08-01 15:15:08: [CronScheduler] Background task scheduler initialized ("0 0 * * *")
+2026-08-01 15:15:08: [n8n Sidecar] Spawning self-hosted n8n engine (SQLite storage)...
+2026-08-01 15:15:08: [Local Control Server] Auto-spawning Local Control Daemon client...
+2026-08-01 15:15:08: [Daemon] Local daemon session token expired or invalid.
+2026-08-01 15:15:08: 
+2026-08-01 15:15:08: [Agent Modes] monitor_state table verified/created.
+2026-08-01 15:15:08: [Google Auth] google_oauth_tokens table verified/created.
+2026-08-01 15:15:08: [Trace Store] pipeline_traces table verified/created.
+2026-08-01 15:15:08: [ghostLearn] scheduler started — running on "*/30 * * * *"
+2026-08-01 15:15:08: [Trace Store] Cleaned up obsolete traces. Rows deleted: 0
+2026-08-01 15:15:10: Permissions 0644 for n8n settings file /Users/manojkumarmathangi/.n8n/config are too wide. This is ignored for now, but in the future n8n will attempt to change the permissions automatically. To automatically enforce correct permissions now set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true (recommended), or turn this check off set N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false.
+2026-08-01 15:15:10: Last session crashed
+2026-08-01 15:15:20: Initializing n8n process
+2026-08-01 15:15:20: n8n ready on ::, port 5678
+2026-08-01 15:15:20: 
+2026-08-01 15:15:20: There are deprecations related to your environment variables. Please take the recommended actions to update your configuration:
+2026-08-01 15:15:20:  - DB_SQLITE_POOL_SIZE -> Running SQLite without a pool of read connections is deprecated. Please set `DB_SQLITE_POOL_SIZE` to a value higher than zero. See: https://docs.n8n.io/hosting/configuration/environment-variables/database/#sqlite
+2026-08-01 15:15:20:  - N8N_RUNNERS_ENABLED -> Running n8n without task runners is deprecated. Task runners will be turned on by default in a future version. Please set `N8N_RUNNERS_ENABLED=true` to enable task runners now and avoid potential issues in the future. Learn more: https://docs.n8n.io/hosting/configuration/task-runners/
+2026-08-01 15:15:20: 
+2026-08-01 15:15:20: [license SDK] Skipping renewal on init: license cert is not initialized
+2026-08-01 15:15:21: Version: 1.123.66
+2026-08-01 15:15:21: 
+2026-08-01 15:15:21: Editor is now accessible via:
+2026-08-01 15:15:21: https://ghost-34qz.onrender.com/n8n

@@ -23636,3 +23636,27 @@
 2026-08-01 15:07:07: (Use `node --trace-deprecation ...` to show where the warning was created)
 2026-08-01 15:07:18: (node:61285) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
 2026-08-01 15:07:18: (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-08-01 15:07:25: (node:61362) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+2026-08-01 15:07:25: (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-08-01 15:07:27: (node:61406) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+2026-08-01 15:07:27: (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-08-01 15:10:09: (node:61590) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+2026-08-01 15:10:09: (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-08-01 15:11:59: (node:61747) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+2026-08-01 15:11:59: (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-08-01 15:12:02: (node:61813) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+2026-08-01 15:12:02: (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-08-01 15:13:22: (node:61909) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+2026-08-01 15:13:22: (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-08-01 15:14:23: (node:62021) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+2026-08-01 15:14:23: (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-08-01 15:14:51: (node:62069) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+2026-08-01 15:14:51: (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-08-01 15:14:58: (node:62134) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+2026-08-01 15:14:58: (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-08-01 15:15:02: (node:62179) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+2026-08-01 15:15:02: (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-08-01 15:15:05: (node:62244) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+2026-08-01 15:15:05: (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-08-01 15:15:08: (node:62288) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+2026-08-01 15:15:08: (Use `node --trace-deprecation ...` to show where the warning was created)

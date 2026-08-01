@@ -630,7 +630,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                                 let rawTarget = openMatch[1].trim();
 
                                 // Local File Check inside Compound Multi-Action Chain
-                                const fileExts = ['.pdf', '.docx', '.doc', '.txt', '.png', '.jpg', '.jpeg', '.dxf', '.csv', '.json', '.md'];
+                                const fileExts = ['.pdf', '.docx', '.doc', '.txt', '.png', '.jpg', '.jpeg', '.csv', '.json', '.md'];
                                 const hasExt = fileExts.some(ext => rawTarget.toLowerCase().endsWith(ext));
                                 const os = require('os');
                                 const searchPaths = [
@@ -748,7 +748,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                 let rawTarget = openMatch[1].trim();
 
                 // Local File Interceptor Check
-                const fileExts = ['.pdf', '.docx', '.doc', '.txt', '.png', '.jpg', '.jpeg', '.dxf', '.csv', '.json', '.md'];
+                const fileExts = ['.pdf', '.docx', '.doc', '.txt', '.png', '.jpg', '.jpeg', '.csv', '.json', '.md'];
                 const hasExt = fileExts.some(ext => rawTarget.toLowerCase().endsWith(ext));
                 
                 const os = require('os');

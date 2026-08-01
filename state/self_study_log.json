@@ -5,6 +5,12 @@
       "reviewsCount": 2,
       "progress": "Learning",
       "lastReviewed": "2026-08-01T09:37:15.539Z"
+    },
+    "Audit health check test prompt": {
+      "firstSeen": "2026-08-01T09:41:59.247Z",
+      "reviewsCount": 2,
+      "progress": "Learning",
+      "lastReviewed": "2026-08-01T09:45:01.724Z"
     }
   },
   "ghostKnowledgeGaps": [
@@ -14,6 +20,20 @@
       "failedStep": "Query analytics_v2 table",
       "error": "relation \"analytics_v2\" does not exist",
       "correctiveStudyPrompt": "Ghost Self-Study Unit: How to properly format and execute tool \"database_query\" for step \"Query analytics_v2 table\" without triggering error \"relation \"analytics_v2\" does not exist\"."
+    },
+    {
+      "timestamp": "2026-08-01T09:42:01.883Z",
+      "tool": "test_tool",
+      "failedStep": "Step 1",
+      "error": "Audit test error",
+      "correctiveStudyPrompt": "Ghost Self-Study Unit: How to properly format and execute tool \"test_tool\" for step \"Step 1\" without triggering error \"Audit test error\"."
+    },
+    {
+      "timestamp": "2026-08-01T09:45:04.389Z",
+      "tool": "test_tool",
+      "failedStep": "Step 1",
+      "error": "Audit test error",
+      "correctiveStudyPrompt": "Ghost Self-Study Unit: How to properly format and execute tool \"test_tool\" for step \"Step 1\" without triggering error \"Audit test error\"."
     }
   ]
 }
