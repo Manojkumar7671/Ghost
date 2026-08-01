@@ -47,7 +47,36 @@ export async function recordSelfEdit({ username = 'guest', goal = '', failedStep
     }
   }
 
+  // Trigger Reflexive Self-Study Loop for Ghost itself
+  try {
+    const studyMod = await import('../src/agents/selfStudyAgent.js');
+    const recordFn = studyMod.recordGhostKnowledgeGap || studyMod.default?.recordGhostKnowledgeGap;
+    if (typeof recordFn === 'function') {
+      await recordFn({ tool, failedStep, error });
+    }
+  } catch (studyErr) {
+    console.warn('[Reflexive Self-Study Loop] Failed to trigger self-study log:', studyErr.message);
+  }
+
   return record;
+}
+
+/**
+ * Formats and records a successful execution pattern for future planning bias.
+ */
+export async function recordSuccessPattern({ username = 'guest', goal = '', tool = '', pattern = '', result = '' }, pool = null) {
+  const timestamp = new Date().toISOString();
+  const patternText = `Successful pattern for "${goal}" using tool "${tool}": ${pattern || result.slice(0, 150)}`;
+
+  const line = `[${timestamp}] [SUCCESS] User: "${username}" | Goal: "${goal}" | Tool: "${tool}" | Pattern: "${patternText}"\n`;
+  try {
+    fs.appendFileSync(LOG_FILE, line, 'utf8');
+    console.log(`[Self-Edit Memory] Logged success pattern to ${LOG_FILE}`);
+  } catch (e) {
+    console.error('[Self-Edit Memory] Failed to write success log:', e.message);
+  }
+
+  return { timestamp, username, goal, tool, patternText };
 }
 
 /**
@@ -61,6 +90,7 @@ export function getSelfEditLessons(goal = '') {
     
     const lines = raw.split('\n').filter(Boolean);
     const lessons = lines.map(l => {
+      if (l.includes('[SUCCESS]')) return null; // Exclude success lines from failure lessons
       const idx = l.indexOf('| Lesson: "');
       if (idx !== -1) {
         const rawLesson = l.slice(idx + 11);
@@ -78,4 +108,32 @@ export function getSelfEditLessons(goal = '') {
   }
 }
 
-export default { recordSelfEdit, getSelfEditLessons };
+/**
+ * Retrieves relevant successful patterns to bias future task execution.
+ */
+export function getSuccessPatterns(goal = '') {
+  if (!fs.existsSync(LOG_FILE)) return [];
+  try {
+    const raw = fs.readFileSync(LOG_FILE, 'utf8').trim();
+    if (!raw) return [];
+    
+    const lines = raw.split('\n').filter(l => l.includes('[SUCCESS]'));
+    const patterns = lines.map(l => {
+      const idx = l.indexOf('| Pattern: "');
+      if (idx !== -1) {
+        const rawP = l.slice(idx + 12);
+        return rawP.endsWith('"') ? rawP.slice(0, -1) : rawP;
+      }
+      return null;
+    }).filter(Boolean);
+
+    const result = Array.from(new Set(patterns)).slice(-3);
+    console.log(`[Self-Edit Memory Retrieval] [Goal: "${goal}"] Found ${result.length} past success pattern(s):\n${result.map(p => `  -> ${p}`).join('\n')}`);
+    return result;
+  } catch (e) {
+    console.error('[Self-Edit Memory] Failed to read success patterns:', e.message);
+    return [];
+  }
+}
+
+export default { recordSelfEdit, getSelfEditLessons, recordSuccessPattern, getSuccessPatterns };

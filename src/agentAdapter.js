@@ -8,6 +8,9 @@ const voiceAgent = require('./agents/voiceAgent');
 const goalAgent = require('./agents/goalAgent');
 const selfAgent = require('./agents/selfAgent');
 const scheduler = require('./agents/scheduler');
+const dailyBriefingAgent = require('./agents/dailyBriefingAgent');
+const codeReviewAgent = require('./agents/codeReviewAgent');
+const selfStudyAgent = require('./agents/selfStudyAgent');
 
 // Helper function to extract structured parameters from a natural language task
 async function extractParams(agentName, task, context, jsonSchemaInstruction) {
@@ -150,5 +153,8 @@ module.exports = {
   goalAgent: adaptedGoalAgent,
   selfAgent: adaptedSelfAgent,
   voiceAgent: adaptedVoiceAgent,
-  scheduler: adaptedScheduler
+  scheduler: adaptedScheduler,
+  dailyBriefingAgent,
+  codeReviewAgent,
+  selfStudyAgent
 };

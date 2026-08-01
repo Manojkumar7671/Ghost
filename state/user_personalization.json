@@ -1,0 +1,15 @@
+{
+  "master_manoj": {
+    "updated_at": "2026-08-01T09:35:50.246Z",
+    "preferences": {
+      "preferred_coding_stack": {
+        "value": "Python 3.11 with FastAPI and Vanilla CSS",
+        "recorded_at": "2026-08-01T09:35:50.245Z"
+      },
+      "output_format": {
+        "value": "Concise GitHub-style Markdown with code blocks",
+        "recorded_at": "2026-08-01T09:35:50.246Z"
+      }
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "userTopics": {
+    "PostgreSQL Query Optimization": {
+      "firstSeen": "2026-08-01T09:36:47.392Z",
+      "reviewsCount": 2,
+      "progress": "Learning",
+      "lastReviewed": "2026-08-01T09:37:15.539Z"
+    }
+  },
+  "ghostKnowledgeGaps": [
+    {
+      "timestamp": "2026-08-01T09:37:16.856Z",
+      "tool": "database_query",
+      "failedStep": "Query analytics_v2 table",
+      "error": "relation \"analytics_v2\" does not exist",
+      "correctiveStudyPrompt": "Ghost Self-Study Unit: How to properly format and execute tool \"database_query\" for step \"Query analytics_v2 table\" without triggering error \"relation \"analytics_v2\" does not exist\"."
+    }
+  ]
+}

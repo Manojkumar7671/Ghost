@@ -10,7 +10,7 @@ const h = () => {
 };
 
 async function listRepos(username) {
-  const u = username || process.env.GITHUB_USERNAME;
+  const u = username || process.env.GITHUB_USERNAME || 'Manojkumar7671';
   const res = await axios.get(`${BASE}/users/${u}/repos?sort=updated&per_page=10`, { headers: h() });
   return res.data.map(r => ({ name: r.name, description: r.description, url: r.html_url, stars: r.stargazers_count }));
 }

@@ -101,7 +101,6 @@ async function isSubtaskRelevant(primaryGoal, subtask) {
   const lowerSub = subtask.toLowerCase();
 
   // Fast heuristic exclusions for known runaway patterns
-
   if (lowerGoal.includes('website') || lowerGoal.includes('web app') || lowerGoal.includes('site') || lowerGoal.includes('portfolio') || lowerGoal.includes('resume')) {
     if (lowerSub.includes('briefing') || lowerSub.includes('scheduler') || lowerSub.includes('morning') || lowerSub.includes('stock') || lowerSub.includes('email') || lowerSub.includes('database') || lowerSub.includes('npm install')) {
       console.log(`[Orchestrator Relevance Filter] Rejected irrelevant subtask "${subtask}" for website goal "${primaryGoal}"`);
@@ -123,14 +122,84 @@ async function isSubtaskRelevant(primaryGoal, subtask) {
   }
 }
 
-// 4. Execution Engine with Relevance Filtering, Hard Cap (Max 8), and Blocker Detection
+/**
+ * Multi-Step Plan Critique Pass: Self-reviews the entire subtask DAG
+ * and trims non-essential or duplicate steps before execution starts.
+ */
+async function critiquePlan(primaryGoal, subtasks) {
+  if (!subtasks || subtasks.length <= 1) return subtasks;
+
+  const prompt = `You are Ghost's Senior Plan Auditor. 
+Primary User Goal: "${primaryGoal}"
+Proposed Subtasks: ${JSON.stringify(subtasks)}
+
+Evaluate each subtask. Remove any steps that are redundant, unneeded, or off-topic.
+Return ONLY a valid JSON array containing the approved essential subtasks. No markdown.`;
+
+  try {
+    const res = await chat([{ role: 'user', content: prompt }], { maxTokens: 250 });
+    const match = res.match(/\[.*\]/s);
+    if (match) {
+      const critiqued = JSON.parse(match[0]);
+      if (Array.isArray(critiqued) && critiqued.length > 0) {
+        console.log(`[Orchestrator Plan Critique] Critiqued plan: ${subtasks.length} -> ${critiqued.length} subtasks`);
+        return critiqued;
+      }
+    }
+  } catch (e) {
+    console.warn('[Orchestrator Plan Critique] Critique pass failed, retaining original plan:', e.message);
+  }
+  return subtasks;
+}
+
+/**
+ * Evaluates confidence (0.0 to 1.0) and safety risk per subtask step.
+ * Flags steps for user confirmation if confidence < 0.70 or if action is high-risk.
+ */
+async function evaluateStepConfidence(primaryGoal, subtask, agentName) {
+  const CONFIDENCE_THRESHOLD = 0.70;
+  const lowerSub = subtask.toLowerCase();
+  
+  // High-risk keyword check (destruction, deployment, file deletion, root commands)
+  const isHighRisk = /\b(delete|rm -rf|drop|wipe|erase|deploy to prod|shutdown|clean up old)\b/i.test(lowerSub);
+
+  const prompt = `Primary Goal: "${primaryGoal}"
+Subtask: "${subtask}"
+Assigned Agent: "${agentName}"
+
+Rate your confidence (0.0 to 1.0) that this tool/agent and subtask parameters are well-defined, safe, and clear without requiring user clarification.
+Respond ONLY with a JSON object: {"confidence": 0.85, "reason": "Clear subtask definition"}`;
+
+  try {
+    const res = await chat([{ role: 'user', content: prompt }], { maxTokens: 100 });
+    const match = res.match(/\{.*\}/s);
+    if (match) {
+      const parsed = JSON.parse(match[0]);
+      const confidence = typeof parsed.confidence === 'number' ? parsed.confidence : 0.8;
+      const requiresConfirmation = confidence < CONFIDENCE_THRESHOLD || isHighRisk;
+      return {
+        confidence,
+        requiresConfirmation,
+        reason: isHighRisk ? `High-risk destructive/deployment action detected: "${subtask}"` : (parsed.reason || 'Low planner confidence')
+      };
+    }
+  } catch (e) {}
+
+  return {
+    confidence: isHighRisk ? 0.50 : 0.85,
+    requiresConfirmation: isHighRisk,
+    reason: isHighRisk ? 'High-risk action detected' : 'Standard confidence'
+  };
+}
+
+// 4. Execution Engine with Relevance Filtering, Plan Critique, Confidence Scoring, and Blocker Surface
 async function run(task, globalContext = '') {
   const MAX_TOOL_CALLS = 8;
   let toolCallCount = 0;
   const blockedAgents = new Set();
   const blockerWarnings = [];
 
-  // 1. Primary Goal Extraction (Prevent long reference prose from becoming individual tasks)
+  // 1. Primary Goal Extraction
   let primaryGoal = task;
   const lowerTask = task.toLowerCase();
   if (lowerTask.includes('floor plan') || lowerTask.includes('cad drawing') || lowerTask.includes('architectural blueprint') || lowerTask.includes('3d model')) {
@@ -163,7 +232,10 @@ Respond ONLY with a JSON array of string subtasks. No markdown.`;
     subtasks = [primaryGoal];
   }
 
-  // 3. Sequential & Relevant Subtask Execution with Hard Stopping Condition (Max 8)
+  // 3. Multi-Step Plan Critique Pass
+  subtasks = await critiquePlan(primaryGoal, subtasks);
+
+  // 4. Sequential & Relevant Subtask Execution with Confidence Gating & Hard Cap (Max 8)
   const results = [];
   for (const st of subtasks) {
     if (toolCallCount >= MAX_TOOL_CALLS) {
@@ -180,6 +252,15 @@ Respond ONLY with a JSON array of string subtasks. No markdown.`;
     }
 
     let { name, agent } = await evaluate(st);
+
+    // Confidence & Safety Risk Evaluation Pass
+    const stepEval = await evaluateStepConfidence(primaryGoal, st, name);
+    console.log(`[Orchestrator Step Confidence] Subtask: "${st}" | Confidence: ${stepEval.confidence.toFixed(2)} | Confirmation Required: ${stepEval.requiresConfirmation}`);
+
+    if (stepEval.requiresConfirmation) {
+      results.push(`[Agent: ${name}] Subtask: "${st}"\n[CONFIRMATION REQUIRED]: Confidence rating ${stepEval.confidence.toFixed(2)} (< 0.70 threshold or high-risk action). Reason: ${stepEval.reason}. Execution paused awaiting user confirmation.`);
+      continue;
+    }
 
     // Blocker Check: Skip agents known to be offline or failing auth
     if (blockedAgents.has(name)) {
