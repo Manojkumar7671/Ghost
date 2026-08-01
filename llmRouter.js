@@ -12,10 +12,10 @@ import crypto from 'crypto';
 import { redactSecrets } from './services/secretRedactor.js';
 
 export function getProviders() {
-  const freeLLMBase = (process.env.FREELLMAPI_BASE_URL || 'http://localhost:3001/v1').replace(/\/+$/, '');
-  const baseSlash = freeLLMBase.endsWith('/v1') ? '' : '/v1';
-  
-  return [
+  const freeLLMCloud = (process.env.FREELLMAPI_RENDER_URL || process.env.FREELLMAPI_BASE_URL || '').replace(/\/+$/, '');
+  const freeLLMLocal = (process.env.FREELLMAPI_LOCAL_URL || 'http://localhost:3001/v1').replace(/\/+$/, '');
+
+  const providers = [
     {
       name: 'Groq',
       endpoint: 'https://api.groq.com/openai/v1/chat/completions',
@@ -51,20 +51,35 @@ export function getProviders() {
       endpoint: 'https://api.minimax.io/v1/chat/completions',
       model: 'MiniMax-M3',
       apiKey: process.env.MINIMAX_API_KEY
-    },
-    {
-      name: 'FreeLLMAPI',
-      endpoint: `${freeLLMBase}${baseSlash}/chat/completions`,
-      model: 'deepseek-chat',
-      apiKey: process.env.FREELLMAPI_API_KEY
-    },
-    {
-      name: 'Kimi K2',
-      endpoint: process.env.KIMI_ENDPOINT || 'https://api.moonshot.ai/v1/chat/completions',
-      model: 'kimi-k2-0905',
-      apiKey: process.env.KIMI_API_KEY
     }
   ];
+
+  if (freeLLMCloud) {
+    const cloudSlash = freeLLMCloud.endsWith('/v1') ? '' : '/v1';
+    providers.push({
+      name: 'FreeLLMAPI (Render Cloud)',
+      endpoint: `${freeLLMCloud}${cloudSlash}/chat/completions`,
+      model: 'deepseek-chat',
+      apiKey: process.env.FREELLMAPI_API_KEY || 'free'
+    });
+  }
+
+  const localSlash = freeLLMLocal.endsWith('/v1') ? '' : '/v1';
+  providers.push({
+    name: 'FreeLLMAPI (Local)',
+    endpoint: `${freeLLMLocal}${localSlash}/chat/completions`,
+    model: 'deepseek-chat',
+    apiKey: process.env.FREELLMAPI_API_KEY || 'free'
+  });
+
+  providers.push({
+    name: 'Kimi K2',
+    endpoint: process.env.KIMI_ENDPOINT || 'https://api.moonshot.ai/v1/chat/completions',
+    model: 'kimi-k2-0905',
+    apiKey: process.env.KIMI_API_KEY
+  });
+
+  return providers;
 }
 
 /**
