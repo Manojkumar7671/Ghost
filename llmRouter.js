@@ -107,6 +107,8 @@ function isValidKey(key) {
  * @param {Object} options - { systemPrompt, maxTokens, temperature, timeoutMs, model }
  * @returns {Promise<string>} LLM response content string
  */
+import GHOST_PERSONA from './src/agents/persona.js';
+
 export async function callLLM(messages = [], options = {}) {
   const {
     systemPrompt = null,
@@ -117,9 +119,11 @@ export async function callLLM(messages = [], options = {}) {
     providerFilter = null
   } = options;
 
-  const formattedMessages = systemPrompt
-    ? [{ role: 'system', content: systemPrompt }, ...messages]
-    : messages;
+  const finalSystemPrompt = systemPrompt 
+    ? `${GHOST_PERSONA}\n\n[CONTEXT/TASK OVERRIDE]\n${systemPrompt}`
+    : GHOST_PERSONA;
+
+  const formattedMessages = [{ role: 'system', content: finalSystemPrompt }, ...messages];
 
   let providers = getProviders();
   if (providerFilter) {

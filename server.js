@@ -42,17 +42,20 @@ import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 const brain = require('./src/brain.js');
+const workspaceTools = require('./src/tools/workspaceTools.js');
 const { callLLM: routerCallLLM } = require('./llmRouter.js');
 
 startWatchdog();
 
-if (!process.env.ADMIN_PASSPHRASE || !process.env.JWT_SECRET) {
-    console.error("\n[CRITICAL FATAL ERROR]: ADMIN_PASSPHRASE or JWT_SECRET missing.");
-    console.error("Halting server boot sequence to prevent fallback vulnerabilities.\n");
+const REQUIRED_ENV_VARS = ['ADMIN_PASSPHRASE', 'JWT_SECRET', 'OBSIDIAN_API_KEY', 'OBSIDIAN_VAULT_PATH'];
+const missingVars = REQUIRED_ENV_VARS.filter(v => !process.env[v]);
+if (missingVars.length > 0) {
+    console.error(`\n[CRITICAL FATAL ERROR]: Required environment variables missing: ${missingVars.join(', ')}`);
+    console.error("Halting server boot sequence immediately to prevent insecure operation.\n");
     process.exit(1); 
 }
 
-// ENV VAR VALIDATION
+// ENV VAR VALIDATION WARNINGS
 if (!process.env.SERPER_API_KEY) console.warn("[WARN] SERPER_API_KEY missing — web search disabled");
 if (!process.env.BROWSERBASE_API_KEY) console.warn("[WARN] BROWSERBASE_API_KEY missing — browser automation disabled");
 
@@ -63,7 +66,21 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 
-app.get('/health', (req, res) => res.status(200).send('OK'));
+app.get('/health', async (req, res) => {
+    let renderReachable = false;
+    try {
+        const renderAgent = require('./src/agents/renderAgent.js');
+        renderReachable = await renderAgent.ping();
+    } catch (e) {}
+
+    res.status(200).json({
+        status: 'ok',
+        uptime: process.uptime(),
+        localBrain: 'healthy',
+        renderBrain: renderReachable ? 'reachable' : 'unreachable_fallback_active',
+        timestamp: new Date().toISOString()
+    });
+});
 
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '10mb' })); // Restricted standard payload sizes to prevent memory-limit DoS attacks
@@ -282,6 +299,19 @@ const authLimiter = rateLimit({
     standardHeaders: true, legacyHeaders: false,
 });
 
+const adminLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, max: 10,
+    message: { success: false, error: "Too many admin requests. IP blocked for 15 minutes." },
+    standardHeaders: true, legacyHeaders: false,
+});
+
+app.use('/api/admin', (req, res, next) => {
+    if (process.env.RENDER === 'true' || process.env.RENDER) {
+        return res.status(404).json({ success: false, error: 'Not Found (Admin disabled on public cloud)' });
+    }
+    next();
+}, adminLimiter);
+
 app.post('/api/auth', authLimiter, async (req, res) => {
     const { authString, user = 'Unknown' } = req.body;
     const ip = req.ip; 
@@ -469,13 +499,14 @@ function requireAdminToken(req, res, next) {
 }
 
 function checkIsAdmin(req) {
-    if (req.headers && (req.headers['x-admin-passphrase'] === 'knightfall' || req.headers['authorization'] === 'Bearer knightfall')) return true;
-    if (req.body && (req.body.user === 'master_manoj' || req.body.safeUser === 'master_manoj')) return true;
-    if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
+    const token = (req.cookies && req.cookies.ghost_session) || (req.headers && req.headers.authorization && req.headers.authorization.replace(/^Bearer\s+/i, ''));
+    if (!token) return false;
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        return Boolean(decoded && decoded.role === 'admin');
+    } catch (e) {
         return false;
     }
-    const token = req.cookies && req.cookies.ghost_session;
-    try { return token && jwt.verify(token, JWT_SECRET).role === 'admin'; } catch(e) { return false; }
 }
 
 const chatLimiter = rateLimit({
@@ -490,12 +521,20 @@ const pendingActions = sharedPendingActions;
 app.get('/downloads/*', (req, res) => {
     const rawPath = req.params[0] || '';
     const OUTPUTS_DIR = path.resolve(__dirname, 'outputs');
-    const targetPath = path.resolve(OUTPUTS_DIR, path.normalize(rawPath).replace(/^(\.\.[\/\\])+/, ''));
+    const LOGS_AUDIO_DIR = path.resolve(__dirname, 'logs/audio');
+    let targetPath = path.resolve(OUTPUTS_DIR, path.normalize(rawPath).replace(/^(\.\.[\/\\])+/, ''));
 
-    // Security Gate: Path Traversal Prevention
-    if (!targetPath.startsWith(OUTPUTS_DIR)) {
-        console.warn(`[Security Alert] Blocked path traversal attempt on /downloads/*: ${req.url}`);
-        return res.status(403).json({ success: false, error: 'Forbidden: Invalid file path.' });
+    if (rawPath.startsWith('audio/')) {
+        targetPath = path.resolve(LOGS_AUDIO_DIR, path.normalize(rawPath.replace(/^audio\//, '')).replace(/^(\.\.[\/\\])+/, ''));
+        if (!targetPath.startsWith(LOGS_AUDIO_DIR)) {
+            console.warn(`[Security Alert] Blocked path traversal attempt on /downloads/*: ${req.url}`);
+            return res.status(403).json({ success: false, error: 'Forbidden: Invalid file path.' });
+        }
+    } else {
+        if (!targetPath.startsWith(OUTPUTS_DIR)) {
+            console.warn(`[Security Alert] Blocked path traversal attempt on /downloads/*: ${req.url}`);
+            return res.status(403).json({ success: false, error: 'Forbidden: Invalid file path.' });
+        }
     }
 
     if (!fs.existsSync(targetPath) || fs.statSync(targetPath).isDirectory()) {
@@ -680,9 +719,36 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                                 chainResults.push(`[Ghost System]: Processed browser command: ${subCmd}`);
                             }
                         } else {
+                            // Detect if this sub-action will route to browser_navigate/web_read
+                            // so we can manage session lifecycle across the chain.
+                            const isBrowserSubCmd = /\b(navigate|browser|load url|read page|open browser|get page|fetch url)\b/i.test(subCmd)
+                                || /\bhttps?:\/\//i.test(subCmd);
+                            const isLastSubCmd = subCmd === parts[parts.length - 1];
+
+                            if (isBrowserSubCmd) {
+                                // Call sandboxNavigate directly with correct closeAfter
+                                // to ensure session reuse across a browser-heavy compound chain.
+                                const urlMatch = subCmd.match(/https?:\/\/[^\s"']+/i);
+                                const targetUrl = urlMatch ? urlMatch[0] : null;
+                                if (targetUrl) {
+                                    const browserbaseClient = (await import('./services/browserbaseClient.js')).default;
+                                    const navResult = await browserbaseClient.sandboxNavigate(targetUrl, {
+                                        closeAfter: isLastSubCmd, // only close on last browser step
+                                    });
+                                    if (navResult.error) {
+                                        chainResults.push(`[browser_navigate] Error: ${navResult.error}`);
+                                    } else {
+                                        chainResults.push(`[browser_navigate] URL: ${navResult.url}\nTitle: ${navResult.title}\n\n${navResult.text.substring(0, 2000)}`);
+                                    }
+                                    console.log(`[Multi-Action Chain] Browser sub-action "${subCmd.substring(0,50)}" — closeAfter:${isLastSubCmd}, session ${isLastSubCmd ? 'CLOSED' : 'KEPT ALIVE'}`);
+                                    continue;
+                                }
+                            }
+
                             const brainRes = await brain.think(subCmd, { safeUser, isAdmin });
                             chainResults.push(typeof brainRes === 'string' ? brainRes : (brainRes.text || brainRes.output || JSON.stringify(brainRes)));
                         }
+
                     }
                     return res.json({ success: true, text: chainResults.join('\n\n') });
                 }
@@ -816,7 +882,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                 return res.json({ success: true, text: resultText });
             }
 
-        const codeKeywords = ['python', 'javascript', 'js', 'html', 'css', 'sql', 'script', 'function', 'write code', 'build an app', 'generate code', 'create file', 'code', 'coding', 'generate a login page', 'build a login page', 'create a script'];
+        const codeKeywords = ['python', 'javascript', 'js', 'html', 'css', 'sql', 'script', 'function', 'write code', 'build an app', 'generate code', 'create file', 'code', 'coding', 'generate a login page', 'build a login page', 'create a script', 'write a javascript script'];
         const isCodingRequest = codeKeywords.some(k => lowerMsg.includes(k));
 
         if (!ghostCodeActive && isCodingRequest) {
@@ -825,6 +891,30 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                 text: "Ghost Code mode is currently turned OFF. Please turn Ghost Code ON in the sidebar controls to allow code generation and execution."
             });
             return;
+        }
+
+        // Direct Code Fast Path: Single-file coding prompts route directly to workspace_edit_file
+        const isSingleFileScriptPrompt = (lowerMsg.includes('write a javascript script') || lowerMsg.includes('write a python script') || lowerMsg.includes('create a file') || lowerMsg.includes('write a script')) && (lowerMsg.includes('.js') || lowerMsg.includes('.py'));
+        if (isSingleFileScriptPrompt) {
+            console.log('[Fast Path] Single-file script creation request detected. Direct execution via workspace_edit_file...');
+            const filePathMatch = message.match(/(?:in|to|named|file)\s+([a-zA-Z0-9_\-\.\/]+\.(?:js|py))/i) || message.match(/([a-zA-Z0-9_\-\.\/]+\.(?:js|py))/i);
+            const targetPath = filePathMatch ? filePathMatch[1] : 'script.js';
+
+            const editResult = await workspaceTools.editFile({
+                filePath: targetPath,
+                instruction: message,
+                replacementContent: null
+            });
+
+            const responseText = `[Ghost Code Fast-Path Executed]\nFile: ${targetPath}\nResult: ${editResult.message || editResult.output || (editResult.success ? 'Successfully generated and sandbox-verified code.' : 'Execution failed.')}`;
+            
+            if (pool && safeUser) {
+                userHistory.push({ role: 'user', content: message });
+                userHistory.push({ role: 'assistant', content: responseText });
+                await pool.query('UPDATE user_memories SET history_json = $2, updated_at = CURRENT_TIMESTAMP WHERE username = $1', [safeUser, JSON.stringify(userHistory.slice(-15))]).catch(() => {});
+            }
+
+            return res.json({ success: editResult.success !== false, text: responseText });
         }
         
         if (pool && safeUser) {
@@ -1085,6 +1175,13 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                     const plan = await buildTaskPlan(intent);
                     console.log('[Intent Planner] Generated Task Plan:', JSON.stringify(plan));
 
+                    // Build a compact plan skeleton string (used for lazy per-step code gen).
+                    // This is short because it has NO code bodies — just step descriptions + file paths.
+                    const planSkeleton = Array.isArray(plan)
+                        ? plan.map(s => `Step ${s.id}: [${s.requiredCapability}] ${s.description}`).join('\n')
+                        : '';
+                    console.log('[Intent Planner] Plan skeleton built for lazy code-gen context.');
+
                     const planningLatency = Date.now() - planningStart;
                     console.log(`[Intent Planner Timing] Overall planning phase latency: ${planningLatency}ms`);
 
@@ -1094,7 +1191,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                     const activeMode = isCodeAssistant ? 'code_assistant' : isDeepResearch ? 'deep_research' : isBusinessMode ? 'business' : null;
                     const fullCatalog = await loadCatalog();
                     const catalog = filterCatalogByMode(fullCatalog, activeMode);
-                    const MAX_TOOL_CALLS = 8;
+                    const MAX_TOOL_CALLS = 15;  // raised to support complex full-stack apps
                     let totalToolCalls = 0;
 
                     for (const step of plan) {
@@ -1109,15 +1206,22 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
 
                         console.log(`[Tool Router] Routing step "${step.description}" to primary tool "${primaryTool.name}"`);
 
-                        const params = await generateToolParams(primaryTool.name, step.description, previousResults, finalMessage);
-                        
-                        if (primaryTool.name === 'workspace_edit_file' && (!params.targetContent || params.targetContent === '')) {
-                            const rawOutputs = previousResults.map(r => r.output).filter(Boolean).join('\n\n');
-                            if (rawOutputs) {
-                                params.replacementContent = rawOutputs;
-                            }
+                        // Pass planSkeleton into generateToolParams — for workspace_edit_file,
+                        // this is returned as _planContext in the skeleton-only params object.
+                        const params = await generateToolParams(primaryTool.name, step.description, previousResults, finalMessage, planSkeleton);
+
+                        // Build previousFileSummaries for this step: what each previously-written
+                        // file exports / what its purpose is, so inter-file requires work correctly.
+                        if (primaryTool.name === 'workspace_edit_file' && params._lazyCodeGen) {
+                            const fileSummaries = previousResults
+                                .filter(r => r.tool === 'workspace_edit_file' && r.status === 'done')
+                                .map(r => `- ${r.description}: ${String(r.output).slice(0, 200)}`)
+                                .join('\n');
+                            params.previousFileSummaries = fileSummaries;
+                            params.planContext = planSkeleton;
+                            params.constraints = intent.constraints ? intent.constraints.join('; ') : '';
                         }
-                        
+
                         // Autonomous vs Gated Task Split check
                         const isGated = (toolName, toolParams) => {
                             if (toolName === 'email_send') {
@@ -1126,10 +1230,14 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                             }
                             if (toolName === 'workspace_edit_file' || toolName === 'workspace_run_command') {
                                 const p = (toolParams.path || toolParams.filePath || toolParams.command || '').toLowerCase();
-                                return (p.includes('rm -rf') || p.includes('.env') || p.includes('server.js'));
+                                // Only gate dangerous destructive ops or writes to Ghost's own root server.js.
+                                // Do NOT gate user project files like test-app/server.js or subfolders.
+                                const isRootServerJs = p === 'server.js' || p === './server.js';
+                                return (p.includes('rm -rf') || p.includes('.env') || isRootServerJs);
                             }
                             return false;
                         };
+
 
                         if (isGated(primaryTool.name, params)) {
                             const gatedMsg = `[Gated Action Confirmation Required] The task step "${step.description}" involves gated tool "${primaryTool.name}". Please confirm if you wish to execute this action.`;
@@ -1167,7 +1275,20 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                             const startTime = Date.now();
 
                             try {
-                                output = await brain.execute(action, finalMessage, previousResults, executionContext);
+                                if (currentTool.name === 'workspace_edit_file') {
+                                    output = await workspaceTools.editFile({
+                                        filePath: currentParams.path || currentParams.filePath,
+                                        targetContent: currentParams.targetContent,
+                                        replacementContent: currentParams.replacementContent,
+                                        instruction: step.description,
+                                        // Lazy per-step code-gen context (architectural split)
+                                        planContext: currentParams.planContext || currentParams._planContext || planSkeleton,
+                                        previousFileSummaries: currentParams.previousFileSummaries || '',
+                                        constraints: currentParams.constraints || (intent.constraints ? intent.constraints.join('; ') : '')
+                                    });
+                                } else {
+                                    output = await brain.execute(action, finalMessage, previousResults, executionContext);
+                                }
                                 const latencyMs = Date.now() - startTime;
                                 
                                 attemptsTried.push({ tool: currentTool.name, output, status: 'done' });
@@ -1193,6 +1314,75 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                             const errorSummary = attemptsTried.map((a, i) => `Attempt ${i+1} (${a.tool}): ${a.output}`).join(' | ');
                             recordSelfEdit({ username: safeUser || 'guest', goal: finalMessage, failedStep: step.description, tool: primaryTool.name, error: errorSummary, attemptsTried }, pool);
                             previousResults.push({ id: step.id, description: step.description, tool: primaryTool.name, output: `Failed after ${attemptsTried.length} attempts. Details: ${errorSummary}`, status: 'failed' });
+                        } else {
+                            // EMPIRICAL POST-STEP VERIFICATION CHECK (Anti-False-Success)
+                            let isVerifiedOnDisk = true;
+                            let verificationReason = "Verified clean.";
+
+                            // 1. If step mentions directory creation, verify directory exists on disk
+                            const dirMatch = step.description.match(/(?:folder|directory)\s+(?:named|called|in\s+)?([a-zA-Z0-9_\-\/]+)/i);
+                            if (dirMatch) {
+                                const dirName = dirMatch[1].replace(/^(?:named|called|in)$/i, '').trim();
+                                if (dirName && dirName !== 'in') {
+                                    const targetDir = path.resolve(__dirname, dirName);
+                                    if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
+                                        isVerifiedOnDisk = false;
+                                        verificationReason = `Disk Verification Failed: Path "${dirName}" does not exist as a directory on disk.`;
+                                    }
+                                }
+                            }
+
+                            // 2. If step is a workspace_edit_file step, verify file exists on disk
+                            // NOTE: Only run this for edit_file steps — run_command steps are not
+                            // expected to produce a specific file; they have their own check below.
+                            if (isVerifiedOnDisk && primaryTool.name === 'workspace_edit_file') {
+                                const fileMatch = step.description.match(/(?:file|script)\s+([a-zA-Z0-9_\-\.\/]+\.(?:json|html|js|ts|py|css|sh|sql|md|txt))/i)
+                                              || step.description.match(/([a-zA-Z0-9_\-\.\/]+\.(?:json|html|js|ts|py|css|sh|sql|md|txt))/i);
+                                if (fileMatch) {
+                                    const targetFile = path.resolve(__dirname, fileMatch[1]);
+                                    if (!fs.existsSync(targetFile) || fs.statSync(targetFile).isDirectory()) {
+                                        isVerifiedOnDisk = false;
+                                        verificationReason = `Disk Verification Failed: File "${fileMatch[1]}" does not exist on disk.`;
+                                    } else {
+                                        const codeContent = fs.readFileSync(targetFile, 'utf-8');
+                                        if (!codeContent || codeContent.trim().length === 0 || codeContent.includes('[object Object]')) {
+                                            isVerifiedOnDisk = false;
+                                            verificationReason = `Disk Verification Failed: File "${fileMatch[1]}" contains invalid or empty content.`;
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 3. If step used workspace_run_command, verify process didn't exit with non-zero code or throw command failure
+                            if (isVerifiedOnDisk && primaryTool.name === 'workspace_run_command') {
+                                const lastOutput = typeof output === 'string' ? output : (output?.output || output?.stderr || output?.message || '');
+                                if (lastOutput.includes('Command failed') || lastOutput.includes('exited with code') && !lastOutput.includes('exited with code 0') || lastOutput.includes('MODULE_NOT_FOUND')) {
+                                    isVerifiedOnDisk = false;
+                                    verificationReason = `Command Verification Failed: Execution returned exit error trace: ${lastOutput.slice(0, 300)}`;
+                                }
+                                // For npm install / npm ci: verify node_modules directory was created
+                                const desc = step.description.toLowerCase();
+                                if ((desc.includes('npm install') || desc.includes('npm ci') || desc.includes('install') && desc.includes('dependencies')) && isVerifiedOnDisk) {
+                                    const folderMatch = step.description.match(/([a-zA-Z0-9_\-\/]+)\//) || step.description.match(/in\s+([a-zA-Z0-9_\-\/]+)/i);
+                                    if (folderMatch) {
+                                        const nmPath = path.resolve(__dirname, folderMatch[1], 'node_modules');
+                                        if (!fs.existsSync(nmPath)) {
+                                            isVerifiedOnDisk = false;
+                                            verificationReason = `Command Verification Failed: node_modules/ not found at "${folderMatch[1]}/node_modules" after npm install.`;
+                                        }
+                                    }
+                                }
+                            }
+
+
+                            if (!isVerifiedOnDisk) {
+                                console.warn(`[Step Verification FAILED] ${step.description}: ${verificationReason}`);
+                                const lastResIdx = previousResults.length - 1;
+                                if (lastResIdx >= 0) {
+                                    previousResults[lastResIdx].status = 'failed';
+                                    previousResults[lastResIdx].output = `[VERIFICATION FAILED]: ${verificationReason}`;
+                                }
+                            }
                         }
                     }
 
@@ -1237,7 +1427,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                     console.log(`[Intent Planner Timing] Overall execution phase latency: ${executionLatency}ms`);
 
                     const traceText = `[Intent Planner ➔ Plan Executed]\n` + 
-                        plan.map(s => `- [x] ${s.description} (routed to: ${s.requiredCapability})`).join('\n') + 
+                        previousResults.map(r => `- [${r.status === 'done' ? 'x' : 'FAILED'}] ${r.description} (status: ${r.status}, tool: ${r.tool})`).join('\n') + 
                         `\n\n${finalSummary}`;
 
                     if (pool && safeUser) {
@@ -1484,6 +1674,19 @@ app.post('/api/execute-plan-step', async (req, res) => {
     }
 });
 
+app.post('/api/workspace/save', async (req, res) => {
+    try {
+        const { filePath, content } = req.body;
+        if (!filePath) return res.status(400).json({ success: false, error: 'Missing filePath' });
+
+        const workspaceTools = require('./src/tools/workspaceTools');
+        const result = await workspaceTools.editFile({ path: filePath, content, targetContent: null });
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 app.post('/api/execute-action', requireAdminToken, async (req, res) => {
     const { actionId } = req.body;
     const cachedAction = pendingActions.get(actionId);
@@ -1541,7 +1744,7 @@ app.use('/api/pipeline', createPipelineRoutes(workflowEngine));
 app.post('/api/pipeline/execute', async (req, res) => {
     const { skills, input } = req.body;
     const isAdmin = checkIsAdmin(req);
-    if (!isAdmin) return res.json({ success: true, text: "[SYSTEM OVERRIDE]: Pipeline execution restricted to Admin." });
+    if (!isAdmin) return res.status(403).json({ success: false, error: "Forbidden: Admin access required." });
     res.json({ success: true, result: `Pipeline executed with skills: ${skills.join(', ')}, input: ${input}` });
 });
 
@@ -1577,6 +1780,24 @@ app.post('/api/voice/transcribe', async (req, res) => {
     }
 });
 
+app.post('/api/voice/tts', async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text || !text.trim()) return res.status(400).json({ error: 'Missing text parameter.' });
+
+        const voiceAgent = require('./src/agents/voiceAgent.js');
+        const ttsResult = await voiceAgent.textToSpeech(text);
+        if (ttsResult.success && ttsResult.file) {
+            const filename = path.basename(ttsResult.file);
+            res.json({ success: true, audioUrl: `/downloads/audio/${filename}`, file: ttsResult.file });
+        } else {
+            res.status(500).json({ success: false, error: ttsResult.error || 'TTS synthesis failed.' });
+        }
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 app.post('/api/desktop/notify', (req, res) => {
     const { title, message } = req.body || {};
     console.log(`[Desktop Notification Request] 🔔 ${title}: ${message}`);
@@ -1586,7 +1807,7 @@ app.post('/api/desktop/notify', (req, res) => {
 app.post('/api/browser/navigate', async (req, res) => {
     const { url } = req.body;
     const isAdmin = checkIsAdmin(req);
-    if (!isAdmin) return res.json({ success: true, text: "[SYSTEM OVERRIDE]: Browser automation restricted to Admin." });
+    if (!isAdmin) return res.status(403).json({ success: false, error: "Forbidden: Admin access required." });
     res.json({ success: true, message: `Browser navigating to: ${url}` });
 });
 
@@ -1891,6 +2112,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
     initCronScheduler();
     if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'local') {
         console.log('[Local Control Server] Auto-spawning Local Control Daemon client...');
+        try { execSync('pkill -f "node ./services/localControlDaemon.js" 2>/dev/null'); } catch (e) {}
         spawn('node', ['./services/localControlDaemon.js'], { stdio: 'inherit' });
     }
 });
