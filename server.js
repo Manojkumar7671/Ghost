@@ -487,8 +487,8 @@ app.post('/api/auth/google/disconnect', requireAdminToken, async (req, res) => {
 });
 
 function requireAdminToken(req, res, next) {
-    if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
-        return res.status(403).json({ success: false, error: 'Forbidden: Admin operations are restricted in public deployment mode.' });
+    if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public' || process.env.RENDER === 'true') {
+        return res.status(404).json({ success: false, error: 'Not Found' });
     }
     const token = req.cookies.ghost_session;
     if (!token) return res.status(403).json({ success: false, error: 'Missing token.' });
@@ -499,6 +499,9 @@ function requireAdminToken(req, res, next) {
 }
 
 function checkIsAdmin(req) {
+    if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public' || process.env.RENDER === 'true') {
+        return false;
+    }
     const token = (req.cookies && req.cookies.ghost_session) || (req.headers && req.headers.authorization && req.headers.authorization.replace(/^Bearer\s+/i, ''));
     if (!token) return false;
     try {
