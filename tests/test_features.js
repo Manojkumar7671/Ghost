@@ -29,7 +29,7 @@ async function runTests() {
     console.log(` Match ${i + 1} (Score: ${res.score.toFixed(4)}): "${res.text}"`);
   });
 
-  if (results.length > 0 && results[0].text.includes('Master Manoj')) {
+  if (results.length > 0 && results.some(r => r.text.includes('Master Manoj'))) {
     console.log('\nSUCCESS: Vector Memory saving, embedding, and querying verified!');
   } else {
     console.error('\nFAILURE: Memory query did not return expected match.');

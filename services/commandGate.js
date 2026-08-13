@@ -1,8 +1,10 @@
 export function classifyCommand(command) {
   const dangerousPatterns = [
-    /rm\s+-rf/i,
-    /curl\s+.*\|\s*bash/i,
-    /wget\s+.*\|\s*bash/i,
+    /\brm\s+(?:-[^\s]*[rf][^\s]*\s*)+/i, // catches rm -rf, rm -fr, rm -r -f
+    /\bunlink\b/i,
+    /\bcd\s+\.\./i,
+    /curl\s+.*\|\s*(?:bash|sh|zsh)/i,
+    /wget\s+.*\|\s*(?:bash|sh|zsh)/i,
     /sudo\s+/i,
     /\/etc\/passwd|\.aws\/credentials|\.env/i,
     /\.\.\// // Path traversal/workspace escape attempts

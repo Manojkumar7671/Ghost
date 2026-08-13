@@ -1,13 +1,61 @@
 [
   {
-    "id": "plan_1785578448348",
-    "goalKey": "aapl_health_price_stock_system",
-    "primaryGoal": "Check AAPL stock price and system health",
+    "id": "plan_1786079260819",
+    "goalKey": "fibonacci_print_sequence",
+    "primaryGoal": "Print the fibonacci sequence",
     "subtasks": [
-      "Break this primary goal down into 1 to 3 distinct actionable subtasks. \nGoal: \"Check AAPL stock price and system health\"\nRespond ONLY with a JSON array of string subtasks. No markdown."
+      "Determine the number of terms in the Fibonacci sequence to print",
+      "Develop a mathematical formula or algorithm to generate the sequence",
+      "Implement the formula or algorithm in the printing process"
     ],
-    "count": 6,
-    "createdAt": "2026-08-01T10:00:48.348Z",
-    "updatedAt": "2026-08-01T10:01:10.566Z"
+    "count": 1,
+    "createdAt": "2026-08-07T05:07:40.819Z",
+    "updatedAt": "2026-08-07T05:07:40.819Z"
+  },
+  {
+    "id": "plan_1786079267843",
+    "goalKey": "create_form_login",
+    "primaryGoal": "Create login form",
+    "subtasks": [
+      "Design the user interface for the login form",
+      "Implement the form validation logic",
+      "Integrate the form with the authentication system"
+    ],
+    "count": 1,
+    "createdAt": "2026-08-07T05:07:47.843Z",
+    "updatedAt": "2026-08-07T05:07:47.843Z"
+  },
+  {
+    "id": "plan_1786089888369",
+    "goalKey": "bug_code_fix_fix_jules_manojkumar7671testrepo_please_readmemd_repo_simple_typo_use_write",
+    "primaryGoal": "Use Jules to fix a bug in the code. Repo: Manojkumar7671/TestRepo. Please write a simple fix for the typo in README.md",
+    "subtasks": [
+      "Use Jules to fix a bug in the code. Repo: Manojkumar7671/TestRepo. Please write a simple fix for the typo in README.md"
+    ],
+    "count": 1,
+    "createdAt": "2026-08-07T08:04:48.369Z",
+    "updatedAt": "2026-08-07T08:04:48.369Z"
+  },
+  {
+    "id": "plan_1786596667066",
+    "goalKey": "age_code_login_python_want_write_you",
+    "primaryGoal": "i want you to write an code for python for login [age",
+    "subtasks": [
+      {
+        "task": "Define the login requirements and functionality",
+        "description": "Determine the necessary credentials for user authentication (e.g., username, password, age)"
+      },
+      {
+        "task": "Design the database schema for user authentication",
+        "description": "Create a database schema to store user credentials and age information"
+      },
+      {
+        "task": "Implement user login logic using Python and a suitable library (e.g., Flask, Django)",
+        "description": "Use a Python web framework to create a login system that authenticates users based on their credentials and age"
+      }
+    ],
+    "count": 1,
+    "createdAt": "2026-08-13T04:51:07.066Z",
+    "updatedAt": "2026-08-13T04:51:07.066Z"
   }
 ]

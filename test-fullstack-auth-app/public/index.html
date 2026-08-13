@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Fullstack Auth Notes App</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; background: #0f172a; color: #f8fafc; }
+    h1, h2 { color: #38bdf8; }
+    .card { background: #1e293b; padding: 1.5rem; border-radius: 8px; max-width: 400px; margin-bottom: 1.5rem; }
+    input, textarea { width: 100%; padding: 0.5rem; margin-bottom: 1rem; border-radius: 4px; border: 1px solid #334155; background: #0f172a; color: #fff; box-sizing: border-box; }
+    button { padding: 0.5rem 1rem; border-radius: 4px; border: none; background: #0284c7; color: white; cursor: pointer; font-weight: bold; }
+    button:hover { background: #0369a1; }
+    .note-item { background: #1e293b; padding: 1rem; margin-bottom: 0.5rem; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; max-width: 500px; }
+    .del-btn { background: #ef4444; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <h1>Auth Notes App</h1>
+
+  <div id="authSection" class="card">
+    <h2 id="authTitle">Register / Login</h2>
+    <input type="text" id="username" placeholder="Username" />
+    <input type="password" id="password" placeholder="Password" />
+    <button id="registerBtn" onclick="handleRegister()">Register</button>
+    <button id="loginBtn" onclick="handleLogin()" style="background:#10b981;">Login</button>
+    <p id="authStatus" style="margin-top:0.5rem; color:#f59e0b;"></p>
+  </div>
+
+  <div id="notesSection" class="hidden">
+    <div class="card">
+      <h2>Add Note</h2>
+      <input type="text" id="noteTitle" placeholder="Note Title" />
+      <textarea id="noteContent" placeholder="Note Content"></textarea>
+      <button id="saveNoteBtn" onclick="addNote()">Save Note</button>
+      <button onclick="handleLogout()" style="background:#64748b; margin-left:0.5rem;">Logout</button>
+    </div>
+
+    <h2>Your Notes</h2>
+    <div id="notesList"></div>
+  </div>
+
+  <script>
+    let token = localStorage.getItem('notes_jwt_token');
+
+    async function handleRegister() {
+      const u = document.getElementById('username').value;
+      const p = document.getElementById('password').value;
+      const res = await fetch('/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p })
+      });
+      const data = await res.json();
+      document.getElementById('authStatus').innerText = data.success ? 'Registered successfully! Click Login.' : (data.error || 'Registration failed');
+    }
+
+    async function handleLogin() {
+      const u = document.getElementById('username').value;
+      const p = document.getElementById('password').value;
+      const res = await fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p })
+      });
+      const data = await res.json();
+      if (data.token) {
+        token = data.token;
+        localStorage.setItem('notes_jwt_token', token);
+        showNotesUI();
+      } else {
+        document.getElementById('authStatus').innerText = data.error || 'Login failed';
+      }
+    }
+
+    function handleLogout() {
+      token = null;
+      localStorage.removeItem('notes_jwt_token');
+      document.getElementById('authSection').classList.remove('hidden');
+      document.getElementById('notesSection').classList.add('hidden');
+    }
+
+    async function showNotesUI() {
+      document.getElementById('authSection').classList.add('hidden');
+      document.getElementById('notesSection').classList.remove('hidden');
+      loadNotes();
+    }
+
+    async function loadNotes() {
+      const res = await fetch('/notes', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (res.status === 401) return handleLogout();
+      const notes = await res.json();
+      const list = document.getElementById('notesList');
+      list.innerHTML = '';
+      notes.forEach(note => {
+        const div = document.createElement('div');
+        div.className = 'note-item';
+        div.innerHTML = '<div><strong>' + escapeHtml(note.title) + '</strong><p style="margin:0.25rem 0 0 0; color:#94a3b8;">' + escapeHtml(note.content) + '</p></div> <button class="del-btn" onclick="deleteNote(' + note.id + ')">Delete</button>';
+        list.appendChild(div);
+      });
+    }
+
+    async function addNote() {
+      const title = document.getElementById('noteTitle').value;
+      const content = document.getElementById('noteContent').value;
+      if (!title || !content) return;
+      await fetch('/notes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify({ title, content })
+      });
+      document.getElementById('noteTitle').value = '';
+      document.getElementById('noteContent').value = '';
+      loadNotes();
+    }
+
+    async function deleteNote(id) {
+      await fetch('/notes/' + id, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      loadNotes();
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, function(m) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[m]; });
+    }
+
+    if (token) showNotesUI();
+  </script>
+</body>
+</html>

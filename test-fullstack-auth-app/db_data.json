@@ -1,0 +1,28 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "testuser",
+      "password": "$2a$10$mEomQwkIoKuGi93Si0.Eeemq5dmBg9gXh4/VNtlH194SMCH.dlPta"
+    },
+    {
+      "id": 2,
+      "username": "e2e_user",
+      "password": "$2a$10$r8QX8A2YjWFjWeF1QAa6wu3D1qGfjto6taiF3CT4xOUtcCsxGLOJO"
+    }
+  ],
+  "notes": [
+    {
+      "id": 1,
+      "user_id": 1,
+      "title": "Secret Note",
+      "content": "This is protected content"
+    },
+    {
+      "id": 2,
+      "user_id": 2,
+      "title": "E2E Test Note",
+      "content": "Persisted via http flow simulation"
+    }
+  ]
+}

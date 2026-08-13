@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bookmark Vault SaaS | Modern Glassmorphic Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #090d16;
+            --card-bg: rgba(22, 31, 49, 0.7);
+            --card-border: rgba(99, 102, 241, 0.2);
+            --accent-indigo: #6366f1;
+            --accent-violet: #8b5cf6;
+            --accent-cyan: #06b6d4;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+
+        body {
+            background: var(--bg-dark);
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.15) 0%, transparent 40%);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 30px;
+        }
+
+        /* Top Navigation Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .logo-group { display: flex; align-items: center; gap: 12px; }
+        .logo-icon {
+            width: 40px; height: 40px;
+            background: linear-gradient(135deg, var(--accent-indigo), var(--accent-violet));
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 20px;
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+        }
+
+        .logo-title { font-size: 22px; font-weight: 700; background: linear-gradient(90deg, #fff, #a5b4fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        .btn-add {
+            background: linear-gradient(135deg, var(--accent-indigo), var(--accent-violet));
+            color: #fff; border: none; padding: 10px 20px; border-radius: 8px;
+            font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-add:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5); }
+
+        /* Analytics Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--card-border);
+            padding: 20px; border-radius: 14px;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+
+        .stat-label { color: var(--text-muted); font-size: 13px; font-weight: 500; }
+        .stat-val { font-size: 28px; font-weight: 700; color: #fff; }
+
+        /* Search & Controls */
+        .controls-bar {
+            display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: wrap; justify-content: space-between;
+        }
+
+        .search-wrapper { flex: 1; min-width: 280px; position: relative; }
+        .search-input {
+            width: 100%; padding: 12px 16px 12px 42px;
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px; color: #fff; font-size: 14px;
+            outline: none; transition: border-color 0.2s;
+        }
+        .search-input:focus { border-color: var(--accent-indigo); }
+        .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+
+        .filter-tags { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .tag-chip {
+            padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 500;
+            background: rgba(255, 255, 255, 0.05); color: var(--text-muted); cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.08); transition: all 0.2s;
+        }
+        .tag-chip.active, .tag-chip:hover {
+            background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border-color: var(--accent-indigo);
+        }
+
+        /* Bookmarks Grid */
+        .bookmarks-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .bm-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 14px; padding: 20px;
+            display: flex; flex-direction: column; justify-content: space-between;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative; overflow: hidden;
+        }
+
+        .bm-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(99, 102, 241, 0.5);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 20px rgba(99, 102, 241, 0.2);
+        }
+
+        .bm-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+        .bm-icon { width: 36px; height: 36px; border-radius: 8px; background: #1e293b; display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--accent-cyan); }
+        .bm-star { color: #eab308; cursor: pointer; font-size: 18px; }
+
+        .bm-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; color: #fff; text-decoration: none; display: block; }
+        .bm-title:hover { color: var(--accent-indigo); }
+
+        .bm-desc { font-size: 13px; color: var(--text-muted); line-height: 1.4; margin-bottom: 15px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+        .bm-footer { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-muted); border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 12px; }
+
+        .bm-domain { color: #a5b4fc; font-weight: 500; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-group">
+            <div class="logo-icon">🔖</div>
+            <div class="logo-title">Bookmark Vault SaaS</div>
+        </div>
+        <button class="btn-add" onclick="addNewBookmark()">+ Add Bookmark</button>
+    </header>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span class="stat-label">Total Bookmarks</span>
+            <span class="stat-val" id="count-total">48</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Starred Favorites</span>
+            <span class="stat-val" id="count-fav">14</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Reading List</span>
+            <span class="stat-val" id="count-read">8</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Collections</span>
+            <span class="stat-val">5</span>
+        </div>
+    </div>
+
+    <div class="controls-bar">
+        <div class="search-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" class="search-input" id="searchInput" placeholder="Search by title, tag, or domain (Cmd + K)..." onkeyup="filterBookmarks()">
+        </div>
+        <div class="filter-tags">
+            <div class="tag-chip active" onclick="filterCategory('all', this)">All</div>
+            <div class="tag-chip" onclick="filterCategory('AI Tools', this)">AI Tools</div>
+            <div class="tag-chip" onclick="filterCategory('Dev Resources', this)">Dev Resources</div>
+            <div class="tag-chip" onclick="filterCategory('Design', this)">Design</div>
+        </div>
+    </div>
+
+    <div class="bookmarks-grid" id="bookmarksContainer">
+        <!-- Bookmark Cards will render dynamically -->
+    </div>
+
+    <script>
+        const initialBookmarks = [
+            { id: 1, title: 'OpenAI Developer Platform', desc: 'Build AI apps with top-tier foundation models and API documentation.', domain: 'openai.com', tag: 'AI Tools', star: true },
+            { id: 2, title: 'GitHub Code Repository', desc: 'Host and review code, manage projects, and build software alongside developers.', domain: 'github.com', tag: 'Dev Resources', star: true },
+            { id: 3, title: 'Figma Glassmorphism UI Kit', desc: 'Sleek design tokens, gradients, and micro-interactions for modern web apps.', domain: 'figma.com', tag: 'Design', star: false },
+            { id: 4, title: 'MDN Web Docs', desc: 'Resources for developers, by developers. Learn HTML, CSS, and JavaScript.', domain: 'developer.mozilla.org', tag: 'Dev Resources', star: true },
+            { id: 5, title: 'Tailwind CSS Docs', desc: 'A utility-first CSS framework packed with classes for rapid UI development.', domain: 'tailwindcss.com', tag: 'Design', star: false },
+            { id: 6, title: 'Hugging Face Datasets', desc: 'The AI community building the future. Models, datasets, and ML spaces.', domain: 'huggingface.co', tag: 'AI Tools', star: true }
+        ];
+
+        let bookmarks = [...initialBookmarks];
+
+        function renderBookmarks(list) {
+            const container = document.getElementById('bookmarksContainer');
+            container.innerHTML = '';
+
+            list.forEach(bm => {
+                const card = document.createElement('div');
+                card.className = 'bm-card';
+                card.innerHTML = `
+                    <div>
+                        <div class="bm-header">
+                            <div class="bm-icon">${bm.title.charAt(0)}</div>
+                            <div class="bm-star" onclick="toggleStar(${bm.id})">${bm.star ? '★' : '☆'}</div>
+                        </div>
+                        <a href="https://${bm.domain}" target="_blank" class="bm-title">${bm.title}</a>
+                        <div class="bm-desc">${bm.desc}</div>
+                    </div>
+                    <div class="bm-footer">
+                        <span class="bm-domain">${bm.domain}</span>
+                        <span style="background: rgba(99,102,241,0.15); color: #a5b4fc; padding: 2px 8px; border-radius: 6px;">${bm.tag}</span>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            document.getElementById('count-total').innerText = bookmarks.length;
+            document.getElementById('count-fav').innerText = bookmarks.filter(b => b.star).length;
+        }
+
+        function filterBookmarks() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = bookmarks.filter(b => 
+                b.title.toLowerCase().includes(query) || 
+                b.desc.toLowerCase().includes(query) || 
+                b.domain.toLowerCase().includes(query) ||
+                b.tag.toLowerCase().includes(query)
+            );
+            renderBookmarks(filtered);
+        }
+
+        function filterCategory(cat, el) {
+            document.querySelectorAll('.tag-chip').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+
+            if (cat === 'all') {
+                renderBookmarks(bookmarks);
+            } else {
+                const filtered = bookmarks.filter(b => b.tag === cat);
+                renderBookmarks(filtered);
+            }
+        }
+
+        function toggleStar(id) {
+            const item = bookmarks.find(b => b.id === id);
+            if (item) {
+                item.star = !item.star;
+                renderBookmarks(bookmarks);
+            }
+        }
+
+        function addNewBookmark() {
+            const url = prompt('Enter Bookmark URL:');
+            if (url) {
+                const domain = url.replace('https://', '').replace('http://', '').split('/')[0];
+                const newBm = {
+                    id: Date.now(),
+                    title: domain.charAt(0).toUpperCase() + domain.slice(1),
+                    desc: `Saved bookmark resource from ${domain}.`,
+                    domain: domain,
+                    tag: 'Dev Resources',
+                    star: false
+                };
+                bookmarks.unshift(newBm);
+                renderBookmarks(bookmarks);
+            }
+        }
+
+        renderBookmarks(bookmarks);
+    </script>
+</body>
+</html>

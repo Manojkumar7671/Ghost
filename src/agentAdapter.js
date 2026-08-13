@@ -14,7 +14,9 @@ const selfStudyAgent = require('./agents/selfStudyAgent');
 const stockAgent = require('./agents/stockAgent');
 const docAgent = require('./agents/docAgent');
 const sysMonAgent = require('./agents/sysMonAgent');
-const fileAgent = require('./agents/fileAgent');
+const FileAgent = require('./agents/fileAgent');
+const CodeAgent = require('./agents/codeAgent');
+const { saveMessage } = require('./tools/memory');
 
 // Helper function to extract structured parameters from a natural language task
 async function extractParams(agentName, task, context, jsonSchemaInstruction) {
@@ -172,6 +174,40 @@ const adaptedSysMonAgent = {
   }
 };
 
+const adaptedCodeAgent = {
+  run: async (task, context) => {
+    const res = await codeAgent.run(task, context);
+    if (res.success) {
+      return `Code executed successfully. Output:\n${res.output}\n\nCode:\n${res.code}`;
+    } else {
+      return `Code execution failed. Error:\n${res.error}\n\nCode:\n${res.code}`;
+    }
+  }
+};
+
+const adaptedFileAgent = {
+  run: async (task) => {
+    const res = await fileAgent.run(task);
+    return JSON.stringify(res, null, 2);
+  }
+};
+
+const { AiderAgent } = require('./agents/aiderAgent');
+const aiderAgent = new AiderAgent();
+
+const adaptedAiderAgent = {
+  run: async (task, context) => {
+    const params = await extractParams('aiderAgent', task, context, 
+      `Return JSON with "owner" (GitHub repo owner/org), "repo" (GitHub repository name), and "prompt" (detailed instruction for Aider). Extract the owner and repo explicitly from the task or context.`
+    );
+    if (!params || !params.owner || !params.repo) {
+      return "Missing owner or repo for Aider task. Task must specify a GitHub repository.";
+    }
+    const res = await aiderAgent.run(params.prompt || task, context, params.owner, params.repo);
+    return typeof res === 'string' ? res : JSON.stringify(res);
+  }
+};
+
 module.exports = {
   webAgent: adaptedWebAgent,
   emailAgent: adaptedEmailAgent,
@@ -188,5 +224,7 @@ module.exports = {
   stockAgent: adaptedStockAgent,
   docAgent: adaptedDocAgent,
   sysMonAgent: adaptedSysMonAgent,
-  fileAgent
+  fileAgent: adaptedFileAgent,
+  codeAgent: adaptedCodeAgent,
+  aiderAgent: adaptedAiderAgent
 };

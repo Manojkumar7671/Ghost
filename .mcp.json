@@ -17,6 +17,17 @@
         "CLAUDE_FLOW_MEMORY_BACKEND": "hybrid"
       },
       "autoStart": false
+    },
+    "synthflow": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@estros/synthflow-mcp-tool"
+      ],
+      "env": {
+        "SYNTHFLOW_API_KEY": "${SYNTHFLOW_API_KEY}"
+      },
+      "autoStart": true
     }
   }
 }

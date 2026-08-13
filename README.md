@@ -1,13 +1,13 @@
-# 👻 Ghost — Autonomous AI Agent System
+# 👻 Ghost v1.0 — Autonomous AI Agent System
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-ghost--34qz.onrender.com-blueviolet?style=for-the-badge&logo=render)](https://ghost-34qz.onrender.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-v20%2B-brightgreen?style=for-the-badge&logo=nodedotjs)](https://nodejs.org)
 [![Build Status](https://img.shields.io/badge/Benchmarks-100%25%20Verified-success?style=for-the-badge)](#-empirical-benchmarks)
 
-**Ghost** is a production-ready, autonomous AI agent platform designed for complex multi-step reasoning, real-time desktop interaction, voice synthesis, and sandboxed code execution. Built from the ground up to solve the reliability and latency gaps of modern AI assistants, Ghost orchestrates multi-agent DAG workflows, high-speed vector retrieval, and human-in-the-loop (HITL) authorization gates under strict security boundaries.
+**Ghost v1.0** is a production-hardened, autonomous AI agent platform designed for complex multi-step reasoning, secure text assistance, real-time desktop interaction, voice synthesis, and sandboxed code execution. Built from the ground up to solve the reliability, latency, and security gaps of modern AI assistants, Ghost orchestrates multi-agent DAG workflows, high-speed vector retrieval, and human-in-the-loop (HITL) authorization gates under strict security boundaries with robust JWT-based Role-Based Access Control (RBAC).
 
-Deployed live at [ghost-34qz.onrender.com](https://ghost-34qz.onrender.com), Ghost serves as a fully benchmarked proof-of-work foundation. It combines local micro-VM sandboxing (Gondolin), a 21x faster Rust-based SIMD vector store (Turbovec), multi-provider LLM fallback routing (NVIDIA NIM, Gemini Pro, Llama 3.3, DeepSeek), and self-hosted PM2 voice tool execution (Synthflow MCP) into a unified, responsive interface.
+Deployed live at [ghost-34qz.onrender.com](https://ghost-34qz.onrender.com), Ghost serves as a fully benchmarked proof-of-work foundation. It combines local micro-VM sandboxing (Gondolin), a 21x faster Rust-based SIMD vector store (Turbovec), multi-provider LLM fallback routing (NVIDIA NIM, Gemini Pro, Llama 3.3, DeepSeek), and secure multi-tenant isolation into a unified, responsive interface.
 
 ---
 
@@ -69,6 +69,7 @@ Ghost uses a modular, event-driven architecture designed to balance autonomous e
 
 ## 🔥 Key Features
 
+* **🔒 Production Hardened Security**: Native JWT authentication and Role-Based Access Control (RBAC). Privileged tools like shell execution and file writing are strictly isolated to authenticated administrators in public deployment modes.
 * **⚡ Turbovec RAG Memory**: Dual RAG+CAG memory engine backed by `@memwarden/turbovec` (Rust SIMD vector quantization). Achieves **0.197ms query latency** and **89.47ms batch insertion** for 100 documents (21x–22x speedup over standard JSON stores).
 * **🛡️ Micro-VM Code Sandboxing**: Hardened code execution environment powered by Gondolin micro-VMs. Inspects file paths and blocks unauthorized host access (`/etc/passwd`, `~/.zshrc`) with explicit intercept alerts (`[GONDOLIN_SANDBOX_INTERCEPT]`).
 * **🖥️ Desktop Overlay Companion**: Native macOS screen capture (`takeNativeScreenshot`) paired with real-time vision reasoning and nonced safety approvals for desktop automation.

@@ -10,12 +10,20 @@
  */
 import crypto from 'crypto';
 import { redactSecrets } from './services/secretRedactor.js';
+import { logUsage } from './services/usageTracker.js';
 
 export function getProviders() {
   const freeLLMCloud = (process.env.FREELLMAPI_RENDER_URL || process.env.FREELLMAPI_BASE_URL || '').replace(/\/+$/, '');
   const freeLLMLocal = (process.env.FREELLMAPI_LOCAL_URL || 'http://localhost:3001/v1').replace(/\/+$/, '');
+  const localSlash = freeLLMLocal.endsWith('/v1') ? '' : '/v1';
 
   const providers = [
+    {
+      name: 'FreeLLMAPI (Local)',
+      endpoint: `${freeLLMLocal}${localSlash}/chat/completions`,
+      model: 'auto',
+      apiKey: process.env.FREELLMAPI_API_KEY || 'free'
+    },
     {
       name: 'Groq',
       endpoint: 'https://api.groq.com/openai/v1/chat/completions',
@@ -41,12 +49,6 @@ export function getProviders() {
       apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
     },
     {
-      name: 'OpenRouter',
-      endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-      model: 'meta-llama/llama-3.3-70b-instruct',
-      apiKey: process.env.OPENROUTER_API_KEY
-    },
-    {
       name: 'MiniMax',
       endpoint: 'https://api.minimax.io/v1/chat/completions',
       model: 'MiniMax-M3',
@@ -64,12 +66,12 @@ export function getProviders() {
     });
   }
 
-  const localSlash = freeLLMLocal.endsWith('/v1') ? '' : '/v1';
+
   providers.push({
-    name: 'FreeLLMAPI (Local)',
-    endpoint: `${freeLLMLocal}${localSlash}/chat/completions`,
-    model: 'auto',
-    apiKey: process.env.FREELLMAPI_API_KEY || 'free'
+    name: 'Osaurus Local',
+    endpoint: process.env.OSAURUS_ENDPOINT || 'http://localhost:1337/v1/chat/completions',
+    model: process.env.OSAURUS_MODEL || 'foundation',
+    apiKey: 'osaurus_local_key'
   });
 
   providers.push({
@@ -114,7 +116,7 @@ export async function callLLM(messages = [], options = {}) {
     systemPrompt = null,
     maxTokens = 1024,
     temperature = 0.2,
-    timeoutMs = 10000,
+    timeoutMs = 30000,
     model: customModel = null,
     providerFilter = null
   } = options;
@@ -200,6 +202,13 @@ export async function callLLM(messages = [], options = {}) {
 
       const latencyMs = Date.now() - startProviderTime;
       console.log(`[LLM Router Timing] Served by ${provider.name} (${selectedModel}) in ${latencyMs}ms`);
+      
+      let tokenUsageCost = 0.001;
+      if (data.usage && data.usage.total_tokens) {
+        tokenUsageCost = (data.usage.total_tokens / 1000) * 0.002;
+      }
+      logUsage(provider.name, tokenUsageCost).catch(() => {});
+
       return content;
     } catch (err) {
       clearTimeout(timeoutId);

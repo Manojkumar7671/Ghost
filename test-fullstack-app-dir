@@ -1,0 +1,92 @@
+package.json
+{
+  "name": "todo-app",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1"
+  }
+}
+
+server.js
+const express = require('express');
+const app = express();
+const port = 3099;
+const todos = [
+  { id: 1, text: 'Todo 1' },
+  { id: 2, text: 'Todo 2' }
+];
+
+app.use(express.json());
+
+app.get('/todos', (req, res) => {
+  res.json(todos);
+});
+
+app.post('/todos', (req, res) => {
+  const newTodo = { id: todos.length + 1, text: req.body.text }
+  todos.push(newTodo);
+  res.json(newTodo);
+});
+
+app.delete('/todos/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  const index = todos.findIndex(todo => todo.id === id);
+  if (index !== -1) {
+    todos.splice(index, 1);
+  }
+  res.json({ message: 'Todo deleted' });
+});
+
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
+
+index.html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Todo App</title>
+</head>
+<body>
+  <h1>Todo App</h1>
+  <input id="new-todo" type="text" placeholder="New Todo">
+  <button id="add-todo">Add Todo</button>
+  <ul id="todos"></ul>
+  <script>
+    const addTodoButton = document.getElementById('add-todo');
+    const newTodoInput = document.getElementById('new-todo');
+    const todosList = document.getElementById('todos');
+
+    addTodoButton.addEventListener('click', () => {
+      const newTodoText = newTodoInput.value;
+      fetch('/todos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text: newTodoText })
+      })
+      .then(response => response.json())
+      .then(newTodo => {
+        const newTodoElement = document.createElement('li');
+        newTodoElement.textContent = newTodo.text;
+        todosList.appendChild(newTodoElement);
+        newTodoInput.value = '';
+      });
+    });
+
+    fetch('/todos')
+      .then(response => response.json())
+      .then(todos => {
+        todos.forEach(todo => {
+          const todoElement = document.createElement('li');
+          todoElement.textContent = todo.text;
+          todosList.appendChild(todoElement);
+        });
+      });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+print("AUDIT_TEST_SUCCESS_OUTPUT")

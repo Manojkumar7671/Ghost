@@ -8,6 +8,7 @@ process.on('unhandledRejection', (reason) => {
     console.error('[Global Unhandled Rejection]:', reason?.message || reason);
 });
 
+import { checkToolAccess } from './src/services/authorizationService.js';
 import { startAutoLearning } from './ghostLearnScheduler.js';
 import { initCronScheduler } from './services/cronScheduler.js';
 import { startWatchdog } from './services/watchdog.js';
@@ -340,6 +341,20 @@ app.post('/api/auth', authLimiter, async (req, res) => {
     return res.json({ success: true, role: 'guest' });
 });
 
+app.post('/api/auth/login', async (req, res) => {
+    const { username, password } = req.body || {};
+    try {
+        const authService = await import('./src/services/authService.js');
+        const result = await authService.loginUser(username, password);
+        if (!result.success) {
+            return res.status(401).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 app.post('/api/verify-auth', async (req, res) => {
     const { token } = req.body;
     if (!token) return res.json({ success: false, isAdmin: false });
@@ -645,6 +660,15 @@ function sanitizeUserInput(rawText) {
 }
 
 app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
+    if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public' || process.env.AUTH_REQUIRED === 'true') {
+        const authHeader = req.headers.authorization;
+        const authService = require('./src/services/authService.js');
+        const tokenValidation = await authService.validateToken(authHeader);
+        if (!tokenValidation.valid && !checkIsAdmin(req)) {
+            return res.status(401).json({ success: false, error: 'Unauthorized: Invalid or missing token.' });
+        }
+    }
+
     const requestId = crypto.randomUUID();
     const requestContext = { requestId, llmCalls: [] };
     await traceLocalStorage.run(requestContext, async () => {
@@ -1583,6 +1607,9 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
 });
 
 app.post('/api/execute-plan-step', async (req, res) => {
+    if (process.env.DEPLOYMENT_MODE === 'public') {
+        return res.status(403).json({ success: false, error: 'Tool disabled in public mode' });
+    }
     try {
         const { step, goal, stepIndex } = req.body;
         if (!step) return res.status(400).json({ success: false, error: 'Step missing from payload' });
@@ -1681,6 +1708,9 @@ app.post('/api/execute-plan-step', async (req, res) => {
 });
 
 app.post('/api/workspace/save', async (req, res) => {
+    if (process.env.DEPLOYMENT_MODE === 'public') {
+        return res.status(403).json({ success: false, error: 'Tool disabled in public mode' });
+    }
     try {
         const { filePath, content } = req.body;
         if (!filePath) return res.status(400).json({ success: false, error: 'Missing filePath' });
@@ -1694,6 +1724,9 @@ app.post('/api/workspace/save', async (req, res) => {
 });
 
 app.post('/api/execute-action', requireAdminToken, async (req, res) => {
+    if (process.env.DEPLOYMENT_MODE === 'public') {
+        return res.status(403).json({ success: false, error: 'Tool disabled in public mode' });
+    }
     const { actionId } = req.body;
     const cachedAction = pendingActions.get(actionId);
     if (!cachedAction) return res.status(400).json({ success: false, error: "Action token expired or invalid." });
@@ -1745,6 +1778,9 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
 });
 
 app.post('/api/agent/create-voice-agent', async (req, res) => {
+    if (process.env.DEPLOYMENT_MODE === 'public') {
+        return res.status(403).json({ success: false, error: 'Tool disabled in public mode' });
+    }
     try {
         const result = await createVoiceAgent(req.body);
         if (!result.success && result.status === 'AUTH_ERROR') {
@@ -1763,6 +1799,9 @@ app.post('/api/agent/create-voice-agent', async (req, res) => {
 app.use('/api/pipeline', createPipelineRoutes(workflowEngine));
 
 app.post('/api/pipeline/execute', async (req, res) => {
+    if (process.env.DEPLOYMENT_MODE === 'public') {
+        return res.status(403).json({ success: false, error: 'Tool disabled in public mode' });
+    }
     const { skills, input } = req.body;
     const isAdmin = checkIsAdmin(req);
     if (!isAdmin) return res.status(403).json({ success: false, error: "Forbidden: Admin access required." });

@@ -169,13 +169,38 @@ async function runWorkspaceCommand(payload) {
     return { error: gateRes.reason };
   }
   
+  // Guard against GUI scripts hanging silently
+  if (command.includes('python ') || command.includes('python3 ')) {
+    const match = command.match(/python3?\s+([^'"\s]+\.py)/);
+    if (match) {
+      try {
+        const scriptPath = resolveSafePath(match[1]);
+        const scriptContent = fs.readFileSync(scriptPath, 'utf8');
+        if (scriptContent.includes('import tkinter') || scriptContent.includes('from tkinter')) {
+          return { error: "GUI applications (using Tkinter or similar) are not supported in this headless sandbox." };
+        }
+      } catch (e) {
+        // file doesn't exist or can't be read, ignore
+      }
+    }
+  }
+  
   const { redactSecrets } = await import('../../services/secretRedactor.js');
+  let finalCommand = command;
+  if (finalCommand.match(/^python\s/)) {
+    finalCommand = finalCommand.replace(/^python/, 'python3');
+  }
+
   return new Promise((resolve) => {
-    exec(command, { cwd: PROJECT_ROOT, timeout: 20000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
-      const cleanStdout = redactSecrets(stdout.trim());
-      const cleanStderr = redactSecrets(stderr.trim());
+    exec(finalCommand, { cwd: PROJECT_ROOT, timeout: 20000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+      const cleanStdout = redactSecrets((stdout || '').trim());
+      const cleanStderr = redactSecrets((stderr || '').trim());
       if (err) {
-        resolve({ success: false, error: redactSecrets(err.message), stderr: cleanStderr, stdout: cleanStdout });
+        let errMsg = err.message;
+        if (err.killed || err.signal === 'SIGTERM') {
+          errMsg = "Command timed out (exceeded 20s limit).";
+        }
+        resolve({ success: false, error: redactSecrets(errMsg), stderr: cleanStderr, stdout: cleanStdout });
       } else {
         resolve({ success: true, stdout: cleanStdout, stderr: cleanStderr });
       }

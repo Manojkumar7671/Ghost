@@ -55,7 +55,10 @@ async function runTests() {
   fs.mkdirSync(sessionDir, { recursive: true });
 
   const testToken = crypto.randomBytes(32).toString('hex');
-  const currentPassphrase = process.env.ADMIN_PASSPHRASE || 'fallback';
+  if (!process.env.ADMIN_PASSPHRASE) {
+    process.env.ADMIN_PASSPHRASE = 'test_passphrase';
+  }
+  const currentPassphrase = process.env.ADMIN_PASSPHRASE;
   const passphraseHash = crypto.createHash('sha256').update(currentPassphrase).digest('hex');
 
   // Write a mock session file

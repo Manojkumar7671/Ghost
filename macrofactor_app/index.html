@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MacroFactor App</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>MacroFactor App</h1>
+    </header>
+    <main>
+        <section id="food-logging">
+            <h2>Food Logging</h2>
+            <form id="food-form">
+                <label for="food-name">Food Name:</label>
+                <input type="text" id="food-name" name="food-name"><br><br>
+                <label for="food-calories">Calories:</label>
+                <input type="number" id="food-calories" name="food-calories"><br><br>
+                <label for="food-protein">Protein (g):</label>
+                <input type="number" id="food-protein" name="food-protein"><br><br>
+                <label for="food-carbs">Carbs (g):</label>
+                <input type="number" id="food-carbs" name="food-carbs"><br><br>
+                <label for="food-fat">Fat (g):</label>
+                <input type="number" id="food-fat" name="food-fat"><br><br>
+                <button id="add-food-btn">Add Food</button>
+            </form>
+            <ul id="food-list"></ul>
+        </section>
+        <section id="weight-trend">
+            <h2>Weight Trend</h2>
+            <form id="weight-form">
+                <label for="weight">Weight (kg):</label>
+                <input type="number" id="weight" name="weight"><br><br>
+                <button id="add-weight-btn">Add Weight</button>
+            </form>
+            <canvas id="weight-chart"></canvas>
+        </section>
+        <section id="expenditure-calculations">
+            <h2>Expenditure Calculations</h2>
+            <p id="daily-expenditure"></p>
+        </section>
+    </main>
+    <script src="script.js"></script>
+</body>
+</html>

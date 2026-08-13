@@ -1,0 +1,82 @@
+[
+  {
+    "task": "Create and Read Configuration",
+    "status": "PASS",
+    "agent_output": {
+      "success": true,
+      "output": "8080",
+      "code": "import json\nimport os\n\n# Create directory\nos.makedirs('agent_test_1', exist_ok=True)\n\n# Write JSON file\nwith open('agent_test_1/config.json', 'w') as f:\n    json.dump({\"port\": 8080}, f)\n\n# Read and print port\nwith open('agent_test_1/config.json', 'r') as f:\n    data = json.load(f)\n    print(data['port'])",
+      "attempts": 1
+    }
+  },
+  {
+    "task": "Python Script Execution",
+    "status": "FAIL",
+    "agent_output": {
+      "success": true,
+      "output": "The sum of 5 and 7 is: 12",
+      "code": "# math_test.py\ndef main():\n    num1 = 5\n    num2 = 7\n    result = num1 + num2\n    print(f\"The sum of {num1} and {num2} is: {result}\")\n\nif __name__ == \"__main__\":\n    main()",
+      "attempts": 3
+    }
+  },
+  {
+    "task": "File Modification",
+    "status": "PASS",
+    "agent_output": {
+      "success": true,
+      "output": "",
+      "code": "import os\n\ndef create_file(filename, content):\n    with open(filename, 'w') as f:\n        f.write(content)\n\ndef replace_text(filename, old_text, new_text):\n    with open(filename, 'r+') as f:\n        content = f.read()\n        f.seek(0)\n        f.write(content.replace(old_text, new_text))\n        f.truncate()\n\ncreate_file('greeting.txt', 'Hello World')\nreplace_text('greeting.txt', 'World', 'Ghost')",
+      "attempts": 1
+    }
+  },
+  {
+    "task": "Shell Command Chaining",
+    "status": "PASS",
+    "agent_output": {
+      "success": true,
+      "output": "",
+      "code": "import subprocess\n\n# Define the shell command to list files in the current directory and pipe it to a file\ncommand = \"ls -l > dir_list.txt\"\n\n# Execute the command\nsubprocess.run(command, shell=True)",
+      "attempts": 1
+    }
+  },
+  {
+    "task": "Directory Creation and Nesting",
+    "status": "PASS",
+    "agent_output": {
+      "success": true,
+      "output": "",
+      "code": "import os\n\ndef create_directory_structure():\n    # Create the directory structure 'a/b/c'\n    os.makedirs('a/b/c', exist_ok=True)\n\n    # Create an empty file 'deep.txt' inside 'c'\n    with open('a/b/c/deep.txt', 'w') as f:\n        pass\n\ncreate_directory_structure()",
+      "attempts": 1
+    }
+  },
+  {
+    "task": "Log Parsing",
+    "status": "PASS",
+    "agent_output": {
+      "success": true,
+      "output": "",
+      "code": "import os\n\n# Create server.log\nwith open('server.log', 'w') as f:\n    f.write('ERROR: Disk full\\n')\n    f.write('INFO: Started\\n')\n\n# Read server.log and write errors_only.log\nwith open('server.log', 'r') as f_in, open('errors_only.log', 'w') as f_out:\n    for line in f_in:\n        if line.startswith('ERROR:'):\n            f_out.write(line)",
+      "attempts": 1
+    }
+  },
+  {
+    "task": "Environment Variable Test",
+    "status": "PASS",
+    "agent_output": {
+      "success": true,
+      "output": "Successfully wrote env_test.js",
+      "code": "console.log(process.env.TEST_VAR);",
+      "attempts": 1
+    }
+  },
+  {
+    "task": "Regex Search",
+    "status": "FAIL",
+    "agent_output": {
+      "success": true,
+      "output": "File data.txt not found.\nbanana not found in data.txt",
+      "code": "import os\n\ndef search_file(filename):\n    try:\n        with open(filename, 'r') as file:\n            lines = file.readlines()\n            for line in lines:\n                if line.strip() == 'banana':\n                    return line.strip()\n    except FileNotFoundError:\n        print(f\"File {filename} not found.\")\n    return None\n\ndef write_result(result):\n    with open('result.txt', 'w') as file:\n        file.write(result + '\\n')\n\ndef main():\n    data_filename = 'data.txt'\n    result_filename = 'result.txt'\n    target = 'banana'\n    result = search_file(data_filename)\n    if result:\n        write_result(result)\n        print(f\"Result written to {result_filename}\")\n    else:\n        print(f\"{target} not found in {data_filename}\")\n\nif __name__ == \"__main__\":\n    main()",
+      "attempts": 1
+    }
+  }
+]

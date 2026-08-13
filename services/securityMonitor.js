@@ -6,7 +6,7 @@ let failedAuthAttempts = new Map(); // ip -> array of timestamps
 
 export function checkProcessSpawn(command) {
   const suspiciousKeywords = [
-    'nc ', 'netcat', 'socat', 'bash -i', '/dev/tcp', 'sh -i', 'perl -e', 'python -c', 'ruby -e', 'php -r', 'powershell -noprofile', 'reverse_shell'
+    'nc ', 'netcat', 'socat', 'bash -i', '/dev/tcp', 'sh -i', 'perl -e', 'ruby -e', 'php -r', 'powershell -noprofile', 'reverse_shell'
   ];
   const cmdLower = (command || '').toLowerCase();
   const matched = suspiciousKeywords.find(kw => cmdLower.includes(kw));

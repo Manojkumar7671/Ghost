@@ -115,13 +115,17 @@ function detectAmbiguity(primaryGoal) {
 }
 
 async function evaluate(subtask) {
-  const lowerSub = subtask.toLowerCase();
+  const subtaskStr = typeof subtask === 'string' ? subtask : JSON.stringify(subtask);
+  const lowerSub = subtaskStr.toLowerCase();
 
   // Fast domain keyword routing with explicit reasoning logging
   let domainMatch = null;
   let domainReason = '';
 
-  if (/\b(stock|stock price|financial metrics|aapl|googl|msft|nasdaq)\b/i.test(lowerSub) && availableAgents.stockAgent) {
+  if (/\b(aider|bug-fix pr|repo bug fix|repo bug-fix)\b/i.test(lowerSub) && availableAgents.aiderAgent) {
+    domainMatch = 'aiderAgent';
+    domainReason = 'Subtask explicitly targets Aider or a well-scoped repo bug-fix/PR task.';
+  } else if (/\b(stock|stock price|financial metrics|aapl|googl|msft|nasdaq)\b/i.test(lowerSub) && availableAgents.stockAgent) {
     domainMatch = 'stockAgent';
     domainReason = 'Subtask targets stock market quotes or financial metrics.';
   } else if (/\b(repo|github|commit|pull request|issue)\b/i.test(lowerSub) && availableAgents.githubAgent) {
@@ -145,6 +149,12 @@ async function evaluate(subtask) {
   } else if (/\b(send email|draft email)\b/i.test(lowerSub) && availableAgents.emailAgent) {
     domainMatch = 'emailAgent';
     domainReason = 'Subtask targets email composition and dispatch.';
+  } else if (/\b(script|python|generate code|write code)\b/i.test(lowerSub) && availableAgents.codeAgent) {
+    domainMatch = 'codeAgent';
+    domainReason = 'Subtask targets script execution and coding.';
+  } else if (/\b(file|html|write to file|save to file|form|login form)\b/i.test(lowerSub) && availableAgents.fileAgent) {
+    domainMatch = 'fileAgent';
+    domainReason = 'Subtask targets file creation and saving.';
   }
 
   if (domainMatch) {
@@ -186,7 +196,8 @@ If an existing agent fits, respond EXACTLY with just the agent's name.`;
 // Helper: Check if a subtask is relevant to the primary goal
 async function isSubtaskRelevant(primaryGoal, subtask) {
   const lowerGoal = primaryGoal.toLowerCase();
-  const lowerSub = subtask.toLowerCase();
+  const subtaskStr = typeof subtask === 'string' ? subtask : JSON.stringify(subtask);
+  const lowerSub = subtaskStr.toLowerCase();
 
   // Fast heuristic exclusions for known runaway patterns
   if (lowerGoal.includes('website') || lowerGoal.includes('web app') || lowerGoal.includes('site') || lowerGoal.includes('portfolio') || lowerGoal.includes('resume')) {
@@ -246,7 +257,8 @@ Return ONLY a valid JSON array containing the approved essential subtasks. No ma
  */
 async function evaluateStepConfidence(primaryGoal, subtask, agentName) {
   const CONFIDENCE_THRESHOLD = 0.70;
-  const lowerSub = subtask.toLowerCase();
+  const subtaskStr = typeof subtask === 'string' ? subtask : JSON.stringify(subtask);
+  const lowerSub = subtaskStr.toLowerCase();
   
   // High-risk keyword check (destruction, deployment, file deletion, root commands)
   const isHighRisk = /\b(delete|rm -rf|drop|wipe|erase|deploy to prod|shutdown|clean up old)\b/i.test(lowerSub);
@@ -344,7 +356,15 @@ Respond ONLY with a JSON array of string subtasks. No markdown.`;
 
   // 4. Sequential & Relevant Subtask Execution with Confidence Gating & Hard Cap (Max 8)
   const results = [];
-  for (const st of subtasks) {
+  for (let st of subtasks) {
+    if (typeof st === 'object' && st !== null) {
+      st = st.description || st.step || st.task || st.id || JSON.stringify(st);
+    }
+    
+    if (typeof st !== 'string') {
+      st = String(st);
+    }
+
     if (toolCallCount >= MAX_TOOL_CALLS) {
       console.warn(`[Orchestrator Hard Cap] Reached max tool execution limit (${MAX_TOOL_CALLS} calls). Halting subtasks.`);
       results.push(`[Ghost System]: Reached max tool execution limit (${MAX_TOOL_CALLS} calls per turn). Halting further automated subtasks to prevent runaways.`);
@@ -389,7 +409,7 @@ Respond ONLY with a JSON array of string subtasks. No markdown.`;
         if (agent && typeof agent.run === 'function') {
           result = await agent.run(st, globalContext);
           
-          const lowerRes = (result || '').toLowerCase();
+          const lowerRes = (typeof result === 'string' ? result : JSON.stringify(result) || '').toLowerCase();
           
           // Real Blocker Detection (API Key / Auth Failure)
           if (lowerRes.includes('invalid_api_key') || lowerRes.includes('expired api key') || lowerRes.includes('api key invalid') || lowerRes.includes('401 unauthorized') || lowerRes.includes('invalid api key')) {
@@ -433,7 +453,8 @@ Respond ONLY with a JSON array of string subtasks. No markdown.`;
       }
     }
 
-    results.push(`[Agent: ${name}] Subtask: "${st}"\nResult: ${result}`);
+    const formattedResult = typeof result === 'object' && result !== null ? JSON.stringify(result, null, 2) : result;
+    results.push(`[Agent: ${name}] Subtask: "${st}"\nResult: ${formattedResult}`);
   }
 
   // Record proven plan structure if execution completed

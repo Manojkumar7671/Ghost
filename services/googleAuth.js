@@ -73,7 +73,7 @@ export async function initGoogleAuthTable(pool) {
 function getRedirectUri() {
   return process.env.RENDER_EXTERNAL_URL
     ? `${process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '')}/api/auth/google/callback`
-    : 'http://localhost:10000/api/auth/google/callback';
+    : 'http://localhost:3000/api/auth/google/callback';
 }
 
 export function generateAuthUrl(userId) {

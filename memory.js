@@ -118,6 +118,45 @@ function saveVectorStore(entries) {
   }
 }
 
+import { TurbovecIndex } from '@memwarden/turbovec';
+
+const TURBOVEC_INDEX_FILE = path.join(MEMORY_DIR, 'vector_store.tvim');
+
+let turbovecInstance = null;
+
+function getTurbovecIndex() {
+  if (turbovecInstance) return turbovecInstance;
+  try {
+    if (fs.existsSync(TURBOVEC_INDEX_FILE)) {
+      turbovecInstance = TurbovecIndex.load(TURBOVEC_INDEX_FILE);
+      return turbovecInstance;
+    }
+  } catch (err) {
+    console.warn('[Memory] Failed to load existing Turbovec index, creating new instance:', err.message);
+  }
+  turbovecInstance = new TurbovecIndex(384, 4);
+  return turbovecInstance;
+}
+
+function syncTurbovecIndex(store) {
+  try {
+    const index = getTurbovecIndex();
+    if (store.length > 0) {
+      const allVecs = new Float32Array(store.length * 384);
+      const allIds = new BigUint64Array(store.length);
+      for (let i = 0; i < store.length; i++) {
+        const item = store[i];
+        allVecs.set(item.vector, i * 384);
+        allIds[i] = BigInt(i + 1);
+      }
+      index.addWithIds(allVecs, allIds);
+      index.save(TURBOVEC_INDEX_FILE);
+    }
+  } catch (e) {
+    console.warn('[Memory] Turbovec index sync warning:', e.message);
+  }
+}
+
 /**
  * Saves a memory entry with vector embedding to disk.
  *
@@ -150,6 +189,7 @@ export function saveMemory(entry, metadata = {}) {
   const store = loadVectorStore();
   store.push(record);
   saveVectorStore(store);
+  syncTurbovecIndex(store);
 
   console.log(`[Memory] Saved memory entry (id: ${record.id.slice(0, 8)})`);
   return record;
@@ -168,6 +208,31 @@ export function queryMemory(query, topK = 3) {
   const queryVector = generateEmbedding(query);
   const store = loadVectorStore();
 
+  if (store.length === 0) return [];
+
+  try {
+    const index = getTurbovecIndex();
+    if (index && index.len > 0) {
+      const hits = index.search(new Float32Array(queryVector), topK);
+      const results = [];
+      for (let i = 0; i < hits.ids.length; i++) {
+        const docIdx = Number(hits.ids[i]) - 1;
+        if (store[docIdx]) {
+          results.push({
+            id: store[docIdx].id,
+            text: store[docIdx].text,
+            metadata: store[docIdx].metadata,
+            createdAt: store[docIdx].createdAt,
+            score: hits.scores[i]
+          });
+        }
+      }
+      if (results.length > 0) return results;
+    }
+  } catch (err) {
+    console.warn('[Memory] Turbovec query fallback to cosine Similarity:', err.message);
+  }
+
   const scored = store.map(item => ({
     id: item.id,
     text: item.text,
@@ -176,12 +241,8 @@ export function queryMemory(query, topK = 3) {
     score: cosineSimilarity(queryVector, item.vector)
   }));
 
-  // Sort by score descending
   scored.sort((a, b) => b.score - a.score);
-
-  // Return top K results above a minimum score threshold
-  const topMatches = scored.slice(0, topK).filter(item => item.score > 0.05);
-  return topMatches;
+  return scored.slice(0, topK).filter(item => item.score > 0.05);
 }
 
 export default {

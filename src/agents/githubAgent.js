@@ -18,7 +18,37 @@ async function getFileContent(owner, repo, filePath) {
   const res = await axios.get(`${BASE}/repos/${owner || process.env.GITHUB_USERNAME}/${repo}/contents/${filePath}`, { headers: h() });
   return Buffer.from(res.data.content, 'base64').toString('utf-8');
 }
+function scanForSecrets(content) {
+  const secretPatterns = [
+    /(?:api_key|apikey|secret|token|password|auth|credentials|aws_access_key_id|client_secret)[\s]*[:=][\s]*["']?[a-zA-Z0-9_\-]{16,}["']?/i,
+    /AKIA[0-9A-Z]{16}/,
+    /gh[pousr]_[a-zA-Z0-9]{36}/,
+    /ey[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/
+  ];
+  return secretPatterns.some(pattern => pattern.test(content));
+}
+
+function scanForGoogleData(content) {
+  // Block internal Google workspace/meeting data
+  const restrictedPatterns = [
+    /meet\.google\.com/i,
+    /docs\.google\.com/i,
+    /drive\.google\.com/i,
+    /internal google meeting/i,
+    /confidential google/i,
+    /internal\.google/i
+  ];
+  return restrictedPatterns.some(pattern => pattern.test(content));
+}
+
 async function createOrUpdateFile(owner, repo, filePath, content, message) {
+  if (scanForSecrets(content)) {
+    throw new Error('Security Violation: Detected hardcoded secrets in the payload. Commit aborted.');
+  }
+  if (scanForGoogleData(content)) {
+    throw new Error('Security Violation: Detected internal Google Workspace data. Commit aborted.');
+  }
+
   const u = owner || process.env.GITHUB_USERNAME;
   let sha;
   try { const e = await axios.get(`${BASE}/repos/${u}/${repo}/contents/${filePath}`, { headers: h() }); sha = e.data.sha; } catch (_) {}

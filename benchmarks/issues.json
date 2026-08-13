@@ -1,0 +1,92 @@
+[
+  {
+    "repo": "tj/commander.js",
+    "issue_number": 844,
+    "title": " Fix bug in command emit",
+    "body": "fixes: #843\r\nfixes: #842",
+    "base_commit": "25b06ee12b6f14afa0b4b7b6f028a66a7c4faf5e",
+    "merge_commit": "a604a5d3f1e1e6840769c7e8dee6bdbf85bdbe03",
+    "diff_url": "https://github.com/tj/commander.js/pull/844.diff"
+  },
+  {
+    "repo": "tj/commander.js",
+    "issue_number": 237,
+    "title": "add space padding",
+    "body": "#236\n\nIt's not really a feature, more like a bug fix.\n\nWe have the code to do padding for options, but not for commands.\n",
+    "base_commit": "4428a075896eab42a18cd57135bc3fd8a4a9e89a",
+    "merge_commit": "30adf4c14f4c3acf77a6b8e59cba5ab79075de4e",
+    "diff_url": "https://github.com/tj/commander.js/pull/237.diff"
+  },
+  {
+    "repo": "yargs/yargs",
+    "issue_number": 2151,
+    "title": "fix: import yargs/yargs in esm projects",
+    "body": "When using `import yargs from \"yargs/yargs\"` in an ESM project (`\"type\": \"module\"` in package.json), Node.js will throw this error:\r\n\r\n```\r\ninternal/process/esm_loader.js:74\r\n    internalBinding('errors').triggerUncaughtException(\r\n                              ^\r\n\r\nTypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension \"\" for /home/runner/work/bandersnatch/bandersnatch/tests/smoke/esm/node_modules/yargs/yargs\r\n    at new NodeError (internal/errors.js:322:7)\r\n    at Loader.defaultGetForm",
+    "base_commit": "db354232705623bbcd8fad362f6a4d6d59650be5",
+    "merge_commit": "95aed1c175ec82e585003883bda1b6b75d5493ce",
+    "diff_url": "https://github.com/yargs/yargs/pull/2151.diff"
+  },
+  {
+    "repo": "yargs/yargs",
+    "issue_number": 797,
+    "title": "fix: extending config files breaks on node 0.10",
+    "body": "issue from #779 \r\n\r\npath.isAbsolute() not supported in node 0.10\r\nuse path.resolve() instead as mentioned in discussion in issue",
+    "base_commit": "e2a213351326ad94794839e7a9cffa5aaae311d6",
+    "merge_commit": "b5fedbec1ec810d498f7a5d81bafa28cddfd3f9a",
+    "diff_url": "https://github.com/yargs/yargs/pull/797.diff"
+  },
+  {
+    "repo": "expressjs/express",
+    "issue_number": 4744,
+    "title": "res.json & \"json escape\" should always return json",
+    "body": "When using the \"json escape\" setting, `res.json` was returning `text/html` response when being called with a falsy value such as `undefined`. `JSON.stringify()` can return `undefined` so this guards against that before using `String.replace()`.",
+    "base_commit": "9dd0e7afdb6d022e18add1e009c4e3a66258c1fa",
+    "merge_commit": "f275e87dff1aaef86080e6931888de4968585fd8",
+    "diff_url": "https://github.com/expressjs/express/pull/4744.diff"
+  },
+  {
+    "repo": "expressjs/express",
+    "issue_number": 4205,
+    "title": "Fix regexp handing logic in router. Closes #4204",
+    "body": "It closes #4204. When regexp matches path not from the beginning, `trim_prefx` validates if path breaks on a path separator in a wrong way.\r\n\r\nHere is a small illustration of the problem:\r\n```\r\npath:       /test/api/123\r\nlayerPath:  /api/123\r\nc:                  ^\r\n```\r\n\r\nafter the fix:\r\n```\r\npath:       /test/api/123\r\nstartIndex:      ^\r\nlayerPath:       /api/123\r\nc:                       ^\r\n```\r\nThis PR fixes his behaviors by testing matched layerPath not from the begging of the path but from ",
+    "base_commit": "bdc2c973a468d83f3af7d57d862f74ca97e71322",
+    "merge_commit": "abb7793ae043328f776d0a4484a72a66a4b0a8bb",
+    "diff_url": "https://github.com/expressjs/express/pull/4205.diff"
+  },
+  {
+    "repo": "expressjs/express",
+    "issue_number": 3936,
+    "title": "Validate `maxAge` appropriateness before use",
+    "body": "Addresses issue #3935 .",
+    "base_commit": "1cc816993832eba829a2f556f7c08e27e6371301",
+    "merge_commit": "5855339455a7f60774bef4166829e742a5056fa8",
+    "diff_url": "https://github.com/expressjs/express/pull/3936.diff"
+  },
+  {
+    "repo": "chalk/chalk",
+    "issue_number": 142,
+    "title": "Check parent builder object for enabled status",
+    "body": "This fixes an issue where child builders do not propagate their enabled statuses to the parents and vice versa.\r\n\r\nFor example, prior to this PR:\r\n\r\n```javascript\r\nvar chalk = require('chalk');\r\n\r\nconsole.log(chalk.enabled); // true\r\n\r\nvar red = chalk.red;\r\nconsole.log(red.enabled); // true\r\n\r\nchalk.enabled = false;\r\n\r\nconsole.log(red.enabled); // true  (should be false!)\r\n```\r\n\r\nThis PR fixes that; getting/setting `.enabled` on any builder (anything stemming from the root `chalk` object) now re",
+    "base_commit": "5a6947614290da16f513780c56217e925cfab533",
+    "merge_commit": "0d2144904b9b5769076106aa67583273e160f801",
+    "diff_url": "https://github.com/chalk/chalk/pull/142.diff"
+  },
+  {
+    "repo": "pallets/flask",
+    "issue_number": 3299,
+    "title": "pass sys.argv to flask cli",
+    "body": "closes #3297 \r\n\r\nCan be removed when pallets/click#536 is fixed.",
+    "base_commit": "901661c1a4ff23e88884186c9d283ad413970951",
+    "merge_commit": "d694eb443a6243e248df974e9cd64defb591bf38",
+    "diff_url": "https://github.com/pallets/flask/pull/3299.diff"
+  },
+  {
+    "repo": "pallets/flask",
+    "issue_number": 2739,
+    "title": "Only trap key errors by default in debug, not all BadRequest errors",
+    "body": "closes #2735 \r\n\r\nIn order to make debugging key errors from `request.form` easier, #2348 trapped `BadRequest` errors by default in debug mode. However, this caught *all* `BadRequest` errors, not just `BadRequestKeyError`. This changes the behavior so `BadRequestKeyError` is caught in debug mode, but `abort(400)` still passes through.",
+    "base_commit": "27d56c1df5fc977e17806b466dc74dfa9a98689b",
+    "merge_commit": "4c8ec8f555af8aeba5a48c3c4cd9cc39c74dce8f",
+    "diff_url": "https://github.com/pallets/flask/pull/2739.diff"
+  }
+]
