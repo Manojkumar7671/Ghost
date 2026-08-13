@@ -1,2 +1,0 @@
-[91m[1mError: [0mConfiguration is invalid at /Users/manojkumarmathangi/.opencode/opencode.json
-↳ Unrecognized key: providers 

@@ -1,1 +1,0 @@
-<!-- JavaScript for search filtering functionality -->
