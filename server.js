@@ -38,6 +38,10 @@ import { traceLocalStorage, initTraceTable, saveTrace, cleanupTraces } from './s
 import { loadPlugins, matchAndRun } from './services/pluginSystem.js';
 import { recordSelfEdit, getSelfEditLessons } from './services/selfEditMemory.js';
 import { runClaudeReasoningPrestep } from './services/claudeReasoning.js';
+import { createVoiceAgent } from './services/synthflowBridge.js';
+import { initDesktopOverlay } from './services/desktopOverlay.js';
+import { initTelephonyBridge } from './services/telephonyBridge.js';
+import { initAgentBridge } from './services/agentBridge.js';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -47,7 +51,7 @@ const { callLLM: routerCallLLM } = require('./llmRouter.js');
 
 startWatchdog();
 
-const REQUIRED_ENV_VARS = ['ADMIN_PASSPHRASE', 'JWT_SECRET', 'OBSIDIAN_API_KEY', 'OBSIDIAN_VAULT_PATH'];
+const REQUIRED_ENV_VARS = ['ADMIN_PASSPHRASE', 'JWT_SECRET'];
 const missingVars = REQUIRED_ENV_VARS.filter(v => !process.env[v]);
 if (missingVars.length > 0) {
     console.error(`\n[CRITICAL FATAL ERROR]: Required environment variables missing: ${missingVars.join(', ')}`);
@@ -58,6 +62,7 @@ if (missingVars.length > 0) {
 // ENV VAR VALIDATION WARNINGS
 if (!process.env.SERPER_API_KEY) console.warn("[WARN] SERPER_API_KEY missing — web search disabled");
 if (!process.env.BROWSERBASE_API_KEY) console.warn("[WARN] BROWSERBASE_API_KEY missing — browser automation disabled");
+if (!process.env.OBSIDIAN_API_KEY || !process.env.OBSIDIAN_VAULT_PATH) console.warn("[WARN] OBSIDIAN_API_KEY or OBSIDIAN_VAULT_PATH missing — Obsidian features disabled");
 
 const ADMIN_PASSPHRASE = process.env.ADMIN_PASSPHRASE;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -219,9 +224,32 @@ MULTI-AGENT PROTOCOL: Activate your internal sub-agents inside <think>...</think
 - Execution Agent: writes code, takes actions
 - Growth Agent: marketing, outreach strategy`;
 
-// GHOST_ADMIN_CORE and getShowcaseCore are retained ONLY for vision mode (which doesn't use brain.think)
-const GHOST_ADMIN_CORE = `You are Ghost, an elite autonomous AI engineered by Manoj Kumar. Address him exclusively as "Master Manoj".\nYOUR PERSONALITY: Dry, crisp, British demeanor. Impeccably polite, slightly witty.${MULTI_AGENT_PROTOCOL}\n${GHOST_CAPABILITIES}`;
-const getShowcaseCore = (guestName) => `You are Ghost, an autonomous AI engineered by Manoj Kumar. Speaking with visitor: ${guestName}.\nYOUR PERSONALITY: Dry, crisp, British demeanor.${MULTI_AGENT_PROTOCOL}\n${GHOST_CAPABILITIES}`;
+// GHOST_ADMIN_CORE and getShowcaseCore are retained for system prompt context
+const GHOST_ADMIN_CORE = `You are Ghost, boss's personal AI agent — loyal, trusted, and maximally helpful.
+
+BOSS'S PROFILE:
+- B.Tech CS (2026), AWS Certified, SAP Certified Associate
+- Job hunting: first role in AI/agentic engineering or full-stack dev
+- Target: startups/product companies, remote or Bengaluru/Hyderabad
+- All blockers urgent: resume gaps + interview prep + finding roles + networking
+- Based in Mangalagiri (near Vijayawada), Andhra Pradesh
+
+YOUR BEHAVIOR:
+1. COMMUNICATION: Adjust by urgency/context (direct+terse when urgent, detailed when exploratory)
+2. DECISION-MAKING: Auto-decide low-risk tasks; only ask if blocking/risky
+3. ERROR HANDLING: Think logically first, don't interrupt immediately — only escalate if stuck
+4. SAFETY: Never (without explicit approval): access credentials/keys, make external API calls (payment/deploy), modify live repos, contact people
+5. TONE: Address boss with dry wit, loyalty, respect — use "boss" in key decisions/reports
+
+SYNTHFLOW MVP BEHAVIOR:
+- When creating voice agents, mock the Synthflow API call with realistic success responses
+- Format: { success: true, agentId: "mock-agent-{timestamp}", config: {...}, status: "AGENT_CREATED" }
+- Log mocked calls as "[MOCK] Synthflow API call" so boss knows it's stubbed
+
+TONE: Blend of Alfred/Jarvis/FRIDAY — dry wit, loyal, addresses boss respectfully, confirms before destructive actions
+
+PROOF-OF-WORK: Ghost itself (live at ghost-34qz.onrender.com) + benchmarks (15/15 head-to-head, 7/8 agent, turbovec RAG) are boss's portfolio foundation${MULTI_AGENT_PROTOCOL}\n${GHOST_CAPABILITIES}`;
+const getShowcaseCore = (guestName) => `You are Ghost, boss's personal AI agent. Speaking with visitor: ${guestName}.\nYOUR PERSONALITY: Dry, crisp, British demeanor, addresses boss respectfully.${MULTI_AGENT_PROTOCOL}\n${GHOST_CAPABILITIES}`;
 
 const PROVIDER_MATRIX = [
     { name: 'Gemini', endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model: 'gemini-1.5-pro', apiKey: GEMINI_API_KEY },
@@ -491,7 +519,7 @@ function requireAdminToken(req, res, next) {
         return res.status(404).json({ success: false, error: 'Not Found' });
     }
     const token = req.cookies.ghost_session;
-    if (!token) return res.status(403).json({ success: false, error: 'Missing token.' });
+    if (!token) return res.status(401).json({ success: false, error: 'Missing token.' });
     try {
         if (jwt.verify(token, JWT_SECRET).role === 'admin') return next();
         throw new Error('Invalid role.');
@@ -641,7 +669,7 @@ function sanitizeUserInput(rawText) {
     return sanitized.trim();
 }
 
-app.post('/api/chat', chatLimiter, async (req, res) => {
+app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
     const requestId = crypto.randomUUID();
     const requestContext = { requestId, llmCalls: [] };
     await traceLocalStorage.run(requestContext, async () => {
@@ -749,7 +777,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
                             }
 
                             const brainRes = await brain.think(subCmd, { safeUser, isAdmin });
-                            chainResults.push(typeof brainRes === 'string' ? brainRes : (brainRes.text || brainRes.output || JSON.stringify(brainRes)));
+                            chainResults.push(typeof brainRes === 'string' ? brainRes : (brainRes.text || brainRes.output || brainRes.reply || JSON.stringify(brainRes)));
                         }
 
                     }
@@ -1422,7 +1450,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
 
                     const { chat: localChat } = require('./src/tools/llm.js');
                     const finalSummary = await localChat(
-                        [{ role: 'user', content: `Goal: "${finalMessage}"\n\nResults:\n${previousResults.map(r => `Step: ${r.description}\nTool Used: ${r.tool}\nResult: ${r.output}`).join('\n\n')}` }],
+                        [{ role: 'user', content: `Goal: "${finalMessage}"\n\nResults:\n${previousResults.map(r => `Step: ${r.description}\nTool Used: ${r.tool}\nResult: ${typeof r.output === 'object' && r.output !== null ? JSON.stringify(r.output) : r.output}`).join('\n\n')}` }],
                         { systemPrompt: summarySystemPrompt, maxTokens: 1024 }
                     );
 
@@ -1739,6 +1767,21 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
 
         return res.json({ success: true, message: `Action [${cachedAction.action}] deployed securely.` });
     } catch (err) { return res.status(500).json({ success: false, error: `Pipeline failure: ${err.message}` }); }
+});
+
+app.post('/api/agent/create-voice-agent', async (req, res) => {
+    try {
+        const result = await createVoiceAgent(req.body);
+        if (!result.success && result.status === 'AUTH_ERROR') {
+            return res.status(401).json(result);
+        }
+        if (!result.success) {
+            return res.status(500).json(result);
+        }
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
 
 // Mounted pipeline router BEFORE dummy stubs to prevent Express route collisions
@@ -2109,10 +2152,13 @@ Promise.all([
 ]).then(() => {
     startAutoLearning(ghostLearn, pool);
     cleanupTraces(pool).catch(err => console.error('[Cleanup Traces Warn]:', err.message));
+    initTelephonyBridge(app, pool);
+    initAgentBridge(pool);
 }).catch(err => console.error('[Startup Init Error]:', err.message));
 const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Ghost AI Engine Online on port ${PORT}.`);
     initCronScheduler();
+    initDesktopOverlay();
     if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'local') {
         console.log('[Local Control Server] Auto-spawning Local Control Daemon client...');
         try { execSync('pkill -f "node ./services/localControlDaemon.js" 2>/dev/null'); } catch (e) {}
