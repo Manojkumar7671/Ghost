@@ -531,7 +531,7 @@ function checkIsAdmin(req) {
 }
 
 const chatLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000, max: 20, 
+    windowMs: 1 * 60 * 1000, max: 10, 
     message: { success: true, text: "[SYSTEM WARNING]: API rate limit exceeded. Cooling down." },
     standardHeaders: true, legacyHeaders: false,
 });
@@ -680,6 +680,16 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
         try {
             const { user, image, fileContent, fileBase64, fileName } = req.body;
             const message = sanitizeUserInput(req.body.message);
+
+            // AUDIT LOG: Record every /api/chat call
+            if (pool) {
+                const auditUser = (req.user && req.user.username) || user || 'anonymous';
+                const auditIp = req.ip || 'unknown';
+                pool.query(
+                    'INSERT INTO activity_logs (username, status, ip_address, user_agent) VALUES ($1, $2, $3, $4)',
+                    [auditUser, 'chat_request', auditIp, req.headers['user-agent'] || 'unknown']
+                ).catch(() => {});
+            }
             if (!message || !message.trim()) {
                 console.log('[Chat Trace] Blocked empty or whitespace-only message request.');
                 return res.status(400).json({ success: false, error: "Message content cannot be empty." });
@@ -1612,7 +1622,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
 });
 
 app.post('/api/execute-plan-step', async (req, res) => {
-    if (process.env.DEPLOYMENT_MODE === 'public') {
+    if ((process.env.DEPLOYMENT_MODE || process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
         return res.status(403).json({ success: false, error: 'Tool disabled in public mode' });
     }
     try {
@@ -1713,7 +1723,7 @@ app.post('/api/execute-plan-step', async (req, res) => {
 });
 
 app.post('/api/workspace/save', async (req, res) => {
-    if (process.env.DEPLOYMENT_MODE === 'public') {
+    if ((process.env.DEPLOYMENT_MODE || process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
         return res.status(403).json({ success: false, error: 'Tool disabled in public mode' });
     }
     try {
@@ -1729,7 +1739,7 @@ app.post('/api/workspace/save', async (req, res) => {
 });
 
 app.post('/api/execute-action', requireAdminToken, async (req, res) => {
-    if (process.env.DEPLOYMENT_MODE === 'public') {
+    if ((process.env.DEPLOYMENT_MODE || process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
         return res.status(403).json({ success: false, error: 'Tool disabled in public mode' });
     }
     const { actionId } = req.body;
@@ -1754,7 +1764,7 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
     const memoryUser = cachedAction.requestedBy || 'master_manoj';
 
     try {
-        const access = checkToolAccess(cachedAction.type, memoryUser);
+        const access = checkToolAccess({ id: memoryUser, role: cachedAction.isAdmin ? 'admin' : 'user' }, cachedAction.type);
         if (!access.allowed) return res.status(403).json({ success: false, error: access.reason });
 
         if (cachedAction.type === 'workflow_execute') {
@@ -1807,7 +1817,7 @@ app.post('/api/agent/create-voice-agent', async (req, res) => {
 app.use('/api/pipeline', createPipelineRoutes(workflowEngine));
 
 app.post('/api/pipeline/execute', async (req, res) => {
-    if (process.env.DEPLOYMENT_MODE === 'public') {
+    if ((process.env.DEPLOYMENT_MODE || process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
         return res.status(403).json({ success: false, error: 'Tool disabled in public mode' });
     }
     const { skills, input } = req.body;
