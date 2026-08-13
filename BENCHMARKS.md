@@ -1,6 +1,6 @@
 # 🧪 Ghost Empirical Benchmark Suite & Real Proof-of-Work
 
-Ghost includes an automated benchmark suite in [`benchmarks/`](file:///Users/manojkumarmathangi/Ghost/benchmarks) that tests reasoning quality, agent tool execution, coding issue resolution, and system integration.
+Ghost includes an automated benchmark suite in [`benchmarks/`](./benchmarks) that tests reasoning quality, agent tool execution, coding issue resolution, and system integration.
 
 ---
 

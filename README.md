@@ -79,17 +79,17 @@ Ghost uses a modular, event-driven architecture designed to balance autonomous e
 
 ## 📈 Empirical Benchmarks
 
-All benchmark scripts are housed in [`benchmarks/`](file:///Users/manojkumarmathangi/Ghost/benchmarks) and run against real, un-mocked endpoints:
+All benchmark scripts are housed in [`benchmarks/`](./benchmarks) and run against real, un-mocked endpoints:
 
 ```bash
 # Run the complete regression suite across all 4 benchmarks
 node benchmarks/run_benchmarks.cjs
 ```
 
-1. **Head-to-Head Benchmark** ([`head_to_head_benchmark.cjs`](file:///Users/manojkumarmathangi/Ghost/benchmarks/head_to_head_benchmark.cjs)): Evaluates 15 diverse reasoning, mathematical, logical, and code generation prompts. (Score: **15/15, 100%**).
-2. **Agent Benchmark** ([`agent_benchmark.cjs`](file:///Users/manojkumarmathangi/Ghost/benchmarks/agent_benchmark.cjs)): Tests multi-step tool use, file creation, shell command chaining, and log parsing across 8 tasks. Enhanced with Karpathy Coding Guidelines. (Score: **7/8, 87.5%**).
-3. **Coding Benchmark** ([`coding_benchmark.cjs`](file:///Users/manojkumarmathangi/Ghost/benchmarks/coding_benchmark.cjs)): Evaluates automated bug-fixing against 10 real GitHub repositories (`commander.js`, `express`, `yargs`, `flask`, `chalk`) inside Gondolin micro-VMs. (Score: **3/10, 30.0%**).
-4. **Integration Benchmark** ([`integration_benchmark.cjs`](file:///Users/manojkumarmathangi/Ghost/benchmarks/integration_benchmark.cjs)): End-to-end subsystem validation covering Desktop Overlay, Telephony Bridge, and Agent-to-Agent routing. (Score: **3/3, 100%**).
+1. **Head-to-Head Benchmark** ([`head_to_head_benchmark.cjs`](./benchmarks/head_to_head_benchmark.cjs)): Evaluates 15 diverse reasoning, mathematical, logical, and code generation prompts. (Score: **15/15, 100%**).
+2. **Agent Benchmark** ([`agent_benchmark.cjs`](./benchmarks/agent_benchmark.cjs)): Tests multi-step tool use, file creation, shell command chaining, and log parsing across 8 tasks. Enhanced with Karpathy Coding Guidelines. (Score: **7/8, 87.5%**).
+3. **Coding Benchmark** ([`coding_benchmark.cjs`](./benchmarks/coding_benchmark.cjs)): Evaluates automated bug-fixing against 10 real GitHub repositories (`commander.js`, `express`, `yargs`, `flask`, `chalk`) inside Gondolin micro-VMs. (Score: **3/10, 30.0%**).
+4. **Integration Benchmark** ([`integration_benchmark.cjs`](./benchmarks/integration_benchmark.cjs)): End-to-end subsystem validation covering Desktop Overlay, Telephony Bridge, and Agent-to-Agent routing. (Score: **3/3, 100%**).
 
 ---
 

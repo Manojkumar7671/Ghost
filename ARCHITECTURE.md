@@ -6,7 +6,7 @@ This document details the architectural design, control flow, security boundarie
 
 ## 1. DAG Pipeline Engine Flow
 
-Ghost processes user intent through a directed acyclic graph (DAG) execution engine ([`services/workflowEngine.js`](file:///Users/manojkumarmathangi/Ghost/services/workflowEngine.js) & [`services/intentPlanner.js`](file:///Users/manojkumarmathangi/Ghost/services/intentPlanner.js)).
+Ghost processes user intent through a directed acyclic graph (DAG) execution engine ([`services/workflowEngine.js`](./services/workflowEngine.js) & [`services/intentPlanner.js`](./services/intentPlanner.js)).
 
 ```text
 [ User Prompt / Voice Request ]
@@ -38,7 +38,7 @@ Ghost processes user intent through a directed acyclic graph (DAG) execution eng
 
 ## 2. Multi-Provider LLM Routing Logic
 
-Ghost uses an active fallback router ([`llmRouter.js`](file:///Users/manojkumarmathangi/Ghost/llmRouter.js)) to eliminate single-point-of-failure risks and ensure low-latency completions.
+Ghost uses an active fallback router ([`llmRouter.js`](./llmRouter.js)) to eliminate single-point-of-failure risks and ensure low-latency completions.
 
 ```text
                         ┌───────────────────────────────┐
@@ -68,7 +68,7 @@ Ghost uses an active fallback router ([`llmRouter.js`](file:///Users/manojkumarm
 
 ## 3. Human-in-the-Loop (HITL) Nonce Gate
 
-To prevent unauthorized file modifications or desktop commands, Ghost implements a cryptographically enforced approval gate ([`state/pendingActions.js`](file:///Users/manojkumarmathangi/Ghost/state/pendingActions.js)).
+To prevent unauthorized file modifications or desktop commands, Ghost implements a cryptographically enforced approval gate ([`state/pendingActions.js`](./state/pendingActions.js)).
 
 ### Security Lifecycle:
 1. **Action Generation**: When Ghost proposes a high-risk action (e.g. desktop overlay command, persistent code write, external deployment), a 16-byte random hexadecimal nonce is generated:
@@ -83,7 +83,7 @@ To prevent unauthorized file modifications or desktop commands, Ghost implements
 
 ## 4. Micro-VM Sandbox Isolation (Gondolin)
 
-Ghost isolates code execution using Gondolin micro-VM sandboxing ([`services/pythonSandbox.js`](file:///Users/manojkumarmathangi/Ghost/services/pythonSandbox.js) & `~/.pi/agent/extensions/gondolin`).
+Ghost isolates code execution using Gondolin micro-VM sandboxing ([`services/pythonSandbox.js`](./services/pythonSandbox.js) & `~/.pi/agent/extensions/gondolin`).
 
 ### Isolation Mechanisms:
 - **Path Mapping**: Guest path translation maps workspace directories to `/workspace`.
@@ -103,4 +103,4 @@ Voice capabilities are powered by a self-hosted Synthflow MCP server running und
 
 - **Protocol**: Model Context Protocol (MCP) over Server-Sent Events (SSE).
 - **Capabilities**: 53 registered voice agent tools (`create_agent`, `start_call`, `get_telephony_number`).
-- **Bridge Fallback**: [`services/synthflowBridge.js`](file:///Users/manojkumarmathangi/Ghost/services/synthflowBridge.js) automatically handles real API keys when present, and returns clear MVP stubs (`AGENT_CREATED_MOCK`) when keys are unconfigured.
+- **Bridge Fallback**: [`services/synthflowBridge.js`](./services/synthflowBridge.js) automatically handles real API keys when present, and returns clear MVP stubs (`AGENT_CREATED_MOCK`) when keys are unconfigured.

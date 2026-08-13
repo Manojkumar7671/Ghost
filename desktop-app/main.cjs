@@ -8,8 +8,7 @@ let mainWindow = null;
 let tray = null;
 let serverProcess = null;
 
-const SERVER_URL = 'http://localhost:3000';
-const PROJECT_DIR = '/Users/manojkumarmathangi/Ghost';
+const PROJECT_DIR = process.env.GHOST_PROJECT_DIR || path.join(__dirname, '..');
 const ROOT_DIR = fs.existsSync(PROJECT_DIR) ? PROJECT_DIR : path.join(__dirname, '..');
 
 /**
