@@ -38,7 +38,7 @@ import { traceLocalStorage, initTraceTable, saveTrace, cleanupTraces } from './s
 import { loadPlugins, matchAndRun } from './services/pluginSystem.js';
 import { recordSelfEdit, getSelfEditLessons } from './services/selfEditMemory.js';
 import { runClaudeReasoningPrestep } from './services/claudeReasoning.js';
-import { createVoiceAgent } from './services/synthflowBridge.js';
+// import { createVoiceAgent } from './services/synthflowBridge.js';
 import { initDesktopOverlay } from './services/desktopOverlay.js';
 import { initTelephonyBridge } from './services/telephonyBridge.js';
 import { initAgentBridge } from './services/agentBridge.js';
@@ -1778,6 +1778,8 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
 });
 
 app.post('/api/agent/create-voice-agent', async (req, res) => {
+    return res.status(501).json({ success: false, error: 'Voice features disabled post-v1' });
+    /*
     if (process.env.DEPLOYMENT_MODE === 'public') {
         return res.status(403).json({ success: false, error: 'Tool disabled in public mode' });
     }
@@ -1793,6 +1795,7 @@ app.post('/api/agent/create-voice-agent', async (req, res) => {
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
+    */
 });
 
 // Mounted pipeline router BEFORE dummy stubs to prevent Express route collisions
