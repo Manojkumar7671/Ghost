@@ -8,7 +8,6 @@ process.on('unhandledRejection', (reason) => {
     console.error('[Global Unhandled Rejection]:', reason?.message || reason);
 });
 
-import { checkToolAccess } from './adminGate.js';
 import { startAutoLearning } from './ghostLearnScheduler.js';
 import { initCronScheduler } from './services/cronScheduler.js';
 import { startWatchdog } from './services/watchdog.js';
