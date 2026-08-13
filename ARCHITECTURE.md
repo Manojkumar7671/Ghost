@@ -1,124 +1,106 @@
-# Ghost System Architecture & Technical Specifications
+# 🏛️ Ghost System Architecture & Deep Dive
 
-This document outlines the system topology, permission boundaries, failure modes, and security architecture of the Ghost AI platform running locally on macOS.
+This document details the architectural design, control flow, security boundaries, and execution models of the **Ghost Autonomous AI Platform**.
 
 ---
 
-## 1. System Topology & Core Components
+## 1. DAG Pipeline Engine Flow
 
-```
-                      +-----------------------------+
-                      |    Electron Desktop UI      |
-                      |  (HTML5 / CSS / Three.js)   |
-                      +--------------+--------------+
-                                     | (HTTP/WS)
-                                     v
-                      +-----------------------------+
-                      |      Express Server         |
-                      |        (server.js)          |
-                      +--------------+--------------+
-                                     |
-       +-----------------------------+-----------------------------+
-       |                             |                             |
-       v                             v                             v
-+--------------+              +--------------+              +--------------+
-|  LLM Router  |              |  Brain Core  |              | Local Daemon |
-| (llmRouter)  |              | (src/brain)  |              | (localControl|
-+--------------+              +--------------+              +--------------+
-       |                             |                             |
-  Multi-LLM                   Tool Execution              macOS Native IPC
- (NVIDIA/Groq/             (Filesystem/Database/          (System Control /
- OpenRouter/Gemini)         Workspace Tools)              Automation)
+Ghost processes user intent through a directed acyclic graph (DAG) execution engine ([`services/workflowEngine.js`](file:///Users/manojkumarmathangi/Ghost/services/workflowEngine.js) & [`services/intentPlanner.js`](file:///Users/manojkumarmathangi/Ghost/services/intentPlanner.js)).
+
+```text
+[ User Prompt / Voice Request ]
+              │
+              ▼
+    [ Task Understanding ]
+  (Classify complexity & intent)
+              │
+              ▼
+     [ DAG Plan Builder ]
+(Deconstruct into ordered steps)
+              │
+              ├── Step 1: Code / Tool Execution  ──► [ Gondolin Micro-VM ]
+              │                                                │
+              ├── Step 2: RAG Context Retrieval   ──► [ Turbovec SIMD Index ]
+              │                                                │
+              └── Step 3: Desktop State Action    ──► [ HITL Nonce Gate ]
+                                                               │
+                                                               ▼
+                                                  [ Execution Summary & Output ]
 ```
 
----
-
-## 2. Component Specifications
-
-### 1. Unified Express Server (`server.js`)
-* **Role**: Primary entry point handling REST endpoints (`/api/chat`, `/api/execute-action`), authentication cookies, static UI delivery, and web security.
-* **Permissions & Access**:
-  * Read/Write access to project root directory.
-  * Access to `.env` configuration keys.
-  * Full HTTP access for client connections on `http://localhost:3000`.
-* **Security & Isolation**:
-  * Enforces `securityMiddleware` to reject XSS patterns and rapid prompt injection structures.
-  * Uses `chatLimiter` to cap requests at 20 queries/min per IP.
-  * Applies `requireAdminToken` JWT checks for administrative operations (`/api/execute-action`, `/api/modes/activate`).
-* **Failure / Compromise Mode**:
-  * *Failure*: Server shuts down; desktop app displays connection lost state. PM2 daemon restarts automatically.
-  * *Compromise*: If an attacker gains unauthenticated RCE on `server.js`, they gain guest file execution capability. Mitigated by `GHOST_DEPLOYMENT_MODE=public` which disables admin execution routes.
+### Plan Generation & Step Verification
+1. **Intent Analysis**: Classifies incoming tasks as `simple_query`, `code_execution`, `desktop_action`, or `multi_step_workflow`.
+2. **DAG Construction**: Generates an array of explicit task steps with dependencies and verification checks.
+3. **Sequential Execution**: Steps are executed sequentially. If a step fails, the system enters an error recovery loop or escalates to human confirmation.
 
 ---
 
-### 2. Multi-Provider LLM Router (`llmRouter.js`)
-* **Role**: Manages multi-model intelligence fallback loops across Groq, NVIDIA NIM, Gemini, OpenRouter, and FreeLLMAPI.
-* **Permissions & Access**:
-  * Outbound HTTPS fetch access to external LLM provider endpoints.
-  * Access to API keys (`GROQ_API_KEY`, `NVIDIA_API_KEY`, etc.).
-* **Security & Redaction**:
-  * Implements `isValidKey` hash verification to bypass non-functional keys.
-  * Passes all error outputs and fallback logs through `redactSecrets` to ensure API keys are never printed in cleartext terminal output.
-* **Failure / Compromise Mode**:
-  * *Failure*: Automatically cascades to the next available provider. If all fail, returns a clean error without crashing Node.
-  * *Compromise*: Compromise of an API key allows API usage; secrets are redacted in output logs to prevent exfiltration.
+## 2. Multi-Provider LLM Routing Logic
+
+Ghost uses an active fallback router ([`llmRouter.js`](file:///Users/manojkumarmathangi/Ghost/llmRouter.js)) to eliminate single-point-of-failure risks and ensure low-latency completions.
+
+```text
+                        ┌───────────────────────────────┐
+                        │   Incoming LLM Request        │
+                        └───────────────┬───────────────┘
+                                        │
+                                        ▼
+                         Attempt 1: FreeLLMAPI / Local
+                                (Fastest local check)
+                                        │ (If failed / timeout)
+                                        ▼
+                         Attempt 2: NVIDIA NIM
+                  (meta/llama-3.1-8b-instruct ~500ms)
+                                        │ (If rate-limited / error)
+                                        ▼
+                         Attempt 3: Google Gemini Pro
+                         (gemini-1.5-pro / 2.0-flash)
+                                        │ (If fallback required)
+                                        ▼
+                         Attempt 4: Groq / OpenRouter
+                    (llama-3.3-70b-versatile / DeepSeek)
+```
+
+- **Health Checks & Telemetry**: Every provider attempt logs latency (`served by NVIDIA NIM in 579ms`). If a provider fails, fallback occurs seamlessly in under 30ms.
 
 ---
 
-### 3. Ghost Brain Engine (`src/brain.js`)
-* **Role**: Evaluates user intent, builds execution plans, routes actions to specific tools, and formats response summaries.
-* **Permissions & Access**:
-  * Orchestrates tool calls (`workspace_view_file`, `workspace_edit_file`, `workspace_run_command`, `database_query`, `memory_save`).
-* **Security & Safeguards**:
-  * **Input Isolation**: Wraps tool outputs in untrusted data delimiters before LLM summary steps to prevent indirect prompt injection.
-  * **Gentle Safety Checks**: Intercepts destructive command patterns (`rm`, `mv`, `cp`, `chmod`, `delete`) via `isRiskyAction` and prompts for user confirmation before proceeding.
-* **Failure / Compromise Mode**:
-  * *Failure*: Falls back to direct plain-text response mode if planning fails.
-  * *Compromise*: Intent manipulation is blocked from executing destructive system mutations without explicit user confirmation.
+## 3. Human-in-the-Loop (HITL) Nonce Gate
+
+To prevent unauthorized file modifications or desktop commands, Ghost implements a cryptographically enforced approval gate ([`state/pendingActions.js`](file:///Users/manojkumarmathangi/Ghost/state/pendingActions.js)).
+
+### Security Lifecycle:
+1. **Action Generation**: When Ghost proposes a high-risk action (e.g. desktop overlay command, persistent code write, external deployment), a 16-byte random hexadecimal nonce is generated:
+   ```javascript
+   const actionId = crypto.randomBytes(16).toString('hex');
+   ```
+2. **State Register**: The action payload, timestamp, and 5-minute expiration window are stored in `pendingActions`.
+3. **Execution Block**: The system returns `actionRequired: true` and `actionId` to the UI or client.
+4. **Consumption**: Execution is only triggered when the user explicitly sends `POST /api/execute-action` with the exact `actionId`. The nonce is immediately deleted upon consumption, preventing replay attacks.
 
 ---
 
-### 4. Workspace Tools (`src/tools/workspaceTools.js`)
-* **Role**: Executes file inspection, safe search-and-replace edits, and local shell command execution within the project directory.
-* **Permissions & Access**:
-  * Local filesystem read/write access.
-  * Command execution via `child_process.exec`.
-* **Security & Isolation**:
-  * **Path Traversal Shield**: `resolveSafePath` resolves absolute paths and enforces directory boundary checks outside project root.
-  * **Command Gate & Blocklist**: Enforces `commandGate.js` and `securityMonitor.js` to block `sudo`, `rm -rf /`, `chown`, and reverse shell patterns.
-  * **Output Redaction**: Filters `stdout` and `stderr` through `redactSecrets`.
-* **Failure / Compromise Mode**:
-  * *Failure*: Returns standard JSON error payload without terminating the Express process.
-  * *Compromise*: Path traversal logic prevents modifications outside the workspace.
+## 4. Micro-VM Sandbox Isolation (Gondolin)
+
+Ghost isolates code execution using Gondolin micro-VM sandboxing ([`services/pythonSandbox.js`](file:///Users/manojkumarmathangi/Ghost/services/pythonSandbox.js) & `~/.pi/agent/extensions/gondolin`).
+
+### Isolation Mechanisms:
+- **Path Mapping**: Guest path translation maps workspace directories to `/workspace`.
+- **Out-of-Bounds Interception**: Attempts to read or write host files outside the active workspace (e.g., `/etc/passwd`, `~/.zshrc`) are intercepted by Gondolin hooks.
+- **Explicit Security Alert Logs**:
+  ```text
+  [GONDOLIN_SANDBOX_INTERCEPT] Intercepted access attempt to host path: /etc/passwd
+  [GONDOLIN_SANDBOX_BLOCKED] Operation denied by micro-VM boundary.
+  ```
+- **OS Resource Quotas**: Python processes are launched with 20-second wall-clock limits and 1GB memory bounds.
 
 ---
 
-### 5. Local Control Daemon (`services/localControlServer.js`)
-* **Role**: Provides macOS desktop automation (opening applications, URLs, local script execution).
-* **Permissions & Access**:
-  * macOS `osascript` / `open` system execution.
-  * WebSocket server on port `3000`.
-* **Security & Isolation**:
-  * Requires valid JWT session cookie for WebSocket handshake upgrades.
-  * Gated behind `isPublic` check (disabled when running in public mode).
-* **Failure / Compromise Mode**:
-  * *Failure*: Desktop automation actions fail with an error log. Express server remains operational.
+## 5. Synthflow MCP Self-Hosted Integration
 
----
+Voice capabilities are powered by a self-hosted Synthflow MCP server running under PM2 (`http://localhost:3099/sse`).
 
-### 6. Memory System (`src/tools/memory.js` & `memory/`)
-* **Role**: Manages short-term chat history (`chat_history_*.json`) and long-term vector embeddings (`vector_store.json`).
-* **Permissions & Access**:
-  * Read/Write access to `./memory/` directory.
-* **Security & Isolation**:
-  * **Context-Poisoning Protection**: Automatically truncates stored historical messages to a max length of `10,000` characters to prevent context-bloat DoS attacks.
-  * **User Isolation**: Separates history files per user context (`chat_history_guest.json`, `chat_history_master_manoj.json`).
-* **Failure / Compromise Mode**:
-  * *Failure*: Falls back to empty history array; vector store rebuilds gracefully.
-
----
-
-## 3. Standing Security Rules for Maintainers
-
-1. **Secret Redaction**: Never `console.log`, `echo`, or print raw secret keys or tokens. All outputs must be wrapped in `redactSecrets()`. Secrets must be written directly to `.env`.
-2. **Proportional Self-Audit**: Every new tool or security update must be verified with a targeted self-audit before declaring the change complete.
+- **Protocol**: Model Context Protocol (MCP) over Server-Sent Events (SSE).
+- **Capabilities**: 53 registered voice agent tools (`create_agent`, `start_call`, `get_telephony_number`).
+- **Bridge Fallback**: [`services/synthflowBridge.js`](file:///Users/manojkumarmathangi/Ghost/services/synthflowBridge.js) automatically handles real API keys when present, and returns clear MVP stubs (`AGENT_CREATED_MOCK`) when keys are unconfigured.

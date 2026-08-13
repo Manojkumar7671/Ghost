@@ -1,14 +1,27 @@
 {
   "name": "ghost-core",
   "version": "1.0.0",
-  "description": "Ghost AI Autonomous Matrix",
+  "description": "AI agent with DAG reasoning, multi-provider LLM, benchmarked proof-of-work",
   "main": "server.js",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Manojkumar7671/Ghost.git"
+  },
+  "homepage": "https://ghost-34qz.onrender.com",
+  "keywords": [
+    "ai-agent",
+    "llm",
+    "benchmark",
+    "voice",
+    "automation"
+  ],
   "engines": {
     "node": ">=20.0.0"
   },
   "scripts": {
     "start": "node server.js",
+    "test": "node tests/integration_stress_test.js && node tests/test_features.js && node tests/test_modes_daemon.js && node tests/test_full_suite.js",
     "desktop": "npx electron ./desktop-app/main.cjs",
     "desktop:build": "npx electron-builder --config.directories.output=dist",
     "package:mac": "node scratch/build_mac.js"
@@ -30,6 +43,7 @@
     }
   },
   "dependencies": {
+    "@memwarden/turbovec": "^0.1.5",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "axios": "^1.6.8",
     "chokidar": "^5.0.0",
@@ -46,13 +60,17 @@
     "node-cron": "^4.6.0",
     "nodemailer": "^9.0.3",
     "pg": "^8.11.5",
+    "playwright": "^1.62.1",
     "playwright-core": "^1.61.1",
+    "screenshot-desktop": "^1.15.4",
+    "turbovec-node": "^0.1.1",
+    "twilio": "^6.1.0",
     "undici": "^6.19.0",
     "uuid": "^14.0.1",
     "ws": "^8.21.1"
   },
   "devDependencies": {
-    "electron": "43.1.1",
+    "electron": "^43.1.1",
     "electron-builder": "^26.15.3"
   }
 }
