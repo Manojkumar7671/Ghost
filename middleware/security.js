@@ -71,7 +71,7 @@ function detectPromptInjection(message) {
 /**
  * Express middleware that validates and sanitizes incoming chat requests
  */
-function securityMiddleware(req, res, next) {
+async function securityMiddleware(req, res, next) {
   // Validate Content-Type for POST requests
   if (req.method === 'POST' && !req.is('application/json')) {
     return res.status(415).json({ success: false, error: 'Content-Type must be application/json' });
@@ -85,8 +85,8 @@ function securityMiddleware(req, res, next) {
   // For chat endpoints, sanitize and check for injection
   if (req.body && req.body.message) {
     const injection = detectPromptInjection(req.body.message);
-    if (injection.isInjection) {
-      const { redactSecrets } = require('../services/secretRedactor.js');
+    if (injection.safe === false) {
+      const { redactSecrets } = await import('../services/secretRedactor.js');
       console.warn(`[Security] Prompt injection blocked from IP ${req.ip}: ${redactSecrets(req.body.message.substring(0, 100))}`);
       return res.status(403).json({ success: false, error: injection.reason });
     }
