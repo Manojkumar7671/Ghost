@@ -66,6 +66,8 @@ if (!process.env.OBSIDIAN_API_KEY || !process.env.OBSIDIAN_VAULT_PATH) console.w
 
 const ADMIN_PASSPHRASE = process.env.ADMIN_PASSPHRASE;
 const JWT_SECRET = process.env.JWT_SECRET;
+const OBSIDIAN_API_KEY = process.env.OBSIDIAN_API_KEY || '';
+const OBSIDIAN_VAULT_PATH = process.env.OBSIDIAN_VAULT_PATH || '';
 const { Pool } = pkg;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -224,31 +226,8 @@ MULTI-AGENT PROTOCOL: Activate your internal sub-agents inside <think>...</think
 - Execution Agent: writes code, takes actions
 - Growth Agent: marketing, outreach strategy`;
 
-// GHOST_ADMIN_CORE and getShowcaseCore are retained for system prompt context
-const GHOST_ADMIN_CORE = `You are Ghost, boss's personal AI agent — loyal, trusted, and maximally helpful.
-
-BOSS'S PROFILE:
-- B.Tech CS (2026), AWS Certified, SAP Certified Associate
-- Job hunting: first role in AI/agentic engineering or full-stack dev
-- Target: startups/product companies, remote or Bengaluru/Hyderabad
-- All blockers urgent: resume gaps + interview prep + finding roles + networking
-- Based in Mangalagiri (near Vijayawada), Andhra Pradesh
-
-YOUR BEHAVIOR:
-1. COMMUNICATION: Adjust by urgency/context (direct+terse when urgent, detailed when exploratory)
-2. DECISION-MAKING: Auto-decide low-risk tasks; only ask if blocking/risky
-3. ERROR HANDLING: Think logically first, don't interrupt immediately — only escalate if stuck
-4. SAFETY: Never (without explicit approval): access credentials/keys, make external API calls (payment/deploy), modify live repos, contact people
-5. TONE: Address boss with dry wit, loyalty, respect — use "boss" in key decisions/reports
-
-SYNTHFLOW MVP BEHAVIOR:
-- When creating voice agents, mock the Synthflow API call with realistic success responses
-- Format: { success: true, agentId: "mock-agent-{timestamp}", config: {...}, status: "AGENT_CREATED" }
-- Log mocked calls as "[MOCK] Synthflow API call" so boss knows it's stubbed
-
-TONE: Blend of Alfred/Jarvis/FRIDAY — dry wit, loyal, addresses boss respectfully, confirms before destructive actions
-
-PROOF-OF-WORK: Ghost itself (live at ghost-34qz.onrender.com) + benchmarks (15/15 head-to-head, 7/8 agent, turbovec RAG) are boss's portfolio foundation${MULTI_AGENT_PROTOCOL}\n${GHOST_CAPABILITIES}`;
+// GHOST_ADMIN_CORE removed from public surface for security
+// const GHOST_ADMIN_CORE = ...
 const getShowcaseCore = (guestName) => `You are Ghost, boss's personal AI agent. Speaking with visitor: ${guestName}.\nYOUR PERSONALITY: Dry, crisp, British demeanor, addresses boss respectfully.${MULTI_AGENT_PROTOCOL}\n${GHOST_CAPABILITIES}`;
 
 const PROVIDER_MATRIX = [
@@ -333,12 +312,9 @@ const adminLimiter = rateLimit({
     standardHeaders: true, legacyHeaders: false,
 });
 
-app.use('/api/admin', (req, res, next) => {
-    if (process.env.RENDER === 'true' || process.env.RENDER) {
-        return res.status(404).json({ success: false, error: 'Not Found (Admin disabled on public cloud)' });
-    }
-    next();
-}, adminLimiter);
+app.use('/api/admin', (req, res) => {
+    return res.status(404).json({ success: false, error: 'Not Found (Admin surface disabled for security)' });
+});
 
 app.post('/api/auth', authLimiter, async (req, res) => {
     const { authString, user = 'Unknown' } = req.body;
