@@ -2175,7 +2175,7 @@ app.get('/api/admin/observability', requireAdminToken, async (req, res) => {
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 3000;
 Promise.all([
     initAgentModes(pool).catch(err => console.error('[Agent Modes Init Warn]:', err.message)),
     initGoogleAuthTable(pool).catch(err => console.error('[Google Auth Init Warn]:', err.message)),
