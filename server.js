@@ -660,13 +660,18 @@ function sanitizeUserInput(rawText) {
 }
 
 app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
-    if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public' || process.env.AUTH_REQUIRED === 'true') {
+    if (process.env.AUTH_REQUIRED === 'true' || process.env.DEPLOYMENT_MODE === 'public') {
         const authHeader = req.headers.authorization;
-        const authService = require('./src/services/authService.js');
-        const tokenValidation = await authService.validateToken(authHeader);
-        if (!tokenValidation.valid && !checkIsAdmin(req)) {
-            return res.status(401).json({ success: false, error: 'Unauthorized: Invalid or missing token.' });
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'Unauthorized: missing or invalid token' });
         }
+        const token = authHeader.split(' ')[1];
+        const authService = require('./src/services/authService.js');
+        const validation = await authService.validateToken(token);
+        if (!validation.valid) {
+            return res.status(401).json({ error: 'Unauthorized: invalid token' });
+        }
+        req.user = validation.user; // attach user to request
     }
 
     const requestId = crypto.randomUUID();
