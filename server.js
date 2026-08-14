@@ -346,7 +346,10 @@ app.post('/api/login', async (req, res) => {
     const { passphrase } = req.body;
     if (!passphrase) return res.status(400).json({ error: 'Passphrase required' });
     
-    if (passphrase === ADMIN_PASSPHRASE || passphrase === 'knightfall') {
+    const suppliedHash = crypto.createHash('sha256').update(String(passphrase)).digest();
+    const expectedHash = crypto.createHash('sha256').update(ADMIN_PASSPHRASE).digest();
+    
+    if (crypto.timingSafeEqual(suppliedHash, expectedHash)) {
         const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
         return res.json({ token });
     }
