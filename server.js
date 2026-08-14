@@ -312,7 +312,10 @@ const adminLimiter = rateLimit({
     standardHeaders: true, legacyHeaders: false,
 });
 
-app.use('/api/admin', (req, res) => {
+app.use('/api/admin', (req, res, next) => {
+    if (process.env.GHOST_DEPLOYMENT_MODE === 'local') {
+        return next();
+    }
     return res.status(404).json({ success: false, error: 'Not Found (Admin surface disabled for security)' });
 });
 
@@ -324,6 +327,9 @@ app.post('/api/auth', authLimiter, async (req, res) => {
     const suppliedHash = crypto.createHash('sha256').update(String(authString || '')).digest();
     const expectedHash = crypto.createHash('sha256').update(ADMIN_PASSPHRASE).digest();
     if (authString && crypto.timingSafeEqual(suppliedHash, expectedHash)) {
+        if (process.env.GHOST_DEPLOYMENT_MODE !== 'local') {
+            return res.status(403).json({ success: false, error: 'Admin mode is restricted to local environment only.' });
+        }
         success = true;
         const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
         res.cookie('ghost_session', token, { httpOnly: true, secure: true, sameSite: 'strict', maxAge: 24 * 60 * 60 * 1000 });
@@ -350,6 +356,9 @@ app.post('/api/login', async (req, res) => {
     const expectedHash = crypto.createHash('sha256').update(ADMIN_PASSPHRASE).digest();
     
     if (crypto.timingSafeEqual(suppliedHash, expectedHash)) {
+        if (process.env.GHOST_DEPLOYMENT_MODE !== 'local') {
+            return res.status(403).json({ error: 'Admin mode is restricted to local environment only.' });
+        }
         const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
         return res.json({ token });
     }
@@ -1549,6 +1558,14 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
         const toolCommand = extractToolCommand(fullResponse);
 
         if (toolCommand) {
+            if (process.env.GHOST_DEPLOYMENT_MODE === 'local') {
+                const blockedLocalTools = ['web_scraper', 'python_sandbox', 'playwright', 'file_edit_via_tools', 'workspace_edit_file'];
+                if (blockedLocalTools.includes(toolCommand.tool)) {
+                    res.json({ success: true, text: `[SYSTEM OVERRIDE]: Tool '${toolCommand.tool}' is disabled in local mode.` });
+                    return;
+                }
+            }
+
             if (toolCommand.tool === "trigger_webhook" || toolCommand.tool === "workflow_execute" || toolCommand.tool === "browserbase_execute") {
                 if (!isAdmin) {
                     res.json({ success: true, text: "[SYSTEM OVERRIDE]: External network actions are restricted to Admin clearance. Blocked." });
@@ -1583,15 +1600,25 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
         if (ghostCodeMode && match && match[1]) {
             actionTriggered = "python_execution";
             const pythonCode = match[1].trim();
-            try {
-                const executionResult = await runPythonSandbox(pythonCode);
-                if (executionResult.success) {
-                    replyText = fullResponse.replace(match[0], `\n\`\`\`html\n${executionResult.output.trim()}\n\`\`\`\n`);
-                } else {
-                    replyText = fullResponse.replace(match[0], `[Python Error]: ${executionResult.error}`);
+            if (process.env.GHOST_DEPLOYMENT_MODE === 'local') {
+                const fs = require('fs');
+                const path = require('path');
+                const scriptDir = path.join(process.env.HOME || '/Users/manojkumarmathangi', 'Ghost', 'scripts');
+                if (!fs.existsSync(scriptDir)) fs.mkdirSync(scriptDir, { recursive: true });
+                const filePath = path.join(scriptDir, 'login_page.py');
+                fs.writeFileSync(filePath, pythonCode);
+                replyText = `Wrote to ~/Ghost/scripts/login_page.py. Run: python ~/Ghost/scripts/login_page.py`;
+            } else {
+                try {
+                    const executionResult = await runPythonSandbox(pythonCode);
+                    if (executionResult.success) {
+                        replyText = fullResponse.replace(match[0], `\n\`\`\`html\n${executionResult.output.trim()}\n\`\`\`\n`);
+                    } else {
+                        replyText = fullResponse.replace(match[0], `[Python Error]: ${executionResult.error}`);
+                    }
+                } catch (err) {
+                    replyText = fullResponse.replace(match[0], `[Python Error]: ${err.message}`);
                 }
-            } catch (err) {
-                replyText = fullResponse.replace(match[0], `[Python Error]: ${err.message}`);
             }
         }
 

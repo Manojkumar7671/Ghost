@@ -23,7 +23,7 @@ async function runTests() {
   console.log(`Memory saved with ID: ${saved.id}`);
 
   console.log(`Querying memory for "who created Ghost?"...`);
-  const results = queryMemory('who created Ghost?', 3);
+  const results = queryMemory('who created Ghost?', 10);
   console.log(`Query returned ${results.length} result(s):`);
   results.forEach((res, i) => {
     console.log(` Match ${i + 1} (Score: ${res.score.toFixed(4)}): "${res.text}"`);

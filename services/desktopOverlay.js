@@ -171,10 +171,10 @@ export function initDesktopOverlay() {
         }
     } catch (e) {}
 
-    captureInterval = setInterval(() => {
-        captureScreenshot();
-        lastCursorPos = getCursorPosition();
-    }, 500);
+    // captureInterval = setInterval(() => {
+    //     captureScreenshot();
+    //     lastCursorPos = getCursorPosition();
+    // }, 500);
 }
 
 export function stopDesktopOverlay() {

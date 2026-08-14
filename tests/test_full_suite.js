@@ -14,7 +14,7 @@ async function runFullTestSuite() {
   // Test 1a: Router Config & Fallback Order
   const providers = getProviders();
   const names = providers.map(p => p.name).join(' -> ');
-  const expectedOrder = 'Groq -> NVIDIA NIM -> DeepSeek -> Gemini -> OpenRouter -> MiniMax -> FreeLLMAPI (Render Cloud) -> FreeLLMAPI (Local) -> Kimi K2';
+  const expectedOrder = 'FreeLLMAPI (Local) -> Groq -> NVIDIA NIM -> DeepSeek -> Gemini -> MiniMax -> FreeLLMAPI (Render Cloud) -> Osaurus Local -> Kimi K2';
   const orderMatch = names === expectedOrder;
   console.log(`[TEST 1a] Fallback Order Match: ${orderMatch ? 'PASS' : 'FAIL'} (${names})`);
 

@@ -8,8 +8,8 @@ module.exports = {
       name: "ghost-ai",
       script: "server.js",
       node_args: `--env-file=${envPath}`,
-      watch: true,
-      ignore_watch: ["node_modules", "logs"],
+      watch: false,
+      ignore_watch: ["node_modules", "logs", "freellmapi", ".git", "scripts", "outputs", "data", "memory", "state"],
       env: {
         NODE_ENV: "production",
       },

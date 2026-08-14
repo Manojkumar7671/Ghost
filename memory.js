@@ -140,7 +140,18 @@ function getTurbovecIndex() {
 
 function syncTurbovecIndex(store) {
   try {
-    const index = getTurbovecIndex();
+    let index = getTurbovecIndex();
+    if (index && index.len === store.length - 1) {
+      const item = store[store.length - 1];
+      const vec = new Float32Array(item.vector);
+      const id = new BigUint64Array([BigInt(store.length)]);
+      index.addWithIds(vec, id);
+      index.save(TURBOVEC_INDEX_FILE);
+      return;
+    }
+    
+    // Otherwise, rebuild the whole index
+    index = new TurbovecIndex(384, 4);
     if (store.length > 0) {
       const allVecs = new Float32Array(store.length * 384);
       const allIds = new BigUint64Array(store.length);
@@ -151,9 +162,10 @@ function syncTurbovecIndex(store) {
       }
       index.addWithIds(allVecs, allIds);
       index.save(TURBOVEC_INDEX_FILE);
+      turbovecInstance = index;
     }
-  } catch (e) {
-    console.warn('[Memory] Turbovec index sync warning:', e.message);
+  } catch (err) {
+    console.warn('[Memory] Failed to sync Turbovec index:', err.message);
   }
 }
 

@@ -201,6 +201,31 @@ ${greetingRule}
 
 async function execute(action, userMessage, previousResults = [], userContext = {}) {
   const { tool, params } = action;
+  
+  if (process.env.GHOST_DEPLOYMENT_MODE === 'local') {
+    if (tool === 'workspace_edit_file' || tool === 'file_edit_via_tools') {
+      const isPythonRequest = userMessage.toLowerCase().includes('python') || (params && params.data && params.data.includes('def '));
+      if (isPythonRequest) {
+        const fs = require('fs');
+        const path = require('path');
+        const scriptDir = path.join(process.env.HOME || '/Users/manojkumarmathangi', 'Ghost', 'scripts');
+        if (!fs.existsSync(scriptDir)) fs.mkdirSync(scriptDir, { recursive: true });
+        const filePath = path.join(scriptDir, 'login_page.py');
+        let code = (params && params.data) || '';
+        if (code.includes('```python')) {
+            code = code.split('```python')[1].split('```')[0].trim();
+        }
+        fs.writeFileSync(filePath, code);
+        return `Wrote to ~/Ghost/scripts/login_page.py. Run: python ~/Ghost/scripts/login_page.py`;
+      }
+    }
+
+    const blockedLocalTools = ['web_scraper', 'web_scrape', 'python_sandbox', 'playwright', 'file_edit_via_tools', 'workspace_edit_file', 'workspace_run_command'];
+    if (blockedLocalTools.includes(tool)) {
+      throw new Error(`[SYSTEM OVERRIDE]: Tool '${tool}' is disabled in local mode. Action blocked.`);
+    }
+  }
+
   const context = previousResults.map(r => r.output).join('\n');
   switch (tool) {
     case 'chat': {

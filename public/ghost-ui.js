@@ -581,46 +581,91 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('[TTS] Input mode is text, skipping voice audio output.');
             return;
         }
-        if (!window.speechSynthesis) return;
-
-        window.speechSynthesis.cancel();
-        
-        // Stop any background recognition when speaking to prevent echoing as wake word
-        if (recognitionInstance && recognitionActive) {
-            try { recognitionInstance.stop(); } catch(e) {}
+        if (!window.speechSynthesis) {
+            console.error('[TTS] window.speechSynthesis is completely unsupported in this browser.');
+            return;
         }
-        
-        setMicState('speaking');
 
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        if (availableVoices.length === 0) availableVoices = window.speechSynthesis.getVoices();
-        let ukVoice = availableVoices.find(v => v.lang === 'en-GB' || v.name.includes('UK English')) || availableVoices.find(v => v.lang.includes('en'));
-        if (ukVoice) utterance.voice = ukVoice;
-        utterance.rate = 1.05;
-        utterance.pitch = 0.95;
+        try {
+            window.speechSynthesis.cancel(); // Clear any stuck utterances
+            
+            // Stop any background recognition when speaking to prevent echoing as wake word
+            if (recognitionInstance && recognitionActive) {
+                try { recognitionInstance.stop(); } catch(e) {}
+            }
+            
+            setMicState('speaking');
 
-        utterance.onend = () => {
-            setMicState('idle');
-            if (isHandsFreeActive) {
-                console.log('[Hands-Free Loop] TTS playback ended. Automatically re-opening mic for continuous conversation.');
-                setTimeout(() => {
-                    if (isHandsFreeActive && !isRecording) {
-                        triggerHandsFreeListening();
-                    }
-                }, 400);
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            
+            // Force load voices if empty
+            if (availableVoices.length === 0) {
+                availableVoices = window.speechSynthesis.getVoices();
             }
-        };
-        utterance.onerror = () => {
-            setMicState('idle');
-            if (isHandsFreeActive) {
-                setTimeout(() => {
-                    if (isHandsFreeActive && !isRecording) {
-                        triggerHandsFreeListening();
-                    }
-                }, 400);
+            
+            let ukVoice = availableVoices.find(v => v.lang === 'en-GB' || v.name.includes('UK English')) 
+                          || availableVoices.find(v => v.lang.includes('en'));
+            
+            if (ukVoice) {
+                utterance.voice = ukVoice;
+                console.log(`[TTS] Using voice: ${ukVoice.name} (${ukVoice.lang})`);
+            } else {
+                console.error('[TTS] No English voice profile found on this OS! Aborting to prevent silent humming loop.');
+                addMessageToChat('System', 'Voice profile missing! Please install an English TTS voice in your OS settings to use hands-free mode.', true);
+                setMicState('idle');
+                if (isHandsFreeActive) {
+                    setTimeout(() => { if (isHandsFreeActive && !isRecording) triggerHandsFreeListening(); }, 400);
+                }
+                return;
             }
-        };
-        window.speechSynthesis.speak(utterance);
+            
+            utterance.rate = 1.05;
+            utterance.pitch = 0.95;
+            utterance.volume = 1.0;
+
+            utterance.onstart = () => {
+                console.log('[TTS] Speech started successfully.');
+            };
+
+            utterance.onend = () => {
+                console.log('[TTS] Speech ended naturally.');
+                setMicState('idle');
+                if (isHandsFreeActive) {
+                    setTimeout(() => {
+                        if (isHandsFreeActive && !isRecording) {
+                            triggerHandsFreeListening();
+                        }
+                    }, 400);
+                }
+            };
+            
+            utterance.onerror = (e) => {
+                console.error('[TTS] Speech synthesis error:', e.error || e);
+                setMicState('idle');
+                if (isHandsFreeActive) {
+                    setTimeout(() => {
+                        if (isHandsFreeActive && !isRecording) {
+                            triggerHandsFreeListening();
+                        }
+                    }, 400);
+                }
+            };
+            
+            window.speechSynthesis.speak(utterance);
+            
+            // Failsafe: if speech doesn't start in 1 second, it's stuck. 
+            // Chrome on Mac sometimes gets stuck in a silent state.
+            setTimeout(() => {
+                if (window.speechSynthesis.pending && !window.speechSynthesis.speaking) {
+                    console.error('[TTS] Failsafe triggered: Speech is stuck pending! Canceling.');
+                    window.speechSynthesis.cancel();
+                    utterance.onerror({ error: 'stuck_pending' });
+                }
+            }, 1000);
+
+        } catch (err) {
+            console.error('[TTS] Exception in speakResponse:', err);
+        }
     }
 
     // --- AUDIO PIPELINE, WAKE-WORD & SILENCE DETECTION ---
