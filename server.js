@@ -354,14 +354,7 @@ app.post('/api/login', async (req, res) => {
         return res.json({ token });
     }
     
-    return res.status(401).json({ 
-        error: 'Invalid passphrase', 
-        debug: { 
-            suppliedLength: passphrase.length, 
-            expectedLength: ADMIN_PASSPHRASE ? ADMIN_PASSPHRASE.length : 0,
-            suppliedStart: passphrase.substring(0,2)
-        }
-    });
+    return res.status(401).json({ error: 'Invalid passphrase' });
 });
 
 app.post('/api/auth/login', async (req, res) => {
