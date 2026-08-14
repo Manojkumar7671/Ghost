@@ -6,7 +6,7 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'ghost_secret_key_v1_prod_hardening';
+const JWT_SECRET = process.env.JWT_SECRET;
 const inMemoryUsers = new Map();
 const inMemorySessions = new Map();
 
