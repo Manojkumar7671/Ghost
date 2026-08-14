@@ -354,12 +354,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     masterUser = sessionName;
                     isAdminMode = true;
                     localStorage.setItem('ghost_owner_clearance', inputVal);
-                    speakResponse(`Welcome back, ${sessionName}. All Ghost core systems are operational.`);
+                    speakResponse('Greetings. Ghost AI Engine is online and operational. How may I assist you today?');
                 } else {
                     userTag.innerText = safeGuestName.toUpperCase();
                     masterUser = safeGuestName;
                     isAdminMode = false;
-                    speakResponse(`Greetings ${safeGuestName}, I am Ghost. How may I assist you today?`);
+                    speakResponse('Greetings. Ghost AI Engine is online and operational. How may I assist you today?');
                 }
             } catch (error) {
                 console.error("Auth routing failed.", error);
@@ -566,17 +566,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function speakResponse(text) {
-        if (inputMode !== 'voice') {
-            console.log('[TTS] Input mode is text, skipping voice audio output.');
-            return;
-        }
-        if (!window.speechSynthesis) return;
         let cleanText = text.replace(/[\x60]{3}[\s\S]*?[\x60]{3}/g, '')
                             .replace(/<think>[\s\S]*?<\/think>/g, '')
                             .replace(/<search>[\s\S]*?<\/search>/g, '')
                             .replace(/\[.*?\]/g, '').trim();
 
         if (!cleanText) cleanText = "Execution complete.";
+        
+        // 1. Display immediately in chat bubble
+        appendMessage('ghost', cleanText);
+
+        // 2. Speak in parallel (fire and forget)
+        if (inputMode !== 'voice') {
+            console.log('[TTS] Input mode is text, skipping voice audio output.');
+            return;
+        }
+        if (!window.speechSynthesis) return;
+
         window.speechSynthesis.cancel();
         
         // Stop any background recognition when speaking to prevent echoing as wake word
@@ -1213,7 +1219,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (spokenText.trim() === "") spokenText = "Interface rendered.";
         }
 
-        appendMessage('ghost', spokenText.trim() || "Execution complete.");
         speakResponse(spokenText);
     }
 
