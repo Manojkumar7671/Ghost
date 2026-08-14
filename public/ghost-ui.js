@@ -348,14 +348,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const authData = await authRes.json();
 
                 if (authData.success && authData.role === 'admin') {
-                    userTag.innerText = `ADMIN // MASTER MANOJ`;
+                    const sessionName = authData.user || "Master Manoj";
+                    userTag.innerText = sessionName.toUpperCase();
                     userTag.style.color = 'var(--accent-primary)';
-                    masterUser = "Master Manoj";
+                    masterUser = sessionName;
                     isAdminMode = true;
                     localStorage.setItem('ghost_owner_clearance', inputVal);
-                    speakResponse("Welcome back, Master Manoj. All Ghost core systems are operational.");
+                    speakResponse(`Welcome back, ${sessionName}. All Ghost core systems are operational.`);
                 } else {
-                    userTag.innerText = `VISITOR // ${safeGuestName.toUpperCase()}`;
+                    userTag.innerText = safeGuestName.toUpperCase();
                     masterUser = safeGuestName;
                     isAdminMode = false;
                     speakResponse(`Greetings ${safeGuestName}, I am Ghost. How may I assist you today?`);
