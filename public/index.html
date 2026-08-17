@@ -72,6 +72,12 @@
                     <button class="btn-primary-action" id="connectRunnerBtn" style="margin-bottom: 8px;">Connect Companion</button>
                     <button class="btn-primary-action" id="startAgentTaskBtn" style="display: none; background: var(--accent-violet);">Start Coding Task</button>
                     <div id="runnerConnectionInfo" style="margin-top: 8px; font-size: 11px; color: var(--text-dim); display: none; word-break: break-all;"></div>
+                    <div id="runnerHelperText" style="margin-top: 8px; font-size: 11px; color: var(--text-dim); line-height: 1.4;">
+                        Runs only on this Mac for approved repositories.
+                    </div>
+                    <div class="tooltip-info" style="margin-top: 8px; font-size: 10px; color: var(--text-dim); border-top: 1px solid var(--border-color); padding-top: 6px; line-height: 1.3;">
+                        Ghost’s web app on Render cannot run code on your Mac by itself. The local Companion is an opt-in service you start manually; it handles only approved repositories, isolated worktrees, and approval-gated code tasks.
+                    </div>
                 </div>
             </div>
 

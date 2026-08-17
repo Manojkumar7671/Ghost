@@ -201,6 +201,23 @@ async function requestRunner(method, path, body = null, headers = {}) {
     assert.strictEqual(refreshRes.data.user, 'Manojkumar');
     console.log('✅ PASS: Owner name onboarding, persistence, and validation checks passed.');
 
+    // 7. Companion status endpoint validation
+    console.log('[Test 7] Testing companion status endpoint permissions and connection state...');
+    // Visitor status query blocked
+    const visitorStatus = await request('GET', '/api/runner/status');
+    assert.strictEqual(visitorStatus.status, 401);
+
+    // Extract token2 from authenticated auth2 response
+    const cookie2 = auth2.headers['set-cookie'] ? auth2.headers['set-cookie'][0] : '';
+    const token2 = cookie2.split(';')[0].split('=')[1];
+
+    // Owner status query active and connected is true (since runner is active on RUNNER_PORT)
+    const ownerStatus = await request('GET', '/api/runner/status', null, { Cookie: `ghost_session=${token2}` });
+    assert.strictEqual(ownerStatus.status, 200);
+    // Since runner process was started on RUNNER_PORT (4185), status check returns connected: true
+    assert.strictEqual(ownerStatus.data.connected, true);
+    console.log('✅ PASS: Companion status endpoint permissions and connection states validated.');
+
   } catch (err) {
     console.error('❌ Test Suite Failed:', err);
     process.exit(1);

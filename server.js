@@ -646,6 +646,17 @@ app.post('/api/runner/connect', requireAuth, async (req, res) => {
     }
 });
 
+app.get('/api/runner/status', requireAuth, async (req, res) => {
+    try {
+        const pingRes = await fetch('http://127.0.0.1:4185/health', { signal: AbortSignal.timeout(1000) });
+        const data = await pingRes.json();
+        if (data.status === 'ok') {
+            return res.json({ connected: true });
+        }
+    } catch (err) {}
+    return res.json({ connected: false });
+});
+
 app.get('/api/repo-connections', requireAuth, async (req, res) => {
     if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
     try {

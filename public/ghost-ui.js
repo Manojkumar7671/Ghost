@@ -321,6 +321,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function capitalizeName(str) {
+        if (!str) return '';
+        return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
     function showNeutralOnboarding() {
         const loginSub = document.querySelector('.login-sub');
         if (loginSub) {
@@ -345,7 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
             if (data.success && data.isAdmin) {
-                masterUser = data.user || "";
+                masterUser = capitalizeName(data.user || "");
                 isAdminMode = true;
                 if (!masterUser) {
                     storedClearanceKey = "session_authorized";
@@ -428,12 +433,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     const authData = await authRes.json();
                     if (authData.success) {
-                        masterUser = authData.user || chosenName;
+                        masterUser = capitalizeName(authData.user || chosenName);
                         isAdminMode = true;
                         userTag.innerText = masterUser.toUpperCase();
                         userTag.style.color = 'var(--accent-primary)';
                         updateInitialGreeting(masterUser);
-                        speakResponse(`Hey, ${masterUser}. What are we building today?`);
+                        speakResponse(`Hey, ${masterUser}. What are we building today?`, true);
                         loginOverlay.style.opacity = '0';
                         loginOverlay.style.visibility = 'hidden';
                         appLayout.classList.add('active');
@@ -645,7 +650,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function speakResponse(text) {
+    function speakResponse(text, skipAppend = false) {
         let cleanText = text.replace(/[\x60]{3}[\s\S]*?[\x60]{3}/g, '')
                             .replace(/<think>[\s\S]*?<\/think>/g, '')
                             .replace(/<search>[\s\S]*?<\/search>/g, '')
@@ -654,7 +659,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!cleanText) cleanText = "Execution complete.";
 
         // 1. Display immediately in chat bubble
-        appendMessage('ghost', cleanText);
+        if (!skipAppend) {
+            appendMessage('ghost', cleanText);
+        }
 
         // 2. Speak in parallel (fire and forget)
         if (inputMode !== 'voice') {
@@ -1643,35 +1650,128 @@ document.addEventListener('DOMContentLoaded', () => {
     const runnerStatusDot = document.getElementById('runnerStatusDot');
     const runnerConnectionInfo = document.getElementById('runnerConnectionInfo');
 
+    let isRunnerConnected = false;
+    let isRunnerConnecting = false;
+
+    async function checkRunnerStatus() {
+        if (!isAdminMode) {
+            if (connectRunnerBtn) {
+                connectRunnerBtn.innerText = "Owner-only — Unlock Ghost";
+                connectRunnerBtn.disabled = true;
+            }
+            if (ghostCodeBtn) {
+                ghostCodeBtn.classList.remove('active');
+                if (ghostCodeStatus) ghostCodeStatus.innerText = "Coding workspace locked";
+            }
+            if (runnerStatusDot) {
+                runnerStatusDot.style.background = '#ff4d4d';
+                runnerStatusDot.title = 'Workspace locked';
+            }
+            return;
+        }
+
+        if (isRunnerConnecting) {
+            if (connectRunnerBtn) {
+                connectRunnerBtn.innerText = "Connecting…";
+                connectRunnerBtn.disabled = true;
+            }
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/runner/status');
+            const data = await res.json();
+            isRunnerConnected = data.connected;
+
+            if (isRunnerConnected) {
+                if (connectRunnerBtn) {
+                    connectRunnerBtn.innerText = "Disconnect local Companion";
+                    connectRunnerBtn.disabled = false;
+                }
+                if (runnerStatusDot) {
+                    runnerStatusDot.style.background = '#2ecc71';
+                    runnerStatusDot.title = 'Companion connected';
+                }
+                const helper = document.getElementById('runnerHelperText');
+                if (helper) {
+                    helper.innerText = "Companion connected on this Mac";
+                }
+                startAgentTaskBtn.style.display = 'block';
+                if (ghostCodeBtn) {
+                    ghostCodeBtn.classList.add('active');
+                    if (window.isPlanApprovalRequired) {
+                        if (ghostCodeStatus) ghostCodeStatus.innerText = "Plan approval required before changes";
+                    } else {
+                        if (ghostCodeStatus) ghostCodeStatus.innerText = "Local Companion connected — awaiting approved task";
+                    }
+                }
+            } else {
+                if (connectRunnerBtn) {
+                    connectRunnerBtn.innerText = "Connect local Companion";
+                    connectRunnerBtn.disabled = false;
+                }
+                if (runnerStatusDot) {
+                    runnerStatusDot.style.background = '#ff4d4d';
+                    runnerStatusDot.title = 'Runner Offline';
+                }
+                const helper = document.getElementById('runnerHelperText');
+                if (helper) {
+                    helper.innerText = "Local Companion unavailable. Start the local runner on your Mac, then reconnect.";
+                }
+                startAgentTaskBtn.style.display = 'none';
+                if (ghostCodeBtn) {
+                    ghostCodeBtn.classList.remove('active');
+                    if (ghostCodeStatus) ghostCodeStatus.innerText = "Ready for an approved coding task";
+                }
+            }
+        } catch (err) {
+            console.error('Error checking runner status:', err);
+        }
+    }
+
     if (connectRunnerBtn) {
         connectRunnerBtn.addEventListener('click', async () => {
+            if (isRunnerConnected) {
+                try {
+                    await fetch('http://127.0.0.1:4185/api/cancel', { method: 'POST', mode: 'no-cors' });
+                } catch (e) {}
+                isRunnerConnected = false;
+                runnerConnectionInfo.style.display = 'none';
+                checkRunnerStatus();
+                return;
+            }
+
+            isRunnerConnecting = true;
+            checkRunnerStatus();
+
             try {
                 const res = await fetch('/api/runner/connect', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    runnerStatusDot.style.background = '#2ecc71';
-                    runnerStatusDot.title = 'Runner Connected';
                     runnerConnectionInfo.style.display = 'block';
                     runnerConnectionInfo.innerHTML = `<strong>Runner Session Token:</strong><br><code style="font-family: monospace; font-size: 10px; display: block; padding: 4px; background: var(--bg-hover); margin-top: 4px;">RUNNER_TOKEN=${data.token} npm run runner:local</code>`;
-                    startAgentTaskBtn.style.display = 'block';
                 } else {
                     alert('Failed to connect runner: ' + (data.error || 'Unknown error'));
                 }
             } catch (err) {
                 alert('Connection request failed: ' + err.message);
+            } finally {
+                isRunnerConnecting = false;
+                checkRunnerStatus();
             }
         });
     }
+
+    checkRunnerStatus();
+    setInterval(checkRunnerStatus, 5000);
 
     if (startAgentTaskBtn) {
         startAgentTaskBtn.addEventListener('click', async () => {
             const goal = prompt('What coding goal should the autonomous agent accomplish?');
             if (!goal || !goal.trim()) return;
 
-            // Register a mock repository ID for the local worktree
             const repoId = 'local-repo-connection';
             try {
-                // Ensure a repository connection is registered first
                 await fetch('/api/repo-connections', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1694,6 +1794,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     const runData = await runRes.json();
                     if (runData.success && runData.run.status === 'awaiting_plan_approval') {
+                        window.isPlanApprovalRequired = true;
+                        checkRunnerStatus();
                         const approved = confirm(`Agent Implementation Plan Generated:\n\n${runData.run.planSummary}\n\nDo you approve this plan?`);
                         const decision = approved ? 'approved' : 'rejected';
                         await fetch(`/api/approvals/${runData.run.approvalId}`, {
@@ -1701,6 +1803,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ decision, runId: runData.run.runId })
                         });
+                        window.isPlanApprovalRequired = false;
+                        checkRunnerStatus();
                         appendMessage('ghost', `Plan ${decision}. Execution resumed on isolated companion runner.`);
                     }
                 } else {

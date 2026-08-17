@@ -45,6 +45,10 @@ function getApprovedRepos() {
 const app = express();
 app.use(express.json());
 
+app.get('/health', (req, res) => {
+  return res.json({ status: 'ok', service: 'ghost-companion-runner' });
+});
+
 // Token Authentication Middleware
 app.use((req, res, next) => {
   const authHeader = req.headers.authorization;
