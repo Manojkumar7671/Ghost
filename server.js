@@ -366,35 +366,53 @@ app.use('/api/admin', (req, res, next) => {
 });
 
 app.post('/api/auth', authLimiter, async (req, res) => {
-    const { authString, user = 'Guest' } = req.body;
+    const { authString, user } = req.body;
     const ip = req.ip;
     const userAgent = req.headers['user-agent'] || 'Unknown';
     let success = false;
+
+    // Check if there is an existing valid admin session
+    const sessionToken = req.cookies.ghost_session;
+    let isAdminSession = false;
+    if (sessionToken) {
+        try {
+            const decoded = jwt.verify(sessionToken, JWT_SECRET);
+            if (decoded && decoded.role === 'admin') {
+                isAdminSession = true;
+            }
+        } catch (e) {}
+    }
+
     const suppliedHash = crypto.createHash('sha256').update(String(authString || '')).digest();
     const expectedHash = crypto.createHash('sha256').update(ADMIN_PASSPHRASE).digest();
     if (authString && crypto.timingSafeEqual(suppliedHash, expectedHash)) {
         success = true;
+    } else if (isAdminSession) {
+        success = true;
     }
-    const chosenName = user && user !== 'Unknown' ? user : (success ? 'Admin' : 'Guest');
+    const chosenName = (user && user !== 'Unknown' && user !== 'Guest' && user !== 'Admin') ? user.trim() : '';
+    if (user !== undefined && chosenName === '') {
+        return res.status(400).json({ success: false, error: 'Name cannot be empty' });
+    }
     const isProd = process.env.RENDER === 'true' || process.env.NODE_ENV === 'production';
     if (success) {
         const token = jwt.sign({ role: 'admin', user: chosenName }, JWT_SECRET, { expiresIn: '24h' });
         res.cookie('ghost_session', token, { httpOnly: true, secure: isProd, sameSite: 'lax', maxAge: 24 * 60 * 60 * 1000 });
         if (pool) {
             pool.query('INSERT INTO activity_logs (username, status, ip_address, user_agent) VALUES ($1, $2, $3, $4)',
-                [chosenName, 'Login Success (Admin)', ip, userAgent]).catch(() => {});
+                [chosenName || 'Admin', 'Login Success (Admin)', ip, userAgent]).catch(() => {});
         }
         return res.json({ success: true, role: 'admin', user: chosenName });
     }
 
     // Guest onboarding / session setup
-    const token = jwt.sign({ role: 'guest', user: chosenName }, JWT_SECRET, { expiresIn: '24h' });
+    const token = jwt.sign({ role: 'guest', user: chosenName || 'Guest' }, JWT_SECRET, { expiresIn: '24h' });
     res.cookie('ghost_session', token, { httpOnly: true, secure: isProd, sameSite: 'lax', maxAge: 24 * 60 * 60 * 1000 });
     if (pool) {
         pool.query('INSERT INTO activity_logs (username, status, ip_address, user_agent) VALUES ($1, $2, $3, $4)',
-            [chosenName, 'Login Success (Guest)', ip, userAgent]).catch(() => {});
+            [chosenName || 'Guest', 'Login Success (Guest)', ip, userAgent]).catch(() => {});
     }
-    return res.json({ success: true, role: 'guest', user: chosenName });
+    return res.json({ success: true, role: 'guest', user: chosenName || 'Guest' });
 });
 
 // Added for API testing/token retrieval as requested
@@ -456,7 +474,7 @@ app.post('/api/verify-auth', async (req, res) => {
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         if (decoded && (decoded.role === 'admin' || decoded.role === 'guest')) {
-            return res.json({ success: true, isAdmin: decoded.role === 'admin', user: decoded.user || (decoded.role === 'admin' ? 'Admin' : 'Guest') });
+            return res.json({ success: true, isAdmin: decoded.role === 'admin', user: decoded.user });
         }
     } catch(e) {
         console.warn('[Auth] verify-auth JWT error:', e.message);

@@ -3,21 +3,21 @@
 :root {
   --bg-dark: #0b0b0e;
   --bg-card: #121216;
-  --bg-card-hover: #1b1b22;
+  --bg-card-hover: #1e1e24;
   --sidebar-bg: #07070a;
-  --border-color: rgba(255, 255, 255, 0.06);
-  --border-active: rgba(255, 255, 255, 0.15);
+  --border-color: rgba(255, 255, 255, 0.12);
+  --border-active: rgba(255, 255, 255, 0.35);
   
-  --accent-primary: #1e1e24;
-  --accent-violet: #6b21a8; /* Deep purple */
-  --accent-purple-glow: rgba(107, 33, 168, 0.3);
-  --accent-warm: #d97706;
-  --accent-emerald: #059669;
-  --accent-rose: #dc2626;
+  --accent-primary: #3f3f46;
+  --accent-violet: #8b5cf6; /* Accessible violet */
+  --accent-purple-glow: rgba(139, 92, 246, 0.2);
+  --accent-warm: #f59e0b;
+  --accent-emerald: #10b981;
+  --accent-rose: #ef4444;
 
-  --text-main: #f4f4f5;
-  --text-muted: #a1a1aa;
-  --text-dim: #71717a;
+  --text-main: #ffffff;
+  --text-muted: #e4e4e7;
+  --text-dim: #a1a1aa;
 
   --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -245,17 +245,18 @@ body {
 
 .toggle-card:hover {
   background: var(--bg-card-hover);
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: var(--border-active);
 }
 
 .toggle-card.active {
-  background: rgba(99, 102, 241, 0.1);
-  border-color: var(--accent-primary);
+  background: rgba(139, 92, 246, 0.1);
+  border-color: var(--accent-violet);
+  box-shadow: 0 0 10px var(--accent-purple-glow);
 }
 
 .toggle-card.active .toggle-indicator {
-  background-color: var(--accent-primary);
-  box-shadow: 0 0 8px var(--accent-primary);
+  background-color: var(--accent-violet);
+  box-shadow: 0 0 8px var(--accent-violet);
 }
 
 .toggle-indicator {
@@ -1226,4 +1227,67 @@ pre {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* --- ACCESSIBILITY, FOCUS OUTLINES, AND INTERACTION AFFORDANCES --- */
+button, a, input, textarea, select, [tabindex] {
+  outline: none;
+}
+
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--accent-violet) !important;
+  outline-offset: 2px !important;
+}
+
+button:active, a:active, .project-item:active, .memory-item:active, .quick-action-btn:active {
+  transform: scale(0.97) !important;
+}
+
+/* Reusable high-visibility button styles */
+.btn-primary-action {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-active);
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.btn-primary-action:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-violet);
+  box-shadow: 0 0 10px var(--accent-purple-glow);
+}
+
+.btn-primary-action:disabled, .btn-primary-action.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: var(--border-color);
+}
+
+.quick-action-btn {
+  text-align: left;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.quick-action-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-violet);
+  color: var(--text-main);
 }

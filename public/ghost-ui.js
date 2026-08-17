@@ -309,10 +309,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- PERSISTENT OWNER RECOGNITION ---
     function updateInitialGreeting(name) {
-        const greetingText = `Hey, ${name}. What are we building today?`;
+        let greetingText;
+        if (!name || name === 'Admin' || name === 'Guest') {
+            greetingText = "Welcome back. What are we building today?";
+        } else {
+            greetingText = `Hey, ${name}. What are we building today?`;
+        }
         const firstBubble = document.querySelector('#chatLog .message-card.ghost .bubble');
-        if (firstBubble) {
-            firstBubble.innerText = greetingText;
+        if (firstBubble && isAdminMode) {
+            firstBubble.innerHTML = greetingText;
         }
     }
 
@@ -339,18 +344,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({})
             });
             const data = await res.json();
-            if (data.success) {
-                userTag.innerText = (data.user || 'Guest').toUpperCase();
-                userTag.style.color = data.isAdmin ? 'var(--accent-primary)' : 'var(--text-main)';
-                masterUser = data.user || "Guest";
-                isAdminMode = data.isAdmin;
-                loginOverlay.style.opacity = '0';
-                loginOverlay.style.visibility = 'hidden';
-                appLayout.classList.add('active');
-                updateInitialGreeting(masterUser);
+            if (data.success && data.isAdmin) {
+                masterUser = data.user || "";
+                isAdminMode = true;
+                if (!masterUser) {
+                    storedClearanceKey = "session_authorized";
+                    loginOverlay.style.opacity = '1';
+                    loginOverlay.style.visibility = 'visible';
+                    authInput.placeholder = "What should I call you?";
+                    document.querySelector('.login-sub').innerText = "Owner access authorized. What should I call you?";
+                    authInput.focus();
+                } else {
+                    userTag.innerText = masterUser.toUpperCase();
+                    userTag.style.color = 'var(--accent-primary)';
+                    loginOverlay.style.opacity = '0';
+                    loginOverlay.style.visibility = 'hidden';
+                    appLayout.classList.add('active');
+                    updateInitialGreeting(masterUser);
+                }
                 console.log('[Auth] Persistent session verified via HTTP-only cookie.');
             } else {
-                // Enter as visitor (Guest)
                 masterUser = "Guest";
                 isAdminMode = false;
                 loginOverlay.style.opacity = '0';
@@ -359,7 +372,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) {
             console.warn('[Auth] Persistent verification error:', e.message);
-            // Enter as visitor (Guest)
             masterUser = "Guest";
             isAdminMode = false;
             loginOverlay.style.opacity = '0';
@@ -398,13 +410,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     alert('Authentication failed.');
                 }
             } else {
-                const chosenName = inputVal.replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 20) || "Guest";
+                const chosenName = inputVal.replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 20) || "";
+                if (!chosenName) {
+                    alert('Name cannot be empty.');
+                    return;
+                }
                 try {
+                    const payload = { user: chosenName };
+                    if (storedClearanceKey !== 'session_authorized') {
+                        payload.authString = storedClearanceKey;
+                    }
                     const authRes = await fetch(apiUrl('/api/auth'), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         credentials: 'include',
-                        body: JSON.stringify({ authString: storedClearanceKey, user: chosenName })
+                        body: JSON.stringify(payload)
                     });
                     const authData = await authRes.json();
                     if (authData.success) {

@@ -65,6 +65,7 @@ async function requestRunner(method, path, body = null, headers = {}) {
     env: {
       ...process.env,
       PORT: PORT.toString(),
+      ADMIN_PASSPHRASE: 'test_admin_passphrase',
       JWT_SECRET,
       NODE_ENV: 'test',
       BYPASS_LIMITS: 'true'
@@ -105,7 +106,7 @@ async function requestRunner(method, path, body = null, headers = {}) {
 
     // 2. Authenticated login & connection creation
     console.log('[Test 2] Testing authenticated connections...');
-    const loginRes = await request('POST', '/api/auth', { authString: 'test', user: 'Tester' });
+    const loginRes = await request('POST', '/api/auth', { authString: 'test_admin_passphrase', user: 'Tester' });
     const cookie = loginRes.headers['set-cookie'] ? loginRes.headers['set-cookie'][0] : '';
     const token = cookie.split(';')[0].split('=')[1];
 
@@ -175,6 +176,30 @@ async function requestRunner(method, path, body = null, headers = {}) {
     assert(!indexRes.includes("Master Manoj"));
     assert(!indexRes.includes("Master"));
     console.log('✅ PASS: Visitor greetings, actions, and access boundaries fully verified.');
+
+    // 6. Owner Unlock name onboarding validation
+    console.log('[Test 6] Testing owner unlock name onboarding...');
+    // Login without name
+    const auth1 = await request('POST', '/api/auth', { authString: 'test_admin_passphrase' });
+    assert.strictEqual(auth1.status, 200);
+    assert.strictEqual(auth1.data.user, ''); // should be empty if not provided
+    const cookie1 = auth1.headers['set-cookie'] ? auth1.headers['set-cookie'][0] : '';
+    const token1 = cookie1.split(';')[0].split('=')[1];
+
+    // Try updating name with empty string (should be rejected)
+    const authEmpty = await request('POST', '/api/auth', { user: '   ' }, { Cookie: `ghost_session=${token1}` });
+    assert.strictEqual(authEmpty.status, 400);
+
+    // Set valid name
+    const auth2 = await request('POST', '/api/auth', { user: 'Manojkumar' }, { Cookie: `ghost_session=${token1}` });
+    assert.strictEqual(auth2.status, 200);
+    assert.strictEqual(auth2.data.user, 'Manojkumar');
+
+    // Verify name on refresh
+    const refreshRes = await request('POST', '/api/verify-auth', {}, { Cookie: auth2.headers['set-cookie'][0].split(';')[0] });
+    assert.strictEqual(refreshRes.status, 200);
+    assert.strictEqual(refreshRes.data.user, 'Manojkumar');
+    console.log('✅ PASS: Owner name onboarding, persistence, and validation checks passed.');
 
   } catch (err) {
     console.error('❌ Test Suite Failed:', err);

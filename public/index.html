@@ -69,9 +69,9 @@
                     <span id="runnerStatusDot" class="status-dot offline" style="width: 8px; height: 8px; border-radius: 50%; background: #ff4d4d; display: inline-block; margin-left: 8px; vertical-align: middle;" title="Runner Offline"></span>
                 </div>
                 <div class="sidebar-nav" style="padding: 10px; border-top: 1px solid var(--border-color);">
-                    <button class="btn-small" id="connectRunnerBtn" style="width: 100%; margin-bottom: 8px; padding: 6px; background: var(--bg-hover); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;">Connect Companion</button>
-                    <button class="btn-small" id="startAgentTaskBtn" style="width: 100%; padding: 6px; background: var(--accent-primary); color: white; border: none; border-radius: 4px; cursor: pointer; display: none;">Start Coding Task</button>
-                    <div id="runnerConnectionInfo" style="margin-top: 8px; font-size: 11px; color: var(--text-sub); display: none; word-break: break-all;"></div>
+                    <button class="btn-primary-action" id="connectRunnerBtn" style="margin-bottom: 8px;">Connect Companion</button>
+                    <button class="btn-primary-action" id="startAgentTaskBtn" style="display: none; background: var(--accent-violet);">Start Coding Task</button>
+                    <div id="runnerConnectionInfo" style="margin-top: 8px; font-size: 11px; color: var(--text-dim); display: none; word-break: break-all;"></div>
                 </div>
             </div>
 
@@ -127,10 +127,10 @@
                             <p style="margin: 0 0 10px 0;"><strong>Hello — I’m Ghost.</strong> I’m Manojkumar’s personal AI coding assistant. I can help you understand code, reason through technical problems, draft implementation plans, explain how Ghost works, and guide safe next steps. I do not claim to be a fully autonomous computer, and I do not run code, open private projects, access memories, or make repository changes for visitors. Manojkumar’s private owner workspace unlocks additional controls such as approved projects, saved memory, coding-task review, and the local companion runner. Those controls are not available to visitors.</p>
                             <p style="margin: 0 0 12px 0;"><strong>What would you like to explore?</strong></p>
                             <div class="quick-actions" style="display: flex; flex-direction: column; gap: 8px; max-width: 400px; margin-top: 10px;">
-                                <button class="quick-action-btn" style="text-align: left; padding: 8px 12px; background: var(--bg-hover); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 4px; cursor: pointer; font-size: 13px;" onclick="sendQuickAction('What can Ghost do?')">What can Ghost do?</button>
-                                <button class="quick-action-btn" style="text-align: left; padding: 8px 12px; background: var(--bg-hover); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 4px; cursor: pointer; font-size: 13px;" onclick="sendQuickAction('Explain the autonomous coding workflow')">Explain the autonomous coding workflow</button>
-                                <button class="quick-action-btn" style="text-align: left; padding: 8px 12px; background: var(--bg-hover); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 4px; cursor: pointer; font-size: 13px;" onclick="sendQuickAction('Help me understand a coding problem')">Help me understand a coding problem</button>
-                                <button class="quick-action-btn" style="text-align: left; padding: 8px 12px; background: var(--bg-hover); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 4px; cursor: pointer; font-size: 13px;" onclick="sendQuickAction('How does owner access work?')">How does owner access work?</button>
+                                <button class="quick-action-btn" onclick="sendQuickAction('What can Ghost do?')">What can Ghost do?</button>
+                                <button class="quick-action-btn" onclick="sendQuickAction('Explain the autonomous coding workflow')">Explain the autonomous coding workflow</button>
+                                <button class="quick-action-btn" onclick="sendQuickAction('Help me understand a coding problem')">Help me understand a coding problem</button>
+                                <button class="quick-action-btn" onclick="sendQuickAction('How does owner access work?')">How does owner access work?</button>
                             </div>
                         </div>
                     </div>
