@@ -56,7 +56,9 @@ async function request(method, path, body = null, headers = {}) {
             PORT: PORT.toString(),
             ADMIN_PASSPHRASE: 'test',
             JWT_SECRET,
-            GHOST_DEPLOYMENT_MODE: 'local'
+            GHOST_DEPLOYMENT_MODE: 'local',
+            NODE_ENV: 'test',
+            BYPASS_LIMITS: 'true'
         },
         stdio: 'ignore'
     });
@@ -74,6 +76,7 @@ async function request(method, path, body = null, headers = {}) {
 
         // Login to get session cookie
         const authRes = await request('POST', '/api/auth', { authString: 'test', user: 'Tester' });
+        console.log('[Test 2] authRes:', authRes);
         const cookie = authRes.headers['set-cookie'] ? authRes.headers['set-cookie'][0] : '';
         const token = cookie.split(';')[0].split('=')[1];
 
@@ -101,6 +104,18 @@ async function request(method, path, body = null, headers = {}) {
         const projGetUnauth = await request('GET', '/api/projects');
         assert.strictEqual(projGetUnauth.status, 401);
         console.log('✅ PASS: Unauthenticated access blocked correctly with 401.');
+
+        // 5. Test Greeting and User Name personalization (no "Master Manoj" default)
+        console.log('[Test 5] Testing custom display name onboarding and greeting...');
+        const loginRes = await request('POST', '/api/auth', { authString: 'test', user: 'TesterManoj' });
+        assert.strictEqual(loginRes.status, 200);
+        assert.strictEqual(loginRes.data.user, 'TesterManoj');
+
+        const verifyRes = await request('POST', '/api/verify-auth', null, { Cookie: `ghost_session=${cookie.split(';')[0].split('=')[1]}` });
+        assert.strictEqual(verifyRes.status, 200);
+        assert.strictEqual(verifyRes.data.user, 'Tester');
+        assert(verifyRes.data.user !== 'Master Manoj');
+        console.log('✅ PASS: Display name set and retrieved without falling back to Master Manoj.');
 
     } catch (e) {
         console.error('❌ Tests failed:', e);

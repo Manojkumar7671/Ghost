@@ -177,11 +177,8 @@ Example: [{"tool":"web_search","params":{"query":"latest AI news"},"reason":"Use
 }
 
 function getSystemPrompt(userContext = {}) {
-  const isAdmin = !!userContext.isAdmin;
-  const name = userContext.safeUser && userContext.safeUser !== 'guest' ? userContext.safeUser.toUpperCase() : 'VISITOR';
-  const greetingRule = isAdmin
-    ? `- Address the user as "Master Manoj" with a dry, crisp, British demeanor — impeccably polite and slightly witty.`
-    : `- Address the user as "${name}" (who is a guest visitor, not the admin). Impeccably polite, professional, but do NOT call them "Master Manoj" because they have not authenticated with the admin clearance key.`;
+  const name = userContext.safeUser && userContext.safeUser !== 'guest' && userContext.safeUser !== 'Unknown' ? userContext.safeUser : 'User';
+  const greetingRule = `- Address the user as "${name}". Impeccably polite, professional, dry wit, British demeanor. Do NOT call them "Master" or "Master Manoj" unless they explicitly ask for it.`;
 
   return `You are Ghost, a personal AI agent built and run by Manoj Kumar. You are not a generic chatbot — you have persistent memory, real tool access (file system, terminal, database, web automation, scheduled tasks), MCP tool access, and you route between multiple LLM providers for intelligence.
 

@@ -308,27 +308,53 @@ document.addEventListener('DOMContentLoaded', () => {
     const handsFreeStatus = document.getElementById('handsFreeStatus');
 
     // --- PERSISTENT OWNER RECOGNITION ---
+    function updateInitialGreeting(name) {
+        const greetingText = `Hey, ${name}. What are we building today?`;
+        const firstBubble = document.querySelector('#chatLog .message-card.ghost .bubble');
+        if (firstBubble) {
+            firstBubble.innerText = greetingText;
+        }
+    }
+
+    function showNeutralOnboarding() {
+        const loginSub = document.querySelector('.login-sub');
+        if (loginSub) {
+            loginSub.innerText = "Welcome to Ghost. What should I call you?";
+        }
+        if (authInput) {
+            authInput.placeholder = "Enter your name...";
+        }
+        const firstBubble = document.querySelector('#chatLog .message-card.ghost .bubble');
+        if (firstBubble) {
+            firstBubble.innerText = "Welcome to Ghost. What should I call you?";
+        }
+    }
+
     async function checkPersistentAuth() {
         try {
             const res = await fetch(apiUrl('/api/verify-auth'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({}) // Server relies strictly on HTTP-only cookie now
+                body: JSON.stringify({})
             });
             const data = await res.json();
-            if (data.success && data.isAdmin) {
-                userTag.innerText = `ADMIN // MASTER MANOJ`;
-                userTag.style.color = 'var(--accent-primary)';
-                masterUser = "Master Manoj";
-                isAdminMode = true;
+            if (data.success) {
+                userTag.innerText = (data.user || 'Guest').toUpperCase();
+                userTag.style.color = data.isAdmin ? 'var(--accent-primary)' : 'var(--text-main)';
+                masterUser = data.user || "Guest";
+                isAdminMode = data.isAdmin;
                 loginOverlay.style.opacity = '0';
                 loginOverlay.style.visibility = 'hidden';
                 appLayout.classList.add('active');
-                console.log('[Auth] Persistent owner recognition verified via HTTP-only cookie.');
+                updateInitialGreeting(masterUser);
+                console.log('[Auth] Persistent session verified via HTTP-only cookie.');
+            } else {
+                showNeutralOnboarding();
             }
         } catch (e) {
-            console.warn('[Auth] Persistent clearance verification error:', e.message);
+            console.warn('[Auth] Persistent verification error:', e.message);
+            showNeutralOnboarding();
         }
     }
     checkPersistentAuth();
@@ -350,22 +376,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 const authData = await authRes.json();
 
-                if (authData.success && authData.role === 'admin') {
-                    const sessionName = authData.user || "Master Manoj";
-                    userTag.innerText = sessionName.toUpperCase();
-                    userTag.style.color = 'var(--accent-primary)';
-                    masterUser = sessionName;
-                    isAdminMode = true;
-                    // Token is now handled securely via HTTP-only cookie from server
-                    speakResponse('Greetings. Ghost AI Engine is online and operational. How may I assist you today?');
+                if (authData.success) {
+                    masterUser = authData.user || safeGuestName;
+                    isAdminMode = (authData.role === 'admin');
+                    userTag.innerText = masterUser.toUpperCase();
+                    userTag.style.color = isAdminMode ? 'var(--accent-primary)' : 'var(--text-main)';
+
+                    updateInitialGreeting(masterUser);
+                    speakResponse(`Hey, ${masterUser}. What are we building today?`);
                 } else {
-                    userTag.innerText = safeGuestName.toUpperCase();
                     masterUser = safeGuestName;
                     isAdminMode = false;
-                    speakResponse('Greetings. Ghost AI Engine is online and operational. How may I assist you today?');
+                    userTag.innerText = safeGuestName.toUpperCase();
+                    userTag.style.color = 'var(--text-main)';
+
+                    updateInitialGreeting(safeGuestName);
+                    speakResponse(`Hey, ${safeGuestName}. What are we building today?`);
                 }
             } catch (error) {
                 console.error("Auth routing failed.", error);
+                masterUser = safeGuestName;
+                updateInitialGreeting(safeGuestName);
             }
 
             loginOverlay.style.opacity = '0';
@@ -1091,6 +1122,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify(payload)
             });
 
+            if (response.status === 401) {
+                thinkingIndicator.classList.remove('active');
+                loginOverlay.style.opacity = '1';
+                loginOverlay.style.visibility = 'visible';
+                appLayout.classList.remove('active');
+                return;
+            }
+
             if (response.status === 409) {
                 thinkingIndicator.classList.remove('active');
                 appendMessage('ghost', "A task is already running. Please wait for it to finish, or type `cancel that`.");
@@ -1399,6 +1438,15 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch(apiUrl('/api/projects'), { credentials: 'include' });
             const data = await res.json();
+            if (res.status === 401 || data.error === 'Missing token.' || data.error === 'Unauthorized') {
+                projectsList.innerHTML = '<div class="loading-text"><button class="unlock-btn" style="background:var(--accent-primary); border:none; padding:4px 8px; color:#fff; cursor:pointer; border-radius:3px; font-size:11px;">Unlock Ghost</button></div>';
+                projectsList.querySelector('.unlock-btn')?.addEventListener('click', () => {
+                    loginOverlay.style.opacity = '1';
+                    loginOverlay.style.visibility = 'visible';
+                    appLayout.classList.remove('active');
+                });
+                return;
+            }
             if (res.status === 503 || data.error === 'DATABASE_UNAVAILABLE') {
                 projectsList.innerHTML = '<div class="loading-text">⚠️ Storage not configured. (Local Preview)</div>';
                 return;
@@ -1452,6 +1500,15 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch(apiUrl('/api/memory'), { credentials: 'include' });
             const data = await res.json();
+            if (res.status === 401 || data.error === 'Missing token.' || data.error === 'Unauthorized') {
+                memoryList.innerHTML = '<div class="loading-text"><button class="unlock-btn" style="background:var(--accent-primary); border:none; padding:4px 8px; color:#fff; cursor:pointer; border-radius:3px; font-size:11px;">Unlock Ghost</button></div>';
+                memoryList.querySelector('.unlock-btn')?.addEventListener('click', () => {
+                    loginOverlay.style.opacity = '1';
+                    loginOverlay.style.visibility = 'visible';
+                    appLayout.classList.remove('active');
+                });
+                return;
+            }
             if (res.status === 503 || data.error === 'DATABASE_UNAVAILABLE') {
                 memoryList.innerHTML = '<div class="loading-text">⚠️ Storage not configured. (Local Preview)</div>';
                 return;
