@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ghost AI Matrix</title>
     <link rel="stylesheet" href="/style.css">
+    <script src="/api-config.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';</script>
@@ -36,6 +37,28 @@
                     <div class="history-item active">Current Session</div>
                     <div class="history-item">Task: TTS Debugging</div>
                     <div class="history-item">Scheduler Persistence</div>
+                </div>
+            </div>
+
+            <!-- PROJECTS -->
+            <div id="projectsContainer" class="history-container">
+                <div class="history-title-row">
+                    <span class="history-title">Projects</span>
+                    <button class="btn-small-icon" id="createProjectBtn" title="Create New Project">+</button>
+                </div>
+                <div class="history-list" id="projectsList">
+                    <div class="history-item loading-text">Loading projects...</div>
+                </div>
+            </div>
+
+            <!-- SYSTEM MEMORY -->
+            <div id="memoryContainer" class="history-container">
+                <div class="history-title-row">
+                    <span class="history-title">Memory</span>
+                    <button class="btn-small-icon" id="saveMemoryBtn" title="Save Memory Note">+</button>
+                </div>
+                <div class="history-list" id="memoryList">
+                    <div class="history-item loading-text">Loading memories...</div>
                 </div>
             </div>
 
@@ -81,14 +104,20 @@
                 </div>
             </header>
 
-            <!-- CHAT MESSAGE LOG STREAM -->
-            <div class="chat-log" id="chatLog">
-                <div class="message-card ghost">
-                    <div class="avatar">G</div>
-                    <div class="bubble">
-                        Greetings. Ghost AI Engine is online and operational. How may I assist you today?
+            <!-- CHAT WORKSPACE MAIN SPLIT -->
+            <div class="chat-workspace-main">
+                <!-- CHAT MESSAGE LOG STREAM -->
+                <div class="chat-log" id="chatLog">
+                    <div class="message-card ghost">
+                        <div class="avatar">G</div>
+                        <div class="bubble">
+                            Greetings. Ghost AI Engine is online and operational. How may I assist you today?
+                        </div>
                     </div>
                 </div>
+
+                <!-- 4D HOLOGRAPHIC PARTICLE GLOBE VISUALIZER -->
+                <div id="visualizerContainer" class="visualizer-container-main"></div>
             </div>
 
             <!-- THINKING INDICATOR -->

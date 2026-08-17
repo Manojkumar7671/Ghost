@@ -97,7 +97,7 @@ export async function callMcpTool(toolName, args = {}) {
 
   try {
     const client = await getConnectedClient();
-    if (!client) throw new Error('MCP server connection unavailable.');
+    if (!client) throw new Error('LOCAL_BRIDGE_UNAVAILABLE: local tool bridge unavailable—nothing was run.');
 
     const targetName = toolName.replace(/^mcp_/, '');
     const res = await client.callTool({ name: targetName, arguments: args });

@@ -1,56 +1,60 @@
+// --- API URL CONFIGURATION POINT ---
+const apiBase = (window.VITE_GHOST_API_BASE ?? "").replace(/\/$/, "");
+const apiUrl = (path) => `${apiBase}${path}`;
+
 // --- 3D/4D HOLOGRAPHIC THREE.JS VISUALIZER GLOBE ---
 class GhostVisualizer {
   constructor(containerId) {
     this.container = document.getElementById(containerId);
     if (!this.container) return;
-    
+
     this.state = 'idle'; // 'idle', 'listening', 'responding'
     this.micLevel = 0;
-    
+
     this.initThree();
     this.animate();
-    
+
     window.addEventListener('resize', () => this.onResize());
   }
-  
+
   initThree() {
     const width = this.container.clientWidth || 600;
     const height = this.container.clientHeight || 420;
-    
+
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
     this.camera.position.z = 6;
-    
+
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.container.appendChild(this.renderer.domElement);
-    
+
     // Create particle sphere using IcosahedronGeometry
     this.geometry = new THREE.IcosahedronGeometry(2.2, 4); // Radius 2.2, detail 4
     this.originalVertices = [];
-    
+
     const pos = this.geometry.attributes.position;
     for (let i = 0; i < pos.count; i++) {
       this.originalVertices.push(new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)));
     }
-    
+
     // Material for glowing particles
     this.material = new THREE.PointsMaterial({
-      color: 0x00f0ff,
+      color: 0x52525b,
       size: 0.05,
       transparent: true,
       opacity: 0.8,
       blending: THREE.AdditiveBlending
     });
-    
+
     this.points = new THREE.Points(this.geometry, this.material);
     this.scene.add(this.points);
-    
+
     // Add subtle wireframe mesh underneath for extra structure
     const wireGeometry = new THREE.IcosahedronGeometry(1.98, 3);
     const wireMaterial = new THREE.MeshBasicMaterial({
-      color: 0x00a8ff,
+      color: 0x27272a,
       wireframe: true,
       transparent: true,
       opacity: 0.12,
@@ -58,29 +62,29 @@ class GhostVisualizer {
     });
     this.wireMesh = new THREE.Mesh(wireGeometry, wireMaterial);
     this.scene.add(this.wireMesh);
-    
+
     this.clock = new THREE.Clock();
-    
+
     // Color interpolation properties
-    this.targetColor = new THREE.Color(0x00f0ff);
-    this.currentColor = new THREE.Color(0x00f0ff);
+    this.targetColor = new THREE.Color(0x52525b);
+    this.currentColor = new THREE.Color(0x52525b);
   }
-  
+
   setState(state) {
     this.state = state;
     if (state === 'idle') {
-      this.targetColor.setHex(0x00f0ff); // Cyan
+      this.targetColor.setHex(0x52525b); // Graphite grey
     } else if (state === 'listening') {
-      this.targetColor.setHex(0x00a8ff); // Electric Blue
+      this.targetColor.setHex(0x6b21a8); // Deep purple
     } else if (state === 'responding') {
-      this.targetColor.setHex(0x7000ff); // Deep Violet
+      this.targetColor.setHex(0xa855f7); // Bright purple
     }
   }
-  
+
   setMicLevel(level) {
     this.micLevel = level; // normalized 0 to 1
   }
-  
+
   onResize() {
     if (!this.container) return;
     const width = this.container.clientWidth;
@@ -89,33 +93,33 @@ class GhostVisualizer {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
   }
-  
+
   animate() {
     requestAnimationFrame(() => this.animate());
-    
+
     const time = this.clock.getElapsedTime();
-    
+
     // Rotate elements
     let rotSpeed = 0.15;
     if (this.state === 'listening') rotSpeed = 0.3;
     else if (this.state === 'responding') rotSpeed = 0.55;
-    
+
     this.points.rotation.y = time * rotSpeed;
     this.points.rotation.x = time * (rotSpeed * 0.5);
     this.wireMesh.rotation.y = -time * (rotSpeed * 0.7);
-    
+
     // Interpolate colors
     this.currentColor.lerp(this.targetColor, 0.08);
     this.material.color.copy(this.currentColor);
     this.wireMesh.material.color.copy(this.currentColor);
-    
+
     // Deform geometry
     const pos = this.geometry.attributes.position;
     const count = pos.count;
-    
+
     for (let i = 0; i < count; i++) {
       const orig = this.originalVertices[i];
-      
+
       let displacement = 0;
       if (this.state === 'idle') {
         // Small slow wave
@@ -127,14 +131,14 @@ class GhostVisualizer {
         // procedural voice waveform pattern
         displacement = Math.sin(orig.z * 5.0 + time * 14.0) * 0.22 + Math.cos(orig.y * 3.0 + time * 10.0) * 0.08;
       }
-      
+
       // Offset position along vertex normal (since center is 0,0,0, normal is normalized orig vector)
       const normal = orig.clone().normalize();
       const newPos = orig.clone().add(normal.multiplyScalar(displacement));
-      
+
       pos.setXYZ(i, newPos.x, newPos.y, newPos.z);
     }
-    
+
     this.geometry.attributes.position.needsUpdate = true;
     this.renderer.render(this.scene, this.camera);
   }
@@ -305,14 +309,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- PERSISTENT OWNER RECOGNITION ---
     async function checkPersistentAuth() {
-        const storedToken = localStorage.getItem('ghost_owner_clearance');
-        if (!storedToken) return;
-
         try {
-            const res = await fetch('/api/verify-auth', {
+            const res = await fetch(apiUrl('/api/verify-auth'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token: storedToken })
+                credentials: 'include',
+                body: JSON.stringify({}) // Server relies strictly on HTTP-only cookie now
             });
             const data = await res.json();
             if (data.success && data.isAdmin) {
@@ -323,7 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 loginOverlay.style.opacity = '0';
                 loginOverlay.style.visibility = 'hidden';
                 appLayout.classList.add('active');
-                console.log('[Auth] Persistent owner recognition verified for Master Manoj.');
+                console.log('[Auth] Persistent owner recognition verified via HTTP-only cookie.');
             }
         } catch (e) {
             console.warn('[Auth] Persistent clearance verification error:', e.message);
@@ -340,9 +342,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const safeGuestName = inputVal.replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 20) || "Guest";
 
             try {
-                const authRes = await fetch('/api/auth', {
+                const authRes = await fetch(apiUrl('/api/auth'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
                     body: JSON.stringify({ authString: inputVal, user: safeGuestName })
                 });
                 const authData = await authRes.json();
@@ -353,7 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     userTag.style.color = 'var(--accent-primary)';
                     masterUser = sessionName;
                     isAdminMode = true;
-                    localStorage.setItem('ghost_owner_clearance', inputVal);
+                    // Token is now handled securely via HTTP-only cookie from server
                     speakResponse('Greetings. Ghost AI Engine is online and operational. How may I assist you today?');
                 } else {
                     userTag.innerText = safeGuestName.toUpperCase();
@@ -409,7 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Default sidebar mount on startup
     mountVisualizer('visualizerContainer');
 
-    function enableHandsFreeMode() {
+    async function enableHandsFreeMode() {
         isHandsFreeActive = true;
         inputMode = 'voice';
         if (handsFreeBtn) handsFreeBtn.classList.add('active');
@@ -422,6 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (handsFreeLiveText) handsFreeLiveText.innerText = "Hands-Free Mode Active. Speak anytime — mic is always on!";
         speakResponse("Hands-free mode enabled. Mic is open. Speak anytime to command Ghost.");
+        await initAudioPipeline();
     }
 
     function disableHandsFreeMode() {
@@ -436,6 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.ghostVisualizer) window.ghostVisualizer.setState('idle');
 
         speakResponse("Hands-free mode disabled.");
+        cleanupAudioPipeline();
     }
 
     if (handsFreeBtn) {
@@ -572,7 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             .replace(/\[.*?\]/g, '').trim();
 
         if (!cleanText) cleanText = "Execution complete.";
-        
+
         // 1. Display immediately in chat bubble
         appendMessage('ghost', cleanText);
 
@@ -588,24 +593,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             window.speechSynthesis.cancel(); // Clear any stuck utterances
-            
+
             // Stop any background recognition when speaking to prevent echoing as wake word
             if (recognitionInstance && recognitionActive) {
                 try { recognitionInstance.stop(); } catch(e) {}
             }
-            
+
             setMicState('speaking');
 
             const utterance = new SpeechSynthesisUtterance(cleanText);
-            
+
             // Force load voices if empty
             if (availableVoices.length === 0) {
                 availableVoices = window.speechSynthesis.getVoices();
             }
-            
-            let ukVoice = availableVoices.find(v => v.lang === 'en-GB' || v.name.includes('UK English')) 
+
+            let ukVoice = availableVoices.find(v => v.lang === 'en-GB' || v.name.includes('UK English'))
                           || availableVoices.find(v => v.lang.includes('en'));
-            
+
             if (ukVoice) {
                 utterance.voice = ukVoice;
                 console.log(`[TTS] Using voice: ${ukVoice.name} (${ukVoice.lang})`);
@@ -618,7 +623,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return;
             }
-            
+
             utterance.rate = 1.05;
             utterance.pitch = 0.95;
             utterance.volume = 1.0;
@@ -638,7 +643,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }, 400);
                 }
             };
-            
+
             utterance.onerror = (e) => {
                 console.error('[TTS] Speech synthesis error:', e.error || e);
                 setMicState('idle');
@@ -650,10 +655,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }, 400);
                 }
             };
-            
+
             window.speechSynthesis.speak(utterance);
-            
-            // Failsafe: if speech doesn't start in 1 second, it's stuck. 
+
+            // Failsafe: if speech doesn't start in 1 second, it's stuck.
             // Chrome on Mac sometimes gets stuck in a silent state.
             setTimeout(() => {
                 if (window.speechSynthesis.pending && !window.speechSynthesis.speaking) {
@@ -670,15 +675,95 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- AUDIO PIPELINE, WAKE-WORD & SILENCE DETECTION ---
     let mediaRecorder = null;
+    class VoiceStateMachine {
+        constructor() {
+            this.state = 'idle'; // idle, listening, recording, transcribing, speaking, error
+        }
+        transition(newState) {
+            console.log(`[VoiceStateMachine] Transition: ${this.state} -> ${newState}`);
+
+            // Exit logic
+            if (this.state === 'speaking' && newState !== 'speaking') {
+                if (window.speechSynthesis) window.speechSynthesis.cancel();
+            }
+            if (this.state === 'recording' && newState !== 'recording') {
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                    try { mediaRecorder.stop(); } catch(e) {}
+                }
+            }
+
+            this.state = newState;
+            setMicState(newState);
+        }
+        isRecording() {
+            return this.state === 'recording';
+        }
+        isSpeaking() {
+            return this.state === 'speaking';
+        }
+    }
+
+    const voiceState = new VoiceStateMachine();
+
     let audioChunks = [];
-    let isRecording = false;
     let globalAudioContext = null;
     let globalAnalyser = null;
     let globalStream = null;
     let recognitionInstance = null;
+    let audioLevelFrameId = null;
+
+    function isRecording() { return voiceState.isRecording(); }
     let recognitionActive = false;
 
+    function cleanupAudioPipeline() {
+        console.log('[Audio Pipeline] Cleaning up audio pipeline...');
+        // 1. Cancel requestAnimationFrame loop
+        if (audioLevelFrameId) {
+            cancelAnimationFrame(audioLevelFrameId);
+            audioLevelFrameId = null;
+        }
+
+        // 2. Stop SpeechRecognition
+        if (recognitionInstance) {
+            try {
+                recognitionInstance.onstart = null;
+                recognitionInstance.onend = null;
+                recognitionInstance.onerror = null;
+                recognitionInstance.onresult = null;
+                recognitionInstance.stop();
+            } catch (e) { console.warn('Failed to stop recognition:', e); }
+            recognitionInstance = null;
+            recognitionActive = false;
+        }
+
+        // 3. Stop every media track
+        if (globalStream) {
+            globalStream.getTracks().forEach(track => {
+                try { track.stop(); } catch(e) {}
+            });
+            globalStream = null;
+        }
+
+        // 4. Close AudioContext
+        if (globalAudioContext) {
+            try {
+                if (globalAudioContext.state !== 'closed') {
+                    globalAudioContext.close();
+                }
+            } catch (e) { console.warn('Failed to close AudioContext:', e); }
+            globalAudioContext = null;
+        }
+
+        globalAnalyser = null;
+        voiceState.transition('idle');
+    }
+
     async function initAudioPipeline() {
+        if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+            appendMessage('ghost', "SpeechRecognition is not supported in this browser. Please use Chrome.");
+            cleanupAudioPipeline();
+            return;
+        }
         try {
             console.log('[Audio Pipeline] Requesting microphone access...');
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -694,71 +779,72 @@ document.addEventListener('DOMContentLoaded', () => {
             const dataArray = new Uint8Array(globalAnalyser.frequencyBinCount);
             let silenceStart = null;
 
-    function bargeInInterrupt() {
-        if (window.speechSynthesis && window.speechSynthesis.speaking) {
-            console.log('[Barge-In Interrupt] User voice detected during TTS playback. HARD STOPPING audio output!');
-            window.speechSynthesis.cancel();
-            setMicState('listening');
-            if (handsFreeLiveText) handsFreeLiveText.innerText = "Barge-in detected! Listening to Manoj...";
-            if (!isRecording) {
-                triggerHandsFreeListening();
-            }
-        }
-    }
-
-    function updateAudioLevels() {
-        requestAnimationFrame(updateAudioLevels);
-        if (!globalAnalyser) return;
-
-        globalAnalyser.getByteFrequencyData(dataArray);
-        let total = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-            total += dataArray[i];
-        }
-        const average = total / dataArray.length;
-        const normalized = average / 255; // 0 to 1
-
-        if (window.ghostVisualizer) {
-            window.ghostVisualizer.setMicLevel(normalized);
-        }
-
-        // BARGE-IN INTERRUPT: Hard stop TTS if user speaks during playback
-        if (window.speechSynthesis && window.speechSynthesis.speaking) {
-            if (normalized > 0.04) {
-                bargeInInterrupt();
-            }
-            return;
-        }
-
-        // ALWAYS-ON MIC: Auto-record when speech is detected in Hands-Free Mode (zero button clicks)
-        if (isHandsFreeActive && !isRecording && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
-            if (normalized > 0.035) {
-                console.log(`[Always-On Mic] Speech activity detected (${(normalized * 100).toFixed(1)}%). Auto-initiating recording.`);
-                triggerHandsFreeListening();
-            }
-        }
-
-        // SILENCE AUTO-SUBMIT: Conclude capture after 1.0 second of silence
-        if (isRecording) {
-            if (normalized < 0.015) {
-                if (!silenceStart) {
-                    silenceStart = Date.now();
-                } else if (Date.now() - silenceStart > 1000) { // 1.0 second silence
-                    console.log('[Always-On Mic] 1.0s silence threshold reached. Concluding capture and submitting transcript.');
-                    stopRecording();
-                    silenceStart = null;
+            function bargeInInterrupt() {
+                if (window.speechSynthesis && window.speechSynthesis.speaking) {
+                    console.log('[Barge-In Interrupt] User voice detected during TTS playback. HARD STOPPING audio output!');
+                    window.speechSynthesis.cancel();
+                    setMicState('listening');
+                    if (handsFreeLiveText) handsFreeLiveText.innerText = "Barge-in detected! Listening to Manoj...";
+                    if (!isRecording()) {
+                        triggerHandsFreeListening();
+                    }
                 }
-            } else {
-                silenceStart = null;
             }
-        }
-    }
-    updateAudioLevels();
+
+            function updateAudioLevels() {
+                audioLevelFrameId = requestAnimationFrame(updateAudioLevels);
+                if (!globalAnalyser) return;
+
+                globalAnalyser.getByteFrequencyData(dataArray);
+                let total = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                    total += dataArray[i];
+                }
+                const average = total / dataArray.length;
+                const normalized = average / 255; // 0 to 1
+
+                if (window.ghostVisualizer) {
+                    window.ghostVisualizer.setMicLevel(normalized);
+                }
+
+                // BARGE-IN INTERRUPT: Hard stop TTS if user speaks during playback
+                if (window.speechSynthesis && window.speechSynthesis.speaking) {
+                    if (normalized > 0.04) {
+                        bargeInInterrupt();
+                    }
+                    return;
+                }
+
+                // ALWAYS-ON MIC: Auto-record when speech is detected in Hands-Free Mode (zero button clicks)
+                if (isHandsFreeActive && !isRecording() && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
+                    if (normalized > 0.035) {
+                        console.log(`[Always-On Mic] Speech activity detected (${(normalized * 100).toFixed(1)}%). Auto-initiating recording.`);
+                        triggerHandsFreeListening();
+                    }
+                }
+
+                // SILENCE AUTO-SUBMIT: Conclude capture after 1.0 second of silence
+                if (isRecording()) {
+                    if (normalized < 0.015) {
+                        if (!silenceStart) {
+                            silenceStart = Date.now();
+                        } else if (Date.now() - silenceStart > 1000) { // 1.0 second silence
+                            console.log('[Always-On Mic] 1.0s silence threshold reached. Concluding capture and submitting transcript.');
+                            stopRecording();
+                            silenceStart = null;
+                        }
+                    } else {
+                        silenceStart = null;
+                    }
+                }
+            }
+            updateAudioLevels();
 
             startWakeWordRecognition();
         } catch (e) {
             console.error('[Audio Pipeline Error] Failed to initialize microphone capture:', e);
             appendMessage('ghost', "Microphone access is required for wake-word and hands-free control. Please check system permissions.");
+            cleanupAudioPipeline();
         }
     }
 
@@ -835,11 +921,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function triggerHandsFreeListening() {
-        if (isRecording) return;
+        if (isRecording()) return;
         console.log('[Audio Pipeline] Initializing active hands-free recording session.');
         inputMode = 'voice';
 
-        if (window.speechSynthesis) window.speechSynthesis.cancel();
+        voiceState.transition('recording');
 
         try {
             audioChunks = [];
@@ -850,12 +936,11 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             mediaRecorder.onstart = () => {
-                isRecording = true;
-                setMicState('listening');
+                voiceState.transition('recording');
             };
 
             mediaRecorder.onstop = async () => {
-                isRecording = false;
+                voiceState.transition('transcribing');
                 setMicState('transcribing');
 
                 const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
@@ -864,9 +949,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 reader.onloadend = async () => {
                     const base64Audio = reader.result;
                     try {
-                        const res = await fetch('/api/voice/transcribe', {
+                        const res = await fetch(apiUrl('/api/voice/transcribe'), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
                             body: JSON.stringify({ audioBase64: base64Audio })
                         });
                         const data = await res.json();
@@ -892,7 +978,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function stopRecording() {
-        if (mediaRecorder && isRecording) {
+        if (mediaRecorder && isRecording()) {
             mediaRecorder.stop();
         }
     }
@@ -962,6 +1048,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    let activeRunId = null;
+
+    window.cancelActiveRun = async function() {
+        try {
+            await fetch(apiUrl(`/api/runs/cancel-active`), { method: 'POST', credentials: 'include' });
+            appendMessage('ghost', "Run cancelled by user.");
+            thinkingIndicator.classList.remove('active');
+            activeRunId = null;
+        } catch (e) {
+            console.warn("Cancel failed:", e);
+        }
+    };
+
     async function processCommand(textCommand) {
         if (textCommand) appendMessage('user', textCommand);
         userInput.value = "";
@@ -985,15 +1084,24 @@ document.addEventListener('DOMContentLoaded', () => {
         attachmentInput.value = "";
 
         try {
-            const response = await fetch('/api/chat', {
+            const response = await fetch(apiUrl('/api/chat'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify(payload)
             });
+
+            if (response.status === 409) {
+                thinkingIndicator.classList.remove('active');
+                appendMessage('ghost', "A task is already running. Please wait for it to finish, or type `cancel that`.");
+                return;
+            }
+
             const data = await response.json();
             thinkingIndicator.classList.remove('active');
 
             if (data.success) {
+                if (data.runId) activeRunId = data.runId;
                 handleGhostResponse(data.text);
                 if (data.plan && Array.isArray(data.plan) && data.plan.length > 0) {
                     renderAntigravityPlanCard(data.plan, textCommand);
@@ -1001,12 +1109,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.actionRequired && data.actionId) {
                     renderHitlActionCard(data.actionId);
                 }
+                activeRunId = null;
             } else {
-                appendMessage('ghost', "Matrix error: Backend disconnected.");
+                appendMessage('ghost', data.error || "Matrix error: Backend disconnected.");
+                activeRunId = null;
             }
         } catch (error) {
             thinkingIndicator.classList.remove('active');
             appendMessage('ghost', "Critical failure: Server unreachable.");
+            activeRunId = null;
         }
     }
 
@@ -1056,9 +1167,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 try {
-                    const response = await fetch('/api/execute-plan-step', {
+                    const response = await fetch(apiUrl('/api/execute-plan-step'), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
                         body: JSON.stringify({
                             step: planSteps[i],
                             goal: originalGoal,
@@ -1136,9 +1248,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById(`approveBtn_${actionId}`).addEventListener('click', async () => {
             hitlDiv.innerHTML = `<span style="color: var(--accent-cyan);">Executing action...</span>`;
             try {
-                const execRes = await fetch('/api/execute-action', {
+                const execRes = await fetch(apiUrl('/api/execute-action'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
                     body: JSON.stringify({ actionId })
                 });
                 const execData = await execRes.json();
@@ -1157,10 +1270,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function highlightCode(codeText, lang) {
         let esc = codeText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        
+
         let tokens = [];
         let id = 0;
-        
+
         // Match string literals and comments to preserve them from inner keyword highlighting
         esc = esc.replace(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|[\s\S]*?\/\*[\s\S]*?\*\/|\/\/.*|#.*)/g, (match) => {
             const tokenId = `__TOKEN_HL_${id++}__`;
@@ -1174,10 +1287,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Highlight Keywords
         esc = esc.replace(/\b(const|let|var|function|return|import|export|from|class|extends|new|if|else|for|while|try|catch|async|await|def|print|elif|with|as|pass|lambda)\b/g, '<span style="color: #ff0055">$1</span>');
-        
+
         // Highlight Numbers
         esc = esc.replace(/\b(\d+)\b/g, '<span style="color: #7000ff">$1</span>');
-        
+
         // Highlight Built-ins & Globals
         esc = esc.replace(/\b(console|document|window|process|require|module|self|global|this|arguments)\b/g, '<span style="color: #00f0ff">$1</span>');
 
@@ -1185,7 +1298,7 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let t of tokens) {
             esc = esc.replace(t.id, t.html);
         }
-        
+
         return esc;
     }
 
@@ -1204,7 +1317,7 @@ document.addEventListener('DOMContentLoaded', () => {
         while ((match = codeRegex.exec(fullText)) !== null) {
             let lang = match[1] || 'code';
             let codeBlock = match[2].trim();
-            
+
             // Try to extract a filename from the code comments
             let filename = 'Source Code';
             const firstLine = codeBlock.split('\n')[0].trim();
@@ -1220,10 +1333,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let header = document.createElement('div');
             header.className = 'code-block-header';
-            
+
             let label = document.createElement('span');
             label.innerText = `${filename} (${lang})`;
-            
+
             let copyBtn = document.createElement('button');
             copyBtn.className = 'copy-btn';
             copyBtn.innerText = 'Copy';
@@ -1236,18 +1349,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     copyBtn.style.color = '';
                 }, 2000);
             });
-            
+
             header.appendChild(label);
             header.appendChild(copyBtn);
-            
+
             let pre = document.createElement('pre');
             let code = document.createElement('code');
             code.innerHTML = highlightCode(codeBlock, lang);
             pre.appendChild(code);
-            
+
             blockContainer.appendChild(header);
             blockContainer.appendChild(pre);
-            
+
             codeContent.appendChild(blockContainer);
 
             if (codeBlock.includes('<!DOCTYPE html>') || (codeBlock.includes('<html') && codeBlock.includes('</html>'))) {
@@ -1273,7 +1386,165 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ghostVisualizer.onResize();
         }
     });
-    initAudioPipeline();
+
+    // --- PROJECTS & MEMORIES WORKSPACE LOGIC ---
+    let currentProjectId = null;
+    const projectsList = document.getElementById('projectsList');
+    const memoryList = document.getElementById('memoryList');
+    const createProjectBtn = document.getElementById('createProjectBtn');
+    const saveMemoryBtn = document.getElementById('saveMemoryBtn');
+
+    async function loadProjects() {
+        if (!projectsList) return;
+        try {
+            const res = await fetch(apiUrl('/api/projects'), { credentials: 'include' });
+            const data = await res.json();
+            if (res.status === 503 || data.error === 'DATABASE_UNAVAILABLE') {
+                projectsList.innerHTML = '<div class="loading-text">⚠️ Storage not configured. (Local Preview)</div>';
+                return;
+            }
+            if (!data.success || !data.projects) {
+                projectsList.innerHTML = '<div class="loading-text">Failed to load projects.</div>';
+                return;
+            }
+            if (data.projects.length === 0) {
+                projectsList.innerHTML = '<div class="loading-text">No projects.</div>';
+                return;
+            }
+            projectsList.innerHTML = '';
+            data.projects.forEach(proj => {
+                const item = document.createElement('div');
+                item.className = 'project-item' + (currentProjectId === proj.id ? ' active' : '');
+                item.innerHTML = `
+                    <div class="project-name">${escapeHtml(proj.name)}</div>
+                    <div class="project-desc">${proj.description ? escapeHtml(proj.description) : 'No description'}</div>
+                    <button class="delete-btn" style="position:absolute; right:8px; top:8px; background:none; border:none; color:var(--text-dim); cursor:pointer;">✕</button>
+                `;
+                item.querySelector('.delete-btn').addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (!confirm('Are you sure you want to delete this project?')) return;
+                    await deleteProject(proj.id);
+                });
+                item.addEventListener('click', () => {
+                    currentProjectId = proj.id;
+                    document.querySelectorAll('.project-item').forEach(el => el.classList.remove('active'));
+                    item.classList.add('active');
+                });
+                projectsList.appendChild(item);
+            });
+        } catch (e) {
+            projectsList.innerHTML = '<div class="loading-text">Connection error.</div>';
+        }
+    }
+
+    async function deleteProject(id) {
+        try {
+            const res = await fetch(apiUrl(`/api/projects/${id}`), { method: 'DELETE', credentials: 'include' });
+            if (res.ok) {
+                if (currentProjectId === id) currentProjectId = null;
+                loadProjects();
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    async function loadMemories() {
+        if (!memoryList) return;
+        try {
+            const res = await fetch(apiUrl('/api/memory'), { credentials: 'include' });
+            const data = await res.json();
+            if (res.status === 503 || data.error === 'DATABASE_UNAVAILABLE') {
+                memoryList.innerHTML = '<div class="loading-text">⚠️ Storage not configured. (Local Preview)</div>';
+                return;
+            }
+            if (!data.success || !data.memories) {
+                memoryList.innerHTML = '<div class="loading-text">Failed to load memory.</div>';
+                return;
+            }
+            if (data.memories.length === 0) {
+                memoryList.innerHTML = '<div class="loading-text">No saved notes.</div>';
+                return;
+            }
+            memoryList.innerHTML = '';
+            data.memories.forEach(mem => {
+                const item = document.createElement('div');
+                item.className = 'memory-item';
+                item.innerHTML = `
+                    <div class="memory-title">${escapeHtml(mem.title)} [${escapeHtml(mem.category)}]</div>
+                    <div class="memory-content">${escapeHtml(mem.content)}</div>
+                    <button class="delete-btn" style="position:absolute; right:8px; top:8px; background:none; border:none; color:var(--text-dim); cursor:pointer;">✕</button>
+                `;
+                item.querySelector('.delete-btn').addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (!confirm('Are you sure you want to delete this memory note?')) return;
+                    await deleteMemory(mem.id);
+                });
+                memoryList.appendChild(item);
+            });
+        } catch (e) {
+            memoryList.innerHTML = '<div class="loading-text">Connection error.</div>';
+        }
+    }
+
+    async function deleteMemory(id) {
+        try {
+            const res = await fetch(apiUrl(`/api/memory/${id}`), { method: 'DELETE', credentials: 'include' });
+            if (res.ok) loadMemories();
+        } catch (e) { console.error(e); }
+    }
+
+    if (createProjectBtn) {
+        createProjectBtn.addEventListener('click', async () => {
+            const name = prompt('Enter project name:');
+            if (!name) return;
+            const description = prompt('Enter project description (optional):');
+            const repoUrl = prompt('Enter repository URL (optional, http/https):');
+            try {
+                const res = await fetch(apiUrl('/api/projects'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ name, description, repoUrl })
+                });
+                const data = await res.json();
+                if (data.success) loadProjects();
+                else alert(data.error || 'Failed to create project');
+            } catch (e) { alert('Connection error'); }
+        });
+    }
+
+    if (saveMemoryBtn) {
+        saveMemoryBtn.addEventListener('click', async () => {
+            const title = prompt('Enter memory title:');
+            if (!title) return;
+            const content = prompt('Enter memory content:');
+            if (!content) return;
+            const category = prompt('Enter category (general, codebase, preference, todo):', 'general');
+            try {
+                const res = await fetch(apiUrl('/api/memory'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ projectId: currentProjectId, title, content, category })
+                });
+                const data = await res.json();
+                if (data.success) loadMemories();
+                else alert(data.error || 'Failed to save memory note');
+            } catch (e) { alert('Connection error'); }
+        });
+    }
+
+    function escapeHtml(str) {
+        return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // Load projects and memories if logged in (check every second until initialized)
+    const checkAuthTimer = setInterval(() => {
+        if (isAdminMode) {
+            loadProjects();
+            loadMemories();
+            clearInterval(checkAuthTimer);
+        }
+    }, 1000);
 
     // --- DOUBLE CLICK TO FOCUS MESSAGE INPUT ---
     const chatContainer = document.querySelector('.chat-container');

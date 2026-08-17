@@ -21,7 +21,7 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/integration_stress_test.js && node tests/test_features.js && node tests/test_modes_daemon.js && node tests/test_full_suite.js",
+    "test": "node scripts/test-runner.js",
     "desktop": "npx electron ./desktop-app/main.cjs",
     "desktop:build": "npx electron-builder --config.directories.output=dist",
     "package:mac": "node scratch/build_mac.js"

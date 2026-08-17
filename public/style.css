@@ -1,25 +1,26 @@
 @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700&display=swap');
 
 :root {
-  --bg-dark: #0a0a0a;
-  --bg-card: #151515;
-  --bg-card-hover: #1e1e1e;
-  --sidebar-bg: #111111;
-  --border-color: rgba(255, 255, 255, 0.1);
-  --border-active: #2d4a7c;
+  --bg-dark: #0b0b0e;
+  --bg-card: #121216;
+  --bg-card-hover: #1b1b22;
+  --sidebar-bg: #07070a;
+  --border-color: rgba(255, 255, 255, 0.06);
+  --border-active: rgba(255, 255, 255, 0.15);
   
-  --accent-primary: #1a2744;
-  --accent-violet: #2d4a7c;
-  --accent-warm: #f59e0b;
-  --accent-emerald: #10b981;
-  --accent-rose: #f43f5e;
+  --accent-primary: #1e1e24;
+  --accent-violet: #6b21a8; /* Deep purple */
+  --accent-purple-glow: rgba(107, 33, 168, 0.3);
+  --accent-warm: #d97706;
+  --accent-emerald: #059669;
+  --accent-rose: #dc2626;
 
   --text-main: #f4f4f5;
   --text-muted: #a1a1aa;
   --text-dim: #71717a;
 
-  --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'Fira Code', monospace;
 }
 
@@ -1139,3 +1140,90 @@ pre {
   letter-spacing: 0.02em;
 }
 
+/* --- SPLIT CHAT WORKSPACE & VISUALIZER --- */
+.chat-workspace-main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+.visualizer-container-main {
+  width: 40%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* --- SIDEBAR EXTENSIONS: PROJECTS & MEMORIES --- */
+.history-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-right: 8px;
+  margin-bottom: 8px;
+}
+
+.btn-small-icon {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  line-height: 1;
+}
+
+.btn-small-icon:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.loading-text {
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 8px 12px;
+}
+
+.project-item, .memory-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  margin: 4px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.project-item:hover, .memory-item:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-active);
+}
+
+.project-item.active {
+  border-color: var(--accent-violet);
+  background: rgba(107, 33, 168, 0.05);
+}
+
+.project-name, .memory-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.project-desc, .memory-content {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
