@@ -24,7 +24,8 @@
     "test": "node scripts/test-runner.js",
     "desktop": "npx electron ./desktop-app/main.cjs",
     "desktop:build": "npx electron-builder --config.directories.output=dist",
-    "package:mac": "node scratch/build_mac.js"
+    "package:mac": "node scratch/build_mac.js",
+    "runner:local": "node scripts/runner.js"
   },
   "build": {
     "appId": "com.manojkumar.ghost",

@@ -350,58 +350,82 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateInitialGreeting(masterUser);
                 console.log('[Auth] Persistent session verified via HTTP-only cookie.');
             } else {
-                showNeutralOnboarding();
+                // Enter as visitor (Guest)
+                masterUser = "Guest";
+                isAdminMode = false;
+                loginOverlay.style.opacity = '0';
+                loginOverlay.style.visibility = 'hidden';
+                appLayout.classList.add('active');
             }
         } catch (e) {
             console.warn('[Auth] Persistent verification error:', e.message);
-            showNeutralOnboarding();
+            // Enter as visitor (Guest)
+            masterUser = "Guest";
+            isAdminMode = false;
+            loginOverlay.style.opacity = '0';
+            loginOverlay.style.visibility = 'hidden';
+            appLayout.classList.add('active');
         }
     }
     checkPersistentAuth();
 
     // --- AUTHENTICATION HANDLER ---
+    let storedClearanceKey = '';
     authInput.addEventListener('keypress', async (e) => {
         if (e.key === 'Enter') {
             const inputVal = authInput.value.trim();
             if (!inputVal) return;
 
-            const safeGuestName = inputVal.replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 20) || "Guest";
+            if (!storedClearanceKey) {
+                try {
+                    const authRes = await fetch(apiUrl('/api/auth'), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ authString: inputVal })
+                    });
+                    const authData = await authRes.json();
 
-            try {
-                const authRes = await fetch(apiUrl('/api/auth'), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify({ authString: inputVal, user: safeGuestName })
-                });
-                const authData = await authRes.json();
-
-                if (authData.success) {
-                    masterUser = authData.user || safeGuestName;
-                    isAdminMode = (authData.role === 'admin');
-                    userTag.innerText = masterUser.toUpperCase();
-                    userTag.style.color = isAdminMode ? 'var(--accent-primary)' : 'var(--text-main)';
-
-                    updateInitialGreeting(masterUser);
-                    speakResponse(`Hey, ${masterUser}. What are we building today?`);
-                } else {
-                    masterUser = safeGuestName;
-                    isAdminMode = false;
-                    userTag.innerText = safeGuestName.toUpperCase();
-                    userTag.style.color = 'var(--text-main)';
-
-                    updateInitialGreeting(safeGuestName);
-                    speakResponse(`Hey, ${safeGuestName}. What are we building today?`);
+                    if (authData.success) {
+                        storedClearanceKey = inputVal;
+                        authInput.value = '';
+                        authInput.placeholder = "What should I call you?";
+                        document.querySelector('.login-sub').innerText = "Clearance key accepted. What should I call you?";
+                    } else {
+                        alert('Invalid clearance key.');
+                    }
+                } catch (err) {
+                    alert('Authentication failed.');
                 }
-            } catch (error) {
-                console.error("Auth routing failed.", error);
-                masterUser = safeGuestName;
-                updateInitialGreeting(safeGuestName);
+            } else {
+                const chosenName = inputVal.replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 20) || "Guest";
+                try {
+                    const authRes = await fetch(apiUrl('/api/auth'), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ authString: storedClearanceKey, user: chosenName })
+                    });
+                    const authData = await authRes.json();
+                    if (authData.success) {
+                        masterUser = authData.user || chosenName;
+                        isAdminMode = true;
+                        userTag.innerText = masterUser.toUpperCase();
+                        userTag.style.color = 'var(--accent-primary)';
+                        updateInitialGreeting(masterUser);
+                        speakResponse(`Hey, ${masterUser}. What are we building today?`);
+                        loginOverlay.style.opacity = '0';
+                        loginOverlay.style.visibility = 'hidden';
+                        appLayout.classList.add('active');
+                        // Reload Projects and Memory
+                        loadProjects();
+                        loadMemories();
+                    }
+                } catch (err) {
+                    alert('Failed to set name.');
+                }
+                storedClearanceKey = '';
             }
-
-            loginOverlay.style.opacity = '0';
-            loginOverlay.style.visibility = 'hidden';
-            appLayout.classList.add('active');
         }
     });
 
@@ -1439,12 +1463,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(apiUrl('/api/projects'), { credentials: 'include' });
             const data = await res.json();
             if (res.status === 401 || data.error === 'Missing token.' || data.error === 'Unauthorized') {
-                projectsList.innerHTML = '<div class="loading-text"><button class="unlock-btn" style="background:var(--accent-primary); border:none; padding:4px 8px; color:#fff; cursor:pointer; border-radius:3px; font-size:11px;">Unlock Ghost</button></div>';
-                projectsList.querySelector('.unlock-btn')?.addEventListener('click', () => {
-                    loginOverlay.style.opacity = '1';
-                    loginOverlay.style.visibility = 'visible';
-                    appLayout.classList.remove('active');
-                });
+                projectsList.innerHTML = '<div class="loading-text" style="font-size:11px; color:var(--text-sub); margin-bottom:6px;">Owner access is required for Projects and Memory.</div><div class="loading-text"><button class="unlock-btn" style="background:var(--accent-primary); border:none; padding:4px 8px; color:#fff; cursor:pointer; border-radius:3px; font-size:11px;">Unlock Ghost</button></div>';
                 return;
             }
             if (res.status === 503 || data.error === 'DATABASE_UNAVAILABLE') {
@@ -1501,12 +1520,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(apiUrl('/api/memory'), { credentials: 'include' });
             const data = await res.json();
             if (res.status === 401 || data.error === 'Missing token.' || data.error === 'Unauthorized') {
-                memoryList.innerHTML = '<div class="loading-text"><button class="unlock-btn" style="background:var(--accent-primary); border:none; padding:4px 8px; color:#fff; cursor:pointer; border-radius:3px; font-size:11px;">Unlock Ghost</button></div>';
-                memoryList.querySelector('.unlock-btn')?.addEventListener('click', () => {
-                    loginOverlay.style.opacity = '1';
-                    loginOverlay.style.visibility = 'visible';
-                    appLayout.classList.remove('active');
-                });
+                memoryList.innerHTML = '<div class="loading-text" style="font-size:11px; color:var(--text-sub); margin-bottom:6px;">Owner access is required for Projects and Memory.</div><div class="loading-text"><button class="unlock-btn" style="background:var(--accent-primary); border:none; padding:4px 8px; color:#fff; cursor:pointer; border-radius:3px; font-size:11px;">Unlock Ghost</button></div>';
                 return;
             }
             if (res.status === 503 || data.error === 'DATABASE_UNAVAILABLE') {
@@ -1603,6 +1617,88 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 1000);
 
+    // --- AUTONOMOUS CODING HANDLERS ---
+    const connectRunnerBtn = document.getElementById('connectRunnerBtn');
+    const startAgentTaskBtn = document.getElementById('startAgentTaskBtn');
+    const runnerStatusDot = document.getElementById('runnerStatusDot');
+    const runnerConnectionInfo = document.getElementById('runnerConnectionInfo');
+
+    if (connectRunnerBtn) {
+        connectRunnerBtn.addEventListener('click', async () => {
+            try {
+                const res = await fetch('/api/runner/connect', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    runnerStatusDot.style.background = '#2ecc71';
+                    runnerStatusDot.title = 'Runner Connected';
+                    runnerConnectionInfo.style.display = 'block';
+                    runnerConnectionInfo.innerHTML = `<strong>Runner Session Token:</strong><br><code style="font-family: monospace; font-size: 10px; display: block; padding: 4px; background: var(--bg-hover); margin-top: 4px;">RUNNER_TOKEN=${data.token} npm run runner:local</code>`;
+                    startAgentTaskBtn.style.display = 'block';
+                } else {
+                    alert('Failed to connect runner: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Connection request failed: ' + err.message);
+            }
+        });
+    }
+
+    if (startAgentTaskBtn) {
+        startAgentTaskBtn.addEventListener('click', async () => {
+            const goal = prompt('What coding goal should the autonomous agent accomplish?');
+            if (!goal || !goal.trim()) return;
+
+            // Register a mock repository ID for the local worktree
+            const repoId = 'local-repo-connection';
+            try {
+                // Ensure a repository connection is registered first
+                await fetch('/api/repo-connections', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ displayName: 'Ghost Local Approved Repo', allowedBranchPolicy: 'agent-*', status: 'active' })
+                });
+
+                const taskRes = await fetch('/api/agent-tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ goal, repoId })
+                });
+                const taskData = await taskRes.json();
+
+                if (taskData.success) {
+                    appendMessage('ghost', `Autonomous Coding Task created. Starting execution state machine...`);
+                    const runRes = await fetch('/api/agent-runs', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ taskId: taskData.task.id })
+                    });
+                    const runData = await runRes.json();
+                    if (runData.success && runData.run.status === 'awaiting_plan_approval') {
+                        const approved = confirm(`Agent Implementation Plan Generated:\n\n${runData.run.planSummary}\n\nDo you approve this plan?`);
+                        const decision = approved ? 'approved' : 'rejected';
+                        await fetch(`/api/approvals/${runData.run.approvalId}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ decision, runId: runData.run.runId })
+                        });
+                        appendMessage('ghost', `Plan ${decision}. Execution resumed on isolated companion runner.`);
+                    }
+                } else {
+                    alert('Failed to create task: ' + (taskData.error || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Task execution trigger failed: ' + err.message);
+            }
+        });
+    }
+
+    // --- QUICK ACTION HANDLER ---
+    window.sendQuickAction = function(text) {
+        if (typeof processCommand === 'function') {
+            processCommand(text);
+        }
+    };
+
     // --- DOUBLE CLICK TO FOCUS MESSAGE INPUT ---
     const chatContainer = document.querySelector('.chat-container');
     if (chatContainer) {
@@ -1612,4 +1708,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // --- GLOBAL UNLOCK ACTION ---
+    document.addEventListener('click', (e) => {
+        if (e.target && e.target.classList.contains('unlock-btn')) {
+            loginOverlay.style.opacity = '1';
+            loginOverlay.style.visibility = 'visible';
+            authInput.value = '';
+            authInput.placeholder = "Enter clearance key...";
+            document.querySelector('.login-sub').innerText = "Enter clearance key to initialize core interface";
+            authInput.focus();
+        }
+    });
 });

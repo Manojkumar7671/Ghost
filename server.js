@@ -15,6 +15,7 @@ import { startWatchdog } from './services/watchdog.js';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { execSync, spawn } from 'child_process';
 import pkg from 'pg';
 import { fileURLToPath } from 'url';
@@ -44,6 +45,7 @@ import { initDesktopOverlay } from './services/desktopOverlay.js';
 import { initTelephonyBridge } from './services/telephonyBridge.js';
 import { initAgentBridge } from './services/agentBridge.js';
 import { initPersistenceTables } from './services/persistence.js';
+import { runAutonomousTask, resumeAutonomousTask } from './services/autonomousLoop.js';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -133,7 +135,26 @@ const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY;
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
 
 let pool;
-if (process.env.SUPABASE_DB_URL) {
+if (process.env.NODE_ENV === 'test') {
+    pool = {
+        query: async (text, params) => {
+            console.log(`[Mock DB Query] ${text} | Params:`, params);
+            if (text.toLowerCase().includes('select * from ghost_repo_connections')) {
+                return { rows: [{ id: 'mock-repo-connection', owner_id: 'Tester', display_name: 'Test Repo', allowed_branch_policy: 'agent-*', status: 'active' }] };
+            }
+            if (text.toLowerCase().includes('select * from ghost_agent_tasks')) {
+                return { rows: [{ id: 'mock-task-id', owner_id: 'Tester', goal: 'Test Goal', repo_id: 'mock-repo-connection', status: 'draft' }] };
+            }
+            if (text.toLowerCase().includes('select * from ghost_agent_runs')) {
+                return { rows: [] };
+            }
+            if (text.toLowerCase().includes('select * from ghost_approvals')) {
+                return { rows: [] };
+            }
+            return { rows: [], count: 0 };
+        }
+    };
+} else if (process.env.SUPABASE_DB_URL) {
     pool = new Pool({
         connectionString: process.env.SUPABASE_DB_URL,
         ssl: (process.env.SUPABASE_DB_URL.includes('localhost') || process.env.SUPABASE_DB_URL.includes('127.0.0.1')) ? false : { rejectUnauthorized: false },
@@ -576,6 +597,179 @@ app.delete('/api/memory/:id', requireAdminToken, async (req, res) => {
         return res.json({ success: true, message: 'Memory note deleted' });
     } catch (err) {
         return res.status(500).json({ success: false, error: 'Deletion failed' });
+    }
+});
+
+function requireAuth(req, res, next) {
+    const token = req.cookies.ghost_session;
+    if (!token) return res.status(401).json({ success: false, error: 'Missing token.' });
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded.role === 'admin' || decoded.role === 'guest') {
+            req.user = decoded;
+            return next();
+        }
+        throw new Error('Invalid role.');
+    } catch (err) {
+        return res.status(401).json({ success: false, error: 'Token expired/invalid.' });
+    }
+}
+
+// --- AGENT REPO CONNECTIONS CRUD ---
+app.post('/api/runner/connect', requireAuth, async (req, res) => {
+    try {
+        const token = crypto.randomBytes(32).toString('hex');
+        const tokenFile = path.join(os.homedir(), '.ghost', 'runner-token.json');
+        fs.mkdirSync(path.dirname(tokenFile), { recursive: true });
+        fs.writeFileSync(tokenFile, JSON.stringify({ token, expiresAt: Date.now() + 60 * 60 * 1000 }), 'utf8');
+        return res.json({ success: true, token });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+app.get('/api/repo-connections', requireAuth, async (req, res) => {
+    if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
+    try {
+        const ownerId = req.user.user || 'admin';
+        const result = await pool.query('SELECT * FROM ghost_repo_connections WHERE owner_id = $1 ORDER BY created_at DESC', [ownerId]);
+        return res.json({ success: true, connections: result.rows });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Query failed' });
+    }
+});
+
+app.post('/api/repo-connections', requireAuth, async (req, res) => {
+    if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
+    const { displayName, allowedBranchPolicy, status } = req.body;
+    if (!displayName || typeof displayName !== 'string' || !displayName.trim()) {
+        return res.status(400).json({ success: false, error: 'Display name is required' });
+    }
+    try {
+        const ownerId = req.user.user || 'admin';
+        const id = crypto.randomUUID();
+        await pool.query(
+            'INSERT INTO ghost_repo_connections (id, owner_id, display_name, allowed_branch_policy, status) VALUES ($1, $2, $3, $4, $5)',
+            [id, ownerId, displayName.trim(), allowedBranchPolicy || 'agent-*', status || 'inactive']
+        );
+        return res.json({ success: true, connection: { id, displayName, allowedBranchPolicy, status } });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Creation failed' });
+    }
+});
+
+app.delete('/api/repo-connections/:id', requireAuth, async (req, res) => {
+    if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
+    try {
+        const ownerId = req.user.user || 'admin';
+        await pool.query('DELETE FROM ghost_repo_connections WHERE id = $1 AND owner_id = $2', [req.params.id, ownerId]);
+        return res.json({ success: true, message: 'Connection deleted' });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Deletion failed' });
+    }
+});
+
+// --- AGENT TASKS CRUD ---
+app.get('/api/agent-tasks', requireAuth, async (req, res) => {
+    if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
+    try {
+        const ownerId = req.user.user || 'admin';
+        const result = await pool.query('SELECT * FROM ghost_agent_tasks WHERE owner_id = $1 ORDER BY requested_at DESC', [ownerId]);
+        return res.json({ success: true, tasks: result.rows });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Query failed' });
+    }
+});
+
+app.post('/api/agent-tasks', requireAuth, async (req, res) => {
+    if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
+    const { goal, repoId } = req.body;
+    if (!goal || !repoId) return res.status(400).json({ success: false, error: 'Goal and repoId are required' });
+    try {
+        const ownerId = req.user.user || 'admin';
+        const id = crypto.randomUUID();
+        await pool.query(
+            'INSERT INTO ghost_agent_tasks (id, owner_id, goal, repo_id, status) VALUES ($1, $2, $3, $4, $5)',
+            [id, ownerId, goal, repoId, 'draft']
+        );
+        return res.json({ success: true, task: { id, goal, repoId, status: 'draft' } });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Task creation failed' });
+    }
+});
+
+// --- AGENT RUNS ---
+app.get('/api/agent-runs', requireAuth, async (req, res) => {
+    if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
+    try {
+        const ownerId = req.user.user || 'admin';
+        const result = await pool.query('SELECT * FROM ghost_agent_runs WHERE owner_id = $1 ORDER BY start_time DESC', [ownerId]);
+        return res.json({ success: true, runs: result.rows });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Query failed' });
+    }
+});
+
+app.post('/api/agent-runs', requireAuth, async (req, res) => {
+    if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
+    const { taskId } = req.body;
+    if (!taskId) return res.status(400).json({ success: false, error: 'taskId is required' });
+    try {
+        const ownerId = req.user.user || 'admin';
+        const taskResult = await pool.query('SELECT * FROM ghost_agent_tasks WHERE id = $1 AND owner_id = $2', [taskId, ownerId]);
+        if (taskResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Task not found' });
+        const task = taskResult.rows[0];
+
+        const runResult = await runAutonomousTask(taskId, task.goal, task.repo_id, pool, req.user);
+        return res.json({ success: true, run: runResult });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// --- AGENT ARTIFACTS ---
+app.get('/api/agent-artifacts', requireAuth, async (req, res) => {
+    if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
+    try {
+        const ownerId = req.user.user || 'admin';
+        const result = await pool.query('SELECT * FROM ghost_agent_artifacts WHERE owner_id = $1 ORDER BY created_at DESC', [ownerId]);
+        return res.json({ success: true, artifacts: result.rows });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Query failed' });
+    }
+});
+
+// --- APPROVALS ---
+app.get('/api/approvals', requireAuth, async (req, res) => {
+    if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
+    try {
+        const ownerId = req.user.user || 'admin';
+        const result = await pool.query('SELECT * FROM ghost_approvals WHERE owner_id = $1 ORDER BY created_at DESC', [ownerId]);
+        return res.json({ success: true, approvals: result.rows });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Query failed' });
+    }
+});
+
+app.post('/api/approvals/:id', requireAuth, async (req, res) => {
+    if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
+    const { decision, runId } = req.body;
+    if (!decision || !runId) return res.status(400).json({ success: false, error: 'Decision and runId are required' });
+    try {
+        const ownerId = req.user.user || 'admin';
+        await pool.query(
+            'UPDATE ghost_approvals SET decision = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND owner_id = $3',
+            [decision, req.params.id, ownerId]
+        );
+
+        // Resume task execution in the background asynchronously
+        resumeAutonomousTask(runId, req.params.id, decision, pool, req.user).catch(err => {
+            console.error('[Autonomous Resume Warn]:', err.message);
+        });
+
+        return res.json({ success: true, message: 'Approval decision registered and run resumed' });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Update failed' });
     }
 });
 
