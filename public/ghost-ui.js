@@ -1649,9 +1649,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const startAgentTaskBtn = document.getElementById('startAgentTaskBtn');
     const runnerStatusDot = document.getElementById('runnerStatusDot');
     const runnerConnectionInfo = document.getElementById('runnerConnectionInfo');
+    const copyStartCmdBtn = document.getElementById('copyStartCmdBtn');
+    const runnerStartCmd = document.getElementById('runnerStartCmd');
 
     let isRunnerConnected = false;
     let isRunnerConnecting = false;
+    let companionState = null; // 'unpaired' | 'pairing_ready' | 'pairing_error' | 'unavailable' | 'verified'
 
     async function checkRunnerStatus() {
         if (!isAdminMode) {
@@ -1679,11 +1682,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const res = await fetch('/api/runner/status');
+            const res = await fetch(apiUrl('/api/runner/status'), { credentials: 'include' });
             const data = await res.json();
             isRunnerConnected = data.connected;
 
             if (isRunnerConnected) {
+                companionState = 'verified';
                 if (connectRunnerBtn) {
                     connectRunnerBtn.innerText = "Disconnect local Companion";
                     connectRunnerBtn.disabled = false;
@@ -1694,15 +1698,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const helper = document.getElementById('runnerHelperText');
                 if (helper) {
-                    helper.innerText = "Companion connected on this Mac";
+                    if (data.activeRun) {
+                        helper.innerText = "Approved local task running.";
+                    } else if (data.lastStatus === 'failed' || data.lastStatus === 'cancelled') {
+                        helper.innerText = "No changes were confirmed.";
+                    } else {
+                        helper.innerText = "Local Companion verified — awaiting an approved task.";
+                    }
                 }
                 startAgentTaskBtn.style.display = 'block';
                 if (ghostCodeBtn) {
                     ghostCodeBtn.classList.add('active');
-                    if (window.isPlanApprovalRequired) {
+                    if (data.activeRun) {
+                        if (ghostCodeStatus) ghostCodeStatus.innerText = "Code Execution Active";
+                    } else if (window.isPlanApprovalRequired) {
                         if (ghostCodeStatus) ghostCodeStatus.innerText = "Plan approval required before changes";
                     } else {
-                        if (ghostCodeStatus) ghostCodeStatus.innerText = "Local Companion connected — awaiting approved task";
+                        if (ghostCodeStatus) ghostCodeStatus.innerText = "Awaiting an approved local task";
                     }
                 }
             } else {
@@ -1716,12 +1728,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const helper = document.getElementById('runnerHelperText');
                 if (helper) {
-                    helper.innerText = "Local Companion unavailable. Start the local runner on your Mac, then reconnect.";
+                    if (companionState === 'pairing_ready') {
+                        helper.innerText = "Companion setup ready — start the local Runner on this Mac to complete pairing.";
+                    } else if (companionState === 'pairing_error') {
+                        helper.innerText = "Couldn’t start Companion setup. No Mac access was granted. Try again after refreshing Ghost.";
+                    } else if (companionState === 'failed_cancelled' || data.lastStatus === 'failed' || data.lastStatus === 'cancelled') {
+                        helper.innerText = "No changes were confirmed.";
+                    } else if (companionState === 'unavailable') {
+                        helper.innerText = "Local Companion unavailable. No code has run.";
+                    } else {
+                        helper.innerText = "Runs only on this Mac for approved repositories.";
+                    }
                 }
                 startAgentTaskBtn.style.display = 'none';
                 if (ghostCodeBtn) {
                     ghostCodeBtn.classList.remove('active');
-                    if (ghostCodeStatus) ghostCodeStatus.innerText = "Ready for an approved coding task";
+                    if (ghostCodeStatus) ghostCodeStatus.innerText = "Ready to draft a plan";
                 }
             }
         } catch (err) {
@@ -1736,6 +1758,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await fetch('http://127.0.0.1:4185/api/cancel', { method: 'POST', mode: 'no-cors' });
                 } catch (e) {}
                 isRunnerConnected = false;
+                companionState = 'unavailable';
                 runnerConnectionInfo.style.display = 'none';
                 checkRunnerStatus();
                 return;
@@ -1745,20 +1768,46 @@ document.addEventListener('DOMContentLoaded', () => {
             checkRunnerStatus();
 
             try {
-                const res = await fetch('/api/runner/connect', { method: 'POST' });
-                const data = await res.json();
-                if (data.success) {
+                const res = await fetch(apiUrl('/api/runner/connect'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include',
+                    });
+
+                let data = null;
+                const contentType = res.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    data = await res.json();
+                }
+
+                if (res.ok && data && data.success) {
+                    companionState = 'pairing_ready';
                     runnerConnectionInfo.style.display = 'block';
-                    runnerConnectionInfo.innerHTML = `<strong>Runner Session Token:</strong><br><code style="font-family: monospace; font-size: 10px; display: block; padding: 4px; background: var(--bg-hover); margin-top: 4px;">RUNNER_TOKEN=${data.token} npm run runner:local</code>`;
+                    if (runnerStartCmd) {
+                        runnerStartCmd.innerText = `RUNNER_TOKEN=${data.token} npm run runner:local`;
+                    }
                 } else {
-                    alert('Failed to connect runner: ' + (data.error || 'Unknown error'));
+                    companionState = 'pairing_error';
                 }
             } catch (err) {
-                alert('Connection request failed: ' + err.message);
+                companionState = 'pairing_error';
             } finally {
                 isRunnerConnecting = false;
                 checkRunnerStatus();
             }
+        });
+    }
+
+    if (copyStartCmdBtn && runnerStartCmd) {
+        copyStartCmdBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(runnerStartCmd.innerText.trim());
+            copyStartCmdBtn.innerText = "Copied!";
+            setTimeout(() => {
+                copyStartCmdBtn.innerText = "Copy Command";
+            }, 2000);
         });
     }
 

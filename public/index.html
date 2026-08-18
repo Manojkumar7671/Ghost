@@ -71,8 +71,12 @@
                 <div class="sidebar-nav" style="padding: 10px; border-top: 1px solid var(--border-color);">
                     <button class="btn-primary-action" id="connectRunnerBtn" style="margin-bottom: 8px;">Connect Companion</button>
                     <button class="btn-primary-action" id="startAgentTaskBtn" style="display: none; background: var(--accent-violet);">Start Coding Task</button>
-                    <div id="runnerConnectionInfo" style="margin-top: 8px; font-size: 11px; color: var(--text-dim); display: none; word-break: break-all;"></div>
-                    <div id="runnerHelperText" style="margin-top: 8px; font-size: 11px; color: var(--text-dim); line-height: 1.4;">
+                    <div id="runnerConnectionInfo" style="margin-top: 8px; font-size: 11px; color: var(--text-dim); display: none; word-break: break-all;">
+                        <span style="display: block; margin-bottom: 4px;">Start command (expires in 1 hour):</span>
+                        <code id="runnerStartCmd" style="font-family: monospace; font-size: 10px; display: block; padding: 4px; background: var(--bg-hover); margin-bottom: 4px; word-wrap: break-word; white-space: pre-wrap;"></code>
+                        <button class="btn-primary-action" id="copyStartCmdBtn" style="font-size: 10px; padding: 4px 8px; display: inline-block; width: auto; margin-bottom: 8px;">Copy Command</button>
+                    </div>
+                    <div id="runnerHelperText" role="status" aria-live="polite" style="margin-top: 8px; font-size: 11px; color: var(--text-dim); line-height: 1.4;">
                         Runs only on this Mac for approved repositories.
                     </div>
                     <div class="tooltip-info" style="margin-top: 8px; font-size: 10px; color: var(--text-dim); border-top: 1px solid var(--border-color); padding-top: 6px; line-height: 1.3;">

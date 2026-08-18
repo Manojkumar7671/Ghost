@@ -218,6 +218,28 @@ async function requestRunner(method, path, body = null, headers = {}) {
     assert.strictEqual(ownerStatus.data.connected, true);
     console.log('✅ PASS: Companion status endpoint permissions and connection states validated.');
 
+    // 8. Visitor/Guest blocked from runner pairing
+    console.log('[Test 8] Testing that guest role is blocked from runner pairing...');
+    const guestToken = jwt.sign({ role: 'guest', user: 'GuestUser' }, JWT_SECRET);
+    const guestConnectRes = await request('POST', '/api/runner/connect', {}, { Cookie: `ghost_session=${guestToken}` });
+    assert.strictEqual(guestConnectRes.status, 403);
+    console.log('✅ PASS: Guest role blocked from runner pairing successfully.');
+
+    // 9. Owner pairing connection works and returns JSON
+    console.log('[Test 9] Testing that owner runner connection works and returns JSON...');
+    const ownerConnectRes = await request('POST', '/api/runner/connect', {}, { Cookie: `ghost_session=${token2}` });
+    assert.strictEqual(ownerConnectRes.status, 200);
+    assert(ownerConnectRes.data.success);
+    assert(ownerConnectRes.data.token);
+    console.log('✅ PASS: Owner runner pairing connection verified.');
+
+    // 10. False claim guard intercepts fake file claims
+    console.log('[Test 10] Testing false claim guard in /api/chat...');
+    const chatRes = await request('POST', '/api/chat', { message: 'create outputs/notes.txt and download the file from http://localhost:3000/downloads/notes.txt' }, { Cookie: `ghost_session=${token2}` });
+    assert.strictEqual(chatRes.status, 200);
+    assert(chatRes.data.text.includes("No local files were created") || chatRes.data.text.includes("No files were changed") || chatRes.data.text.includes("No changes were confirmed"));
+    console.log('✅ PASS: False-claim guard successfully intercepted unverified claim.');
+
   } catch (err) {
     console.error('❌ Test Suite Failed:', err);
     process.exit(1);

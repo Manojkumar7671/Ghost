@@ -634,7 +634,7 @@ function requireAuth(req, res, next) {
 }
 
 // --- AGENT REPO CONNECTIONS CRUD ---
-app.post('/api/runner/connect', requireAuth, async (req, res) => {
+app.post('/api/runner/connect', requireAdminToken, async (req, res) => {
     try {
         const token = crypto.randomBytes(32).toString('hex');
         const tokenFile = path.join(os.homedir(), '.ghost', 'runner-token.json');
@@ -646,18 +646,32 @@ app.post('/api/runner/connect', requireAuth, async (req, res) => {
     }
 });
 
-app.get('/api/runner/status', requireAuth, async (req, res) => {
+app.get('/api/runner/status', requireAdminToken, async (req, res) => {
     try {
         const pingRes = await fetch('http://127.0.0.1:4185/health', { signal: AbortSignal.timeout(1000) });
         const data = await pingRes.json();
         if (data.status === 'ok') {
-            return res.json({ connected: true });
+            let activeRun = false;
+            let lastStatus = null;
+            if (pool) {
+                const ownerId = req.user.user || 'admin';
+                const runRes = await pool.query('SELECT * FROM ghost_agent_runs WHERE owner_id = $1 ORDER BY start_time DESC LIMIT 1', [ownerId]);
+                if (runRes.rows.length > 0) {
+                    const run = runRes.rows[0];
+                    if (['running', 'executing', 'testing'].includes(run.status)) {
+                        activeRun = true;
+                    } else {
+                        lastStatus = run.status;
+                    }
+                }
+            }
+            return res.json({ connected: true, activeRun, lastStatus });
         }
     } catch (err) {}
     return res.json({ connected: false });
 });
 
-app.get('/api/repo-connections', requireAuth, async (req, res) => {
+app.get('/api/repo-connections', requireAdminToken, async (req, res) => {
     if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
     try {
         const ownerId = req.user.user || 'admin';
@@ -668,7 +682,7 @@ app.get('/api/repo-connections', requireAuth, async (req, res) => {
     }
 });
 
-app.post('/api/repo-connections', requireAuth, async (req, res) => {
+app.post('/api/repo-connections', requireAdminToken, async (req, res) => {
     if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
     const { displayName, allowedBranchPolicy, status } = req.body;
     if (!displayName || typeof displayName !== 'string' || !displayName.trim()) {
@@ -687,7 +701,7 @@ app.post('/api/repo-connections', requireAuth, async (req, res) => {
     }
 });
 
-app.delete('/api/repo-connections/:id', requireAuth, async (req, res) => {
+app.delete('/api/repo-connections/:id', requireAdminToken, async (req, res) => {
     if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
     try {
         const ownerId = req.user.user || 'admin';
@@ -699,7 +713,7 @@ app.delete('/api/repo-connections/:id', requireAuth, async (req, res) => {
 });
 
 // --- AGENT TASKS CRUD ---
-app.get('/api/agent-tasks', requireAuth, async (req, res) => {
+app.get('/api/agent-tasks', requireAdminToken, async (req, res) => {
     if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
     try {
         const ownerId = req.user.user || 'admin';
@@ -710,7 +724,7 @@ app.get('/api/agent-tasks', requireAuth, async (req, res) => {
     }
 });
 
-app.post('/api/agent-tasks', requireAuth, async (req, res) => {
+app.post('/api/agent-tasks', requireAdminToken, async (req, res) => {
     if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
     const { goal, repoId } = req.body;
     if (!goal || !repoId) return res.status(400).json({ success: false, error: 'Goal and repoId are required' });
@@ -728,7 +742,7 @@ app.post('/api/agent-tasks', requireAuth, async (req, res) => {
 });
 
 // --- AGENT RUNS ---
-app.get('/api/agent-runs', requireAuth, async (req, res) => {
+app.get('/api/agent-runs', requireAdminToken, async (req, res) => {
     if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
     try {
         const ownerId = req.user.user || 'admin';
@@ -739,7 +753,7 @@ app.get('/api/agent-runs', requireAuth, async (req, res) => {
     }
 });
 
-app.post('/api/agent-runs', requireAuth, async (req, res) => {
+app.post('/api/agent-runs', requireAdminToken, async (req, res) => {
     if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
     const { taskId } = req.body;
     if (!taskId) return res.status(400).json({ success: false, error: 'taskId is required' });
@@ -757,7 +771,7 @@ app.post('/api/agent-runs', requireAuth, async (req, res) => {
 });
 
 // --- AGENT ARTIFACTS ---
-app.get('/api/agent-artifacts', requireAuth, async (req, res) => {
+app.get('/api/agent-artifacts', requireAdminToken, async (req, res) => {
     if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
     try {
         const ownerId = req.user.user || 'admin';
@@ -769,7 +783,7 @@ app.get('/api/agent-artifacts', requireAuth, async (req, res) => {
 });
 
 // --- APPROVALS ---
-app.get('/api/approvals', requireAuth, async (req, res) => {
+app.get('/api/approvals', requireAdminToken, async (req, res) => {
     if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
     try {
         const ownerId = req.user.user || 'admin';
@@ -780,7 +794,7 @@ app.get('/api/approvals', requireAuth, async (req, res) => {
     }
 });
 
-app.post('/api/approvals/:id', requireAuth, async (req, res) => {
+app.post('/api/approvals/:id', requireAdminToken, async (req, res) => {
     if (!pool) return res.status(503).json({ success: false, error: 'DATABASE_UNAVAILABLE' });
     const { decision, runId } = req.body;
     if (!decision || !runId) return res.status(400).json({ success: false, error: 'Decision and runId are required' });
@@ -1081,6 +1095,118 @@ function extractTextFromPdfBuffer(pdfBuffer) {
 // brain.think() is the SOLE execution path. No fallback to callLLM with GHOST_ADMIN_CORE.
 // ============================================================
 
+async function getLatestExecutionStatus(req) {
+    const isAdmin = checkIsAdmin(req);
+    const ownerId = (req.user && req.user.username) || 'Guest';
+
+    if (!pool || !isAdmin) {
+        return {
+            state: "not_started",
+            taskId: null,
+            summary: "I can draft code or prepare an approval-gated plan here. No local files were created and no code has run.",
+            artifacts: []
+        };
+    }
+
+    try {
+        const runRes = await pool.query(
+            'SELECT * FROM ghost_agent_runs WHERE owner_id = $1 ORDER BY start_time DESC LIMIT 1',
+            [ownerId]
+        );
+
+        if (runRes.rows.length === 0) {
+            return {
+                state: "not_started",
+                taskId: null,
+                summary: "I can draft code or prepare an approval-gated plan here. No local files were created and no code has run.",
+                artifacts: []
+            };
+        }
+
+        const run = runRes.rows[0];
+
+        if (['running', 'executing', 'testing'].includes(run.status)) {
+            return {
+                state: "running",
+                taskId: run.task_id,
+                summary: "Approved local task is running. I will report verified results when it finishes.",
+                artifacts: []
+            };
+        }
+
+        if (run.status === 'awaiting_plan_approval') {
+            return {
+                state: "awaiting_approval",
+                taskId: run.task_id,
+                summary: "Plan ready for approval. No files were changed.",
+                artifacts: []
+            };
+        }
+
+        if (['failed', 'cancelled'].includes(run.status)) {
+            return {
+                state: "failed",
+                taskId: run.task_id,
+                summary: "No changes were confirmed.",
+                artifacts: []
+            };
+        }
+
+        if (run.status === 'completed') {
+            const taskRes = await pool.query('SELECT * FROM ghost_agent_tasks WHERE id = $1 AND owner_id = $2', [run.task_id, ownerId]);
+            if (taskRes.rows.length === 0) {
+                return { state: "failed", taskId: run.task_id, summary: "No changes were confirmed.", artifacts: [] };
+            }
+
+            const approvalRes = await pool.query('SELECT * FROM ghost_approvals WHERE owner_id = $1 AND decision = $2', [ownerId, 'approved']);
+            if (approvalRes.rows.length === 0) {
+                return { state: "failed", taskId: run.task_id, summary: "No changes were confirmed.", artifacts: [] };
+            }
+
+            const artifactRes = await pool.query('SELECT * FROM ghost_agent_artifacts WHERE run_id = $1', [run.id]);
+            const artifacts = [];
+
+            if (artifactRes.rows.length > 0) {
+                const art = artifactRes.rows[0];
+                const files = (art.changed_files || '').split(',').map(f => f.trim()).filter(Boolean);
+
+                for (const file of files) {
+                    if (file.includes('..') || file.includes('.env') || file.includes('.git') || file.includes('.ssh') || file.includes('secret') || file.includes('token')) {
+                        continue;
+                    }
+
+                    const normalized = path.normalize(file);
+                    const fullPath = path.resolve(__dirname, 'outputs', normalized);
+                    const outputsDir = path.resolve(__dirname, 'outputs');
+
+                    if (fullPath.startsWith(outputsDir)) {
+                        artifacts.push({
+                            name: normalized,
+                            url: `/downloads/${normalized}`
+                        });
+                    }
+                }
+            }
+
+            return {
+                state: "succeeded",
+                taskId: run.task_id,
+                summary: `Task completed. Verified artifacts: ${artifacts.map(a => a.name).join(', ')}`,
+                artifacts
+            };
+        }
+    } catch (err) {
+        console.error('[Get Execution Status Error]', err.message);
+    }
+
+    return {
+        state: "not_started",
+        taskId: null,
+        summary: "I can draft code or prepare an approval-gated plan here. No local files were created and no code has run.",
+        artifacts: []
+    };
+}
+
 function sanitizeUserInput(rawText) {
     if (!rawText || typeof rawText !== 'string') return '';
     let sanitized = rawText.replace(/\[\s*(SYSTEM|OVERRIDE|ADMIN|PROMPT|GHOST SYSTEM|ROOT|SUPERUSER)[^\]]*\]/gi, ' ');
@@ -1186,225 +1312,25 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
 
             console.log(`[Chat Trace] Received input: "${message}" | user: "${safeUser}" | fileAttached: ${Boolean(fileContent || fileBase64)}`);
 
-            // 0. Support compound multi-action sentences ("open camera, then open youtube in safari, then tell me a joke")
-            const isCompound = /\b(then|and)\b|,/i.test(message) && (lowerMsg.includes('open') || lowerMsg.includes('launch') || lowerMsg.includes('tell') || lowerMsg.includes('play'));
-            if (isCompound) {
-                const parts = message.split(/\s+(?:then|and)\s+|,/gi).map(p => p.trim()).filter(Boolean);
-                if (parts.length > 1) {
-                    console.log(`[Multi-Action Chain] Splitting compound sentence into ${parts.length} sub-actions:`, parts);
-                    let chainResults = [];
-                    for (const subCmd of parts) {
-                        const lowerSub = subCmd.toLowerCase();
-                        if (lowerSub.includes('open camera') || lowerSub.includes('open photo booth')) {
-                            const { exec } = await import('child_process');
-                            exec('open -a "Photo Booth"');
-                            chainResults.push('[Ghost System]: Photo Booth (Camera) application visually opened on desktop.');
-                        } else if (lowerSub.startsWith('open ') || lowerSub.startsWith('launch ')) {
-                            const openMatch = lowerSub.match(/^(?:open|launch)\s+([^\s]+)(?:\s+in\s+([^\s]+))?$/i);
-                            if (openMatch) {
-                                let rawTarget = openMatch[1].trim();
+            // Prevent any cloud-side Mac commands or local app launches in /api/chat
+            const blockedKeywords = [
+                'open camera', 'open photo booth', 'open calculator', 'open terminal',
+                'open safari', 'open chrome', 'killall', 'open file', 'open -a', 'open youtube',
+                'photo booth', 'calculator', 'terminal', 'open doc', 'open pdf', 'open txt'
+            ];
+            const isLocalRequest = blockedKeywords.some(k => lowerMsg.includes(k)) || (lowerMsg.startsWith('open ') && !lowerMsg.includes('http'));
 
-                                // Local File Check inside Compound Multi-Action Chain
-                                const fileExts = ['.pdf', '.docx', '.doc', '.txt', '.png', '.jpg', '.jpeg', '.csv', '.json', '.md'];
-                                const hasExt = fileExts.some(ext => rawTarget.toLowerCase().endsWith(ext));
-                                const os = require('os');
-                                const searchPaths = [
-                                    rawTarget,
-                                    path.resolve(os.homedir(), 'Downloads', rawTarget),
-                                    path.resolve(os.homedir(), 'Desktop', rawTarget),
-                                    path.resolve(os.homedir(), 'Documents', rawTarget),
-                                    path.resolve(__dirname, rawTarget)
-                                ];
-                                let foundFile = searchPaths.find(p => fs.existsSync(p) && !fs.statSync(p).isDirectory());
-
-                                if (hasExt || foundFile) {
-                                    const fileToOpen = foundFile || path.resolve(os.homedir(), 'Downloads', rawTarget);
-                                    const { exec } = await import('child_process');
-                                    exec(`open "${fileToOpen}"`);
-                                    if (subCmd.toLowerCase().includes('tell me') || subCmd.toLowerCase().includes('read') || subCmd.toLowerCase().includes('what')) {
-                                        if (fileToOpen.endsWith('.pdf')) {
-                                            const docAgent = require('./src/agents/docAgent');
-                                            const docRes = await docAgent.run(fileToOpen);
-                                            chainResults.push(`[Ghost System]: Visually opened local file "${path.basename(fileToOpen)}" on desktop.\n\n${docRes.text}`);
-                                            continue;
-                                        }
-                                    }
-                                    chainResults.push(`[Ghost System]: Visually opened local file "${path.basename(fileToOpen)}" on desktop.`);
-                                } else {
-                                    let rawBrowser = openMatch[2] || 'safari';
-                                    let browserApp = rawBrowser.includes('safari') ? 'Safari' : 'Google Chrome';
-                                    let targetUrl = rawTarget.startsWith('http') ? rawTarget : (rawTarget.includes('youtube') ? 'https://www.youtube.com' : `https://www.${rawTarget}.com`);
-                                    const { exec } = await import('child_process');
-                                    exec(`open -a "${browserApp}" "${targetUrl}"`);
-                                    chainResults.push(`[Ghost System]: Visually opened ${targetUrl} in ${browserApp}.`);
-                                }
-                            } else {
-                                const { exec } = await import('child_process');
-                                exec(`open -a "Safari" "https://www.google.com"`);
-                                chainResults.push(`[Ghost System]: Processed browser command: ${subCmd}`);
-                            }
-                        } else {
-                            // Detect if this sub-action will route to browser_navigate/web_read
-                            // so we can manage session lifecycle across the chain.
-                            const isBrowserSubCmd = /\b(navigate|browser|load url|read page|open browser|get page|fetch url)\b/i.test(subCmd)
-                                || /\bhttps?:\/\//i.test(subCmd);
-                            const isLastSubCmd = subCmd === parts[parts.length - 1];
-
-                            if (isBrowserSubCmd) {
-                                // Call sandboxNavigate directly with correct closeAfter
-                                // to ensure session reuse across a browser-heavy compound chain.
-                                const urlMatch = subCmd.match(/https?:\/\/[^\s"']+/i);
-                                const targetUrl = urlMatch ? urlMatch[0] : null;
-                                if (targetUrl) {
-                                    const browserbaseClient = (await import('./services/browserbaseClient.js')).default;
-                                    const navResult = await browserbaseClient.sandboxNavigate(targetUrl, {
-                                        closeAfter: isLastSubCmd, // only close on last browser step
-                                    });
-                                    if (navResult.error) {
-                                        chainResults.push(`[browser_navigate] Error: ${navResult.error}`);
-                                    } else {
-                                        chainResults.push(`[browser_navigate] URL: ${navResult.url}\nTitle: ${navResult.title}\n\n${navResult.text.substring(0, 2000)}`);
-                                    }
-                                    console.log(`[Multi-Action Chain] Browser sub-action "${subCmd.substring(0,50)}" — closeAfter:${isLastSubCmd}, session ${isLastSubCmd ? 'CLOSED' : 'KEPT ALIVE'}`);
-                                    continue;
-                                }
-                            }
-
-                            const brainRes = await brain.think(subCmd, { safeUser, isAdmin });
-                            chainResults.push(typeof brainRes === 'string' ? brainRes : (brainRes.text || brainRes.output || brainRes.reply || JSON.stringify(brainRes)));
-                        }
-
+            if (isLocalRequest) {
+                return res.json({
+                    success: true,
+                    text: "I can draft code or prepare an approval-gated plan here. No local files were created and no code has run.",
+                    execution: {
+                        state: "not_started",
+                        taskId: null,
+                        summary: "I can draft code or prepare an approval-gated plan here. No local files were created and no code has run.",
+                        artifacts: []
                     }
-                    return res.json({ success: true, text: chainResults.join('\n\n'), runId: currentRun.runId });
-                }
-            }
-            // Intercept cancellation for recent native application launches ("cancel that", "stop")
-            if (lowerMsg === 'cancel that' || lowerMsg === 'stop' || lowerMsg === 'stop that' || lowerMsg.includes('cancel recent') || lowerMsg.includes('close app')) {
-                if (global.lastSpawnedApp && (Date.now() - global.lastSpawnedApp.timestamp < 30000)) {
-                    const appToClose = global.lastSpawnedApp.appName;
-                    const { exec } = await import('child_process');
-                    exec(`killall "${appToClose}"`);
-                    global.lastSpawnedApp = null;
-                    console.log(`[Process Control] Cancelled recent native app: ${appToClose}`);
-                    return res.json({ success: true, text: `[Ghost System]: Successfully cancelled and closed recent native application (${appToClose}).`, runId: currentRun.runId });
-                }
-            }
-
-            // Self-serve Agent Creation Interceptor ("create an agent...", "build an agent...")
-            const createAgentMatch = lowerMsg.match(/^(?:create|build|scaffold)\s+(?:an?\s+)?agent\s+(?:that\s+|to\s+)?(.+)$/i);
-            if (createAgentMatch) {
-                const agentCreator = require('./src/agentCreator');
-                const rawDescription = createAgentMatch[1];
-                const nameWords = rawDescription.replace(/[^a-zA-Z0-9 ]/g, '').split(' ').filter(Boolean);
-                const rawName = (nameWords[0] || 'custom') + 'Agent';
-                const createRes = await agentCreator.createAgent({
-                    rawName,
-                    description: `Agent that ${rawDescription}`,
-                    instructions: `Generate and execute responses for tasks involving: ${rawDescription}`,
-                    tags: [nameWords[0] || 'custom', 'custom_agent'],
-                    triggers: [rawDescription, `use ${rawName}`],
-                    isAdmin
                 });
-                return res.json({ success: createRes.success, text: createRes.text || createRes.error });
-            }
-
-            // Agent Approval Interceptor ("approve agent...")
-            const approveMatch = lowerMsg.match(/^approve\s+agent\s+([a-z0-9_]+)$/i);
-            if (approveMatch) {
-                const agentCreator = require('./src/agentCreator');
-                const approveRes = await agentCreator.approveAgent(approveMatch[1], isAdmin);
-                return res.json({ success: approveRes.success, text: approveRes.text || approveRes.error });
-            }
-
-
-            // 1. Intercept Native Application Requests ("open camera", "open photo booth", "open calculator", "open terminal")
-            if (lowerMsg === 'open camera' || lowerMsg === 'open photo booth' || lowerMsg.includes('open camera') || lowerMsg.includes('open photo booth')) {
-                console.log(`[Chat Trace] Intercepted native app launch -> Photo Booth (Camera)`);
-                global.lastSpawnedApp = { appName: 'Photo Booth', timestamp: Date.now() };
-                const { exec } = await import('child_process');
-                const resultText = await new Promise((resolve) => {
-                    exec('open -a "Photo Booth"', (err) => {
-                        if (err) resolve(`[System Warning]: Could not open Photo Booth: ${err.message}`);
-                        else resolve(`[Ghost System]: Photo Booth (Camera) application visually opened on desktop.`);
-                    });
-                });
-                return res.json({ success: true, text: resultText });
-            }
-
-            if (lowerMsg.includes('open calculator') || lowerMsg.includes('open terminal')) {
-                const appName = lowerMsg.includes('calculator') ? 'Calculator' : 'Terminal';
-                console.log(`[Chat Trace] Intercepted native app launch -> ${appName}`);
-                const { exec } = await import('child_process');
-                const resultText = await new Promise((resolve) => {
-                    exec(`open -a "${appName}"`, (err) => {
-                        if (err) resolve(`[System Warning]: Could not open ${appName}: ${err.message}`);
-                        else resolve(`[Ghost System]: ${appName} application visually opened on desktop.`);
-                    });
-                });
-                return res.json({ success: true, text: resultText });
-            }
-
-            // 2. Intercept Deterministic Open Commands ("open <file>", "open <site> in <browser>")
-            const openMatch = lowerMsg.match(/^open\s+([^\s]+)(?:\s+and\s+.*)?$/i) || lowerMsg.match(/^open\s+(https?:\/\/[^\s]+)$/i);
-            if (openMatch && !lowerMsg.includes('photo booth') && !lowerMsg.includes('camera') && !lowerMsg.includes('calculator') && !lowerMsg.includes('terminal')) {
-                let rawTarget = openMatch[1].trim();
-
-                // Local File Interceptor Check
-                const fileExts = ['.pdf', '.docx', '.doc', '.txt', '.png', '.jpg', '.jpeg', '.csv', '.json', '.md'];
-                const hasExt = fileExts.some(ext => rawTarget.toLowerCase().endsWith(ext));
-
-                const os = require('os');
-                const searchPaths = [
-                    rawTarget,
-                    path.resolve(os.homedir(), 'Downloads', rawTarget),
-                    path.resolve(os.homedir(), 'Desktop', rawTarget),
-                    path.resolve(os.homedir(), 'Documents', rawTarget),
-                    path.resolve(__dirname, rawTarget)
-                ];
-
-                let foundFile = searchPaths.find(p => fs.existsSync(p) && !fs.statSync(p).isDirectory());
-
-                if (hasExt || foundFile) {
-                    const fileToOpen = foundFile || path.resolve(os.homedir(), 'Downloads', rawTarget);
-                    console.log(`[Chat Trace] Local file opening intercepted -> File: "${fileToOpen}"`);
-                    const { exec } = await import('child_process');
-                    exec(`open "${fileToOpen}"`);
-
-                    if (lowerMsg.includes('tell me') || lowerMsg.includes('read') || lowerMsg.includes('what')) {
-                        if (fileToOpen.endsWith('.pdf')) {
-                            const docAgent = require('./src/agents/docAgent');
-                            const docRes = await docAgent.run(fileToOpen);
-                            return res.json({ success: true, text: `[Ghost System]: Opened file "${path.basename(fileToOpen)}" on desktop.\n\n${docRes.text}` });
-                        }
-                    }
-                    return res.json({ success: true, text: `[Ghost System]: Visually opened local file "${path.basename(fileToOpen)}" on your desktop.` });
-                }
-
-                // Deterministic Browser Launch
-                let rawBrowser = (lowerMsg.match(/in\s+([^\s]+)$/i) || [])[1] || 'opera';
-                let browserApp = 'Opera';
-                if (rawBrowser.includes('safari')) browserApp = 'Safari';
-                else if (rawBrowser.includes('chrome')) browserApp = 'Google Chrome';
-                else if (rawBrowser.includes('firefox')) browserApp = 'Firefox';
-
-                let targetUrl = rawTarget;
-                if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
-                    if (targetUrl.includes('youtube')) targetUrl = 'https://www.youtube.com';
-                    else if (targetUrl.includes('google')) targetUrl = 'https://www.google.com';
-                    else if (targetUrl.includes('github')) targetUrl = 'https://github.com';
-                    else targetUrl = `https://www.${targetUrl}.com`;
-                }
-
-                console.log(`[Chat Trace] Deterministic browser launch -> Browser: "${browserApp}", Target URL: "${targetUrl}"`);
-                const { exec } = await import('child_process');
-                const launchCmd = `open -a "${browserApp}" "${targetUrl}"`;
-                const resultText = await new Promise((resolve) => {
-                    exec(launchCmd, (err) => {
-                        if (err) resolve(`[System Warning]: Could not launch ${browserApp}: ${err.message}`);
-                        else resolve(`[Ghost System]: Visually opened ${targetUrl} in ${browserApp}.`);
-                    });
-                });
-                return res.json({ success: true, text: resultText });
             }
 
         const codeKeywords = ['python', 'javascript', 'js', 'html', 'css', 'sql', 'script', 'function', 'write code', 'build an app', 'generate code', 'create file', 'code', 'coding', 'generate a login page', 'build a login page', 'create a script', 'write a javascript script'];
@@ -1961,7 +1887,38 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                         await pool.query('UPDATE user_memories SET history_json = $2, updated_at = CURRENT_TIMESTAMP WHERE username = $1', [safeUser, JSON.stringify(userHistory.slice(-15))]);
                     }
 
-                    res.json({ success: true, text: traceText, plan, runId: currentRun?.runId });
+                    const execution = await getLatestExecutionStatus(req);
+                    let finalResponseText = traceText;
+                    if (execution.state !== 'succeeded') {
+                        const falseClaimPatterns = [
+                            /\bcreated a file\b/i,
+                            /\bfile has been created\b/i,
+                            /\boperation was successful\b/i,
+                            /\baccess the file via\b/i,
+                            /\bdownload the file\b/i,
+                            /\bsuccessfully executed\b/i,
+                            /\bwrote to file\b/i,
+                            /\bcreated outputs\b/i,
+                            /http:\/\/localhost:\d+\/downloads/i,
+                            /localhost:\d+\/downloads/i,
+                            /\/downloads\//i
+                        ];
+
+                        const hasFalseClaim = falseClaimPatterns.some(pattern => pattern.test(finalResponseText));
+                        if (hasFalseClaim) {
+                            if (execution.state === 'awaiting_approval') {
+                                finalResponseText = "Plan ready for approval. No files were changed.";
+                            } else if (execution.state === 'running') {
+                                finalResponseText = "Approved local task is running. I will report verified results when it finishes.";
+                            } else if (execution.state === 'failed') {
+                                finalResponseText = "No changes were confirmed.";
+                            } else {
+                                finalResponseText = "I can draft code or prepare an approval-gated plan here. No local files were created and no code has run.";
+                            }
+                        }
+                    }
+
+                    res.json({ success: true, text: finalResponseText, plan, runId: currentRun?.runId, execution });
                     return;
                 } catch (err) {
                     console.error('[Intent Planner] Execution pipeline failed, falling back to direct brain.think:', err.message);
@@ -2102,10 +2059,41 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             }
         }
 
+        const execution = await getLatestExecutionStatus(req);
+
+        if (execution.state !== 'succeeded') {
+            const falseClaimPatterns = [
+                /\bcreated a file\b/i,
+                /\bfile has been created\b/i,
+                /\boperation was successful\b/i,
+                /\baccess the file via\b/i,
+                /\bdownload the file\b/i,
+                /\bsuccessfully executed\b/i,
+                /\bwrote to file\b/i,
+                /\bcreated outputs\b/i,
+                /http:\/\/localhost:\d+\/downloads/i,
+                /localhost:\d+\/downloads/i,
+                /\/downloads\//i
+            ];
+
+            const hasFalseClaim = falseClaimPatterns.some(pattern => pattern.test(replyText));
+            if (hasFalseClaim) {
+                if (execution.state === 'awaiting_approval') {
+                    replyText = "Plan ready for approval. No files were changed.";
+                } else if (execution.state === 'running') {
+                    replyText = "Approved local task is running. I will report verified results when it finishes.";
+                } else if (execution.state === 'failed') {
+                    replyText = "No changes were confirmed.";
+                } else {
+                    replyText = "I can draft code or prepare an approval-gated plan here. No local files were created and no code has run.";
+                }
+            }
+        }
+
         ghostLearn({ safeUser, message, actionTaken: actionTriggered });
         userHistory.push({ role: 'user', content: message }, { role: 'assistant', content: replyText.trim() });
         if (userHistory.length > maxMemory) userHistory = userHistory.slice(-maxMemory);
-        res.json({ success: true, text: replyText.trim(), runId: currentRun?.runId });
+        res.json({ success: true, text: replyText.trim(), runId: currentRun?.runId, execution });
 
         if (pool && safeUser) {
             pool.query(
