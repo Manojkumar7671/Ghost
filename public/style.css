@@ -1159,6 +1159,26 @@ pre {
   overflow: hidden;
 }
 
+.visualizer-container-main::before {
+  content: '';
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  border: 1px dashed rgba(82, 82, 91, 0.35);
+  background: radial-gradient(circle, rgba(39, 39, 42, 0.4) 0%, rgba(9, 9, 11, 0) 70%);
+}
+
+.visualizer-container-main::after {
+  content: 'SYSTEM SIGNAL';
+  position: absolute;
+  bottom: 24px;
+  font-family: monospace;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: rgba(161, 161, 170, 0.35);
+}
+
 /* --- SIDEBAR EXTENSIONS: PROJECTS & MEMORIES --- */
 .history-title-row {
   display: flex;

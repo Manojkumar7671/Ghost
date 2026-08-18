@@ -595,28 +595,72 @@ document.addEventListener('DOMContentLoaded', () => {
     const exitHandsFreeBtn = document.getElementById('exitHandsFreeBtn');
     const handsFreeLiveText = document.getElementById('handsFreeLiveText');
 
-    function mountVisualizer(containerId) {
-        if (window.ghostVisualizer) {
-            window.ghostVisualizer.destroy();
-            window.ghostVisualizer = null;
-        }
-        const isDesktopApp = !!(window.ghostDesktop && window.ghostDesktop.isDesktop) || window.navigator.userAgent.includes('Electron');
-        const container = document.getElementById(containerId);
-        if (!container) return;
+    window.currentVoiceState = 'idle';
+    let visualizerVisibleInViewport = false;
 
-        container.innerHTML = '';
+    function updateVisualizerState() {
+        const isOwner = isAdminMode;
+        const isHandsFree = isHandsFreeActive;
+        const voiceActive = ['listening', 'speaking', 'transcribing'].includes(window.currentVoiceState);
+        const docVisible = !document.hidden;
+        const inViewport = visualizerVisibleInViewport;
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-        if (isDesktopApp) {
-            console.log('[Visualizer] Desktop environment — mounting GhostWaveformVisualizer into ' + containerId);
-            window.ghostVisualizer = new GhostWaveformVisualizer(containerId);
-        } else if (typeof THREE !== 'undefined') {
-            console.log('[Visualizer] Web environment — mounting GhostVisualizer into ' + containerId);
-            window.ghostVisualizer = new GhostVisualizer(containerId);
+        const shouldBeActive = isOwner && isHandsFree && voiceActive && docVisible && inViewport && !reducedMotion;
+
+        if (shouldBeActive) {
+            if (!window.ghostVisualizer) {
+                const containerId = 'fullscreenVisualizerContainer';
+                const container = document.getElementById(containerId);
+                if (container) {
+                    container.innerHTML = '';
+                    const isDesktopApp = !!(window.ghostDesktop && window.ghostDesktop.isDesktop) || window.navigator.userAgent.includes('Electron');
+                    if (isDesktopApp) {
+                        window.ghostVisualizer = new GhostWaveformVisualizer(containerId);
+                    } else if (typeof THREE !== 'undefined') {
+                        window.ghostVisualizer = new GhostVisualizer(containerId);
+                    }
+                }
+            }
+            if (window.ghostVisualizer) {
+                if (window.currentVoiceState === 'listening') {
+                    window.ghostVisualizer.setState('listening');
+                } else {
+                    window.ghostVisualizer.setState('responding');
+                }
+                window.ghostVisualizer.resume();
+            }
+        } else {
+            if (window.ghostVisualizer) {
+                window.ghostVisualizer.destroy();
+                window.ghostVisualizer = null;
+            }
+            const container = document.getElementById('fullscreenVisualizerContainer');
+            if (container) {
+                container.innerHTML = '';
+            }
         }
     }
 
-    // Default sidebar mount on startup
-    mountVisualizer('visualizerContainer');
+    const fullscreenVisualizerContainer = document.getElementById('fullscreenVisualizerContainer');
+    let visualizerIntersectionObserver = null;
+    if (fullscreenVisualizerContainer) {
+        visualizerIntersectionObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                visualizerVisibleInViewport = entry.isIntersecting;
+                updateVisualizerState();
+            });
+        }, { threshold: 0.1 });
+        visualizerIntersectionObserver.observe(fullscreenVisualizerContainer);
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        updateVisualizerState();
+    });
+
+    window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', () => {
+        updateVisualizerState();
+    });
 
     async function enableHandsFreeMode() {
         isHandsFreeActive = true;
@@ -625,9 +669,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (handsFreeStatus) handsFreeStatus.innerText = "ON // Spoken Interaction Active";
         if (handsFreeOverlay) handsFreeOverlay.classList.add('active');
 
-        // Remount visualizer full-screen
-        mountVisualizer('fullscreenVisualizerContainer');
-        if (window.ghostVisualizer) window.ghostVisualizer.setState('listening');
+        updateVisualizerState();
 
         if (handsFreeLiveText) handsFreeLiveText.innerText = "Hands-Free Mode Active. Speak anytime — mic is always on!";
         speakResponse("Hands-free mode enabled. Mic is open. Speak anytime to command Ghost.");
@@ -641,9 +683,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (handsFreeStatus) handsFreeStatus.innerText = "OFF // Spoken Audio Idle";
         if (handsFreeOverlay) handsFreeOverlay.classList.remove('active');
 
-        // Remount visualizer back in sidebar
-        mountVisualizer('visualizerContainer');
-        if (window.ghostVisualizer) window.ghostVisualizer.setState('idle');
+        updateVisualizerState();
 
         speakResponse("Hands-free mode disabled.");
         cleanupAudioPipeline();
@@ -763,18 +803,15 @@ document.addEventListener('DOMContentLoaded', () => {
             else micToggleBtn.innerText = '🎤';
         }
 
-        if (window.ghostVisualizer) {
-            if (state === 'listening') window.ghostVisualizer.setState('listening');
-            else if (state === 'speaking') window.ghostVisualizer.setState('responding');
-            else if (state === 'transcribing') window.ghostVisualizer.setState('responding');
-            else window.ghostVisualizer.setState('idle');
-        }
+        window.currentVoiceState = state;
+        updateVisualizerState();
 
         // Restart wake-word recognition if returning to idle
         if (state === 'idle' && !isRecording && !recognitionActive) {
             startWakeWordRecognition();
         }
     }
+
 
     function speakResponse(text, skipAppend = false) {
         let cleanText = text.replace(/[\x60]{3}[\s\S]*?[\x60]{3}/g, '')
