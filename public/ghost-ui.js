@@ -2,7 +2,7 @@
 const apiBase = (window.VITE_GHOST_API_BASE ?? "").replace(/\/$/, "");
 const apiUrl = (path) => `${apiBase}${path}`;
 
-// --- 3D/4D HOLOGRAPHIC THREE.JS VISUALIZER GLOBE ---
+// --- // --- 3D/4D HOLOGRAPHIC THREE.JS VISUALIZER GLOBE ---
 class GhostVisualizer {
   constructor(containerId) {
     this.container = document.getElementById(containerId);
@@ -10,11 +10,41 @@ class GhostVisualizer {
 
     this.state = 'idle'; // 'idle', 'listening', 'responding'
     this.micLevel = 0;
+    this.timeSinceLastFrame = 0;
+    this.isAnimating = false;
+    this.frameId = null;
 
     this.initThree();
-    this.animate();
 
-    window.addEventListener('resize', () => this.onResize());
+    this.resizeHandler = () => this.onResize();
+    window.addEventListener('resize', this.resizeHandler);
+
+    this.visibilityHandler = () => {
+      if (document.hidden) {
+        this.pause();
+      } else {
+        this.resume();
+      }
+    };
+    document.addEventListener('visibilitychange', this.visibilityHandler);
+
+    this.observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          this.resume();
+        } else {
+          this.pause();
+        }
+      });
+    }, { threshold: 0.1 });
+    this.observer.observe(this.container);
+
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (motionQuery.matches) {
+      this.renderStatic();
+    } else {
+      this.start();
+    }
   }
 
   initThree() {
@@ -25,13 +55,14 @@ class GhostVisualizer {
     this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
     this.camera.position.z = 6;
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    // Disabled antialiasing and limit pixel ratio to 1 for GPU savings
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
     this.renderer.setSize(width, height);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(1);
     this.container.appendChild(this.renderer.domElement);
 
-    // Create particle sphere using IcosahedronGeometry
-    this.geometry = new THREE.IcosahedronGeometry(2.2, 4); // Radius 2.2, detail 4
+    // Lower detail level from 4 to 2 to minimize vertex calculations
+    this.geometry = new THREE.IcosahedronGeometry(2.2, 2);
     this.originalVertices = [];
 
     const pos = this.geometry.attributes.position;
@@ -39,10 +70,9 @@ class GhostVisualizer {
       this.originalVertices.push(new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)));
     }
 
-    // Material for glowing particles
     this.material = new THREE.PointsMaterial({
       color: 0x52525b,
-      size: 0.05,
+      size: 0.06, // slightly larger particles since detail density is lower
       transparent: true,
       opacity: 0.8,
       blending: THREE.AdditiveBlending
@@ -51,8 +81,8 @@ class GhostVisualizer {
     this.points = new THREE.Points(this.geometry, this.material);
     this.scene.add(this.points);
 
-    // Add subtle wireframe mesh underneath for extra structure
-    const wireGeometry = new THREE.IcosahedronGeometry(1.98, 3);
+    // Wireframe structure
+    const wireGeometry = new THREE.IcosahedronGeometry(1.98, 2);
     const wireMaterial = new THREE.MeshBasicMaterial({
       color: 0x27272a,
       wireframe: true,
@@ -64,8 +94,6 @@ class GhostVisualizer {
     this.scene.add(this.wireMesh);
 
     this.clock = new THREE.Clock();
-
-    // Color interpolation properties
     this.targetColor = new THREE.Color(0x52525b);
     this.currentColor = new THREE.Color(0x52525b);
   }
@@ -73,20 +101,20 @@ class GhostVisualizer {
   setState(state) {
     this.state = state;
     if (state === 'idle') {
-      this.targetColor.setHex(0x52525b); // Graphite grey
+      this.targetColor.setHex(0x52525b);
     } else if (state === 'listening') {
-      this.targetColor.setHex(0x6b21a8); // Deep purple
+      this.targetColor.setHex(0x6b21a8);
     } else if (state === 'responding') {
-      this.targetColor.setHex(0xa855f7); // Bright purple
+      this.targetColor.setHex(0xa855f7);
     }
   }
 
   setMicLevel(level) {
-    this.micLevel = level; // normalized 0 to 1
+    this.micLevel = level;
   }
 
   onResize() {
-    if (!this.container) return;
+    if (!this.container || !this.renderer) return;
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
     this.camera.aspect = width / height;
@@ -94,74 +122,121 @@ class GhostVisualizer {
     this.renderer.setSize(width, height);
   }
 
-  animate() {
-    requestAnimationFrame(() => this.animate());
+  start() {
+    if (this.isAnimating) return;
+    this.isAnimating = true;
+    this.clock.start();
+    this.animate();
+  }
 
-    const time = this.clock.getElapsedTime();
+  pause() {
+    this.isAnimating = false;
+    if (this.frameId) {
+      cancelAnimationFrame(this.frameId);
+      this.frameId = null;
+    }
+  }
 
-    // Rotate elements
-    let rotSpeed = 0.15;
-    if (this.state === 'listening') rotSpeed = 0.3;
-    else if (this.state === 'responding') rotSpeed = 0.55;
+  resume() {
+    if (this.isAnimating) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      this.renderStatic();
+      return;
+    }
+    this.start();
+  }
 
-    this.points.rotation.y = time * rotSpeed;
-    this.points.rotation.x = time * (rotSpeed * 0.5);
-    this.wireMesh.rotation.y = -time * (rotSpeed * 0.7);
-
-    // Interpolate colors
-    this.currentColor.lerp(this.targetColor, 0.08);
-    this.material.color.copy(this.currentColor);
-    this.wireMesh.material.color.copy(this.currentColor);
-
-    // Deform geometry
+  renderStatic() {
+    this.pause();
     const pos = this.geometry.attributes.position;
     const count = pos.count;
-
     for (let i = 0; i < count; i++) {
       const orig = this.originalVertices[i];
-
-      let displacement = 0;
-      if (this.state === 'idle') {
-        // Small slow wave
-        displacement = Math.sin(orig.x * 2.0 + time * 1.5) * Math.cos(orig.y * 2.0 + time * 1.5) * 0.08;
-      } else if (this.state === 'listening') {
-        // Pulses reactive to mic input volume
-        displacement = Math.sin(orig.x * 4.0 + time * 8.0) * Math.cos(orig.y * 4.0 + time * 8.0) * (0.05 + this.micLevel * 0.85);
-      } else if (this.state === 'responding') {
-        // procedural voice waveform pattern
-        displacement = Math.sin(orig.z * 5.0 + time * 14.0) * 0.22 + Math.cos(orig.y * 3.0 + time * 10.0) * 0.08;
-      }
-
-      // Offset position along vertex normal (since center is 0,0,0, normal is normalized orig vector)
-      const normal = orig.clone().normalize();
-      const newPos = orig.clone().add(normal.multiplyScalar(displacement));
-
-      pos.setXYZ(i, newPos.x, newPos.y, newPos.z);
+      pos.setXYZ(i, orig.x, orig.y, orig.z);
     }
-
     this.geometry.attributes.position.needsUpdate = true;
     this.renderer.render(this.scene, this.camera);
   }
+
+  destroy() {
+    this.pause();
+    window.removeEventListener('resize', this.resizeHandler);
+    document.removeEventListener('visibilitychange', this.visibilityHandler);
+    if (this.observer) this.observer.disconnect();
+
+    if (this.geometry) this.geometry.dispose();
+    if (this.material) this.material.dispose();
+    if (this.renderer) {
+      this.renderer.dispose();
+      if (this.renderer.domElement && this.renderer.domElement.parentNode) {
+        this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+      }
+    }
+
+    this.container = null;
+    this.scene = null;
+    this.camera = null;
+    this.points = null;
+    this.wireMesh = null;
+  }
+
+  animate() {
+    if (!this.isAnimating) return;
+    this.frameId = requestAnimationFrame(() => this.animate());
+
+    const delta = this.clock.getDelta();
+    this.timeSinceLastFrame += delta;
+
+    const targetFPS = (this.state === 'idle') ? 15 : 30;
+    const interval = 1 / targetFPS;
+
+    if (this.timeSinceLastFrame >= interval) {
+      this.timeSinceLastFrame = this.timeSinceLastFrame % interval;
+
+      const time = this.clock.getElapsedTime();
+
+      let rotSpeed = 0.15;
+      if (this.state === 'listening') rotSpeed = 0.3;
+      else if (this.state === 'responding') rotSpeed = 0.55;
+
+      this.points.rotation.y = time * rotSpeed;
+      this.points.rotation.x = time * (rotSpeed * 0.5);
+      this.wireMesh.rotation.y = -time * (rotSpeed * 0.7);
+
+      this.currentColor.lerp(this.targetColor, 0.08);
+      this.material.color.copy(this.currentColor);
+      if (this.wireMesh.material) {
+        this.wireMesh.material.color.copy(this.currentColor);
+      }
+
+      const pos = this.geometry.attributes.position;
+      const count = pos.count;
+
+      // Zero-allocation inner loop
+      for (let i = 0; i < count; i++) {
+        const orig = this.originalVertices[i];
+
+        let displacement = 0;
+        if (this.state === 'idle') {
+          displacement = Math.sin(orig.x * 2.0 + time * 1.5) * Math.cos(orig.y * 2.0 + time * 1.5) * 0.08;
+        } else if (this.state === 'listening') {
+          displacement = Math.sin(orig.x * 4.0 + time * 8.0) * Math.cos(orig.y * 4.0 + time * 8.0) * (0.05 + this.micLevel * 0.85);
+        } else if (this.state === 'responding') {
+          displacement = Math.sin(orig.z * 5.0 + time * 14.0) * 0.22 + Math.cos(orig.y * 3.0 + time * 10.0) * 0.08;
+        }
+
+        const len = Math.sqrt(orig.x * orig.x + orig.y * orig.y + orig.z * orig.z) || 1;
+        const scale = 1 + displacement / len;
+
+        pos.setXYZ(i, orig.x * scale, orig.y * scale, orig.z * scale);
+      }
+
+      this.geometry.attributes.position.needsUpdate = true;
+      this.renderer.render(this.scene, this.camera);
+    }
+  }
 }
 
-function playClickSound(freq = 600, type = 'sine', duration = 0.05) {
-    try {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContext) return;
-        const ctx = new AudioContext();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, ctx.currentTime);
-        gain.gain.setValueAtTime(0.15, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-    } catch (e) {}
-}
-
-// --- DESKTOP WHITE AUDIO WAVEFORM VISUALIZER (ELECTRON ONLY) ---
 class GhostWaveformVisualizer {
   constructor(containerId) {
     this.container = document.getElementById(containerId);
@@ -175,11 +250,29 @@ class GhostWaveformVisualizer {
     this.container.innerHTML = '';
     this.container.appendChild(this.canvas);
 
+    this.resizeHandler = () => this.onResize();
     this.onResize();
-    window.addEventListener('resize', () => this.onResize());
+    window.addEventListener('resize', this.resizeHandler);
 
     this.phase = 0;
-    this.animate();
+    this.isAnimating = true;
+    this.frameId = null;
+
+    this.visibilityHandler = () => {
+      if (document.hidden) {
+        this.pause();
+      } else {
+        this.resume();
+      }
+    };
+    document.addEventListener('visibilitychange', this.visibilityHandler);
+
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (motionQuery.matches) {
+      this.renderStatic();
+    } else {
+      this.animate();
+    }
   }
 
   setState(state) {
@@ -187,7 +280,7 @@ class GhostWaveformVisualizer {
   }
 
   setMicLevel(level) {
-    this.micLevel = level; // normalized 0.0 to 1.0
+    this.micLevel = level;
   }
 
   onResize() {
@@ -202,17 +295,50 @@ class GhostWaveformVisualizer {
     this.ctx.scale(dpr, dpr);
   }
 
-  animate() {
-    requestAnimationFrame(() => this.animate());
-    this.phase += 0.09;
+  pause() {
+    this.isAnimating = false;
+    if (this.frameId) {
+      cancelAnimationFrame(this.frameId);
+      this.frameId = null;
+    }
+  }
 
+  resume() {
+    if (this.isAnimating) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      this.renderStatic();
+      return;
+    }
+    this.isAnimating = true;
+    this.animate();
+  }
+
+  renderStatic() {
+    this.pause();
+    this.phase = 0;
+    this.drawFrame();
+  }
+
+  destroy() {
+    this.pause();
+    window.removeEventListener('resize', this.resizeHandler);
+    document.removeEventListener('visibilitychange', this.visibilityHandler);
+    if (this.canvas && this.canvas.parentNode) {
+      this.canvas.parentNode.removeChild(this.canvas);
+    }
+    this.container = null;
+    this.canvas = null;
+    this.ctx = null;
+  }
+
+  drawFrame() {
     const width = this.width;
     const height = this.height;
     const ctx = this.ctx;
+    if (!ctx) return;
 
     ctx.clearRect(0, 0, width, height);
 
-    // Dark sleek container background
     ctx.fillStyle = 'rgba(15, 15, 18, 0.95)';
     ctx.fillRect(0, 0, width, height);
 
@@ -256,25 +382,19 @@ class GhostWaveformVisualizer {
       ctx.fill();
     }
   }
+
+  animate() {
+    if (!this.isAnimating) return;
+    this.frameId = requestAnimationFrame(() => this.animate());
+    this.phase += 0.09;
+    this.drawFrame();
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     let availableVoices = [];
     window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); };
 
-    // DUAL VISUALIZER PLATFORM MOUNT: Desktop Waveform vs Render Web 4D Particle Globe
-    const isDesktopApp = !!(window.ghostDesktop && window.ghostDesktop.isDesktop) || window.navigator.userAgent.includes('Electron');
-    const visualizerElem = document.getElementById('visualizerContainer');
-
-    if (visualizerElem) {
-        if (isDesktopApp) {
-            console.log('[Visualizer] Desktop environment detected — mounting GhostWaveformVisualizer (white audio waveform spikes).');
-            window.ghostVisualizer = new GhostWaveformVisualizer('visualizerContainer');
-        } else if (typeof THREE !== 'undefined') {
-            console.log('[Visualizer] Web environment detected — mounting GhostVisualizer (4D Three.js particle sphere).');
-            window.ghostVisualizer = new GhostVisualizer('visualizerContainer');
-        }
-    }
 
     const loginOverlay = document.getElementById('loginOverlay');
     const authInput = document.getElementById('authInput');
@@ -476,9 +596,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const handsFreeLiveText = document.getElementById('handsFreeLiveText');
 
     function mountVisualizer(containerId) {
+        if (window.ghostVisualizer) {
+            window.ghostVisualizer.destroy();
+            window.ghostVisualizer = null;
+        }
         const isDesktopApp = !!(window.ghostDesktop && window.ghostDesktop.isDesktop) || window.navigator.userAgent.includes('Electron');
         const container = document.getElementById(containerId);
         if (!container) return;
+
+        container.innerHTML = '';
 
         if (isDesktopApp) {
             console.log('[Visualizer] Desktop environment — mounting GhostWaveformVisualizer into ' + containerId);
@@ -1811,8 +1937,31 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    checkRunnerStatus();
-    setInterval(checkRunnerStatus, 5000);
+    let runnerStatusInterval = null;
+    function startRunnerStatusPolling() {
+        if (runnerStatusInterval) clearInterval(runnerStatusInterval);
+        checkRunnerStatus();
+        runnerStatusInterval = setInterval(() => {
+            if (document.hidden || !isAdminMode) return;
+            checkRunnerStatus();
+        }, 20000);
+    }
+    function stopRunnerStatusPolling() {
+        if (runnerStatusInterval) {
+            clearInterval(runnerStatusInterval);
+            runnerStatusInterval = null;
+        }
+    }
+
+    startRunnerStatusPolling();
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            stopRunnerStatusPolling();
+        } else {
+            if (isAdminMode) startRunnerStatusPolling();
+        }
+    });
 
     if (startAgentTaskBtn) {
         startAgentTaskBtn.addEventListener('click', async () => {
