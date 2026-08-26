@@ -30,7 +30,7 @@ async function runTests() {
   });
 
   if (results.length > 0 && results.some(r => r.text.includes('Master Manoj'))) {
-    console.log('\nSUCCESS: Vector Memory saving, embedding, and querying verified!');
+    console.log('\nSUCCESS: Vector Memory saving, embedding, and querying verified!'); process.exit(0);
   } else {
     console.error('\nFAILURE: Memory query did not return expected match.');
     process.exit(1);

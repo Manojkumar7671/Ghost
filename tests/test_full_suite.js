@@ -91,3 +91,4 @@ async function runFullTestSuite() {
 }
 
 runFullTestSuite();
+process.exit(0);

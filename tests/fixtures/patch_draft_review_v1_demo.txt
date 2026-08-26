@@ -1,0 +1,3 @@
+Ghost Patch Draft/Review V1 demo fixture.
+This inert text file is a safe target for one owner-led proposal review or cancellation demonstration.
+It contains no executable code, credentials, commands, or production behavior.
