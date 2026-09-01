@@ -1,0 +1,511 @@
+Test 1: Unauth owner rejection
+Test 2: Non-owner cross-access rejection
+Test 3: Worker auth rejection
+Test 4: Worker cross-claim and unclaimed mutate rejection
+Test 5: Cancelled lease rejection
+Test 6: Owner approval matching hash
+Test 7: API responses are redacted and no raw tokens leaked
+Test 8: Database unavailability 503
+✅ Route module integration tests passed.
+NOTE: This uses a deterministic test adapter. This is NOT proof that the live server middleware is wired yet.
+ROUTE_MODULE_TESTED_NOT_WIRED
+ M benchmarks/coding_benchmark.cjs
+ M benchmarks/coding_results.json
+ M llmRouter.js
+ M logs/err.log
+ M logs/out.log
+ m node_task_api
+ M package.json
+ M server.js
+ M src/agents/aiderAgent.js
+ M src/tools/llm.js
+ M state/dynamic_agents.json
+ M state/plan_structures.json
+ M tests/test_features.js
+ M tests/test_full_suite.js
+?? benchmark_output.txt
+?? benchmark_output_throttled.txt
+?? docs/FUNCTIONAL_AUDIT.md
+?? docs/FUNCTIONAL_REPAIR_REPORT.md
+?? final_out.txt
+?? final_out2.txt
+?? final_output.txt
+?? freellm_models.json
+?? login_page.py
+?? mini-swe-agent/
+?? routes/agentExecutionRoutes.js
+?? scripts/smoke-test.mjs
+?? scripts/test-runner.js
+?? services/agentPolicy.js
+?? services/agentTaskStore.js
+?? tests/agent_execution_contract_test.js
+?? tests/agent_execution_routes_test.js
+?? tests/agent_route_readiness_contract_test.js
+?? tests/agent_task_store_test.js
+diff --git a/server.js b/server.js
+index b61ea599..684b9498 100644
+--- a/server.js
++++ b/server.js
+@@ -28,6 +28,7 @@ import workflowEngine from './services/workflowEngine.js';
+ import browserbaseClient from './services/browserbaseClient.js';
+ import { pendingActions as sharedPendingActions } from './state/pendingActions.js';
+ import createPipelineRoutes from './routes/pipelineRoutes.js';
++
+ import { securityMiddleware } from './middleware/security.js';
+ import { createProxyMiddleware } from 'http-proxy-middleware';
+ import { classifyComplexity, analyzeIntent, buildTaskPlan, generateToolParams, verifyGoalSatisfaction, taskUnderstanding } from './services/intentPlanner.js';
+@@ -2352,6 +2353,8 @@ app.post('/api/agent/create-voice-agent', async (req, res) => {
+ // Mounted pipeline router BEFORE dummy stubs to prevent Express route collisions
+ app.use('/api/pipeline', createPipelineRoutes(workflowEngine));
+ 
++
++
+ app.post('/api/pipeline/execute', async (req, res) => {
+     if ((process.env.DEPLOYMENT_MODE || process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
+         return res.status(403).json({ success: false, error: 'Tool disabled in public mode' });
+diff --git a/routes/agentExecutionRoutes.js b/routes/agentExecutionRoutes.js
+new file mode 100644
+index 00000000..e7712093
+--- /dev/null
++++ b/routes/agentExecutionRoutes.js
+@@ -0,0 +1,205 @@
++import express from 'express';
++
++export function createAgentExecutionRouter({ store, authenticateOwner }) {
++  const router = express.Router();
++  router.use(express.json());
++
++  // Middleware to check DB
++  router.use((req, res, next) => {
++    if (!store || !store.pool) {
++      return res.status(503).json({ error: "Storage unavailable" });
++    }
++    next();
++  });
++
++  const handleError = (e, res) => {
++    const msg = e.message || '';
++    if (msg.includes('unavailable')) {
++      return res.status(503).json({ error: "Storage unavailable" });
++    }
++    if (msg.includes('not found') || msg.includes('unauthorized') || msg.includes('belong')) {
++      return res.status(404).json({ error: "Resource not found" });
++    }
++    if (msg.includes('Invalid, expired, or cancelled lease') || msg.includes('Worker cannot transition') || msg.includes('Invalid state transition')) {
++      return res.status(409).json({ error: "Conflict: lease state invalid" });
++    }
++    return res.status(400).json({ error: "Bad request" });
++  };
++
++  // --- OWNER MIDDLEWARE ---
++  const requireOwner = async (req, res, next) => {
++    try {
++      const principal = await authenticateOwner(req);
++      if (!principal || !principal.isOwner || !principal.ownerId) {
++        return res.status(401).json({ error: "Unauthorized" });
++      }
++      req.ownerId = principal.ownerId;
++      next();
++    } catch (e) {
++      return res.status(401).json({ error: "Unauthorized" });
++    }
++  };
++
++  // --- WORKER MIDDLEWARE ---
++  const requireWorker = async (req, res, next) => {
++    const deviceId = req.headers['x-ghost-device-id'];
++    const authHeader = req.headers['authorization'];
++    if (!deviceId || !authHeader || !authHeader.startsWith('Bearer ')) {
++      return res.status(401).json({ error: "Missing worker credentials" });
++    }
++    const token = authHeader.substring(7);
++    try {
++      const isValid = await store.verifyDeviceToken(deviceId, token);
++      if (!isValid) return res.status(401).json({ error: "Invalid worker credentials" });
++      req.deviceId = deviceId;
++      req.deviceToken = token; // verified
++      next();
++    } catch (e) {
++      if (e.message && e.message.includes("unavailable")) return res.status(503).json({ error: "Storage unavailable" });
++      res.status(401).json({ error: "Invalid worker credentials" });
++    }
++  };
++
++  const requireLeaseToken = (req, res, next) => {
++    const leaseToken = req.headers['x-ghost-lease-token'];
++    if (!leaseToken) {
++      return res.status(401).json({ error: "Missing lease token" });
++    }
++    req.leaseToken = leaseToken;
++    next();
++  };
++
++  // --- OWNER ENDPOINTS ---
++  router.post('/repo-profiles', requireOwner, async (req, res) => {
++    try {
++      const profile = await store.createRepoProfile({ ...req.body, owner_id: req.ownerId });
++      res.json({ id: profile.id });
++    } catch (e) { handleError(e, res); }
++  });
++
++  router.post('/tasks', requireOwner, async (req, res) => {
++    try {
++      const { goal, repoProfileId } = req.body;
++      const taskId = await store.createTask(req.ownerId, goal, repoProfileId);
++      res.json({ taskId });
++    } catch (e) { handleError(e, res); }
++  });
++
++  router.get('/tasks/:taskId', requireOwner, async (req, res) => {
++    try {
++      const task = await store.getTask(req.params.taskId);
++      if (!task || task.owner_id !== req.ownerId) return res.status(404).json({ error: "Resource not found" });
++      res.json({
++        id: task.id,
++        goal: task.goal,
++        status: task.status,
++        repo_profile_id: task.repo_profile_id,
++        plan_hash: task.plan_hash,
++        deadline_at: task.deadline_at,
++        created_at: task.created_at
++      }); // Filtered representation
++    } catch (e) { handleError(e, res); }
++  });
++
++  router.put('/tasks/:taskId/plan', requireOwner, async (req, res) => {
++    try {
++      await store.updateTaskPlan(req.params.taskId, req.ownerId, req.body);
++      res.json({ success: true });
++    } catch (e) { handleError(e, res); }
++  });
++
++  router.post('/tasks/:taskId/request-approval', requireOwner, async (req, res) => {
++    try {
++      await store.requestApproval(req.params.taskId, req.ownerId);
++      res.json({ success: true });
++    } catch (e) { handleError(e, res); }
++  });
++
++  router.post('/tasks/:taskId/approve', requireOwner, async (req, res) => {
++    try {
++      const { expectedPlanHash, route } = req.body;
++      await store.approveTask(req.params.taskId, req.ownerId, expectedPlanHash, route);
++      res.json({ success: true });
++    } catch (e) { handleError(e, res); }
++  });
++
++  router.post('/tasks/:taskId/cancel', requireOwner, async (req, res) => {
++    try {
++      await store.cancelTask(req.params.taskId, req.ownerId);
++      res.json({ success: true });
++    } catch (e) { handleError(e, res); }
++  });
++
++  router.get('/tasks/:taskId/events', requireOwner, async (req, res) => {
++    try {
++      const task = await store.getTask(req.params.taskId);
++      if (!task || task.owner_id !== req.ownerId) return res.status(404).json({ error: "Resource not found" });
++      const eventsRes = await store.pool.query('SELECT actor_kind, event_name, data_json, created_at FROM ghost_task_events WHERE task_id = $1 ORDER BY id ASC', [req.params.taskId]);
++      res.json(eventsRes.rows);
++    } catch (e) { handleError(e, res); }
++  });
++
++  router.get('/tasks/:taskId/artifacts', requireOwner, async (req, res) => {
++    try {
++      const task = await store.getTask(req.params.taskId);
++      if (!task || task.owner_id !== req.ownerId) return res.status(404).json({ error: "Resource not found" });
++      const artRes = await store.pool.query('SELECT id, diff_hash, exit_code, output_redacted, final_status, created_at FROM ghost_task_artifacts WHERE task_id = $1 ORDER BY created_at ASC', [req.params.taskId]);
++      res.json(artRes.rows);
++    } catch (e) { handleError(e, res); }
++  });
++
++  router.post('/devices', requireOwner, async (req, res) => {
++    try {
++      const { publicLabel } = req.body;
++      const device = await store.registerDevice(req.ownerId, publicLabel);
++      res.json({ deviceId: device.deviceId, token: device.token });
++    } catch (e) { handleError(e, res); }
++  });
++
++  // --- WORKER ENDPOINTS ---
++  router.post('/worker/heartbeat', requireWorker, async (req, res) => {
++    try {
++      const { protocolVersion } = req.body;
++      await store.heartbeat(req.deviceId, protocolVersion);
++      res.json({ success: true });
++    } catch (e) { handleError(e, res); }
++  });
++
++  router.post('/worker/claim', requireWorker, async (req, res) => {
++    try {
++      const claim = await store.claimApprovedTask(req.deviceId, 'mac');
++      if (!claim) return res.json({ claim: null });
++      res.json({ 
++        claim: {
++          taskId: claim.taskId,
++          leaseToken: claim.leaseToken,
++          plan: claim.plan,
++          planHash: claim.planHash,
++          cancellationVersion: claim.cancellationVersion
++        } 
++      });
++    } catch (e) { handleError(e, res); }
++  });
++
++  router.post('/worker/tasks/:taskId/state', requireWorker, requireLeaseToken, async (req, res) => {
++    try {
++      const { state, eventData } = req.body;
++      await store.updateTaskStateByWorker(req.params.taskId, req.deviceId, req.leaseToken, state, eventData);
++      res.json({ success: true });
++    } catch (e) { handleError(e, res); }
++  });
++
++  router.post('/worker/tasks/:taskId/artifacts', requireWorker, requireLeaseToken, async (req, res) => {
++    try {
++      const artifactId = await store.saveArtifact(req.params.taskId, req.deviceId, req.leaseToken, req.body);
++      res.json({ success: true, artifactId });
++    } catch (e) { handleError(e, res); }
++  });
++
++  // Fallback error handler
++  router.use((err, req, res, next) => {
++    res.status(500).json({ error: "Internal error" });
++  });
++
++  return router;
++}
+diff --git a/tests/agent_execution_routes_test.js b/tests/agent_execution_routes_test.js
+new file mode 100644
+index 00000000..54599d83
+--- /dev/null
++++ b/tests/agent_execution_routes_test.js
+@@ -0,0 +1,229 @@
++import pg from 'pg';
++import crypto from 'crypto';
++import express from 'express';
++import assert from 'assert';
++import { AgentTaskStore } from '../services/agentTaskStore.js';
++import { createAgentExecutionRouter } from '../routes/agentExecutionRoutes.js';
++import { hashPlan } from '../services/agentPolicy.js';
++
++const testDbUrl = process.env.AGENT_TEST_DATABASE_URL;
++const testConfirmation = process.env.AGENT_TEST_DB_CONFIRMATION;
++
++function blockTest() {
++  console.log('BLOCKED_TEST_DB: AGENT_TEST_DATABASE_URL is required.');
++  process.exit(1);
++}
++
++if (!testDbUrl || testDbUrl.trim() === '') blockTest();
++if (testConfirmation !== 'I_UNDERSTAND_THIS_IS_A_TEST_DATABASE' && !testDbUrl.includes('test')) blockTest();
++
++const { Pool } = pg;
++const pool = new Pool({ connectionString: testDbUrl });
++
++// A minimal fetch wrapper for testing
++async function request(app, method, path, headers = {}, body = null) {
++  return new Promise((resolve, reject) => {
++    const server = app.listen(0, '127.0.0.1', async () => {
++      const port = server.address().port;
++      try {
++        const fetchOptions = {
++          method,
++          headers: { 'Content-Type': 'application/json', ...headers }
++        };
++        if (body) fetchOptions.body = JSON.stringify(body);
++        const res = await fetch(`http://127.0.0.1:${port}${path}`, fetchOptions);
++        const text = await res.text();
++        let json = null;
++        try { json = JSON.parse(text); } catch(e) {}
++        server.close();
++        resolve({ status: res.status, json, text });
++      } catch(e) {
++        server.close();
++        reject(e);
++      }
++    });
++  });
++}
++
++async function runTests() {
++  const schemaSuffix = crypto.randomBytes(4).toString('hex');
++  const schemaName = `ghost_agent_route_test_v2_${schemaSuffix}`;
++  let originalQuery = pool.query.bind(pool);
++  
++  try {
++    await originalQuery(`CREATE SCHEMA ${schemaName}`);
++    
++    pool.query = async function(...args) {
++      const client = await pool.connect();
++      try {
++        await client.query(`SET search_path TO ${schemaName}`);
++        return await client.query(...args);
++      } finally {
++        client.release();
++      }
++    };
++    
++    const originalConnect = pool.connect.bind(pool);
++    pool.connect = async function() {
++      const client = await originalConnect();
++      await client.query(`SET search_path TO ${schemaName}`);
++      return client;
++    };
++
++    const store = new AgentTaskStore(pool);
++    await store.initTables();
++
++    // The test app with explicit injected middleware
++    const app = express();
++    app.use(express.json());
++    
++    // Deterministic test auth adapter
++    const authenticateOwner = async (req) => {
++      const userId = req.headers['x-test-user-id'];
++      if (!userId) return null;
++      return { ownerId: userId, isOwner: true };
++    };
++
++    app.use('/api/agent', createAgentExecutionRouter({ store, authenticateOwner }));
++
++    const owner1 = "owner-1";
++    const owner2 = "owner-2";
++
++    // 1. Unauthenticated and visitor callers are rejected from every owner endpoint.
++    console.log("Test 1: Unauth owner rejection");
++    let res = await request(app, 'POST', '/api/agent/repo-profiles');
++    assert.strictEqual(res.status, 401);
++    res = await request(app, 'GET', '/api/agent/tasks/fake');
++    assert.strictEqual(res.status, 401);
++
++    // Setup Owner 1 stuff
++    res = await request(app, 'POST', '/api/agent/repo-profiles', { 'x-test-user-id': owner1 }, { display_name: "T", local_identifier: "t" });
++    assert.strictEqual(res.status, 200);
++    const profileId1 = res.json.id;
++
++    res = await request(app, 'POST', '/api/agent/tasks', { 'x-test-user-id': owner1 }, { goal: "G", repoProfileId: profileId1 });
++    assert.strictEqual(res.status, 200);
++    const taskId1 = res.json.taskId;
++
++    // 2. A non-owner cannot read, plan, approve, cancel, or retrieve events/artifacts for an owner task.
++    console.log("Test 2: Non-owner cross-access rejection");
++    res = await request(app, 'GET', `/api/agent/tasks/${taskId1}`, { 'x-test-user-id': owner2 });
++    assert.strictEqual(res.status, 404);
++    res = await request(app, 'PUT', `/api/agent/tasks/${taskId1}/plan`, { 'x-test-user-id': owner2 }, {});
++    assert.strictEqual(res.status, 404); 
++    res = await request(app, 'POST', `/api/agent/tasks/${taskId1}/request-approval`, { 'x-test-user-id': owner2 });
++    assert.strictEqual(res.status, 404);
++    res = await request(app, 'POST', `/api/agent/tasks/${taskId1}/approve`, { 'x-test-user-id': owner2 }, { expectedPlanHash: "123", route: "mac" });
++    assert.strictEqual(res.status, 404);
++    res = await request(app, 'POST', `/api/agent/tasks/${taskId1}/cancel`, { 'x-test-user-id': owner2 });
++    assert.strictEqual(res.status, 404);
++    res = await request(app, 'GET', `/api/agent/tasks/${taskId1}/events`, { 'x-test-user-id': owner2 });
++    assert.strictEqual(res.status, 404);
++    res = await request(app, 'GET', `/api/agent/tasks/${taskId1}/artifacts`, { 'x-test-user-id': owner2 });
++    assert.strictEqual(res.status, 404);
++
++    // Device registration
++    res = await request(app, 'POST', '/api/agent/devices', { 'x-test-user-id': owner1 }, { publicLabel: "D1" });
++    assert.strictEqual(res.status, 200);
++    const device1 = res.json;
++    assert.ok(device1.token, "Raw device token is returned exactly once");
++
++    // 3. Invalid/missing worker token and missing device ID are rejected from every worker endpoint.
++    console.log("Test 3: Worker auth rejection");
++    res = await request(app, 'POST', '/api/agent/worker/heartbeat', { 'x-ghost-device-id': device1.deviceId }, { protocolVersion: '1' });
++    assert.strictEqual(res.status, 401); // missing auth
++    res = await request(app, 'POST', '/api/agent/worker/heartbeat', { 'authorization': `Bearer ${device1.token}` }, { protocolVersion: '1' });
++    assert.strictEqual(res.status, 401); // missing device id
++    res = await request(app, 'POST', '/api/agent/worker/heartbeat', { 'x-ghost-device-id': device1.deviceId, 'authorization': `Bearer fake` }, { protocolVersion: '1' });
++    assert.strictEqual(res.status, 401); // invalid token
++
++    // Valid heartbeat works
++    res = await request(app, 'POST', '/api/agent/worker/heartbeat', { 'x-ghost-device-id': device1.deviceId, 'authorization': `Bearer ${device1.token}` }, { protocolVersion: '1' });
++    assert.strictEqual(res.status, 200);
++
++    // 4. A valid worker cannot claim another owner’s task or mutate a task it did not claim.
++    console.log("Test 4: Worker cross-claim and unclaimed mutate rejection");
++    const plan1 = { repoProfileId: profileId1, description: "Plan 1", route: "mac", allowedPaths: ["src"], testCommand: { executable: "npm", args: ["test"] }, deadline: Date.now() + 100000 };
++    await request(app, 'PUT', `/api/agent/tasks/${taskId1}/plan`, { 'x-test-user-id': owner1 }, plan1);
++    await request(app, 'POST', `/api/agent/tasks/${taskId1}/request-approval`, { 'x-test-user-id': owner1 });
++    await request(app, 'POST', `/api/agent/tasks/${taskId1}/approve`, { 'x-test-user-id': owner1 }, { expectedPlanHash: hashPlan(plan1), route: "mac" });
++
++    res = await request(app, 'POST', '/api/agent/devices', { 'x-test-user-id': owner2 }, { publicLabel: "D2" });
++    const device2 = res.json;
++
++    res = await request(app, 'POST', '/api/agent/worker/claim', { 'x-ghost-device-id': device2.deviceId, 'authorization': `Bearer ${device2.token}` });
++    assert.strictEqual(res.status, 200);
++    assert.strictEqual(res.json.claim, null, "Device 2 cannot claim Owner 1's task");
++
++    res = await request(app, 'POST', '/api/agent/worker/claim', { 'x-ghost-device-id': device1.deviceId, 'authorization': `Bearer ${device1.token}` });
++    assert.strictEqual(res.status, 200);
++    const claim = res.json.claim;
++    assert.ok(claim);
++    const leaseToken = claim.leaseToken;
++
++    // Mutating with device token instead of lease token should fail
++    res = await request(app, 'POST', `/api/agent/worker/tasks/${taskId1}/state`, { 'x-ghost-device-id': device1.deviceId, 'authorization': `Bearer ${device1.token}` }, { state: 'running' });
++    assert.strictEqual(res.status, 401); // Missing lease token header
++
++    res = await request(app, 'POST', `/api/agent/worker/tasks/${taskId1}/state`, { 'x-ghost-device-id': device1.deviceId, 'authorization': `Bearer ${device1.token}`, 'x-ghost-lease-token': 'wrong' }, { state: 'running' });
++    assert.strictEqual(res.status, 409); // Invalid lease token
++
++    res = await request(app, 'POST', `/api/agent/worker/tasks/${taskId1}/state`, { 'x-ghost-device-id': device2.deviceId, 'authorization': `Bearer ${device2.token}`, 'x-ghost-lease-token': leaseToken }, { state: 'running' });
++    assert.strictEqual(res.status, 409); // Correct lease token, but wrong device ID
++
++    // Valid mutation
++    res = await request(app, 'POST', `/api/agent/worker/tasks/${taskId1}/state`, { 'x-ghost-device-id': device1.deviceId, 'authorization': `Bearer ${device1.token}`, 'x-ghost-lease-token': leaseToken }, { state: 'running' });
++    assert.strictEqual(res.status, 200); 
++
++    // 5. Cancelled lease rejection
++    console.log("Test 5: Cancelled lease rejection");
++    await request(app, 'POST', `/api/agent/tasks/${taskId1}/cancel`, { 'x-test-user-id': owner1 });
++    res = await request(app, 'POST', `/api/agent/worker/tasks/${taskId1}/state`, { 'x-ghost-device-id': device1.deviceId, 'authorization': `Bearer ${device1.token}`, 'x-ghost-lease-token': leaseToken }, { state: 'verifying' });
++    assert.strictEqual(res.status, 409);
++    assert.ok(res.json.error.includes("Conflict: lease state invalid"));
++
++    // 6. Owner approval matching hash
++    console.log("Test 6: Owner approval matching hash");
++    const taskId2 = (await request(app, 'POST', '/api/agent/tasks', { 'x-test-user-id': owner1 }, { goal: "G2", repoProfileId: profileId1 })).json.taskId;
++    const plan2 = { repoProfileId: profileId1, description: "Plan 2", route: "mac", allowedPaths: ["src"], testCommand: { executable: "npm", args: ["test"] }, deadline: Date.now() + 100000 };
++    await request(app, 'PUT', `/api/agent/tasks/${taskId2}/plan`, { 'x-test-user-id': owner1 }, plan2);
++    await request(app, 'POST', `/api/agent/tasks/${taskId2}/request-approval`, { 'x-test-user-id': owner1 });
++    res = await request(app, 'POST', `/api/agent/tasks/${taskId2}/approve`, { 'x-test-user-id': owner1 }, { expectedPlanHash: "bad", route: "mac" });
++    assert.strictEqual(res.status, 400);
++
++    // 7. API responses are redacted and no raw tokens leaked
++    console.log("Test 7: API responses are redacted and no raw tokens leaked");
++    res = await request(app, 'GET', `/api/agent/tasks/${taskId1}`, { 'x-test-user-id': owner1 });
++    const str = JSON.stringify(res.json);
++    assert.ok(!str.includes("lease_token_hash") && !str.includes(device1.token), "Raw token leaked");
++    assert.ok(!str.includes(leaseToken), "Lease token leaked");
++
++    // 8. Database unavailability 503
++    console.log("Test 8: Database unavailability 503");
++    const brokenApp = express();
++    brokenApp.use(express.json());
++    brokenApp.use('/api/agent', createAgentExecutionRouter({ store: new AgentTaskStore(null), authenticateOwner }));
++    res = await request(brokenApp, 'GET', `/api/agent/tasks/${taskId1}`, { 'x-test-user-id': owner1 });
++    assert.strictEqual(res.status, 503);
++    assert.strictEqual(res.json.error, "Storage unavailable");
++
++    console.log("✅ Route module integration tests passed.");
++    console.log("NOTE: This uses a deterministic test adapter. This is NOT proof that the live server middleware is wired yet.");
++    console.log("ROUTE_MODULE_TESTED_NOT_WIRED");
++  } catch (err) {
++    console.error("❌ Route test failed:", err);
++    process.exitCode = 1;
++  } finally {
++    try {
++      await pool.end();
++      const dropPool = new pg.Pool({ connectionString: testDbUrl });
++      await dropPool.query(`DROP SCHEMA IF EXISTS ${schemaName} CASCADE`);
++      await dropPool.end();
++    } catch (e) {
++      console.error("Cleanup failed:", e);
++      process.exitCode = 1;
++    }
++  }
++}
++
++runTests();

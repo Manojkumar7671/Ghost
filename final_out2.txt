@@ -1,0 +1,1317 @@
+===== services/agentTaskStore.js =====
+diff --git a/services/agentTaskStore.js b/services/agentTaskStore.js
+new file mode 100644
+index 00000000..e9e2462b
+--- /dev/null
++++ b/services/agentTaskStore.js
+@@ -0,0 +1,555 @@
++import crypto from 'crypto';
++import { validatePlan, hashPlan } from './agentPolicy.js';
++
++class AgentTaskStore {
++  constructor(pool) {
++    this.pool = pool;
++  }
++
++  async initTables() {
++    if (!this.pool) throw new Error("Database connection pool is unavailable");
++    try {
++      // 1. Repo Profiles
++      await this.pool.query(`
++        CREATE TABLE IF NOT EXISTS ghost_agent_repo_profiles (
++          id VARCHAR(255) PRIMARY KEY,
++          owner_id VARCHAR(255) NOT NULL,
++          display_name VARCHAR(255) NOT NULL,
++          local_identifier VARCHAR(255) NOT NULL,
++          allowed_branch_prefix VARCHAR(255) DEFAULT 'agent-',
++          permitted_paths JSONB,
++          test_command_allowlist JSONB,
++          is_active BOOLEAN DEFAULT true,
++          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
++        )
++      `);
++
++      // 2. Tasks
++      await this.pool.query(`
++        CREATE TABLE IF NOT EXISTS ghost_agent_tasks (
++          id VARCHAR(255) PRIMARY KEY,
++          owner_id VARCHAR(255),
++          goal TEXT,
++          repo_profile_id VARCHAR(255),
++          route VARCHAR(50),
++          plan_json JSONB,
++          plan_hash VARCHAR(255),
++          approved_scope_json JSONB,
++          status VARCHAR(100) DEFAULT 'draft',
++          deadline_at TIMESTAMP,
++          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
++          cancellation_version INT DEFAULT 0
++        )
++      `);
++
++      // 3. Worker Devices
++      await this.pool.query(`
++        CREATE TABLE IF NOT EXISTS ghost_worker_devices (
++          id VARCHAR(255) PRIMARY KEY,
++          owner_id VARCHAR(255) NOT NULL,
++          public_label VARCHAR(255),
++          token_hash VARCHAR(255) NOT NULL,
++          status VARCHAR(50) DEFAULT 'idle',
++          protocol_version VARCHAR(50),
++          last_heartbeat TIMESTAMP,
++          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
++        )
++      `);
++
++      // 4. Worker Leases
++      await this.pool.query(`
++        CREATE TABLE IF NOT EXISTS ghost_worker_leases (
++          id VARCHAR(255) PRIMARY KEY,
++          task_id VARCHAR(255) NOT NULL,
++          device_id VARCHAR(255) NOT NULL,
++          lease_token_hash VARCHAR(255) NOT NULL,
++          issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
++          expiry_at TIMESTAMP NOT NULL,
++          claim_status VARCHAR(50) DEFAULT 'active',
++          cancellation_version INT NOT NULL
++        )
++      `);
++
++      // 5. Execution Events
++      await this.pool.query(`
++        CREATE TABLE IF NOT EXISTS ghost_task_events (
++          id SERIAL PRIMARY KEY,
++          task_id VARCHAR(255) NOT NULL,
++          actor_kind VARCHAR(50) NOT NULL,
++          event_name VARCHAR(100) NOT NULL,
++          data_json JSONB,
++          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
++        )
++      `);
++
++      // 6. Final Execution Artifacts
++      await this.pool.query(`
++        CREATE TABLE IF NOT EXISTS ghost_task_artifacts (
++          id VARCHAR(255) PRIMARY KEY,
++          task_id VARCHAR(255) NOT NULL,
++          changed_file_manifest JSONB,
++          diff_summary TEXT,
++          diff_hash VARCHAR(255),
++          test_command JSONB,
++          exit_code INT,
++          output_redacted TEXT,
++          final_status VARCHAR(50),
++          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
++        )
++      `);
++    } catch (e) {
++      console.error("Failed to initialize Ghost Task Store tables:", e);
++      throw e;
++    }
++  }
++
++  generateId() {
++    return crypto.randomUUID();
++  }
++
++  // --- REPO PROFILES ---
++  async createRepoProfile(profile) {
++    if (!this.pool) return profile;
++    const { id = this.generateId(), owner_id, display_name, local_identifier, permitted_paths, test_command_allowlist } = profile;
++    await this.pool.query(
++      `INSERT INTO ghost_agent_repo_profiles (id, owner_id, display_name, local_identifier, permitted_paths, test_command_allowlist)
++       VALUES ($1, $2, $3, $4, $5, $6)`,
++      [id, owner_id, display_name, local_identifier, JSON.stringify(permitted_paths), JSON.stringify(test_command_allowlist)]
++    );
++    return { ...profile, id };
++  }
++
++  async getRepoProfile(id) {
++    if (!this.pool) throw new Error("Database connection pool is unavailable");
++    const res = await this.pool.query(`SELECT * FROM ghost_agent_repo_profiles WHERE id = $1`, [id]);
++    return res.rows[0];
++  }
++
++  // --- TASKS ---
++  async createTask(ownerId, goal, repoProfileId) {
++    if (!this.pool) throw new Error("Database connection pool is unavailable");
++    
++    const profileRes = await this.pool.query(
++      `SELECT owner_id FROM ghost_agent_repo_profiles WHERE id = $1`, [repoProfileId]
++    );
++    if (profileRes.rowCount === 0) throw new Error("Repo profile not found");
++    if (profileRes.rows[0].owner_id !== ownerId) throw new Error("Unauthorized: Repo profile belongs to a different owner");
++    
++    const taskId = this.generateId();
++    const cleanGoal = this.redactSecrets(goal);
++    await this.pool.query(
++      `INSERT INTO ghost_agent_tasks (id, owner_id, goal, repo_profile_id, status) VALUES ($1, $2, $3, $4, 'draft')`,
++      [taskId, ownerId, cleanGoal, repoProfileId]
++    );
++    await this.recordEvent(taskId, 'owner', 'created', { goal: cleanGoal, repoProfileId });
++    return taskId;
++  }
++
++  async getTask(taskId) {
++    if (!this.pool) throw new Error("Database connection pool is unavailable");
++    const res = await this.pool.query(`SELECT * FROM ghost_agent_tasks WHERE id = $1`, [taskId]);
++    return res.rows[0];
++  }
++
++  async updateTaskPlan(taskId, ownerId, planJson) {
++    if (!this.pool) throw new Error("Database connection pool is unavailable");
++    
++    // Check ownership and repoProfileId
++    const taskRes = await this.pool.query(`SELECT repo_profile_id FROM ghost_agent_tasks WHERE id = $1 AND owner_id = $2`, [taskId, ownerId]);
++    if (taskRes.rowCount === 0) throw new Error("Task not found");
++    if (taskRes.rows[0].repo_profile_id !== planJson.repoProfileId) throw new Error("Repo profile mismatch in plan");
++    const planStr = JSON.stringify(planJson);
++    const cleanPlanStr = JSON.stringify(this.redactSecrets(planJson));
++    if (planStr !== cleanPlanStr) {
++      throw new Error("Plan contains unsafe secret values and was rejected");
++    }
++    
++    const normalizedPlan = validatePlan(planJson);
++    const actualHash = hashPlan(normalizedPlan);
++
++    const res = await this.pool.query(
++      `UPDATE ghost_agent_tasks SET plan_json = $1, plan_hash = $2, deadline_at = $3, status = 'planned' 
++       WHERE id = $4 AND owner_id = $5 AND status IN ('draft', 'planned') RETURNING id`,
++      [JSON.stringify(normalizedPlan), actualHash, new Date(normalizedPlan.deadline).toISOString(), taskId, ownerId]
++    );
++    if (res.rowCount === 0) throw new Error("Task not found or not in draft/planned state");
++    await this.recordEvent(taskId, 'owner', 'planned', { planHash: actualHash });
++  }
++
++  async requestApproval(taskId, ownerId) {
++    if (!this.pool) throw new Error("Database connection pool is unavailable");
++    const res = await this.pool.query(
++      `UPDATE ghost_agent_tasks SET status = 'awaiting_approval' 
++       WHERE id = $1 AND owner_id = $2 AND status = 'planned' RETURNING id`,
++      [taskId, ownerId]
++    );
++    if (res.rowCount === 0) throw new Error("Task not found or not in planned state");
++    await this.recordEvent(taskId, 'owner', 'approval_requested', {});
++  }
++
++  async approveTask(taskId, ownerId, expectedPlanHash, route) {
++    if (!this.pool) throw new Error("Database connection pool is unavailable");
++    
++    // Read stored validated plan
++    const taskRes = await this.pool.query(`SELECT plan_json, plan_hash FROM ghost_agent_tasks WHERE id = $1 AND owner_id = $2 AND status = 'awaiting_approval'`, [taskId, ownerId]);
++    if (taskRes.rowCount === 0) throw new Error("Task not found or not in awaiting_approval state");
++    const task = taskRes.rows[0];
++    if (task.plan_hash !== expectedPlanHash) throw new Error("Approval failed: Hash mismatch");
++    if (task.plan_json && task.plan_json.route !== route) throw new Error("Approval failed: Route mismatch");
++    // We enforce exact plan hash match atomically
++    const res = await this.pool.query(
++      `UPDATE ghost_agent_tasks SET status = 'approved', route = $1, approved_scope_json = plan_json 
++       WHERE id = $2 AND owner_id = $3 AND plan_hash = $4 AND status = 'awaiting_approval' RETURNING id`,
++      [route, taskId, ownerId, expectedPlanHash]
++    );
++    if (res.rowCount === 0) throw new Error("Approval failed: Hash mismatch, bad state, or unauthorized");
++    await this.recordEvent(taskId, 'owner', 'approved', { expectedPlanHash });
++  }
++
++  async cancelTask(taskId, ownerId) {
++    if (!this.pool) throw new Error("Database connection pool is unavailable");
++    const client = await this.pool.connect();
++    try {
++      await client.query('BEGIN');
++      const res = await client.query(
++        `UPDATE ghost_agent_tasks SET status = 'cancelled', cancellation_version = cancellation_version + 1
++         WHERE id = $1 AND owner_id = $2 RETURNING cancellation_version`,
++        [taskId, ownerId]
++      );
++      if (res.rowCount === 0) {
++        await client.query('ROLLBACK');
++        throw new Error("Task not found or unauthorized");
++      }
++      const version = res.rows[0].cancellation_version;
++      await this.recordEvent(taskId, 'owner', 'cancelled', { cancellationVersion: version }, client);
++      await client.query('COMMIT');
++    } catch(e) {
++      await client.query('ROLLBACK');
++      throw e;
++    } finally {
++      client.release();
++    }
++  }
++
++  // --- WORKER DEVICES ---
++  async registerDevice(ownerId, publicLabel) {
++    if (!this.pool) throw new Error("Database connection pool is unavailable");
++    const deviceId = this.generateId();
++    const rawToken = crypto.randomBytes(32).toString('hex');
++    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
++    
++    await this.pool.query(
++      `INSERT INTO ghost_worker_devices (id, owner_id, public_label, token_hash) VALUES ($1, $2, $3, $4)`,
++      [deviceId, ownerId, publicLabel, tokenHash]
++    );
++    return { deviceId, token: rawToken };
++  }
++
++  async verifyDeviceToken(deviceId, rawToken) {
++    if (!this.pool) throw new Error("Database connection pool is unavailable");
++    const hash = crypto.createHash('sha256').update(rawToken).digest('hex');
++    const res = await this.pool.query(
++      `SELECT id FROM ghost_worker_devices WHERE id = $1 AND token_hash = $2`,
++      [deviceId, hash]
++    );
++    return res.rowCount > 0;
++  }
++
++  async heartbeat(deviceId, protocolVersion) {
++    if (!this.pool) throw new Error("Database connection pool is unavailable");
++    await this.pool.query(
++      `UPDATE ghost_worker_devices SET last_heartbeat = CURRENT_TIMESTAMP, protocol_version = $1 WHERE id = $2`,
++      [protocolVersion, deviceId]
++    );
++  }
++
++  // --- LEASES AND EXECUTION ---
++  async claimApprovedTask(deviceId, route) {
++    if (!this.pool) throw new Error("Database connection pool is unavailable");
++    // Find an approved task, update it to dispatched, create a lease atomically.
++    // Use FOR UPDATE SKIP LOCKED to prevent race conditions.
++    const client = await this.pool.connect();
++    try {
++      await client.query('BEGIN');
++
++      const deviceRes = await client.query(`SELECT owner_id FROM ghost_worker_devices WHERE id = $1`, [deviceId]);
++      if (deviceRes.rowCount === 0) {
++        await client.query('ROLLBACK');
++        throw new Error("Device not found or unregistered");
++      }
++      const deviceOwnerId = deviceRes.rows[0].owner_id;
++
++      const taskRes = await client.query(`
++        SELECT id, plan_json, plan_hash, deadline_at, cancellation_version FROM ghost_agent_tasks 
++        WHERE status = 'approved' AND route = $1 AND owner_id = $2 AND (deadline_at IS NULL OR deadline_at > CURRENT_TIMESTAMP)
++        FOR UPDATE SKIP LOCKED LIMIT 1
++      `, [route, deviceOwnerId]);
++
++      if (taskRes.rowCount === 0) {
++        await client.query('ROLLBACK');
++        return null;
++      }
++      
++      const task = taskRes.rows[0];
++      const taskId = task.id;
++      
++      const rawLeaseToken = crypto.randomBytes(32).toString('hex');
++      const tokenHash = crypto.createHash('sha256').update(rawLeaseToken).digest('hex');
++      const leaseId = this.generateId();
++      
++      // 1 hour lease expiry by default
++      const expiry = new Date(Date.now() + 60 * 60 * 1000); 
++
++      await client.query(
++        `INSERT INTO ghost_worker_leases (id, task_id, device_id, lease_token_hash, expiry_at, cancellation_version)
++         VALUES ($1, $2, $3, $4, $5, $6)`,
++        [leaseId, taskId, deviceId, tokenHash, expiry, task.cancellation_version]
++      );
++
++      await client.query(
++        `UPDATE ghost_agent_tasks SET status = 'dispatched' WHERE id = $1`,
++        [taskId]
++      );
++
++      await client.query(
++        `INSERT INTO ghost_task_events (task_id, actor_kind, event_name, data_json) VALUES ($1, 'worker', 'dispatched', $2)`,
++        [taskId, JSON.stringify(this.redactSecrets({ deviceId, leaseId }))]
++      );
++
++      await client.query('COMMIT');
++      return { 
++        taskId, 
++        leaseId, 
++        leaseToken: rawLeaseToken, 
++        plan: task.plan_json, 
++        planHash: task.plan_hash,
++        cancellationVersion: task.cancellation_version
++      };
++    } catch (err) {
++      await client.query('ROLLBACK');
++      throw err;
++    } finally {
++      client.release();
++    }
++  }
++
++  async verifyLease(taskId, deviceId, rawLeaseToken) {
++    if (!this.pool) throw new Error("Database connection pool is unavailable");
++    const tokenHash = crypto.createHash('sha256').update(rawLeaseToken).digest('hex');
++    const res = await this.pool.query(`
++      SELECT l.id FROM ghost_worker_leases l
++      JOIN ghost_agent_tasks t ON t.id = l.task_id
++      WHERE l.task_id = $1 AND l.device_id = $2 AND l.lease_token_hash = $3
++        AND l.expiry_at > CURRENT_TIMESTAMP AND l.claim_status = 'active'
++        AND l.cancellation_version = t.cancellation_version
++    `, [taskId, deviceId, tokenHash]);
++    return res.rowCount > 0;
++  }
++
++  async updateTaskStateByWorker(taskId, deviceId, rawLeaseToken, newState, eventData) {
++    if (!this.pool) throw new Error("Database connection pool is unavailable");
++    const client = await this.pool.connect();
++    try {
++      await client.query('BEGIN');
++      const tokenHash = crypto.createHash('sha256').update(rawLeaseToken).digest('hex');
++      
++      const leaseRes = await client.query(`
++        SELECT l.id, t.status, t.cancellation_version as task_cancel_v, l.cancellation_version as lease_cancel_v
++        FROM ghost_worker_leases l
++        JOIN ghost_agent_tasks t ON t.id = l.task_id
++        WHERE l.task_id = $1 AND l.device_id = $2 AND l.lease_token_hash = $3
++          AND l.expiry_at > CURRENT_TIMESTAMP AND l.claim_status = 'active'
++        FOR UPDATE OF l, t
++      `, [taskId, deviceId, tokenHash]);
++
++      if (leaseRes.rowCount === 0) {
++        await client.query('ROLLBACK');
++        throw new Error("Invalid, expired, or cancelled lease");
++      }
++
++      const row = leaseRes.rows[0];
++      if (row.task_cancel_v !== row.lease_cancel_v) {
++        await client.query('ROLLBACK');
++        throw new Error("Invalid, expired, or cancelled lease");
++      }
++
++      const validTransitions = {
++        'running': ['dispatched'],
++        'verifying': ['running'],
++        'awaiting_review': ['verifying'],
++        'failed': ['dispatched', 'running', 'verifying']
++      };
++      
++      if (!validTransitions[newState]) {
++        await client.query('ROLLBACK');
++        throw new Error("Worker cannot transition to state: " + newState);
++      }
++      if (!validTransitions[newState].includes(row.status)) {
++        await client.query('ROLLBACK');
++        throw new Error("Invalid state transition or task not found");
++      }
++
++      await client.query(
++        `UPDATE ghost_agent_tasks SET status = $1 WHERE id = $2`,
++        [newState, taskId]
++      );
++      await this.recordEvent(taskId, 'worker', newState, eventData, client);
++      await client.query('COMMIT');
++    } catch(e) {
++      await client.query('ROLLBACK');
++      throw e;
++    } finally {
++      client.release();
++    }
++  }
++
++  async saveArtifact(taskId, deviceId, rawLeaseToken, artifactData) {
++    if (!this.pool) throw new Error("Database connection pool is unavailable");
++    const client = await this.pool.connect();
++    try {
++      await client.query('BEGIN');
++      const tokenHash = crypto.createHash('sha256').update(rawLeaseToken).digest('hex');
++      
++      const leaseRes = await client.query(`
++        SELECT l.id, t.plan_json, t.cancellation_version as task_cancel_v, l.cancellation_version as lease_cancel_v
++        FROM ghost_worker_leases l
++        JOIN ghost_agent_tasks t ON t.id = l.task_id
++        WHERE l.task_id = $1 AND l.device_id = $2 AND l.lease_token_hash = $3
++          AND l.expiry_at > CURRENT_TIMESTAMP AND l.claim_status = 'active'
++        FOR UPDATE OF l, t
++      `, [taskId, deviceId, tokenHash]);
++
++      if (leaseRes.rowCount === 0) {
++        await client.query('ROLLBACK');
++        throw new Error("Invalid, expired, or cancelled lease");
++      }
++
++      const row = leaseRes.rows[0];
++      if (row.task_cancel_v !== row.lease_cancel_v) {
++        await client.query('ROLLBACK');
++        throw new Error("Invalid, expired, or cancelled lease");
++      }
++
++      const plan = row.plan_json;
++      if (
++        !artifactData.testCommand ||
++        !plan.testCommand ||
++        artifactData.testCommand.executable !== plan.testCommand.executable ||
++        JSON.stringify(artifactData.testCommand.args) !== JSON.stringify(plan.testCommand.args)
++      ) {
++        await client.query('ROLLBACK');
++        throw new Error("Artifact test command does not match approved plan");
++      }
++
++      const checkPaths = (val) => {
++        if (typeof val === 'string') {
++          if (val.includes('..') || val.startsWith('/')) return false;
++          return plan.allowedPaths.some(p => val === p || val.startsWith(p + '/'));
++        }
++        if (Array.isArray(val)) return val.every(checkPaths);
++        if (typeof val === 'object' && val !== null) return Object.values(val).every(checkPaths);
++        return true;
++      };
++
++      if (!checkPaths(artifactData.manifest)) {
++        await client.query('ROLLBACK');
++        throw new Error("Artifact manifest contains out-of-scope paths or traversal");
++      }
++
++      const artifactId = this.generateId();
++      await client.query(`
++        INSERT INTO ghost_task_artifacts (id, task_id, changed_file_manifest, diff_summary, diff_hash, test_command, exit_code, output_redacted, final_status)
++        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
++      `, [
++        artifactId, taskId, 
++        JSON.stringify(this.redactSecrets(artifactData.manifest)), this.redactSecrets(artifactData.diffSummary), artifactData.diffHash,
++        JSON.stringify(this.redactSecrets(artifactData.testCommand)), artifactData.exitCode, this.redactSecrets(artifactData.outputRedacted), artifactData.status
++      ]);
++      await client.query('COMMIT');
++      return artifactId;
++    } catch(e) {
++      await client.query('ROLLBACK');
++      throw e;
++    } finally {
++      client.release();
++    }
++  }
++
++  // --- OWNER REVIEWS ---
++  async acceptTask(taskId, ownerId) {
++    if (!this.pool) throw new Error("Database connection pool is unavailable");
++    
++    // Validate that evidence exists and we are awaiting review
++    const check = await this.pool.query(
++      `SELECT t.status, 
++        (SELECT COUNT(*) FROM ghost_task_artifacts a 
++         WHERE a.task_id = t.id 
++           AND a.exit_code = 0 
++           AND a.diff_hash IS NOT NULL AND a.diff_hash != ''
++           AND a.final_status = 'success'
++        ) as valid_artifact_count 
++       FROM ghost_agent_tasks t WHERE t.id = $1 AND t.owner_id = $2`,
++      [taskId, ownerId]
++    );
++    if (check.rowCount === 0) throw new Error("Task not found");
++    const { status, valid_artifact_count } = check.rows[0];
++    
++    if (status !== 'awaiting_review') throw new Error("Task is not awaiting review");
++    if (parseInt(valid_artifact_count) === 0) throw new Error("No verified successful execution evidence exists");
++
++    await this.pool.query(
++      `UPDATE ghost_agent_tasks SET status = 'accepted' WHERE id = $1`,
++      [taskId]
++    );
++    await this.recordEvent(taskId, 'owner', 'accepted', {});
++  }
++
++  async rejectTask(taskId, ownerId, reason) {
++    if (!this.pool) throw new Error("Database connection pool is unavailable");
++    const res = await this.pool.query(
++      `UPDATE ghost_agent_tasks SET status = 'rejected' WHERE id = $1 AND owner_id = $2 AND status = 'awaiting_review'`,
++      [taskId, ownerId]
++    );
++    if (res.rowCount === 0) throw new Error("Task not found or not in review");
++    await this.recordEvent(taskId, 'owner', 'rejected', { reason });
++  }
++
++  redactSecrets(obj) {
++    if (obj === null || obj === undefined) return obj;
++    if (typeof obj === 'string') {
++      let redacted = obj;
++      redacted = redacted.replace(/(postgres(?:ql)?:\/\/[^:]+:)([^@]+)(@.+)/gi, '$1[REDACTED]$3');
++      redacted = redacted.replace(/(Bearer\s+)([A-Za-z0-9\-\._~\+\/]+=*)/gi, '$1[REDACTED]');
++      redacted = redacted.replace(/((?:api[_\-]?key|secret|token|password)\s*[=:]\s*)(["']?)([^"'\s&]+)(["']?)/gi, '$1$2[REDACTED]$4');
++      redacted = redacted.replace(/(sk_(?:live|test)_[a-zA-Z0-9]+)/g, '[REDACTED]');
++      redacted = redacted.replace(/TEST_SECRET_DO_NOT_LOG/g, '[REDACTED]');
++      return redacted;
++    }
++    if (Array.isArray(obj)) {
++      return obj.map(item => this.redactSecrets(item));
++    }
++    if (typeof obj === 'object') {
++      const result = {};
++      for (const [key, value] of Object.entries(obj)) {
++        if (/api[_\-]?key|secret|token|password/i.test(key) && typeof value === 'string') {
++          result[key] = '[REDACTED]';
++        } else {
++          result[key] = this.redactSecrets(value);
++        }
++      }
++      return result;
++    }
++    return obj;
++  }
++
++  async recordEvent(taskId, actorKind, eventName, data, client = this.pool) {
++    if (!client) throw new Error("Database connection pool is unavailable");
++    const cleanData = this.redactSecrets(data || {});
++    await client.query(
++      `INSERT INTO ghost_task_events (task_id, actor_kind, event_name, data_json) VALUES ($1, $2, $3, $4)`,
++      [taskId, actorKind, eventName, JSON.stringify(cleanData)]
++    );
++  }
++}
++
++export { AgentTaskStore };
+===== tests/agent_task_store_test.js =====
+diff --git a/tests/agent_task_store_test.js b/tests/agent_task_store_test.js
+new file mode 100644
+index 00000000..0daac17b
+--- /dev/null
++++ b/tests/agent_task_store_test.js
+@@ -0,0 +1,719 @@
++import pg from 'pg';
++import crypto from 'crypto';
++import { hashPlan } from '../services/agentPolicy.js';
++import assert from 'assert';
++import { AgentTaskStore } from '../services/agentTaskStore.js';
++
++const testDbUrl = process.env.AGENT_TEST_DATABASE_URL;
++const supabaseUrl = process.env.SUPABASE_DB_URL;
++const testConfirmation = process.env.AGENT_TEST_DB_CONFIRMATION;
++
++function blockTest() {
++  console.log('BLOCKED_TEST_DB: AGENT_TEST_DATABASE_URL is required; no real task-lease certification was run.');
++  process.exit(1);
++}
++
++if (!testDbUrl || testDbUrl.trim() === '') {
++  blockTest();
++}
++
++if (supabaseUrl && testDbUrl.trim() === supabaseUrl.trim()) {
++  blockTest();
++}
++
++if (testConfirmation !== 'I_UNDERSTAND_THIS_IS_A_TEST_DATABASE' && !testDbUrl.includes('test')) {
++  blockTest();
++}
++
++const { Pool } = pg;
++const pool = new Pool({ connectionString: testDbUrl });
++
++async function assertThrowsAsync(fn, errorMatch, message) {
++  let f = () => {};
++  try {
++    await fn();
++  } catch (e) {
++    f = () => { throw e };
++  }
++  assert.throws(f, errorMatch, message);
++}
++
++async function runTests() {
++  const schemaSuffix = crypto.randomBytes(4).toString('hex');
++  const schemaName = `ghost_agent_test_${schemaSuffix}`;
++  let originalQuery = pool.query.bind(pool);
++  
++  try {
++    console.log(`[Integration Test] Creating temporary schema: ${schemaName}`);
++    await originalQuery(`CREATE SCHEMA ${schemaName}`);
++    
++    if (process.env.AGENT_TEST_FORCE_FAILURE_AFTER_SCHEMA === '1') {
++      console.log("[Integration Test] Force-failing test to verify cleanup.");
++      throw new Error("INTENTIONAL_TEST_FAILURE");
++    }
++    
++    // Create a wrapper for queries to automatically apply search_path since the pool might grab fresh connections
++    pool.query = async function(...args) {
++      const client = await pool.connect();
++      try {
++        await client.query(`SET search_path TO ${schemaName}`);
++        return await client.query(...args);
++      } finally {
++        client.release();
++      }
++    };
++    
++    // Also patch connect() for transactions
++    const originalConnect = pool.connect.bind(pool);
++    pool.connect = async function() {
++      const client = await originalConnect();
++      await client.query(`SET search_path TO ${schemaName}`);
++      return client;
++    };
++
++    const store = new AgentTaskStore(pool);
++    await store.initTables();
++    console.log("[Integration Test] Tables initialized.");
++
++    const ownerId = "owner-123";
++    const route = "mac";
++
++    // Setup: Profile and device
++    const profile = await store.createRepoProfile({
++      owner_id: ownerId,
++      display_name: "Test Repo",
++      local_identifier: "test-repo",
++      permitted_paths: [],
++      test_command_allowlist: []
++    });
++    
++    const device1 = await store.registerDevice(ownerId, "Device 1");
++    const device2 = await store.registerDevice(ownerId, "Device 2");
++
++    const deviceCheck = await pool.query(`SELECT * FROM ghost_worker_devices WHERE id = $1`, [device1.deviceId]);
++    assert.strictEqual(deviceCheck.rows[0].token_hash.length, 64, "Token must be hashed");
++    assert.ok(!JSON.stringify(deviceCheck.rows[0]).includes(device1.token), "Raw token must not appear in row");
++
++    // 1 & 2. Simultaneous workers claiming task
++    console.log("Test 1 & 2: Simultaneous claim...");
++    const taskId1 = await store.createTask(ownerId, "Goal 1", profile.id);
++    const plan1 = {
++    repoProfileId: profile.id,
++    description: "Goal 1 plan",
++    route: "mac",
++    allowedPaths: ["src"],
++    testCommand: { executable: "npm", args: ["test"] },
++    deadline: Date.now() + 100000
++  };
++    await store.updateTaskPlan(taskId1, ownerId, plan1);
++    const hash1 = hashPlan(plan1);
++    await store.requestApproval(taskId1, ownerId);
++    await store.approveTask(taskId1, ownerId, hash1, route);
++    
++    // Attempt concurrent claim
++    const claim1 = store.claimApprovedTask(device1.deviceId, route);
++    const claim2 = store.claimApprovedTask(device2.deviceId, route);
++    const results = await Promise.all([claim1, claim2]);
++    
++    let winner, winnerDeviceId, loserDeviceId;
++    if (results[0] !== null) {
++      winner = results[0];
++      winnerDeviceId = device1.deviceId;
++      loserDeviceId = device2.deviceId;
++      assert.strictEqual(results[1], null, "Loser result must be exactly null");
++    } else {
++      winner = results[1];
++      winnerDeviceId = device2.deviceId;
++      loserDeviceId = device1.deviceId;
++      assert.strictEqual(results[0], null, "Loser result must be exactly null");
++    }
++    assert.ok(winner !== null, "Exactly one worker should successfully claim the task.");
++    
++    // Losing worker receives no lease and cannot append events
++    const eventsBeforeLoser = await pool.query(`SELECT COUNT(*) FROM ghost_task_events WHERE task_id = $1`, [taskId1]);
++    const statusBeforeLoser = await pool.query(`SELECT status FROM ghost_agent_tasks WHERE id = $1`, [taskId1]);
++
++    await assertThrowsAsync(
++      () => store.updateTaskStateByWorker(taskId1, loserDeviceId, "fakeToken", 'running', {}),
++      /Invalid, expired, or cancelled lease/,
++      "Losing worker should not be able to append events."
++    );
++
++    const eventsAfterLoser = await pool.query(`SELECT COUNT(*) FROM ghost_task_events WHERE task_id = $1`, [taskId1]);
++    const statusAfterLoser = await pool.query(`SELECT status FROM ghost_agent_tasks WHERE id = $1`, [taskId1]);
++    assert.strictEqual(eventsBeforeLoser.rows[0].count, eventsAfterLoser.rows[0].count, "Event count must not change on failed claim action");
++    assert.strictEqual(statusBeforeLoser.rows[0].status, statusAfterLoser.rows[0].status, "Task state must not change on failed claim action");
++
++    // 3. Stale lease rejected
++    console.log("Test 3: Stale lease rejection...");
++    const eventsBeforeStale = await pool.query(`SELECT COUNT(*) FROM ghost_task_events WHERE task_id = $1`, [taskId1]);
++    const statusBeforeStale = await pool.query(`SELECT status FROM ghost_agent_tasks WHERE id = $1`, [taskId1]);
++
++    // Simulate expired lease by updating expiry_at
++    await pool.query(`UPDATE ghost_worker_leases SET expiry_at = CURRENT_TIMESTAMP - INTERVAL '1 hour' WHERE id = $1`, [winner.leaseId]);
++    await assertThrowsAsync(
++      () => store.updateTaskStateByWorker(taskId1, winnerDeviceId, winner.leaseToken, 'running', {}),
++      /Invalid, expired, or cancelled lease/,
++      "Expired lease should be rejected."
++    );
++
++    const eventsAfterStale = await pool.query(`SELECT COUNT(*) FROM ghost_task_events WHERE task_id = $1`, [taskId1]);
++    const statusAfterStale = await pool.query(`SELECT status FROM ghost_agent_tasks WHERE id = $1`, [taskId1]);
++    assert.strictEqual(eventsBeforeStale.rows[0].count, eventsAfterStale.rows[0].count, "Event count must not change on stale lease action");
++    assert.strictEqual(statusBeforeStale.rows[0].status, statusAfterStale.rows[0].status, "Task state must not change on stale lease action");
++
++    // 4. Deadline-expired task rejected
++    console.log("Test 4: Deadline expiration...");
++    const taskId2 = await store.createTask(ownerId, "Goal 2", profile.id);
++    const plan2 = {
++    repoProfileId: profile.id,
++    description: "Goal 2 plan",
++    route: "mac",
++    allowedPaths: ["src"],
++    testCommand: { executable: "npm", args: ["test"] },
++    deadline: Date.now() + 100000
++  };
++    await store.updateTaskPlan(taskId2, ownerId, plan2);
++    const hash2 = hashPlan(plan2);
++    await store.requestApproval(taskId2, ownerId);
++    await store.approveTask(taskId2, ownerId, hash2, route);
++    await pool.query(`UPDATE ghost_agent_tasks SET deadline_at = CURRENT_TIMESTAMP - INTERVAL '1 hour' WHERE id = $1`, [taskId2]);
++    const claimExpired = await store.claimApprovedTask(device1.deviceId, route);
++    assert.strictEqual(claimExpired, null, "Expired task should not be claimable.");
++
++    // 5. Changed or mismatched planHash rejected before execution acceptance
++    console.log("Test 5: Mismatched planHash rejection...");
++    const taskId3 = await store.createTask(ownerId, "Goal 3", profile.id);
++    const plan3 = {
++    repoProfileId: profile.id,
++    description: "Goal 3 plan",
++    route: "mac",
++    allowedPaths: ["src"],
++    testCommand: { executable: "npm", args: ["test"] },
++    deadline: Date.now() + 100000
++  };
++    await store.updateTaskPlan(taskId3, ownerId, plan3);
++    const hash3 = hashPlan(plan3);
++    await store.requestApproval(taskId3, ownerId);
++    await assertThrowsAsync(
++      () => store.approveTask(taskId3, ownerId, "bad_hash", route),
++      /Approval failed: Hash mismatch/,
++      "Approval should fail if planHash doesn't match expected."
++    );
++
++    // 6. Terminal transition requiring evidence rejects empty/malformed evidence
++    console.log("Test 6: Terminal transition requires evidence...");
++    const taskId4 = await store.createTask(ownerId, "Goal 4", profile.id);
++    const plan4 = {
++    repoProfileId: profile.id,
++    description: "Goal 4 plan",
++    route: "mac",
++    allowedPaths: ["src"],
++    testCommand: { executable: "npm", args: ["test"] },
++    deadline: Date.now() + 100000
++  };
++    await store.updateTaskPlan(taskId4, ownerId, plan4);
++    const hash4 = hashPlan(plan4);
++    await store.requestApproval(taskId4, ownerId);
++    await store.approveTask(taskId4, ownerId, hash4, route);
++    
++    const claim4 = await store.claimApprovedTask(device1.deviceId, route);
++    await store.updateTaskStateByWorker(taskId4, device1.deviceId, claim4.leaseToken, 'running', {});
++    await store.updateTaskStateByWorker(taskId4, device1.deviceId, claim4.leaseToken, 'verifying', {});
++    await store.updateTaskStateByWorker(taskId4, device1.deviceId, claim4.leaseToken, 'awaiting_review', {});
++    
++    // Accept without artifact should fail
++    await assertThrowsAsync(
++      () => store.acceptTask(taskId4, ownerId),
++      /No verified successful execution evidence exists/,
++      "Accepting task without evidence should fail."
++    );
++
++        // 7. Strict state transitions
++    console.log("Test 7: Strict state transitions...");
++    await assertThrowsAsync(
++      () => store.updateTaskStateByWorker(taskId4, device1.deviceId, claim4.leaseToken, 'running', {}),
++      /Invalid state transition/,
++      "Cannot jump backwards to running."
++    );
++    const eventsBefore = await pool.query(`SELECT COUNT(*) FROM ghost_task_events WHERE task_id = $1`, [taskId4]);
++    await assertThrowsAsync(
++      () => store.updateTaskStateByWorker(taskId4, device1.deviceId, claim4.leaseToken, 'invalid_state', {}),
++      /Worker cannot transition/,
++      "Cannot jump to invalid state."
++    );
++    const eventsAfter = await pool.query(`SELECT COUNT(*) FROM ghost_task_events WHERE task_id = $1`, [taskId4]);
++    assert.strictEqual(eventsBefore.rows[0].count, eventsAfter.rows[0].count, "Invalid transition should not mutate state/events.");
++
++    // 8. Secrets Redaction
++    console.log("Test 8: Secrets Redaction...");
++    const secretGoal5 = "Goal 5 with postgres://user:superSecret@host/db";
++    const taskId5 = await store.createTask(ownerId, secretGoal5, profile.id);
++    
++    const goalCheck = await pool.query(`SELECT goal FROM ghost_agent_tasks WHERE id = $1`, [taskId5]);
++    assert.ok(goalCheck.rows[0].goal.includes("[REDACTED]"), "Task goal must be redacted");
++    assert.ok(!goalCheck.rows[0].goal.includes("superSecret"), "Task goal must not contain raw secret");
++    const plan5 = {
++    repoProfileId: profile.id,
++    description: "Goal 5 plan",
++    route: "mac",
++    allowedPaths: ["src"],
++    testCommand: { executable: "npm", args: ["test"] },
++    deadline: Date.now() + 100000
++  };
++    await store.updateTaskPlan(taskId5, ownerId, plan5);
++    const hash5 = hashPlan(plan5);
++    await store.requestApproval(taskId5, ownerId);
++    await store.approveTask(taskId5, ownerId, hash5, route);
++    const claim5 = await store.claimApprovedTask(device1.deviceId, route);
++    
++    await store.updateTaskStateByWorker(taskId5, device1.deviceId, claim5.leaseToken, 'running', {
++      error: "Failed to connect: postgres://user:superSecretPass123@host:5432/db",
++      nested: { API_KEY: "sk_live_12345abcde", other: "normal value" }
++    });
++    
++    await store.saveArtifact(taskId5, device1.deviceId, claim5.leaseToken, {
++      manifest: { file: "src/auth.json" },
++      diffSummary: "added token: Bearer abc123def456.jwt.token",
++      diffHash: "hash",
++      testCommand: { executable: "npm", args: ["test"] },
++      exitCode: 1,
++      outputRedacted: "output TOKEN=my_secret_token_999",
++      status: "failed"
++    });
++
++    const eventsCheck = await pool.query(`SELECT data_json FROM ghost_task_events WHERE task_id = $1 AND event_name = 'running'`, [taskId5]);
++    const eventJson = JSON.stringify(eventsCheck.rows[0].data_json);
++    assert.ok(!eventJson.includes("superSecretPass123"), "Events must not contain postgres password");
++    assert.ok(!eventJson.includes("sk_live_12345abcde"), "Events must not contain API key");
++    assert.ok(eventJson.includes("[REDACTED]"), "Events must contain redacted placeholder");
++
++    const artifactsCheck = await pool.query(`SELECT * FROM ghost_task_artifacts WHERE task_id = $1`, [taskId5]);
++    const artifactStr = JSON.stringify(artifactsCheck.rows[0]);
++    assert.ok(!artifactStr.includes("abc123def456.jwt.token"), "Artifacts must not contain Bearer token");
++    assert.ok(!artifactStr.includes("my_secret_token_999"), "Artifacts must not contain assignment token");
++    assert.ok(artifactStr.includes("[REDACTED]"), "Artifacts must contain redacted placeholder");
++
++    // 9. Database fail-closed behavior
++    console.log("Test 9: Database fail-closed behavior...");
++    const deadStore = new AgentTaskStore(null);
++    await assertThrowsAsync(() => deadStore.verifyDeviceToken(device1.deviceId, 'fake'), /Database connection pool is unavailable/);
++    await assertThrowsAsync(() => deadStore.createTask(ownerId, "Dead", profile.id), /Database connection pool is unavailable/);
++    await assertThrowsAsync(() => deadStore.registerDevice(ownerId, "Label"), /Database connection pool is unavailable/);
++    await assertThrowsAsync(() => deadStore.claimApprovedTask(device1.deviceId, route), /Database connection pool is unavailable/);
++    await assertThrowsAsync(() => deadStore.verifyLease(taskId5, device1.deviceId, 'fake-token'), /Database connection pool is unavailable/);
++    await assertThrowsAsync(() => deadStore.updateTaskStateByWorker(taskId5, device1.deviceId, claim5.leaseToken, 'failed', {}), /Database connection pool is unavailable/);
++    await assertThrowsAsync(() => deadStore.acceptTask(taskId5, ownerId), /Database connection pool is unavailable/);
++
++    // 10. Cross-owner claim prevention
++    console.log("Test 10: Cross-owner claim prevention...");
++    const taskIdCross = await store.createTask(ownerId, "Goal 10", profile.id);
++    const planCross = {
++    repoProfileId: profile.id,
++    description: "Goal 10 plan",
++    route: "mac",
++    allowedPaths: ["src"],
++    testCommand: { executable: "npm", args: ["test"] },
++    deadline: Date.now() + 100000
++  };
++    await store.updateTaskPlan(taskIdCross, ownerId, planCross);
++    const hashCross = hashPlan(planCross);
++    await store.requestApproval(taskIdCross, ownerId);
++    await store.approveTask(taskIdCross, ownerId, hashCross, route);
++
++    const owner456 = "owner-456";
++    const deviceCross = await store.registerDevice(owner456, "Cross Device");
++
++    const eventsBeforeCross = await pool.query(`SELECT COUNT(*) FROM ghost_task_events WHERE task_id = $1`, [taskIdCross]);
++    const leasesBeforeCross = await pool.query(`SELECT COUNT(*) FROM ghost_worker_leases WHERE task_id = $1`, [taskIdCross]);
++    
++    const crossClaim = await store.claimApprovedTask(deviceCross.deviceId, route);
++    assert.strictEqual(crossClaim, null, "Cross-owner claim must return null");
++
++    const eventsAfterCross = await pool.query(`SELECT COUNT(*) FROM ghost_task_events WHERE task_id = $1`, [taskIdCross]);
++    const leasesAfterCross = await pool.query(`SELECT COUNT(*) FROM ghost_worker_leases WHERE task_id = $1`, [taskIdCross]);
++    const statusAfterCross = await pool.query(`SELECT status FROM ghost_agent_tasks WHERE id = $1`, [taskIdCross]);
++
++    assert.strictEqual(eventsBeforeCross.rows[0].count, eventsAfterCross.rows[0].count, "Event count must not change on cross-owner attempt");
++    assert.strictEqual(leasesBeforeCross.rows[0].count, leasesAfterCross.rows[0].count, "Lease count must not change on cross-owner attempt");
++    assert.strictEqual(statusAfterCross.rows[0].status, 'approved', "Task state must remain approved");
++
++    const legitimateClaim = await store.claimApprovedTask(device1.deviceId, route);
++    assert.ok(legitimateClaim !== null, "Legitimate owner device must still be able to claim the task");
++
++    // 11. Secret value rejection in tasks/plans
++    console.log("Test 11: Secret value rejection in tasks/plans...");
++    const secretGoal = "Connect to postgres://admin:superSecretDBPass123@db.internal:5432/prod";
++    const taskIdSecret = await store.createTask(ownerId, secretGoal, profile.id);
++
++    const taskRow = await pool.query(`SELECT goal FROM ghost_agent_tasks WHERE id = $1`, [taskIdSecret]);
++    const storedGoal = taskRow.rows[0].goal;
++    assert.ok(!storedGoal.includes("superSecretDBPass123"), "Stored goal must not contain raw database password");
++    assert.ok(storedGoal.includes("[REDACTED]"), "Stored goal must be redacted");
++
++    const secretPlan = {
++    repoProfileId: profile.id,
++    description: "Goal secret plan",
++    route: "mac",
++    allowedPaths: ["src", "API_KEY=sk_live_98765xyz"],
++    testCommand: { executable: "npm", args: ["test"] },
++    deadline: Date.now() + 100000
++  };
++    await assertThrowsAsync(
++      () => store.updateTaskPlan(taskIdSecret, ownerId, secretPlan),
++      /Plan contains unsafe secret values and was rejected/,
++      "Updating plan with secret values must fail-closed"
++    );
++
++    const planRow = await pool.query(`SELECT plan_json FROM ghost_agent_tasks WHERE id = $1`, [taskIdSecret]);
++    assert.strictEqual(planRow.rows[0].plan_json, null, "Plan must remain unmodified/empty after failed update");
++
++    
++    // 12. Invalid plans, paths, shell metacharacters rejected
++    console.log("Test 12: Invalid plan structures and paths...");
++    const taskIdInvalid = await store.createTask(ownerId, "Invalid plans test", profile.id);
++    
++    // Invalid shape
++    await assertThrowsAsync(
++      () => store.updateTaskPlan(taskIdInvalid, ownerId, { repoProfileId: profile.id, badField: true }),
++      /PolicyViolationError/,
++      "Structurally invalid plan should be rejected"
++    );
++
++    // Unsafe path
++    const unsafePlan = {
++      repoProfileId: profile.id,
++      description: "bad path",
++      route: "mac",
++      allowedPaths: ["../../etc/passwd"],
++      testCommand: { executable: "npm", args: ["test"] },
++      deadline: Date.now() + 100000
++    };
++    await assertThrowsAsync(
++      () => store.updateTaskPlan(taskIdInvalid, ownerId, unsafePlan),
++      /PolicyViolationError/,
++      "Unsafe path should be rejected"
++    );
++
++    // Shell metacharacter
++    const metaPlan = {
++      ...unsafePlan,
++      allowedPaths: ["src"],
++      testCommand: { executable: "npm", args: ["test", ";", "rm", "-rf", "/"] }
++    };
++    await assertThrowsAsync(
++      () => store.updateTaskPlan(taskIdInvalid, ownerId, metaPlan),
++      /PolicyViolationError/,
++      "Shell metacharacter should be rejected"
++    );
++
++    // Verify no changes occurred
++    const checkInvalidTask = await pool.query(`SELECT plan_json, status FROM ghost_agent_tasks WHERE id = $1`, [taskIdInvalid]);
++    assert.strictEqual(checkInvalidTask.rows[0].plan_json, null, "Plan should remain null");
++    assert.strictEqual(checkInvalidTask.rows[0].status, 'draft', "Status should remain draft");
++    
++    // 13. Valid plan hash validation
++    console.log("Test 13: Valid plan hash validation...");
++    const validPlan = {
++      repoProfileId: profile.id,
++      description: "good plan",
++      route: "mac",
++      allowedPaths: ["src"],
++      testCommand: { executable: "npm", args: ["test"] },
++      deadline: Date.now() + 100000
++    };
++    await store.updateTaskPlan(taskIdInvalid, ownerId, validPlan);
++    
++    const expectedValidHash = hashPlan(validPlan);
++    
++    const validCheck = await pool.query(`SELECT plan_hash FROM ghost_agent_tasks WHERE id = $1`, [taskIdInvalid]);
++    assert.strictEqual(validCheck.rows[0].plan_hash, expectedValidHash, "Stored hash must match canonical hashPlan output");
++
++    // 14. Repo profile ownership cross-check
++    console.log("Test 14: Repo profile ownership...");
++    const eventsBeforeRepo = await pool.query(`SELECT COUNT(*) FROM ghost_task_events`);
++    const tasksBeforeRepo = await pool.query(`SELECT COUNT(*) FROM ghost_agent_tasks`);
++    
++    await assertThrowsAsync(
++      () => store.createTask("owner-456", "Try to steal profile", profile.id),
++      /Unauthorized: Repo profile belongs to a different owner/,
++      "Different owner cannot create task with owner-123's profile"
++    );
++    
++    const eventsAfterRepo = await pool.query(`SELECT COUNT(*) FROM ghost_task_events`);
++    const tasksAfterRepo = await pool.query(`SELECT COUNT(*) FROM ghost_agent_tasks`);
++    assert.strictEqual(eventsBeforeRepo.rows[0].count, eventsAfterRepo.rows[0].count, "No events should be created");
++    assert.strictEqual(tasksBeforeRepo.rows[0].count, tasksAfterRepo.rows[0].count, "No tasks should be created");
++
++    const validTask = await store.createTask(ownerId, "My own profile", profile.id);
++    assert.ok(validTask, "Owner-123 can create task with their own profile");
++
++    
++    // 15. Repo profile ID mismatch in plan
++    console.log("Test 15: Repo profile ID mismatch in plan...");
++    const taskIdProfileMismatch = await store.createTask(ownerId, "Profile mismatch test", profile.id);
++    const mismatchPlan = {
++      repoProfileId: "fake-profile-999",
++      description: "Mismatch plan",
++      route: "mac",
++      allowedPaths: ["src"],
++      testCommand: { executable: "npm", args: ["test"] },
++      deadline: Date.now() + 100000
++    };
++    await assertThrowsAsync(
++      () => store.updateTaskPlan(taskIdProfileMismatch, ownerId, mismatchPlan),
++      /Repo profile mismatch in plan/,
++      "Plan with wrong repoProfileId should be rejected"
++    );
++    const checkMismatch = await pool.query(`SELECT plan_json, status FROM ghost_agent_tasks WHERE id = $1`, [taskIdProfileMismatch]);
++    assert.strictEqual(checkMismatch.rows[0].plan_json, null, "Plan should remain null");
++
++    // 16. Route mismatch in approval
++    console.log("Test 16: Route mismatch in approval...");
++    const taskIdRouteMismatch = await store.createTask(ownerId, "Route mismatch test", profile.id);
++    const routePlan = {
++      repoProfileId: profile.id,
++      description: "Route mismatch plan",
++      route: "mac",
++      allowedPaths: ["src"],
++      testCommand: { executable: "npm", args: ["test"] },
++      deadline: Date.now() + 100000
++    };
++    await store.updateTaskPlan(taskIdRouteMismatch, ownerId, routePlan);
++    
++    const routeHash = hashPlan(routePlan);
++    await store.requestApproval(taskIdRouteMismatch, ownerId);
++    
++    await assertThrowsAsync(
++      () => store.approveTask(taskIdRouteMismatch, ownerId, routeHash, "linux"),
++      /Approval failed: Route mismatch/,
++      "Approval with wrong route should fail"
++    );
++    const checkRoute = await pool.query(`SELECT status, route FROM ghost_agent_tasks WHERE id = $1`, [taskIdRouteMismatch]);
++    assert.strictEqual(checkRoute.rows[0].status, 'awaiting_approval', "Status must remain awaiting_approval");
++    assert.strictEqual(checkRoute.rows[0].route, null, "Route must remain null");
++
++    // 17. Duplicate running transition
++    console.log("Test 17: Duplicate running transition...");
++    const taskIdDupRun = await store.createTask(ownerId, "Dup run test", profile.id);
++    const dupPlan = {
++      repoProfileId: profile.id,
++      description: "Dup plan",
++      route: "mac",
++      allowedPaths: ["src"],
++      testCommand: { executable: "npm", args: ["test"] },
++      deadline: Date.now() + 100000
++    };
++    await store.updateTaskPlan(taskIdDupRun, ownerId, dupPlan);
++    const dupHash = hashPlan(dupPlan);
++    await store.requestApproval(taskIdDupRun, ownerId);
++    await store.approveTask(taskIdDupRun, ownerId, dupHash, route);
++    const claimDup = await store.claimApprovedTask(device1.deviceId, route);
++    
++    await store.updateTaskStateByWorker(taskIdDupRun, device1.deviceId, claimDup.leaseToken, 'running', {});
++    const eventsBeforeDup = await pool.query(`SELECT COUNT(*) FROM ghost_task_events WHERE task_id = $1`, [taskIdDupRun]);
++    
++    await assertThrowsAsync(
++      () => store.updateTaskStateByWorker(taskIdDupRun, device1.deviceId, claimDup.leaseToken, 'awaiting_review', {}),
++      /Invalid state transition/,
++      "Direct running to review should fail"
++    );
++    await assertThrowsAsync(
++      () => store.updateTaskStateByWorker(taskIdDupRun, device1.deviceId, claimDup.leaseToken, 'running', {}),
++      /Invalid state transition or task not found/,
++      "Duplicate running transition should fail"
++    );
++    const eventsAfterDup = await pool.query(`SELECT COUNT(*) FROM ghost_task_events WHERE task_id = $1`, [taskIdDupRun]);
++    assert.strictEqual(eventsBeforeDup.rows[0].count, eventsAfterDup.rows[0].count, "No extra event should be created");
++
++    // 18. Cancellation-race safety
++    console.log("Test 18: Cancellation-race safety...");
++    const taskIdCancel = await store.createTask(ownerId, "Cancel test", profile.id);
++    const planCancel = { ...validPlan, description: "cancel plan" };
++    await store.updateTaskPlan(taskIdCancel, ownerId, planCancel);
++    await store.requestApproval(taskIdCancel, ownerId);
++    await store.approveTask(taskIdCancel, ownerId, hashPlan(planCancel), route);
++    const claimCancel = await store.claimApprovedTask(device1.deviceId, route);
++    
++    await store.cancelTask(taskIdCancel, ownerId);
++    
++    const eventsBeforeCancelRace = await pool.query(`SELECT COUNT(*) FROM ghost_task_events WHERE task_id = $1`, [taskIdCancel]);
++    const artifactsBeforeCancelRace = await pool.query(`SELECT COUNT(*) FROM ghost_task_artifacts WHERE task_id = $1`, [taskIdCancel]);
++    const statusBeforeCancelRace = await pool.query(`SELECT status FROM ghost_agent_tasks WHERE id = $1`, [taskIdCancel]);
++
++    await assertThrowsAsync(
++      () => store.updateTaskStateByWorker(taskIdCancel, device1.deviceId, claimCancel.leaseToken, 'running', {}),
++      /Invalid, expired, or cancelled lease/,
++      "Worker transition should fail after cancellation"
++    );
++    
++    await assertThrowsAsync(
++      () => store.saveArtifact(taskIdCancel, device1.deviceId, claimCancel.leaseToken, {
++        manifest: { file: "src/safe.js" },
++        diffSummary: "test",
++        diffHash: "hash123",
++        testCommand: planCancel.testCommand,
++        exitCode: 0,
++        outputRedacted: "ok",
++        status: "success"
++      }),
++      /Invalid, expired, or cancelled lease/,
++      "Saving artifact should fail after cancellation"
++    );
++
++    const eventsAfterCancelRace = await pool.query(`SELECT COUNT(*) FROM ghost_task_events WHERE task_id = $1`, [taskIdCancel]);
++    const artifactsAfterCancelRace = await pool.query(`SELECT COUNT(*) FROM ghost_task_artifacts WHERE task_id = $1`, [taskIdCancel]);
++    const statusAfterCancelRace = await pool.query(`SELECT status FROM ghost_agent_tasks WHERE id = $1`, [taskIdCancel]);
++
++    assert.strictEqual(eventsBeforeCancelRace.rows[0].count, eventsAfterCancelRace.rows[0].count, "Event count must remain unchanged");
++    assert.strictEqual(artifactsBeforeCancelRace.rows[0].count, artifactsAfterCancelRace.rows[0].count, "Artifact count must remain unchanged");
++    assert.strictEqual(statusBeforeCancelRace.rows[0].status, statusAfterCancelRace.rows[0].status, "Task state must remain unchanged");
++
++    // 19. Immutable plan reapproval boundary
++    console.log("Test 19: Immutable plan reapproval boundary...");
++    const taskIdImmut = await store.createTask(ownerId, "Immut test", profile.id);
++    const planImmut = { ...validPlan, description: "immut plan" };
++    await store.updateTaskPlan(taskIdImmut, ownerId, planImmut);
++    await store.requestApproval(taskIdImmut, ownerId);
++    
++    const eventsBeforeImmut = await pool.query(`SELECT COUNT(*) FROM ghost_task_events WHERE task_id = $1`, [taskIdImmut]);
++    const taskBeforeImmut = await pool.query(`SELECT status, plan_hash FROM ghost_agent_tasks WHERE id = $1`, [taskIdImmut]);
++
++    const alteredPlan = { ...planImmut, description: "hacked plan" };
++    await assertThrowsAsync(
++      () => store.updateTaskPlan(taskIdImmut, ownerId, alteredPlan),
++      /Task not found or not in draft\/planned state/,
++      "Altering plan after requestApproval must fail"
++    );
++
++    const eventsAfterImmut = await pool.query(`SELECT COUNT(*) FROM ghost_task_events WHERE task_id = $1`, [taskIdImmut]);
++    const taskAfterImmut = await pool.query(`SELECT status, plan_hash FROM ghost_agent_tasks WHERE id = $1`, [taskIdImmut]);
++    
++    assert.strictEqual(eventsBeforeImmut.rows[0].count, eventsAfterImmut.rows[0].count, "Event count must remain unchanged");
++    assert.strictEqual(taskBeforeImmut.rows[0].status, taskAfterImmut.rows[0].status, "Status must remain unchanged");
++    assert.strictEqual(taskBeforeImmut.rows[0].plan_hash, taskAfterImmut.rows[0].plan_hash, "Stored plan hash must remain unchanged");
++
++    // 20. Approved-plan evidence integrity
++    console.log("Test 20: Approved-plan evidence integrity...");
++    const taskIdEv = await store.createTask(ownerId, "Ev test", profile.id);
++    const planEv = {
++      repoProfileId: profile.id,
++      description: "Ev plan",
++      route: "mac",
++      allowedPaths: ["src"],
++      testCommand: { executable: "npm", args: ["test"] },
++      deadline: Date.now() + 100000
++    };
++    await store.updateTaskPlan(taskIdEv, ownerId, planEv);
++    await store.requestApproval(taskIdEv, ownerId);
++    await store.approveTask(taskIdEv, ownerId, hashPlan(planEv), route);
++    const claimEv = await store.claimApprovedTask(device1.deviceId, route);
++    await store.updateTaskStateByWorker(taskIdEv, device1.deviceId, claimEv.leaseToken, 'running', {});
++    
++    // Wrong test command
++    await assertThrowsAsync(
++      () => store.saveArtifact(taskIdEv, device1.deviceId, claimEv.leaseToken, {
++        manifest: { file: "src/safe.js" },
++        diffSummary: "test",
++        diffHash: "hash",
++        testCommand: { executable: "echo", args: ["hacked"] },
++        exitCode: 0,
++        outputRedacted: "ok",
++        status: "success"
++      }),
++      /Artifact test command does not match approved plan/,
++      "Wrong test command should be rejected"
++    );
++
++    // Out-of-scope changed file
++    await assertThrowsAsync(
++      () => store.saveArtifact(taskIdEv, device1.deviceId, claimEv.leaseToken, {
++        manifest: { file: "package.json" }, // Outside "src"
++        diffSummary: "test",
++        diffHash: "hash",
++        testCommand: planEv.testCommand,
++        exitCode: 0,
++        outputRedacted: "ok",
++        status: "success"
++      }),
++      /Artifact manifest contains out-of-scope paths or traversal/,
++      "Out-of-scope path should be rejected"
++    );
++
++    // Traversal path
++    await assertThrowsAsync(
++      () => store.saveArtifact(taskIdEv, device1.deviceId, claimEv.leaseToken, {
++        manifest: { file: "src/../package.json" },
++        diffSummary: "test",
++        diffHash: "hash",
++        testCommand: planEv.testCommand,
++        exitCode: 0,
++        outputRedacted: "ok",
++        status: "success"
++      }),
++      /Artifact manifest contains out-of-scope paths or traversal/,
++      "Traversal path should be rejected"
++    );
++
++    // Valid artifact but failed execution
++    await store.saveArtifact(taskIdEv, device1.deviceId, claimEv.leaseToken, {
++      manifest: { file: "src/safe.js" },
++      diffSummary: "test",
++      diffHash: "hash123",
++      testCommand: planEv.testCommand,
++      exitCode: 1, // FAILED
++      outputRedacted: "error",
++      status: "failed"
++    });
++    await store.updateTaskStateByWorker(taskIdEv, device1.deviceId, claimEv.leaseToken, 'verifying', {});
++    await store.updateTaskStateByWorker(taskIdEv, device1.deviceId, claimEv.leaseToken, 'awaiting_review', {});
++
++    // Accept with failed artifact should be rejected
++    await assertThrowsAsync(
++      () => store.acceptTask(taskIdEv, ownerId),
++      /No verified successful execution evidence exists/,
++      "Failed artifact cannot be accepted"
++    );
++
++    // Now save a successful artifact
++    await store.saveArtifact(taskIdEv, device1.deviceId, claimEv.leaseToken, {
++      manifest: { file: "src/safe2.js" },
++      diffSummary: "test2",
++      diffHash: "hash456",
++      testCommand: planEv.testCommand,
++      exitCode: 0, // SUCCESS
++      outputRedacted: "ok",
++      status: "success"
++    });
++    
++    // Accept should now pass
++    await store.acceptTask(taskIdEv, ownerId);
++    const checkAccepted = await pool.query(`SELECT status FROM ghost_agent_tasks WHERE id = $1`, [taskIdEv]);
++    assert.strictEqual(checkAccepted.rows[0].status, 'accepted', "Task should be successfully accepted");
++
++    console.log("✅ All DB integration tests passed successfully.");
++  } catch (err) {
++    console.error("❌ Test failed:", err);
++    process.exitCode = 1;
++  } finally {
++    try {
++      // Forcefully close the main pool to release any dangling locks from tests
++      await pool.end();
++      
++      const dropPool = new pg.Pool({ connectionString: testDbUrl });
++      console.log(`[Integration Test] Dropping temporary schema: ${schemaName}`);
++      await dropPool.query(`DROP SCHEMA IF EXISTS ${schemaName} CASCADE`);
++      const schemaCheck = await dropPool.query(`SELECT nspname FROM pg_namespace WHERE nspname = $1`, [schemaName]);
++      if (schemaCheck.rowCount > 0) {
++        throw new Error(`Schema ${schemaName} still exists after drop attempt!`);
++      }
++      console.log(`[Integration Test] Verified schema absent: ${schemaName}`);
++      await dropPool.end();
++    } catch (e) {
++      console.error("Cleanup failed:", e);
++      process.exitCode = 1;
++    }
++  }
++}
++
++runTests();
+ M benchmarks/coding_benchmark.cjs
+ M benchmarks/coding_results.json
+ M llmRouter.js
+ M logs/err.log
+ M logs/out.log
+ m node_task_api
+ M package.json
+ M src/agents/aiderAgent.js
+ M src/tools/llm.js
+ M state/dynamic_agents.json
+ M state/plan_structures.json
+ M tests/test_features.js
+ M tests/test_full_suite.js
+?? benchmark_output.txt
+?? benchmark_output_throttled.txt
+?? docs/FUNCTIONAL_AUDIT.md
+?? docs/FUNCTIONAL_REPAIR_REPORT.md
+?? final_out.txt
+?? final_out2.txt
+?? freellm_models.json
+?? login_page.py
+?? mini-swe-agent/
+?? scripts/smoke-test.mjs
+?? scripts/test-runner.js
+?? services/agentPolicy.js
+?? services/agentTaskStore.js
+?? tests/agent_execution_contract_test.js
+?? tests/agent_route_readiness_contract_test.js
+?? tests/agent_task_store_test.js

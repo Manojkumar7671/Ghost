@@ -137,7 +137,7 @@ async function transcribeAudio(audioBuffer, filename = 'input.webm') {
     }
   }
 
-  return { error: 'Voice transcription failed across all available provider endpoints.' };
+  return { error: 'Voice transcription is unavailable right now. You can continue typing.' };
 }
 
 module.exports = { textToSpeech, transcribeAudio };

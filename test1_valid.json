@@ -1,0 +1,1 @@
+{"success":true,"schedule":{"schedule_id":"sched-b14f839a-ddb2-4749-8db3-288bc8c12a16","goal":"list files","cron_expression":"*/1 * * * *","enabled":1,"next_run_at":1788009600}}

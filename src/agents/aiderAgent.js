@@ -61,23 +61,23 @@ class AiderAgent {
 
         console.log(`[AiderAgent] Cloned ${repoName} successfully. Spawning Aider...`);
 
-        // 2. Determine best model and configure env for Pi
+        // 2. Determine best model and configure env for mini-swe-agent
         const env = { ...process.env };
         env.PATH = `/opt/homebrew/bin:${process.env.PATH || ''}`;
         env.NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || process.env.NVIDIA_NIM_API_KEY;
         env.NVIDIA_NIM_API_KEY = env.NVIDIA_API_KEY;
+        env.MSWEA_CONFIGURED = 'true';
+        env.MSWEA_SILENT_STARTUP = '1';
+        env.MSWEA_COST_TRACKING = 'ignore_errors';
         
-        let modelArgs = ['--provider', 'nvidia-nim', '--model', 'meta/llama-3.1-8b-instruct'];
-        
-        // 3. Spawn Pi non-interactively
-        const piEnvDir = process.env.PI_ENV_DIR || path.join(os.homedir(), 'pi-env');
-        const aiderProcess = spawn('npx', [
-            '--prefix', piEnvDir,
-            'pi',
-            '--extension', path.join(piEnvDir, 'node_modules/@diegovisk/pi-nvidia-nim/index.ts'),
-            '--extension', path.join(os.homedir(), '.pi/agent/extensions/gondolin'),
-            '-p', task,
-            ...modelArgs
+        // 3. Spawn mini-swe-agent non-interactively
+        const aiderProcess = spawn('/opt/homebrew/bin/python3.11', [
+            '-m', 'minisweagent.run.mini',
+            '--model', 'nvidia_nim/meta/llama-3.1-8b-instruct',
+            '--environment-class', 'gondolin',
+            '--yolo',
+            '--exit-immediately',
+            '--task', task
         ], {
             cwd: workspaceDir,
             env

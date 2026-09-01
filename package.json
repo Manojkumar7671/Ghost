@@ -22,6 +22,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node scripts/test-runner.js",
+    "test:agent-store": "node tests/agent_execution_contract_test.js && node tests/agent_task_store_test.js",
     "desktop": "npx electron ./desktop-app/main.cjs",
     "desktop:build": "npx electron-builder --config.directories.output=dist",
     "package:mac": "node scratch/build_mac.js",

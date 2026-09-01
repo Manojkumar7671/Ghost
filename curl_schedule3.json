@@ -1,0 +1,1 @@
+{"success":true,"schedule":{"schedule_id":"sched-38d777d9-4c7a-4dee-8e05-f5b8a0b22261","goal":"list files in current directory","cron_expression":"test","enabled":1,"next_run_at":1788009182.570126}}

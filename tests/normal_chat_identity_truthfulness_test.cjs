@@ -20,24 +20,11 @@ async function runSuite() {
     let passCount = 0;
 
     // Helper: simulate creator resolution logic
-    function resolveCreatorQuery(message, approvedPersonalContext = null) {
+    function resolveCreatorQuery(message) {
         const lowerMsg = (message || '').toLowerCase().trim();
         const isCreatorQuestion = /\b(who\s+(?:made|created|built|developed|designed|owns|coded)\s+you|who\s+is\s+your\s+(?:creator|maker|builder|owner|developer|author))\b/i.test(lowerMsg);
         if (!isCreatorQuestion) return null;
-
-        let approvedCreatorFact = null;
-        if (approvedPersonalContext) {
-            const lines = approvedPersonalContext.split('\n');
-            const creatorLine = lines.find(l => /\b(creator|created|maker|made|built|developed|owner|author)\b/i.test(l));
-            if (creatorLine) {
-                approvedCreatorFact = creatorLine.trim().replace(/^[-*•]\s*/, '');
-            }
-        }
-
-        if (approvedCreatorFact) {
-            return `According to your approved Personal Core context: ${approvedCreatorFact}`;
-        }
-        return "I do not have verified creator or owner information available in this chat, so I will not invent it.";
+        return "I’m Ghost, a private local AI workspace created and configured by Mathangi Manoj Kumar.";
     }
 
     // Helper: simulate chat correction logic
@@ -107,32 +94,41 @@ async function runSuite() {
     {
         const queries = ['who made you', 'who created you', 'who built you', 'who is your creator', 'who owns you'];
         for (const q of queries) {
-            const res = resolveCreatorQuery(q, null);
+            const res = resolveCreatorQuery(q);
             assert(!res.toLowerCase().includes('tony stark'), `Query "${q}" must not mention Tony Stark`);
             assert(!res.toLowerCase().includes('iron man'), `Query "${q}" must not mention Iron Man`);
-            assert(res.includes('do not have verified creator or owner information'), `Query "${q}" must return honest boundary`);
+            assert(res.includes('created and configured by Mathangi Manoj Kumar'), `Query "${q}" must return honest boundary`);
         }
         console.log('✓ PASS: 1. No ordinary identity response can return Tony Stark or fabricated creator');
         passCount++;
     }
 
-    // 2. With no approved creator context, returns honest unknown/verification boundary
+    // 2 & 3. "who made you" returns safe deterministic identity and does not leak Personal Core
     {
-        const res = resolveCreatorQuery('who created you', null);
-        assert.strictEqual(res, "I do not have verified creator or owner information available in this chat, so I will not invent it.");
-        console.log('✓ PASS: 2. With no approved creator context, returns honest unknown boundary');
-        passCount++;
-    }
-
-    // 3. With injected approved context, Ghost states only that exact fact without extra history
-    {
-        const approvedContext = "• Creator: Manojkumar Mathangi (Lead Engineer)\n• Workspace: ~/Ghost";
-        const res = resolveCreatorQuery('who made you', approvedContext);
-        assert(res.startsWith('According to your approved Personal Core context:'), 'Must cite approved context');
-        assert(res.includes('Manojkumar Mathangi'), 'Must include exact approved creator');
-        assert(!res.includes('Tony Stark'), 'Must not invent extra history');
-        console.log('✓ PASS: 3. With injected approved context, states exact fact without invented history');
-        passCount++;
+        const queries = ['who created you', 'who made you'];
+        for (const q of queries) {
+            const res = resolveCreatorQuery(q);
+            assert.strictEqual(res, "I’m Ghost, a private local AI workspace created and configured by Mathangi Manoj Kumar.", 'Must return safe deterministic identity');
+        }
+        
+        const serverSource = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
+        const branchMatch = serverSource.match(/if\s*\(isCreatorQuestion\)\s*\{([\s\S]*?)\}/);
+        assert(branchMatch, 'isCreatorQuestion branch must exist in server.js');
+        const branchCode = branchMatch[1];
+        
+        assert(!branchCode.includes('approvedPersonalContext'), 'Branch must not read approvedPersonalContext');
+        assert(!branchCode.includes('.split'), 'Branch must not split text');
+        assert(!branchCode.includes('.find'), 'Branch must not search arrays');
+        assert(!branchCode.includes('continuationSummary'), 'Branch must not read continuationSummary');
+        
+        // Assert it does not reach brain.think() by checking it returns directly
+        assert(branchCode.includes('return res.json'), 'Branch must return early');
+        assert(branchCode.includes('text: "I’m Ghost, a private local AI workspace created and configured by Mathangi Manoj Kumar."'), 'Branch must contain exact safe text');
+        assert(branchCode.includes('runId:'), 'Branch must include runId');
+        assert(branchCode.includes('execution:'), 'Branch must include execution');
+        
+        console.log('✓ PASS: 2 & 3. Identity question returns safe deterministic identity and does not leak Personal Core');
+        passCount += 2;
     }
 
     // 4. Owner correction in ordinary chat is acknowledged without saving, verifying, or mutating data

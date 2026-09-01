@@ -57,5 +57,213 @@
     "count": 1,
     "createdAt": "2026-08-13T04:51:07.066Z",
     "updatedAt": "2026-08-13T04:51:07.066Z"
+  },
+  {
+    "id": "plan_1786697591812",
+    "goalKey": "open_google_com",
+    "primaryGoal": "open_google_com",
+    "subtasks": [
+      "Initiate internet connection",
+      "Redirect to Google's homepage"
+    ],
+    "count": 1,
+    "createdAt": "2026-08-14T08:53:11.812Z",
+    "updatedAt": "2026-08-14T08:53:11.812Z"
+  },
+  {
+    "id": "plan_1786697674483",
+    "goalKey": "googlecom_open_playwright_script_using_write",
+    "primaryGoal": "write a script to open google.com using playwright",
+    "subtasks": [
+      "Install playwright using npm",
+      "Create a new playwright script and import the playwright library",
+      "Use playwright's browser context and navigation methods to navigate to google.com"
+    ],
+    "count": 1,
+    "createdAt": "2026-08-14T08:54:34.483Z",
+    "updatedAt": "2026-08-14T08:54:34.483Z"
+  },
+  {
+    "id": "plan_1786963218922",
+    "goalKey": "hello",
+    "primaryGoal": "Hello",
+    "subtasks": [
+      "Break this primary goal down into 1 to 3 distinct actionable subtasks. \nGoal: \"Hello\"\nRespond ONLY with a JSON array of string subtasks. No markdown."
+    ],
+    "count": 13,
+    "createdAt": "2026-08-17T10:40:18.922Z",
+    "updatedAt": "2026-08-21T07:11:48.833Z"
+  },
+  {
+    "id": "plan_1786963379632",
+    "goalKey": "ghost_hello",
+    "primaryGoal": "Hello Ghost",
+    "subtasks": [
+      "Break this primary goal down into 1 to 3 distinct actionable subtasks. \nGoal: \"Hello Ghost\"\nRespond ONLY with a JSON array of string subtasks. No markdown."
+    ],
+    "count": 12,
+    "createdAt": "2026-08-17T10:42:59.632Z",
+    "updatedAt": "2026-08-17T11:15:13.443Z"
+  },
+  {
+    "id": "plan_1786963380216",
+    "goalKey": "mock_429_recover",
+    "primaryGoal": "mock_429_recover",
+    "subtasks": [
+      "Break this primary goal down into 1 to 3 distinct actionable subtasks. \nGoal: \"mock_429_recover\"\nRespond ONLY with a JSON array of string subtasks. No markdown."
+    ],
+    "count": 36,
+    "createdAt": "2026-08-17T10:43:00.216Z",
+    "updatedAt": "2026-08-17T11:15:22.611Z"
+  },
+  {
+    "id": "plan_1786963381474",
+    "goalKey": "mock_429_permanent",
+    "primaryGoal": "mock_429_permanent",
+    "subtasks": [
+      "Break this primary goal down into 1 to 3 distinct actionable subtasks. \nGoal: \"mock_429_permanent\"\nRespond ONLY with a JSON array of string subtasks. No markdown."
+    ],
+    "count": 2,
+    "createdAt": "2026-08-17T10:43:01.474Z",
+    "updatedAt": "2026-08-17T10:43:25.271Z"
+  },
+  {
+    "id": "plan_1786964649155",
+    "goalKey": "delete_file_ggghost_indexhtml_overwrite_project_usersmanojkumarmathangighostpublicindexhtml",
+    "primaryGoal": "g-g-ghost... delete... overwrite file index.html in project /Users/manojkumarmathangi/Ghost/public/index.html",
+    "subtasks": [
+      "Break this primary goal down into 1 to 3 distinct actionable subtasks. \nGoal: \"g-g-ghost... delete... overwrite file index.html in project /Users/manojkumarmathangi/Ghost/public/index.html\"\nRespond ONLY with a JSON array of string subtasks. No markdown."
+    ],
+    "count": 27,
+    "createdAt": "2026-08-17T11:04:09.155Z",
+    "updatedAt": "2026-08-19T02:38:51.929Z"
+  },
+  {
+    "id": "plan_1786965334043",
+    "goalKey": "delete_overwrite_publicindexhtml",
+    "primaryGoal": "Overwrite or delete public/index.html",
+    "subtasks": [
+      "Break this primary goal down into 1 to 3 distinct actionable subtasks. \nGoal: \"Overwrite or delete public/index.html\"\nRespond ONLY with a JSON array of string subtasks. No markdown."
+    ],
+    "count": 2,
+    "createdAt": "2026-08-17T11:15:34.043Z",
+    "updatedAt": "2026-08-17T11:15:45.840Z"
+  },
+  {
+    "id": "plan_1787207580837",
+    "goalKey": "ghost_good_moringing",
+    "primaryGoal": "good moringing ghost",
+    "subtasks": [
+      {
+        "task": "Verify user is online and active"
+      },
+      {
+        "task": "Initiate morning greeting protocol"
+      }
+    ],
+    "count": 1,
+    "createdAt": "2026-08-20T06:33:00.837Z",
+    "updatedAt": "2026-08-20T06:33:00.837Z"
+  },
+  {
+    "id": "plan_1787207722558",
+    "goalKey": "what",
+    "primaryGoal": "what",
+    "subtasks": [
+      {
+        "subtask": "Define the scope of the inquiry",
+        "evaluation": "Essential to establish the boundaries and focus of the inquiry."
+      },
+      {
+        "subtask": "Formulate a clear question or objective",
+        "evaluation": "Critical to ensure the inquiry is well-defined and achievable."
+      }
+    ],
+    "count": 1,
+    "createdAt": "2026-08-20T06:35:22.558Z",
+    "updatedAt": "2026-08-20T06:35:22.558Z"
+  },
+  {
+    "id": "plan_1787216823695",
+    "goalKey": "example_loginpage_not_python_simple_write",
+    "primaryGoal": "Write a simple Python login-page example. Do not run it",
+    "subtasks": [
+      {
+        "task": "Create a basic HTML structure for the login page",
+        "description": "Design the HTML layout for the login page, including form fields for username and password"
+      },
+      {
+        "task": "Design the Python backend for user authentication and login functionality",
+        "description": "Implement the necessary Python code to handle user authentication, including password hashing and verification"
+      },
+      {
+        "task": "Implement the necessary libraries and frameworks to support the login page",
+        "description": "Choose a suitable Python web framework (e.g., Flask or Django) and install the required libraries for user authentication and password hashing"
+      }
+    ],
+    "count": 2,
+    "createdAt": "2026-08-20T09:07:03.695Z",
+    "updatedAt": "2026-08-20T13:18:48.343Z"
+  },
+  {
+    "id": "plan_1787216891050",
+    "goalKey": "",
+    "primaryGoal": "hi",
+    "subtasks": [
+      {
+        "name": "Verify user intent"
+      },
+      {
+        "name": "Initiate conversation protocol"
+      }
+    ],
+    "count": 1,
+    "createdAt": "2026-08-20T09:08:11.050Z",
+    "updatedAt": "2026-08-20T09:08:11.050Z"
+  },
+  {
+    "id": "plan_1787297512855",
+    "goalKey": "bro_good_moarning",
+    "primaryGoal": "good moarning bro",
+    "subtasks": [
+      "Verify user's preferred greeting format",
+      "Generate a suitable greeting message",
+      "Display the greeting message"
+    ],
+    "count": 1,
+    "createdAt": "2026-08-21T07:31:52.855Z",
+    "updatedAt": "2026-08-21T07:31:52.855Z"
+  },
+  {
+    "id": "plan_1787297984877",
+    "goalKey": "bro_good_morning",
+    "primaryGoal": "good morning bro",
+    "subtasks": [
+      {
+        "subtask": "Generate a suitable greeting message"
+      },
+      {
+        "subtask": "Display the greeting message"
+      }
+    ],
+    "count": 2,
+    "createdAt": "2026-08-21T07:39:44.877Z",
+    "updatedAt": "2026-08-21T07:49:34.483Z"
+  },
+  {
+    "id": "plan_1787298663917",
+    "goalKey": "greeting",
+    "primaryGoal": "greeting",
+    "subtasks": [
+      {
+        "subtask": "Initiate Audio/Visual Interface"
+      },
+      {
+        "subtask": "Display Welcome Message"
+      }
+    ],
+    "count": 1,
+    "createdAt": "2026-08-21T07:51:03.917Z",
+    "updatedAt": "2026-08-21T07:51:03.917Z"
   }
 ]

@@ -19,16 +19,16 @@ export function getProviders() {
 
   const providers = [
     {
+      name: 'Groq',
+      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+      model: 'openai/gpt-oss-120b',
+      apiKey: process.env.GROQ_API_KEY
+    },
+    {
       name: 'FreeLLMAPI (Local)',
       endpoint: `${freeLLMLocal}${localSlash}/chat/completions`,
       model: 'auto',
       apiKey: process.env.FREELLMAPI_API_KEY || 'free'
-    },
-    {
-      name: 'Groq',
-      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-      model: 'llama-3.3-70b-versatile',
-      apiKey: process.env.GROQ_API_KEY
     },
     {
       name: 'NVIDIA NIM',
@@ -121,7 +121,7 @@ export async function callLLM(messages = [], options = {}) {
     providerFilter = null
   } = options;
 
-  const finalSystemPrompt = systemPrompt 
+  const finalSystemPrompt = systemPrompt
     ? `${GHOST_PERSONA}\n\n[CONTEXT/TASK OVERRIDE]\n${systemPrompt}`
     : GHOST_PERSONA;
 
@@ -133,6 +133,20 @@ export async function callLLM(messages = [], options = {}) {
   }
 
   const errors = [];
+
+  if (process.env.MOCK_LLM === 'true') {
+    const lastMsg = formattedMessages[formattedMessages.length - 1].content.toLowerCase();
+    if (lastMsg.includes('mock_429_recover')) {
+        console.log('[Mock LLM] Simulating transient 429 error...');
+        await new Promise(r => setTimeout(r, 1000));
+        return "Recovered from 429 successfully.";
+    }
+    if (lastMsg.includes('mock_429_permanent')) {
+        console.log('[Mock LLM] Simulating permanent 429 exhaustion...');
+        throw new Error('HTTP 429 Too Many Requests: Mock Exhaustion');
+    }
+    return `Mock response to: ${lastMsg.slice(0, 50)}...`;
+  }
 
   console.log(`[LLM Router] [${new Date().toISOString()}] Starting provider fallback loop for model: "${customModel || 'default'}"`);
   for (const provider of providers) {
@@ -157,66 +171,97 @@ export async function callLLM(messages = [], options = {}) {
         }
       } else if (provider.name === 'Groq') {
         if (customModel.includes('llama-3.3-70b')) {
-          selectedModel = 'llama-3.3-70b-versatile';
+          selectedModel = 'openai/gpt-oss-120b';
         }
       } else if (provider.name === 'Kimi K2') {
         selectedModel = customModel.includes('kimi') ? customModel : 'kimi-k2-0905';
       }
     }
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    let attempts = 0;
+    const maxAttempts = 3;
+    let success = false;
 
-    const startProviderTime = Date.now();
-    try {
-      const res = await fetch(provider.endpoint, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${provider.apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: formattedMessages,
-          temperature,
-          max_tokens: maxTokens
-        }),
-        signal: controller.signal
-      });
+    while (attempts < maxAttempts && !success) {
+      attempts++;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-      clearTimeout(timeoutId);
+      const startProviderTime = Date.now();
+      try {
+        const res = await fetch(provider.endpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${provider.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: selectedModel,
+            messages: formattedMessages,
+            temperature,
+            max_tokens: maxTokens
+          }),
+          signal: controller.signal
+        });
 
-      if (!res.ok) {
-        const errorText = await res.text().catch(() => '');
-        throw new Error(`HTTP ${res.status} ${res.statusText}: ${redactSecrets(errorText.slice(0, 150))}`);
+        clearTimeout(timeoutId);
+
+        if (!res.ok) {
+          const errorText = await res.text().catch(() => '');
+          const errorMsg = `HTTP ${res.status} ${res.statusText}: ${redactSecrets(errorText.slice(0, 150))}`;
+          if (res.status === 429 || res.status >= 500) {
+              if (attempts < maxAttempts) {
+                  let backoffTime = Math.pow(2, attempts) * 1000;
+                  const retryAfter = res.headers.get('Retry-After');
+                  if (retryAfter) {
+                      const parsedRetry = parseInt(retryAfter, 10);
+                      if (!isNaN(parsedRetry)) backoffTime = parsedRetry * 1000;
+                  }
+                  console.warn(`[LLM Router] Provider ${provider.name} rate limited/failed. Retrying in ${backoffTime}ms (Attempt ${attempts}/${maxAttempts})`);
+                  await new Promise(r => setTimeout(r, backoffTime));
+                  continue; // Retry same provider
+              }
+          }
+          throw new Error(errorMsg);
+        }
+
+        const data = await res.json();
+        if (data.error) {
+          throw new Error(redactSecrets(data.error.message || JSON.stringify(data.error)));
+        }
+
+        const content = data.choices?.[0]?.message?.content;
+        if (content === undefined || content === null) {
+          throw new Error('Empty response payload structure');
+        }
+
+        const latencyMs = Date.now() - startProviderTime;
+        console.log(`[LLM Router Timing] Served by ${provider.name} (${selectedModel}) in ${latencyMs}ms`);
+
+        let tokenUsageCost = 0.001;
+        if (data.usage && data.usage.total_tokens) {
+          tokenUsageCost = (data.usage.total_tokens / 1000) * 0.002;
+        }
+        logUsage(provider.name, tokenUsageCost).catch(() => {});
+
+        return content;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        const isAbort = err.name === 'AbortError';
+        const errMsg = redactSecrets(isAbort ? `Timeout after ${timeoutMs}ms` : err.message);
+
+        // If abort/timeout, or if we reached max attempts, break out of retry loop
+        if (isAbort || attempts >= maxAttempts) {
+            const latencyMs = Date.now() - startProviderTime;
+            console.warn(`[LLM Router Timing] Provider ${provider.name} failed in ${latencyMs}ms (${errMsg}). Trying next provider...`);
+            errors.push(`${provider.name}: ${errMsg}`);
+            break;
+        }
+
+        // General network error backoff
+        const backoffTime = Math.pow(2, attempts) * 1000;
+        console.warn(`[LLM Router] Provider ${provider.name} connection error. Retrying in ${backoffTime}ms (Attempt ${attempts}/${maxAttempts})`);
+        await new Promise(r => setTimeout(r, backoffTime));
       }
-
-      const data = await res.json();
-      if (data.error) {
-        throw new Error(redactSecrets(data.error.message || JSON.stringify(data.error)));
-      }
-
-      const content = data.choices?.[0]?.message?.content;
-      if (content === undefined || content === null) {
-        throw new Error('Empty response payload structure');
-      }
-
-      const latencyMs = Date.now() - startProviderTime;
-      console.log(`[LLM Router Timing] Served by ${provider.name} (${selectedModel}) in ${latencyMs}ms`);
-      
-      let tokenUsageCost = 0.001;
-      if (data.usage && data.usage.total_tokens) {
-        tokenUsageCost = (data.usage.total_tokens / 1000) * 0.002;
-      }
-      logUsage(provider.name, tokenUsageCost).catch(() => {});
-
-      return content;
-    } catch (err) {
-      clearTimeout(timeoutId);
-      const isAbort = err.name === 'AbortError';
-      const errMsg = redactSecrets(isAbort ? `Timeout after ${timeoutMs}ms` : err.message);
-      const latencyMs = Date.now() - startProviderTime;
-      console.warn(`[LLM Router Timing] Provider ${provider.name} failed in ${latencyMs}ms (${errMsg}). Trying next provider...`);
-      errors.push(`${provider.name}: ${errMsg}`);
     }
   }
 

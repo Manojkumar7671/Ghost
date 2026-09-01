@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import './services/secretHook.js';
 
 process.on('uncaughtException', (err) => {
@@ -28,6 +30,7 @@ import workflowEngine from './services/workflowEngine.js';
 import browserbaseClient from './services/browserbaseClient.js';
 import { pendingActions as sharedPendingActions } from './state/pendingActions.js';
 import createPipelineRoutes from './routes/pipelineRoutes.js';
+
 import { securityMiddleware } from './middleware/security.js';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { classifyComplexity, analyzeIntent, buildTaskPlan, generateToolParams, verifyGoalSatisfaction, taskUnderstanding } from './services/intentPlanner.js';
@@ -45,12 +48,88 @@ import { initDesktopOverlay } from './services/desktopOverlay.js';
 import { initTelephonyBridge } from './services/telephonyBridge.js';
 import { initAgentBridge } from './services/agentBridge.js';
 import { initPersistenceTables } from './services/persistence.js';
+import * as approvedTestRunner from './services/approvedTestRunner.js';
 import { runAutonomousTask, resumeAutonomousTask } from './services/autonomousLoop.js';
 import { createRequire } from 'module';
+import { inspectRepo } from './services/repoInspector.js';
+import { generatePlanDraft } from './services/planDiffWorker.js';
+import { generateTaskProposal, recordProposalFeedback } from './services/taskAgent.js';
+import {
+    draftApprovalContract,
+    getApprovalContractForTask,
+    reviewApprovalContract,
+    cancelApprovalContract
+} from './services/approvalContract.js';
+import {
+    startApprovedTestRun,
+    getApprovedTestRun,
+    getLatestTestRunForContract,
+    cancelApprovedTestRun
+} from './services/approvalTestWorker.js';
+import {
+    proposePatchDraft,
+    getPatchDraftById,
+    getPatchDraftForTask,
+    reviewPatchDraft,
+    cancelPatchDraft,
+    SAFETY_BANNER as PATCH_DRAFT_SAFETY_BANNER
+} from './services/patchDraftReviewWorker.js';
+import {
+    fetchAiNews,
+    formatAiNewsMarkdown,
+    AI_NEWS_DISCLOSURE,
+    AI_NEWS_FAILURE_MESSAGE
+} from './services/aiNews.js';
+import {
+    fetchCitedResearch,
+    formatCitedResearchMarkdown,
+    validateResearchTopic
+} from './services/citedResearch.js';
+import {
+    fetchResearchDossier,
+    formatResearchDossierMarkdown,
+    validateDossierTopic
+} from './services/researchDossier.js';
+import {
+    generateTechnicalPlan
+} from './services/technicalCopilot.js';
+import {
+    classifyPlainLanguageIntent
+} from './services/plainLanguageRouter.js';
+import {
+    createRouteReceipt,
+    applyEvidenceWrapper
+} from './services/evidenceWrapper.js';
+import {
+    isCapabilityQuery,
+    getCapabilitiesHelp
+} from './services/capabilityCatalog.js';
+import {
+    saveExplicitMemory,
+    listExplicitMemories,
+    deleteExplicitMemory,
+    createOwnerGoal,
+    listOwnerGoals,
+    updateOwnerGoal,
+    deleteOwnerGoal,
+    getPersonalOverview,
+    SECRET_REJECTION_MESSAGE,
+    isPotentialSecret,
+    initPersonalTaskTables,
+    createPersonalTask,
+    listPersonalTasks,
+    updatePersonalTaskStatus,
+    listPersonalTaskEvents,
+    createTaskProposal,
+    confirmTaskProposal,
+    dismissTaskProposal,
+    parseTaskMemoryIntent
+} from './services/personalCore.js';
 
 const require = createRequire(import.meta.url);
 const brain = require('./src/brain.js');
 const workspaceTools = require('./src/tools/workspaceTools.js');
+const { clearHistory } = require('./src/tools/memory.js');
 const { callLLM: routerCallLLM } = require('./llmRouter.js');
 
 startWatchdog();
@@ -973,6 +1052,21 @@ function checkIsAdmin(req) {
     }
 }
 
+// Agent execution route owner adapter — derives identity solely from server-verified JWT
+function authenticateOwner(req) {
+    const token = (req.cookies && req.cookies.ghost_session) || (req.headers && req.headers.authorization && req.headers.authorization.replace(/^Bearer\s+/i, ''));
+    if (!token) return null;
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded && decoded.role === 'admin') {
+            return { ownerId: String(decoded.user || 'admin'), isOwner: true };
+        }
+        return null;
+    } catch (e) {
+        return null;
+    }
+}
+
 const chatLimiter = rateLimit({
     windowMs: 1 * 60 * 1000, max: 10,
     message: { success: true, text: "[SYSTEM WARNING]: API rate limit exceeded. Cooling down." },
@@ -980,6 +1074,43 @@ const chatLimiter = rateLimit({
 });
 
 const pendingActions = sharedPendingActions;
+
+// --- ORDINARY CHAT CODE-AS-TEXT QUALITY POLICY (V1.1) ---
+export const CODE_AS_TEXT_AUTH_POLICY = `[CODE-AS-TEXT QUALITY & SAFETY POLICY (V1.1 - AUTH & CREDENTIAL CODE)]:
+- Ghost is operating as an ordinary code-as-text assistant: return clean, high-quality, illustrative markdown code examples as text only.
+- Do not execute code, run commands, create files, save files, persist credentials, or claim tool execution.
+- If the user specifies "do not run" or "do not create a file", respect that constraint and provide code as text without action claims.
+- Ensure authentication/login code examples are technically coherent and follow safe illustrative practices:
+  * For demonstration UI or login/authentication snippets: mask password entry fields (e.g. show="*" in Tkinter, type="password" in HTML/DOM); do not use hardcoded plaintext credentials or fake fixed hashes as a "working login"; do not claim a local in-memory registration persists users across sessions.
+  * Clearly present login/auth snippets as illustrative UI examples or placeholder validation, and briefly note that real backend storage and secure authentication are omitted/out of scope.
+- Keep explanations practical, concise, and helpful without unnecessary lecturing or refusing the request.`;
+
+export const CODE_AS_TEXT_GENERAL_POLICY = `[CODE-AS-TEXT QUALITY POLICY (V1.1 - GENERAL CODE)]:
+- Ghost is operating as an ordinary code-as-text assistant: return clean, high-quality, illustrative markdown code examples as text only.
+- Do not execute code, run commands, create files, save files, persist credentials, or claim tool execution.
+- If the user specifies "do not run" or "do not create a file", respect that constraint and provide code as text without action claims.
+- Provide clean, accurate, and idiomatic code and explanations focused directly on the requested algorithm, function, or logic.
+- Do not add irrelevant authentication, password, credential, database, or backend storage caveats/disclaimers to general algorithms or non-auth code.
+- Keep explanations practical, concise, and helpful without unnecessary lecturing or refusing the request.`;
+
+export const CODE_AS_TEXT_QUALITY_POLICY = CODE_AS_TEXT_AUTH_POLICY;
+
+export function isAuthCodeRequest(message) {
+    const msg = (message || '').trim().toLowerCase();
+    if (!msg) return false;
+    return /\b(login|sign[\s-]?in|sign[\s-]?up|register|registration|password|credential|auth|authentication|session|token|jwt|oauth|user\s+account|user\s+persistence)\b/i.test(msg);
+}
+
+export function isCodeAsTextRequest(message) {
+    const msg = (message || '').trim().toLowerCase();
+    if (!msg) return false;
+    return /\b(code|python|javascript|typescript|script|function|snippet|example|html|css|sql|class|def|tkinter|react|express|fastapi|django|flask|is_palindrome|algorithm|binary\s+search|sorting|debounce|fibonacci|login|sign[\s-]?in|sign[\s-]?up|register|password|credential|auth|write\s+(?:a\s+)?(?:python|js|function|script|program|app|page|class)|give\s+me\s+(?:a\s+)?(?:python|code|example|function|script))\b/i.test(msg);
+}
+
+export function buildCodeAsTextMessage(finalMessage) {
+    const policy = isAuthCodeRequest(finalMessage) ? CODE_AS_TEXT_AUTH_POLICY : CODE_AS_TEXT_GENERAL_POLICY;
+    return `${policy}\n[USER REQUEST]:\n${finalMessage}`;
+}
 
 // Secure File Download Route (GET /downloads/*)
 app.get('/downloads/*', (req, res) => {
@@ -1103,7 +1234,7 @@ async function getLatestExecutionStatus(req) {
         return {
             state: "not_started",
             taskId: null,
-            summary: "I can draft code or prepare an approval-gated plan here. No local files were created and no code has run.",
+            summary: "I can draft code or prepare an approval-gated task, but I have not run code, inspected files, created a file, or produced an artifact in this chat.",
             artifacts: []
         };
     }
@@ -1118,7 +1249,7 @@ async function getLatestExecutionStatus(req) {
             return {
                 state: "not_started",
                 taskId: null,
-                summary: "I can draft code or prepare an approval-gated plan here. No local files were created and no code has run.",
+                summary: "I can draft code or prepare an approval-gated task, but I have not run code, inspected files, created a file, or produced an artifact in this chat.",
                 artifacts: []
             };
         }
@@ -1202,7 +1333,7 @@ async function getLatestExecutionStatus(req) {
     return {
         state: "not_started",
         taskId: null,
-        summary: "I can draft code or prepare an approval-gated plan here. No local files were created and no code has run.",
+        summary: "I can draft code or prepare an approval-gated task, but I have not run code, inspected files, created a file, or produced an artifact in this chat.",
         artifacts: []
     };
 }
@@ -1248,6 +1379,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
     const requestId = crypto.randomUUID();
     const requestContext = { requestId, llmCalls: [] };
     await traceLocalStorage.run(requestContext, async () => {
+        let currentRun;
         try {
             const { user, image, fileContent, fileBase64, fileName } = req.body;
             const message = sanitizeUserInput(req.body.message);
@@ -1261,9 +1393,17 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                     [auditUser, 'chat_request', auditIp, req.headers['user-agent'] || 'unknown']
                 ).catch(() => {});
             }
-            if (!message || !message.trim()) {
-                console.log('[Chat Trace] Blocked empty or whitespace-only message request.');
-                return res.status(400).json({ success: false, error: "Message content cannot be empty." });
+            if (!message || !message.trim() || /^\.+$/.test(message.trim())) {
+                return res.json({
+                    success: true,
+                    text: "I did not receive a request. You can ask for a plan, code as text, a repository inspection, or check AI news.",
+                    execution: {
+                        state: "not_started",
+                        taskId: null,
+                        summary: "I did not receive a request. You can ask for a plan, code as text, a repository inspection, or check AI news.",
+                        artifacts: []
+                    }
+                });
             }
             const ghostCodeActive = req.body.ghostCodeEnabled !== undefined ? req.body.ghostCodeEnabled : (req.body.ghostCodeMode !== undefined ? req.body.ghostCodeMode : true);
             const ghostCodeMode = ghostCodeActive;
@@ -1286,7 +1426,6 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             const safeUser = tokenUser || (user && user.trim() && user.trim().toLowerCase() !== 'guest' ? user.trim() : null) || 'Guest';
 
             // RUN CONTROLLER INTEGRATION
-            let currentRun;
             try {
                 currentRun = runController.createRun(safeUser || 'anonymous');
                 // Hook into res.on('finish') and 'close' to ensure cleanup regardless of early returns
@@ -1323,50 +1462,815 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             if (isLocalRequest) {
                 return res.json({
                     success: true,
-                    text: "I can draft code or prepare an approval-gated plan here. No local files were created and no code has run.",
+                    text: "I can draft code or prepare an approval-gated task, but I have not run code, inspected files, created a file, or produced an artifact in this chat.",
                     execution: {
                         state: "not_started",
                         taskId: null,
-                        summary: "I can draft code or prepare an approval-gated plan here. No local files were created and no code has run.",
+                        summary: "I can draft code or prepare an approval-gated task, but I have not run code, inspected files, created a file, or produced an artifact in this chat.",
                         artifacts: []
                     }
                 });
             }
 
-        const codeKeywords = ['python', 'javascript', 'js', 'html', 'css', 'sql', 'script', 'function', 'write code', 'build an app', 'generate code', 'create file', 'code', 'coding', 'generate a login page', 'build a login page', 'create a script', 'write a javascript script'];
-        const isCodingRequest = codeKeywords.some(k => lowerMsg.includes(k));
 
-        if (!ghostCodeActive && isCodingRequest) {
-            res.json({
-                success: true,
-                text: "Ghost Code mode is currently turned OFF. Please turn Ghost Code ON in the sidebar controls to allow code generation and execution."
-            });
-            return;
-        }
+            // INTENT CLASSIFICATION
+            if (isAdmin && !message.startsWith('/') && !message.match(/^prepare\s+plan/i)) {
+                let intentResult = 'CONVERSATION';
+                try {
+                    const { callLLM } = await import('./src/tools/llm.js');
+                    const intentRes = await callLLM([
+                        { role: 'system', content: 'Classify this message as either CONVERSATION or TASK. TASK means it requires real file/code/command execution to fulfill. Respond with only one word.' },
+                        { role: 'user', content: message }
+                    ], 10);
+                    if (intentRes && intentRes.toLowerCase().includes('task')) {
+                        intentResult = 'TASK';
+                    }
+                } catch(e) {
+                    console.error("Intent classification failed:", e.message);
+                }
 
-        // Direct Code Fast Path: Single-file coding prompts route directly to workspace_edit_file
-        const isSingleFileScriptPrompt = (lowerMsg.includes('write a javascript script') || lowerMsg.includes('write a python script') || lowerMsg.includes('create a file') || lowerMsg.includes('write a script')) && (lowerMsg.includes('.js') || lowerMsg.includes('.py'));
-        if (isSingleFileScriptPrompt) {
-            console.log('[Fast Path] Single-file script creation request detected. Direct execution via workspace_edit_file...');
-            const filePathMatch = message.match(/(?:in|to|named|file)\s+([a-zA-Z0-9_\-\.\/]+\.(?:js|py))/i) || message.match(/([a-zA-Z0-9_\-\.\/]+\.(?:js|py))/i);
-            const targetPath = filePathMatch ? filePathMatch[1] : 'script.js';
+                if (intentResult === 'TASK') {
+                    console.log("[Intent] Routing to PEVR (TASK):", message);
+                    const taskId = "task-" + Date.now();
+                    const cmd = `cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/pevr_service.py --goal "${message.replace(/"/g, '\"')}" --task_id ${taskId}`;
+                    const { exec } = await import('child_process');
+                    exec(cmd); // spawn in background
+                    
+                    const { execSync } = await import('child_process');
+                    let foundStatus = null;
+                    let evidence = [];
+                    let pendingApproval = null;
 
-            const editResult = await workspaceTools.editFile({
-                filePath: targetPath,
-                instruction: message,
-                replacementContent: null
-            });
-
-            const responseText = `[Ghost Code Fast-Path Executed]\nFile: ${targetPath}\nResult: ${editResult.message || editResult.output || (editResult.success ? 'Successfully generated and sandbox-verified code.' : 'Execution failed.')}`;
-
-            if (pool && safeUser) {
-                userHistory.push({ role: 'user', content: message });
-                userHistory.push({ role: 'assistant', content: responseText });
-                await pool.query('UPDATE user_memories SET history_json = $2, updated_at = CURRENT_TIMESTAMP WHERE username = $1', [safeUser, JSON.stringify(userHistory.slice(-15))]).catch(() => {});
+                    for (let i = 0; i < 20; i++) {
+                        await new Promise(r => setTimeout(r, 500));
+                        try {
+                            const statusOut = execSync(`sqlite3 mini-swe-agent/ghost_agent_runs.db "SELECT status FROM tasks WHERE task_id = '${taskId}'"`).toString().trim();
+                            if (statusOut === 'SUCCESS' || statusOut === 'FAILED') {
+                                foundStatus = statusOut;
+                                const evOut = execSync(`sqlite3 mini-swe-agent/ghost_agent_runs.db "SELECT event_type, details FROM events WHERE task_id = '${taskId}'"`).toString().trim();
+                                for (const line of evOut.split('\n')) {
+                                    const parts = line.split('|');
+                                    if (parts.length >= 2) {
+                                        const etype = parts[0];
+                                        const edetails = parts.slice(1).join('|');
+                                        if (etype === 'TOOL_SUCCESS') {
+                                            try {
+                                                const d = JSON.parse(edetails);
+                                                if (d.tool) evidence.push("Used " + d.tool.tool_name + ": " + JSON.stringify(d.tool.args));
+                                            } catch(e){}
+                                        } else if (etype === 'PATH_CHECK' && edetails.includes('false')) {
+                                            evidence.push("Blocked path escape.");
+                                        } else if (etype === 'DENIED') {
+                                            evidence.push("User denied action.");
+                                        }
+                                    }
+                                }
+                                break;
+                            }
+                            
+                            const apprOut = execSync(`sqlite3 mini-swe-agent/ghost_agent_runs.db "SELECT approval_id, tool_name FROM pending_approvals WHERE task_id = '${taskId}' AND status = 'PENDING'"`).toString().trim();
+                            if (apprOut) {
+                                const parts = apprOut.split('|');
+                                pendingApproval = { approval_id: parts[0], tool_name: parts[1] };
+                                break;
+                            }
+                        } catch (err) {
+                            console.error("DB check failed:", err.message);
+                        }
+                    }
+                    
+                    if (pendingApproval) {
+                        return res.json({
+                            success: true,
+                            text: `An approval is pending for ${pendingApproval.tool_name} (ID: ${pendingApproval.approval_id}).
+Please approve or deny using /api/agent/approvals/${pendingApproval.approval_id}/approve`,
+                            execution: { state: "pending", taskId, summary: "Approval pending." }
+                        });
+                    }
+                    
+                    if (foundStatus) {
+                        return res.json({
+                            success: true,
+                            text: `Task finished with status: ${foundStatus}.
+Evidence:
+${evidence.join('\n')}`,
+                            execution: { state: "completed", taskId, summary: `Task ${foundStatus}`, evidence }
+                        });
+                    }
+                    
+                    return res.json({
+                        success: true,
+                        text: `Task started in background (ID: ${taskId}).`,
+                        execution: { state: "running", taskId, summary: "Running in background." }
+                    });
+                }
             }
 
-            return res.json({ success: editResult.success !== false, text: responseText });
-        }
+            // Autonomy Foundations V0: Explicit Owner Plan Draft & Preview Route
+            const preparePlanMatch = message.match(/^prepare\s+plan:\s*(.*)$/i);
+            if (preparePlanMatch) {
+                const chatOwner = authenticateOwner(req);
+                if (!chatOwner || !chatOwner.isOwner) {
+                    const receipt = createRouteReceipt('ordinary_no_action_evidence');
+                    return res.json({
+                        success: true,
+                        text: applyEvidenceWrapper("You are not authorized to prepare workspace plans. No plan or task was generated.", receipt),
+                        runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined,
+                        execution: {
+                            state: "not_started",
+                            taskId: null,
+                            summary: "Unauthorized plan request blocked.",
+                            artifacts: []
+                        }
+                    });
+                }
+                
+                const rawGoal = preparePlanMatch[1].trim();
+                if (!rawGoal) {
+                    const receipt = createRouteReceipt('ordinary_no_action_evidence');
+                    return res.json({
+                        success: true,
+                        text: applyEvidenceWrapper("I cannot prepare a plan for an empty goal. Please provide a clear technical objective.", receipt),
+                        runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined,
+                        execution: {
+                            state: "not_started",
+                            taskId: null,
+                            summary: "Goal was empty. No plan generated.",
+                            artifacts: []
+                        }
+                    });
+                }
+
+                const planResult = generateTechnicalPlan(rawGoal);
+                if (!planResult.success) {
+                    const receipt = createRouteReceipt('ordinary_no_action_evidence');
+                    return res.json({
+                        success: true,
+                        text: applyEvidenceWrapper(planResult.text, receipt),
+                        runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined,
+                        execution: {
+                            state: "not_started",
+                            taskId: null,
+                            summary: "Plan generation failed.",
+                            artifacts: []
+                        }
+                    });
+                }
+
+                const proposalRes = await createTaskProposal(chatOwner.ownerId, { title: "Technical Plan Draft", description: planResult.text });
+                if (!proposalRes.success) {
+                    const receipt = createRouteReceipt('ordinary_no_action_evidence');
+                    return res.json({
+                        success: true,
+                        text: applyEvidenceWrapper("Failed to create technical plan preview.", receipt),
+                        runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined,
+                        execution: {
+                            state: "not_started",
+                            taskId: null,
+                            summary: "Could not create transient plan proposal.",
+                            artifacts: []
+                        }
+                    });
+                }
+
+                const prop = proposalRes.proposal;
+                const receipt = createRouteReceipt('ordinary_no_action_evidence');
+                return res.json({
+                    success: true,
+                    text: applyEvidenceWrapper("I have drafted a technical plan. This is only a preview. Nothing has been saved yet, and no actions will be executed. Confirming below will only create a pending plan record.", receipt),
+                    runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined,
+                    proposedTask: {
+                        proposalId: prop.proposalId,
+                        title: prop.title,
+                        description: prop.description || null,
+                        expiresAt: prop.expiresAt,
+                        state: 'proposed'
+                    },
+                    execution: {
+                        state: "not_started",
+                        taskId: null,
+                        summary: "Technical plan preview generated. Pending owner confirmation to create record. No actions executed.",
+                        artifacts: []
+                    }
+                });
+            }
+
+            let approvedPersonalContext = null;
+            const chatOwner = authenticateOwner(req);
+            if (chatOwner && chatOwner.isOwner) {
+                // Chat-First Task Memory V0: Recognize deterministic explicit task-memory directives using canonical owner identity
+                const taskIntent = parseTaskMemoryIntent(message);
+                if (taskIntent) {
+                    const proposalRes = await createTaskProposal(chatOwner.ownerId, { text: message });
+                    if (!proposalRes.success) {
+                        if (proposalRes.isSecretRejected) {
+                            return res.json({
+                                success: true,
+                                text: "For safety, Ghost does not store secrets in Personal Core. Please restate your task without credentials or sensitive tokens.",
+                                execution: {
+                                    state: "not_started",
+                                    taskId: null,
+                                    summary: "Task proposal rejected due to detected secret pattern.",
+                                    artifacts: []
+                                }
+                            });
+                        }
+                    } else {
+                        const prop = proposalRes.proposal;
+                        return res.json({
+                            success: true,
+                            text: `I can remember this task for your workspace. Review the proposed task below and confirm to save it:`,
+                            proposedTask: {
+                                proposalId: prop.proposalId,
+                                title: prop.title,
+                                description: prop.description || null,
+                                expiresAt: prop.expiresAt,
+                                state: 'proposed'
+                            },
+                            execution: {
+                                state: "not_started",
+                                taskId: null,
+                                summary: `Task proposal generated (${prop.title}) pending owner confirmation. No actions executed.`,
+                                artifacts: []
+                            }
+                        });
+                    }
+                }
+
+                try {
+                    const overview = await getPersonalOverview(chatOwner.ownerId, pool);
+                    if (overview && overview.continuationSummary) {
+                        approvedPersonalContext = overview.continuationSummary;
+                    }
+                } catch (e) {
+                    // Non-fatal: Proceed without personal context
+                }
+            }
+
+            // 1. Regional AI-News Boundary (Explain global-only V1 boundary without network request)
+            const isRegionalAiNews = /\b(ai\s+news\s+in\s+[a-zA-Z]+|news\s+about\s+ai\s+in\s+[a-zA-Z]+|regional\s+ai\s+news|[a-zA-Z]+\s+ai\s+news)\b/i.test(message) &&
+                /\b(india|japan|uk|usa|us|europe|china|germany|france|canada|australia|asia|africa|brazil|russia)\b/i.test(lowerMsg);
+            if (isRegionalAiNews) {
+                return res.json({
+                    success: true,
+                    text: "Ghost currently only has the configured Global AI news feed. Regional feeds (such as India or other regions) are not configured. You can use \"check AI news\" to fetch the global feed.",
+                    execution: {
+                        state: "not_started",
+                        taskId: null,
+                        summary: "Reported regional AI news boundary without making network request.",
+                        artifacts: []
+                    }
+                });
+            }
+
+            // 2. Explicit AI-News Intent (Single fixed Google News RSS lookup)
+            const isAiNewsIntent = /\b(ai\s+news|news\s+about\s+ai|latest\s+ai\s+news|check\s+ai\s+news|get\s+ai\s+news|fetch\s+ai\s+news)\b/i.test(message);
+            if (isAiNewsIntent) {
+                const newsResult = await fetchAiNews();
+                const formattedText = formatAiNewsMarkdown(newsResult);
+                return res.json({
+                    success: true,
+                    text: formattedText,
+                    execution: {
+                        state: "not_started",
+                        taskId: null,
+                        summary: "Fetched latest AI news headlines from configured Google News RSS source.",
+                        artifacts: []
+                    }
+                });
+            }
+
+            // 2.5. On-Demand Cited Research V0 Intent (Owner-Gated Single-Shot Google News RSS)
+            const isResearchIntent = /^research(?:\s+|:\s*)(.*)$/i.test(message);
+            if (isResearchIntent) {
+                const chatOwner = authenticateOwner(req);
+                if (chatOwner && chatOwner.isOwner) {
+                    const match = message.match(/^research(?:\s+|:\s*)(.*)$/i);
+                    const rawTopic = match && match[1] ? match[1].trim() : '';
+                    if (!rawTopic) {
+                        return res.json({
+                            success: true,
+                            text: "Please provide a topic to research (e.g. \"research quantum computing\")."
+                        });
+                    }
+
+                    const validation = validateResearchTopic(rawTopic);
+                    if (!validation.valid) {
+                        return res.json({
+                            success: true,
+                            text: "I can’t process that research topic safely. Please rephrase it."
+                        });
+                    }
+
+                    const researchResult = await fetchCitedResearch(rawTopic);
+                    const formattedText = formatCitedResearchMarkdown(researchResult);
+                    const receipt = createRouteReceipt('cited_research', {
+                        sourceKind: researchResult.success ? 'google_news_rss_metadata' : null,
+                        boundedRssMetadataFetched: Boolean(researchResult.success),
+                        itemCount: Array.isArray(researchResult.items) ? researchResult.items.length : 0,
+                        timestamp: researchResult.fetchedAt || ''
+                    });
+                    const wrappedText = applyEvidenceWrapper(formattedText, receipt);
+                    return res.json({
+                        success: true,
+                        text: wrappedText
+                    });
+                }
+            }
+
+            // 2.6. Academic Research Dossier Foundation V0 Intent (Owner-Gated Single-Shot OpenAlex Works)
+            const isDossierIntent = /^dossier(?:\s+|:\s*)(.*)$/i.test(message);
+            if (isDossierIntent) {
+                const chatOwner = authenticateOwner(req);
+                if (chatOwner && chatOwner.isOwner) {
+                    const match = message.match(/^dossier(?:\s+|:\s*)(.*)$/i);
+                    const rawTopic = match && match[1] ? match[1].trim() : '';
+                    if (!rawTopic) {
+                        return res.json({
+                            success: true,
+                            text: "Please provide a study topic for the research dossier (e.g. \"dossier quantum computing\")."
+                        });
+                    }
+
+                    const validation = validateDossierTopic(rawTopic);
+                    if (!validation.valid) {
+                        return res.json({
+                            success: true,
+                            text: "I can’t process that research dossier topic safely. Please rephrase it."
+                        });
+                    }
+
+                    const dossierResult = await fetchResearchDossier(rawTopic);
+                    const formattedText = formatResearchDossierMarkdown(dossierResult);
+                    const receipt = createRouteReceipt('research_dossier', {
+                        sourceKind: dossierResult.success ? 'openalex_works_metadata' : null,
+                        boundedScholarlyMetadataFetched: Boolean(dossierResult.success),
+                        itemCount: Array.isArray(dossierResult.records) ? dossierResult.records.length : 0,
+                        timestamp: dossierResult.fetchedAt || ''
+                    });
+                    const wrappedText = applyEvidenceWrapper(formattedText, receipt);
+                    return res.json({
+                        success: true,
+                        text: wrappedText
+                    });
+                }
+            }
+
+            // 2.7. J.A.R.V.I.S.-Style Technical Copilot V0 Intent (Owner-Gated Reply-Only Plan Draft)
+            const isMissionIntent = /^mission(?:\s+|:\s*)(.*)$/i.test(message);
+            if (isMissionIntent) {
+                const chatOwner = authenticateOwner(req);
+                if (chatOwner && chatOwner.isOwner) {
+                    const match = message.match(/^mission(?:\s+|:\s*)(.*)$/i);
+                    const rawMission = match && match[1] ? match[1] : '';
+                    const planResult = generateTechnicalPlan(rawMission);
+                    const receipt = createRouteReceipt('technical_plan');
+                    const wrappedText = applyEvidenceWrapper(planResult.text, receipt);
+                    return res.json({
+                        success: true,
+                        text: wrappedText
+                    });
+                }
+            }
+
+            // 2.8. Plain-Language Intent V0 (Owner-Gated Conservative Deterministic Router)
+            const plainLanguageOwner = authenticateOwner(req);
+            if (plainLanguageOwner && plainLanguageOwner.isOwner) {
+                const plainIntent = classifyPlainLanguageIntent(message);
+                if (plainIntent) {
+                    if (plainIntent.type === 'clarification') {
+                        return res.json({
+                            success: true,
+                            text: plainIntent.text
+                        });
+                    }
+
+                    if (plainIntent.type === 'route') {
+                        if (plainIntent.route === 'research') {
+                            const validation = validateResearchTopic(plainIntent.topic);
+                            if (!validation.valid) {
+                                return res.json({
+                                    success: true,
+                                    text: "I can’t process that research topic safely. Please rephrase it."
+                                });
+                            }
+                            const researchResult = await fetchCitedResearch(plainIntent.topic);
+                            const formattedText = formatCitedResearchMarkdown(researchResult);
+                            const receipt = createRouteReceipt('cited_research', {
+                                sourceKind: researchResult.success ? 'google_news_rss_metadata' : null,
+                                boundedRssMetadataFetched: Boolean(researchResult.success),
+                                itemCount: Array.isArray(researchResult.items) ? researchResult.items.length : 0,
+                                timestamp: researchResult.fetchedAt || ''
+                            });
+                            const wrappedText = applyEvidenceWrapper(formattedText, receipt);
+                            return res.json({
+                                success: true,
+                                text: wrappedText
+                            });
+                        }
+
+                        if (plainIntent.route === 'dossier') {
+                            const validation = validateDossierTopic(plainIntent.topic);
+                            if (!validation.valid) {
+                                return res.json({
+                                    success: true,
+                                    text: "I can’t process that research dossier topic safely. Please rephrase it."
+                                });
+                            }
+                            const dossierResult = await fetchResearchDossier(plainIntent.topic);
+                            const formattedText = formatResearchDossierMarkdown(dossierResult);
+                            const receipt = createRouteReceipt('research_dossier', {
+                                sourceKind: dossierResult.success ? 'openalex_works_metadata' : null,
+                                boundedScholarlyMetadataFetched: Boolean(dossierResult.success),
+                                itemCount: Array.isArray(dossierResult.records) ? dossierResult.records.length : 0,
+                                timestamp: dossierResult.fetchedAt || ''
+                            });
+                            const wrappedText = applyEvidenceWrapper(formattedText, receipt);
+                            return res.json({
+                                success: true,
+                                text: wrappedText
+                            });
+                        }
+
+                        if (plainIntent.route === 'mission') {
+                            const planResult = generateTechnicalPlan(plainIntent.objective);
+                            const receipt = createRouteReceipt('technical_plan');
+                            const wrappedText = applyEvidenceWrapper(planResult.text, receipt);
+                            return res.json({
+                                success: true,
+                                text: wrappedText
+                            });
+                        }
+                    }
+                }
+            }
+
+            // 2.9. Owner Tasks Read View V0 (Deterministic Read-Only Tasks List)
+            const isTasksReadIntent = /^(?:what\s+are\s+my\s+tasks\??|show\s+me\s+my\s+tasks|current\s+tasks)[?.!\s]*$/i.test(message ? message.trim() : '');
+            if (isTasksReadIntent) {
+                const chatOwner = authenticateOwner(req);
+                if (!chatOwner || !chatOwner.isOwner) {
+                    const receipt = createRouteReceipt('ordinary_no_action_evidence');
+                    return res.json({
+                        success: true,
+                        text: applyEvidenceWrapper("You are not authorized to view workspace tasks.", receipt),
+                        runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined,
+                        execution: {
+                            state: "not_started",
+                            taskId: null,
+                            summary: "Unauthorized workspace tasks read request blocked.",
+                            artifacts: []
+                        }
+                    });
+                }
+
+                let overview = null;
+                try {
+                    overview = await getPersonalOverview(chatOwner.ownerId, pool);
+                } catch (e) {
+                    // Non-fatal fallback
+                }
+
+                const tasks = overview && Array.isArray(overview.tasks) ? overview.tasks : [];
+                const lines = ['# Workspace Tasks', ''];
+
+                if (tasks.length === 0) {
+                    lines.push('No tasks recorded in your workspace.');
+                } else {
+                    tasks.forEach((t, idx) => {
+                        const statusLabel = t.status ? (t.status.charAt(0).toUpperCase() + t.status.slice(1)) : 'Pending';
+                        lines.push(`${idx + 1}. [${statusLabel}] ${t.title}`);
+                    });
+                }
+
+                const receipt = createRouteReceipt('ordinary_no_action_evidence');
+                return res.json({
+                    success: true,
+                    text: applyEvidenceWrapper(lines.join('\n'), receipt),
+                    runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined,
+                    execution: {
+                        state: "not_started",
+                        taskId: null,
+                        summary: "Retrieved owner workspace tasks (read-only).",
+                        artifacts: []
+                    }
+                });
+            }
+
+            // 2.10. Owner Goals Read View V0 (Deterministic Read-Only Goals List)
+            const isGoalsReadIntent = /^(?:what\s+are\s+my\s+goals\??|show\s+me\s+my\s+goals|current\s+goals)[?.!\s]*$/i.test(message ? message.trim() : '');
+            if (isGoalsReadIntent) {
+                const chatOwner = authenticateOwner(req);
+                if (!chatOwner || !chatOwner.isOwner) {
+                    const receipt = createRouteReceipt('ordinary_no_action_evidence');
+                    return res.json({
+                        success: true,
+                        text: applyEvidenceWrapper("You are not authorized to view workspace goals.", receipt),
+                        runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined,
+                        execution: {
+                            state: "not_started",
+                            taskId: null,
+                            summary: "Unauthorized workspace goals read request blocked.",
+                            artifacts: []
+                        }
+                    });
+                }
+
+                let overview = null;
+                try {
+                    overview = await getPersonalOverview(chatOwner.ownerId, pool);
+                } catch (e) {
+                    // Non-fatal fallback
+                }
+
+                const rawGoals = overview && Array.isArray(overview.goals) ? overview.goals : [];
+                const seenKeys = new Set();
+                const uniqueGoals = [];
+                for (const g of rawGoals) {
+                    const key = g.title ? String(g.title).toLowerCase().trim() : (g.id ? String(g.id) : '');
+                    if (key && !seenKeys.has(key)) {
+                        seenKeys.add(key);
+                        uniqueGoals.push(g);
+                    }
+                }
+
+                const lines = ['# Workspace Goals', ''];
+
+                if (uniqueGoals.length === 0) {
+                    lines.push('No goals recorded in your workspace.');
+                } else {
+                    uniqueGoals.forEach((g, idx) => {
+                        const statusLabel = g.status ? (g.status.charAt(0).toUpperCase() + g.status.slice(1)) : 'Active';
+                        const noteSuffix = g.note ? ` — ${g.note}` : '';
+                        lines.push(`${idx + 1}. [${statusLabel}] ${g.title}${noteSuffix}`);
+                    });
+                }
+
+                const receipt = createRouteReceipt('ordinary_no_action_evidence');
+                return res.json({
+                    success: true,
+                    text: applyEvidenceWrapper(lines.join('\n'), receipt),
+                    runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined,
+                    execution: {
+                        state: "not_started",
+                        taskId: null,
+                        summary: "Retrieved owner workspace goals (read-only).",
+                        artifacts: []
+                    }
+                });
+            }
+
+            // Owner Action & Approval Queue V0
+            const isApprovalQueueIntent = /^show\s+my\s+approval\s+queue\s*$/i.test(message ? message.trim() : '');
+            if (isApprovalQueueIntent) {
+                const queueOwner = authenticateOwner(req);
+                if (!queueOwner || !queueOwner.isOwner) {
+                    return res.json({
+                        success: true,
+                        text: "I'm sorry, but that operation requires owner privileges.",
+                        runId: (typeof currentRun !== 'undefined' && currentRun) ? currentRun.runId : null,
+                        execution: { state: "not_started", taskId: null, summary: "Unauthorized queue read request blocked.", artifacts: [] }
+                    });
+                }
+                
+                const planSection = "Pending technical-plan proposals are not owner-readable in this version.";
+                
+                const pendingTest = approvedTestRunner.getPendingProposalSnapshot(queueOwner.ownerId);
+                let testSection = "Unavailable";
+                if (pendingTest) {
+                    const remainingMs = pendingTest.expiresAt - Date.now();
+                    testSection = `Pending allowlisted test proposal for \`${pendingTest.label || pendingTest.testKey}\` (expires in ${Math.ceil(remainingMs / 1000)}s)`;
+                }
+
+                const lastResult = approvedTestRunner.getLatestResultSnapshot(queueOwner.ownerId);
+                let resultSection = "Unavailable";
+                if (lastResult) {
+                    const resLabel = lastResult.label || 'Test';
+                    resultSection = `[${resLabel}] State: ${lastResult.state}, Summary: ${lastResult.summary}`;
+                }
+
+                if (!pendingTest && !lastResult) {
+                    return res.json({
+                        success: true,
+                        text: "No pending approvals or completed allowlisted test results are available in this process session.\n\n### Pending Plan Preview\n" + planSection,
+                        runId: (typeof currentRun !== 'undefined' && currentRun) ? currentRun.runId : null,
+                        execution: { state: "not_started", taskId: null, summary: "Retrieved empty owner approval queue.", artifacts: [] }
+                    });
+                }
+
+                return res.json({
+                    success: true,
+                    text: `### Pending Plan Preview\n${planSection}\n\n### Pending Test Approval\n${testSection}\n\n### Latest Test Result\n${resultSection}`,
+                    runId: (typeof currentRun !== 'undefined' && currentRun) ? currentRun.runId : null,
+                    execution: { state: "not_started", taskId: null, summary: "Retrieved owner approval queue.", artifacts: [] }
+                });
+            }
+
+            // Approval-Gated Test Runner V0 & Golden Baseline
+            const isPrepareSessionIntent = /^prepare\s+test:\s+session\s+context\s*$/i.test(message ? message.trim() : '');
+            const isPrepareGoldenIntent = /^prepare\s+test:\s+golden\s+baseline\s*$/i.test(message ? message.trim() : '');
+            
+            if (isPrepareSessionIntent || isPrepareGoldenIntent) {
+                const testOwner = authenticateOwner(req);
+                if (!testOwner || !testOwner.isOwner) {
+                    return res.json({
+                        success: true,
+                        text: "I'm sorry, but that operation requires owner privileges.",
+                        runId: (typeof currentRun !== 'undefined' && currentRun) ? currentRun.runId : null,
+                        execution: { state: "not_started", taskId: null, summary: "Unauthorized test prepare request blocked.", artifacts: [] }
+                    });
+                }
+                const testKey = isPrepareGoldenIntent ? 'golden_baseline' : 'session_context';
+                const testPath = testKey === 'golden_baseline' ? 'tests/golden_regression_v0_test.cjs' : 'tests/session_context_v0_test.cjs';
+                const proposalId = approvedTestRunner.createProposal(testOwner.ownerId, testKey);
+                
+                if (!proposalId) {
+                    return res.json({
+                        success: true,
+                        text: "An active test proposal already exists. Please confirm or wait for it to expire before preparing a new one.",
+                        runId: (typeof currentRun !== 'undefined' && currentRun) ? currentRun.runId : null,
+                        execution: { state: "not_started", taskId: null, summary: "Active test proposal exists, rejected new prepare.", artifacts: [] }
+                    });
+                }
+                return res.json({
+                    success: true,
+                    text: `Test proposal prepared for \`${testPath}\`.\nNo code or tools have been executed.\nReply exactly \`confirm test run\` to execute.`,
+                    runId: (typeof currentRun !== 'undefined' && currentRun) ? currentRun.runId : null,
+                    execution: {
+                        state: "not_started",
+                        taskId: null,
+                        summary: "Prepared inert test proposal.",
+                        artifacts: []
+                    }
+                });
+            }
+
+            const isConfirmTestIntent = /^confirm\s+test\s+run\s*$/i.test(message ? message.trim() : '');
+            if (isConfirmTestIntent) {
+                const testOwner = authenticateOwner(req);
+                if (!testOwner || !testOwner.isOwner) {
+                    return res.json({
+                        success: true,
+                        text: "I'm sorry, but that operation requires owner privileges.",
+                        runId: (typeof currentRun !== 'undefined' && currentRun) ? currentRun.runId : null,
+                        execution: { state: "not_started", taskId: null, summary: "Unauthorized test confirm request blocked.", artifacts: [] }
+                    });
+                }
+                const testKey = approvedTestRunner.consumeProposal(testOwner.ownerId);
+                if (!testKey) {
+                    return res.json({
+                        success: true,
+                        text: "No active or valid test proposal found. Run a prepare command first.",
+                        runId: (typeof currentRun !== 'undefined' && currentRun) ? currentRun.runId : null,
+                        execution: { state: "not_started", taskId: null, summary: "No valid test proposal consumed.", artifacts: [] }
+                    });
+                }
+                
+                const testResult = await approvedTestRunner.executeAllowlistedTest(testOwner.ownerId, testKey);
+                return res.json({
+                    success: testResult.success,
+                    text: testResult.text,
+                    runId: (typeof currentRun !== 'undefined' && currentRun) ? currentRun.runId : null,
+                    execution: testResult.execution
+                });
+            }
+
+            const isCancelTestIntent = /^cancel\s+test\s+proposal\s*$/i.test(message ? message.trim() : '');
+            if (isCancelTestIntent) {
+                const testOwner = authenticateOwner(req);
+                if (!testOwner || !testOwner.isOwner) {
+                    return res.json({
+                        success: true,
+                        text: "I'm sorry, but that operation requires owner privileges.",
+                        runId: (typeof currentRun !== 'undefined' && currentRun) ? currentRun.runId : null,
+                        execution: { state: "not_started", taskId: null, summary: "Unauthorized test cancel request blocked.", artifacts: [] }
+                    });
+                }
+                const cancelled = approvedTestRunner.cancelProposal(testOwner.ownerId);
+                if (!cancelled) {
+                    return res.json({
+                        success: true,
+                        text: "No active test proposal to cancel.",
+                        runId: (typeof currentRun !== 'undefined' && currentRun) ? currentRun.runId : null,
+                        execution: { state: "not_started", taskId: null, summary: "No test proposal to cancel.", artifacts: [] }
+                    });
+                }
+                return res.json({
+                    success: true,
+                    text: "Test proposal successfully cancelled.",
+                    runId: (typeof currentRun !== 'undefined' && currentRun) ? currentRun.runId : null,
+                    execution: { state: "not_started", taskId: null, summary: "Test proposal cancelled.", artifacts: [] }
+                });
+            }
+
+            // 2.11. Owner Session Context Clear V0 (In-Memory Buffer Reset)
+            const isClearContextIntent = /^clear\s+chat\s+context[?.!\s]*$/i.test(message ? message.trim() : '');
+            if (isClearContextIntent) {
+                const chatOwner = authenticateOwner(req);
+                if (!chatOwner || !chatOwner.isOwner) {
+                    const receipt = createRouteReceipt('ordinary_no_action_evidence');
+                    return res.json({
+                        success: true,
+                        text: applyEvidenceWrapper("You are not authorized to clear workspace chat context.", receipt),
+                        runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined,
+                        execution: {
+                            state: "not_started",
+                            taskId: null,
+                            summary: "Unauthorized chat context clear request blocked.",
+                            artifacts: []
+                        }
+                    });
+                }
+
+                clearHistory(chatOwner.ownerId);
+
+                const receipt = createRouteReceipt('ordinary_no_action_evidence');
+                return res.json({
+                    success: true,
+                    text: applyEvidenceWrapper("In-memory chat context cleared for this session. No tasks, files, Personal Core memories, or external actions were changed.", receipt),
+                    runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined,
+                    execution: {
+                        state: "not_started",
+                        taskId: null,
+                        summary: "Cleared owner in-memory chat session context.",
+                        artifacts: []
+                    }
+                });
+            }
+
+            // 3. Generic News Boundary (Explain V1 AI-news limitation truthfully)
+            const isGenericNewsQuery = /\b(what\s+is\s+the\s+news|latest\s+news|news\s+today|current\s+headlines|check\s+(?:the\s+)?news|^news$)\b/i.test(lowerMsg);
+            if (isGenericNewsQuery && !isAiNewsIntent) {
+                return res.json({
+                    success: true,
+                    text: "In this version, only owner-triggered AI news is configured (for example, \"check AI news\"). I do not have a general news feed or live search configured.",
+                    execution: {
+                        state: "not_started",
+                        taskId: null,
+                        summary: "In this version, only owner-triggered AI news is configured.",
+                        artifacts: []
+                    }
+                });
+            }
+
+            // 4. Plain Greeting
+            const isPlainGreeting = /^(hello|hi|hey|greetings|good\s+(?:morning|afternoon|evening|day))[\s!.]*$/i.test(lowerMsg);
+            if (isPlainGreeting) {
+                return res.json({
+                    success: true,
+                    text: "Hello. Ghost is ready. You can ask for a plan, code as text, a repository inspection, or check AI news.",
+                    execution: {
+                        state: "not_started",
+                        taskId: null,
+                        summary: "Returned standard greeting.",
+                        artifacts: []
+                    }
+                });
+            }
+
+            // 3. Creator, Maker, Owner, and Identity Questions
+            const isCreatorQuestion = /\b(who\s+(?:made|created|built|developed|designed|owns|coded)\s+you|who\s+is\s+your\s+(?:creator|maker|builder|owner|developer|author))\b/i.test(lowerMsg);
+            if (isCreatorQuestion) {
+                return res.json({
+                    success: true,
+                    text: "I’m Ghost, a private local AI workspace created and configured by Mathangi Manoj Kumar.",
+                    runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined,
+                    execution: {
+                        state: "not_started",
+                        taskId: null,
+                        summary: "Returned deterministic safe identity.",
+                        artifacts: []
+                    }
+                });
+            }
+
+            // 4. Owner Correction in Ordinary Chat (Never invent memory or mutate data)
+            const isCreatorCorrection = (/\b(?:bro\s+)?([a-zA-Z0-9_\s]+)\s+(?:made|created|built|developed)\s+you\b/i.test(lowerMsg) || /\b([a-zA-Z0-9_\s]+)\s+is\s+your\s+(?:creator|maker|builder|owner)\b/i.test(lowerMsg)) && !isCreatorQuestion;
+            if (isCreatorCorrection) {
+                return res.json({
+                    success: true,
+                    text: "Understood. Please note that corrections in ordinary chat are not saved, verified, or remembered. To persist owner facts, please use the explicit Personal Core flow.",
+                    execution: {
+                        state: "not_started",
+                        taskId: null,
+                        summary: "Acknowledged correction without mutating Personal Core or Task Ledger.",
+                        artifacts: []
+                    }
+                });
+            }
+
+            const codeKeywords = ['python', 'javascript', 'js', 'html', 'css', 'sql', 'script', 'function', 'write code', 'build an app', 'generate code', 'create file', 'code', 'coding', 'generate a login page', 'build a login page', 'create a script', 'write a javascript script'];
+            const isCodingRequest = codeKeywords.some(k => lowerMsg.includes(k));
+
+            if (!ghostCodeActive && isCodingRequest) {
+                res.json({
+                    success: true,
+                    text: "Ghost Code mode is currently turned OFF. Please turn Ghost Code ON in the sidebar controls to allow code generation and execution."
+                });
+                return;
+            }
+
+
 
         if (pool && safeUser) {
             try {
@@ -1530,6 +2434,18 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
         }
         let fullResponse = "";
 
+        if (!approvedPersonalContext && (isAdmin || (req.user && req.user.role === 'admin'))) {
+            try {
+                const ownerId = (req.user && req.user.username) || safeUser || 'owner_default';
+                const overview = await getPersonalOverview(ownerId, pool);
+                if (overview && overview.continuationSummary) {
+                    approvedPersonalContext = overview.continuationSummary;
+                }
+            } catch (e) {
+                // Non-fatal: Proceed without personal context
+            }
+        }
+
         if (image) {
             if (!NVIDIA_API_KEY) {
                 fullResponse = "[SYSTEM WARNING]: Vision module offline.";
@@ -1561,7 +2477,8 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             const isCodeAssistant = sessionModes.get(safeUser || 'guest') === 'code_assistant';
             const isBusinessMode = sessionModes.get(safeUser || 'guest') === 'business';
             const isPdfAttached = lowerMsg.includes('attached pdf') || (fileBase64 && fileBase64.includes('pdf')) || (finalMessage && finalMessage.includes('[ATTACHED PDF DOCUMENT:'));
-            const isComplex = !isPdfAttached && (classifyComplexity(finalMessage) === 'complex' || isDeepResearch || isBusinessMode);
+            const isOrdinaryChat = brain.isOrdinaryChatRequest ? brain.isOrdinaryChatRequest(finalMessage, { safeUser, isAdmin }) : true;
+            const isComplex = !isPdfAttached && !isOrdinaryChat && (classifyComplexity(finalMessage) === 'complex' || isDeepResearch || isBusinessMode);
 
             if (isComplex && process.env.GHOST_PLANNER_ENABLED !== 'false') {
                 console.log('[Intent Planner] Complex goal detected, initializing intent planner pipeline...');
@@ -1887,42 +2804,86 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                         await pool.query('UPDATE user_memories SET history_json = $2, updated_at = CURRENT_TIMESTAMP WHERE username = $1', [safeUser, JSON.stringify(userHistory.slice(-15))]);
                     }
 
-                    const execution = await getLatestExecutionStatus(req);
+                    const complexExecution = await getLatestExecutionStatus(req);
+                    const hasVerifiedExecutionEvidence = complexExecution.state === 'succeeded' && Array.isArray(complexExecution.artifacts) && complexExecution.artifacts.length > 0;
                     let finalResponseText = traceText;
-                    if (execution.state !== 'succeeded') {
+                    if (!hasVerifiedExecutionEvidence) {
                         const falseClaimPatterns = [
-                            /\bcreated a file\b/i,
-                            /\bfile has been created\b/i,
-                            /\boperation was successful\b/i,
-                            /\baccess the file via\b/i,
-                            /\bdownload the file\b/i,
-                            /\bsuccessfully executed\b/i,
-                            /\bwrote to file\b/i,
-                            /\bcreated outputs\b/i,
+                            /\b(tony\s+stark|iron\s+man|stark\s+industries|jarvis|sam\s+altman|elon\s+musk)\b/i,
+                            /\b(?:I\s+(?:have\s+)?(?:saved|remembered|stored|updated|persisted|recorded)\s+(?:that|this|it)\s+(?:in|to)\s+(?:my\s+)?(?:memory|database|profile|records?|context))\b/i,
+                            /\b(?:I\s+will\s+remember\s+(?:that|this))\b/i,
+                            /\b(?:saved\s+to\s+(?:your|my)\s+(?:memory|profile|records?))\b/i,
+                            /\b(?:operating\s+system|network\s+state|ip\s+address|macOS\s+version|local\s+network)\b/i,
+                            /Tool Execution Results/i,
+                            /Execution Results/i,
+                            /script was run successfully/i,
+                            /(?<!not )(?<!n't )generated and executed/i,
+                            /Script Location/i,
+                            /Current directory/i,
+                            /workspace contains/i,
+                            /(?<!not )(?<!n't )created a file/i,
+                            /(?<!not )(?<!n't )file has been created/i,
+                            /(?<!not )(?<!n't )operation was successful/i,
+                            /(?<!not )(?<!n't )access the file via/i,
+                            /(?<!not )(?<!n't )download the file/i,
+                            /(?<!not )(?<!n't )successfully executed/i,
+                            /(?<!not )(?<!n't )wrote to file/i,
+                            /(?<!not )(?<!n't )created outputs/i,
                             /http:\/\/localhost:\d+\/downloads/i,
                             /localhost:\d+\/downloads/i,
-                            /\/downloads\//i
+                            /\/downloads\//i,
+                            /verified tools/i,
+                            /tool execution results/i,
+                            /orchestrator/i,
+                            /worker-verification/i
                         ];
 
                         const hasFalseClaim = falseClaimPatterns.some(pattern => pattern.test(finalResponseText));
                         if (hasFalseClaim) {
-                            if (execution.state === 'awaiting_approval') {
+                            if (complexExecution.state === 'awaiting_approval') {
                                 finalResponseText = "Plan ready for approval. No files were changed.";
-                            } else if (execution.state === 'running') {
+                            } else if (complexExecution.state === 'running') {
                                 finalResponseText = "Approved local task is running. I will report verified results when it finishes.";
-                            } else if (execution.state === 'failed') {
+                            } else if (complexExecution.state === 'failed') {
                                 finalResponseText = "No changes were confirmed.";
                             } else {
-                                finalResponseText = "I can draft code or prepare an approval-gated plan here. No local files were created and no code has run.";
+                                finalResponseText = "I do not have verified information for that claim in this chat, so I will not invent it.";
                             }
                         }
                     }
 
-                    res.json({ success: true, text: finalResponseText, plan, runId: currentRun?.runId, execution });
+                    res.json({ success: true, text: finalResponseText, plan, runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined, execution: complexExecution });
                     return;
                 } catch (err) {
                     console.error('[Intent Planner] Execution pipeline failed, falling back to direct brain.think:', err.message);
                 }
+            }
+
+            // 2.9. Ghost Skills V0 — Direct Capability Overview
+            if (isCapabilityQuery(finalMessage)) {
+                const capabilityExecution = await getLatestExecutionStatus(req);
+                const capabilityReply = getCapabilitiesHelp();
+                const receipt = createRouteReceipt('ordinary_no_action_evidence');
+                const wrappedCapabilityText = applyEvidenceWrapper(capabilityReply, receipt);
+                return res.json({
+                    success: true,
+                    text: wrappedCapabilityText.trim(),
+                    runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined,
+                    execution: capabilityExecution
+                });
+            }
+
+            // Near-miss test phrase protection
+            const isNearMissTest = /^(prepare|confirm|cancel)\s+test\s+(.*)$/i.test(finalMessage ? finalMessage.trim() : '');
+            if (isNearMissTest) {
+                // If it matched an exact intent above, it would have returned.
+                // Since it reached here, it's a near miss.
+                return res.json({
+                    success: true,
+                    text: "Test actions must use the Control Center UI or the exact phrase (e.g. `confirm test run`). No LLM workflow was triggered.",
+                    runId: null,
+                    execution: { state: "not_started", taskId: null, summary: "Near-miss test phrase blocked.", artifacts: [] }
+                });
             }
 
             console.log('[Server] Routing plain-text request to brain.think()...');
@@ -1932,10 +2893,18 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                     msgToThink = `[SESSION MODE: CODE ASSISTANT IS ACTIVE. You have broader workspace execution access.]\n${finalMessage}`;
                 } else if (isBusinessMode) {
                     msgToThink = `[SESSION MODE: BUSINESS IS ACTIVE. Handle routine tasks, queue approvals, and alert owner.]\n${finalMessage}`;
+                } else if (isCodeAsTextRequest(finalMessage)) {
+                    msgToThink = buildCodeAsTextMessage(finalMessage);
                 }
                 const startTime = Date.now();
-                console.log(`[Server] Routing plain-text request to brain.think() with ${userHistory.length} history turns...`);
-                const brainResult = await brain.think(msgToThink, { safeUser, isAdmin, isBusinessMode, triggerSource: 'user_message', history: userHistory });
+                const brainResult = await brain.think(msgToThink, {
+                    safeUser,
+                    isAdmin,
+                    isBusinessMode,
+                    personalContext: approvedPersonalContext,
+                    triggerSource: 'user_message',
+                    history: userHistory
+                });
                 const latencyMs = Date.now() - startTime;
 
                 const lastCalls = requestContext.llmCalls || [];
@@ -1962,152 +2931,376 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
         }
 
         let replyText = fullResponse || "System anomaly: Empty matrix response.";
-        let actionTriggered = "general_response";
 
-        // ============================================================
-        // ROBUST TOOL COMMAND EXTRACTION (replaces brittle regex)
-        // ============================================================
-        const toolCommand = extractToolCommand(fullResponse);
+        const finalRouteExecution = await getLatestExecutionStatus(req);
+        const hasVerifiedExecutionEvidence = finalRouteExecution.state === 'succeeded' && Array.isArray(finalRouteExecution.artifacts) && finalRouteExecution.artifacts.length > 0;
 
-        if (toolCommand) {
-            if (process.env.GHOST_DEPLOYMENT_MODE === 'local') {
-                const blockedLocalTools = ['web_scraper', 'python_sandbox', 'playwright', 'file_edit_via_tools', 'workspace_edit_file'];
-                if (blockedLocalTools.includes(toolCommand.tool)) {
-                    res.json({ success: true, text: `[SYSTEM OVERRIDE]: Tool '${toolCommand.tool}' is disabled in local mode.` });
-                    return;
-                }
-            }
-
-            if (toolCommand.tool === "trigger_webhook" || toolCommand.tool === "workflow_execute" || toolCommand.tool === "browserbase_execute") {
-                if (!isAdmin) {
-                    res.json({ success: true, text: "[SYSTEM OVERRIDE]: External network actions are restricted to Admin clearance. Blocked." });
-                    return;
-                }
-                const blocklist = ['stripe', 'paypal', 'delete', 'drop', 'billing', 'transfer', 'password', 'user_memories', 'select ', 'insert ', 'update ', 'table', 'schema', 'admin', 'role', '--', '1=1'];
-                const actionString = toolCommand.action ? String(toolCommand.action).toLowerCase() : "";
-                const payloadString = toolCommand.payload ? JSON.stringify(toolCommand.payload).toLowerCase() : "";
-                const combinedCheck = actionString + " " + payloadString;
-                if (blocklist.some(word => combinedCheck.includes(word))) {
-                    res.json({ success: true, text: `[SYSTEM OVERRIDE]: Payload or action contains restricted keyword. Blocked.` });
-                    return;
-                }
-                actionTriggered = `${toolCommand.tool}:${toolCommand.action}`;
-                const actionId = crypto.randomBytes(16).toString('hex');
-                pendingActions.set(actionId, {
-                    type: toolCommand.tool, action: toolCommand.action, payload: toolCommand.payload,
-                    requestedBy: safeUser, expiresAt: Date.now() + (5 * 60 * 1000)
-                });
-                replyText = `[ACTION REQUIRED - HITL GATE]: Proposal compiled for [${toolCommand.tool}]: ${toolCommand.action}.\n\nReview:\n\`\`\`json\n${JSON.stringify(toolCommand.payload, null, 2)}\n\`\`\``;
-                ghostLearn({ safeUser, message, actionTaken: actionTriggered });
-                res.json({ success: true, text: replyText, actionRequired: true, actionId: actionId, runId: currentRun?.runId });
-                return;
-            }
-        }
-
-        // ============================================================
-        // PYTHON SANDBOX — hardened with OS limits
-        // ============================================================
-        const codeRegex = /[\x60]{3}python\n([\s\S]*?)[\x60]{3}/i;
-        const match = fullResponse ? fullResponse.match(codeRegex) : null;
-        if (ghostCodeMode && match && match[1]) {
-            actionTriggered = "python_execution";
-            const pythonCode = match[1].trim();
-            if (process.env.GHOST_DEPLOYMENT_MODE === 'local') {
-                const fs = require('fs');
-                const path = require('path');
-                const scriptDir = path.join(process.env.HOME || '/Users/manojkumarmathangi', 'Ghost', 'scripts');
-                if (!fs.existsSync(scriptDir)) fs.mkdirSync(scriptDir, { recursive: true });
-                const filePath = path.join(scriptDir, 'login_page.py');
-                fs.writeFileSync(filePath, pythonCode);
-                replyText = `Wrote to ~/Ghost/scripts/login_page.py. Run: python ~/Ghost/scripts/login_page.py`;
-            } else {
-                try {
-                    const executionResult = await runPythonSandbox(pythonCode);
-                    if (executionResult.success) {
-                        replyText = fullResponse.replace(match[0], `\n\`\`\`html\n${executionResult.output.trim()}\n\`\`\`\n`);
-                    } else {
-                        replyText = fullResponse.replace(match[0], `[Python Error]: ${executionResult.error}`);
-                    }
-                } catch (err) {
-                    replyText = fullResponse.replace(match[0], `[Python Error]: ${err.message}`);
-                }
-            }
-        }
-
-        const embedMatch = replyText ? replyText.match(/<embed>([\s\S]*?)<\/embed>/i) : null;
-        if (embedMatch) {
-            actionTriggered = "web_embed";
-            try {
-                const serperRes = await fetchWithTimeout(fetch('https://google.serper.dev/search', {
-                    method: 'POST', headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ q: embedMatch[1] })
-                }), 8000);
-                const searchData = await serperRes.json();
-                if (searchData.error) {
-                    const errMsg = searchData.error.message || JSON.stringify(searchData.error);
-                    console.error(`[Serper Embed Error]: ${errMsg}`);
-                    replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Embed Resolution Failed: ${errMsg}]`);
-                } else if (searchData.organic && searchData.organic.length > 0) {
-                    replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[EXECUTE_OPEN_TAB:${searchData.organic[0].link}]`);
-                } else {
-                    replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Oracle embed returned no results]`);
-                }
-            } catch (embedErr) {
-                const embedErrMsg = embedErr.message || 'Unknown error';
-                console.error(`[Embed Timeout/Error]: ${embedErrMsg}`);
-                replyText = replyText.replace(/<embed>([\s\S]*?)<\/embed>/ig, `[Oracle embed failed — ${embedErrMsg}]`);
-            }
-        }
-
-        const execution = await getLatestExecutionStatus(req);
-
-        if (execution.state !== 'succeeded') {
-            const falseClaimPatterns = [
-                /\bcreated a file\b/i,
-                /\bfile has been created\b/i,
-                /\boperation was successful\b/i,
-                /\baccess the file via\b/i,
-                /\bdownload the file\b/i,
-                /\bsuccessfully executed\b/i,
-                /\bwrote to file\b/i,
-                /\bcreated outputs\b/i,
+        if (!isAdmin) {
+            const visitorBannedPatterns = [
+                /\b(private project|private workspace|memory|memories|obsidian|vault|database|terminal|mcp tool|browser automation|companion|code execution|commit|email|account access|external action|AIQ|tool execution summary|Tool Execution Results Summary)\b/i,
+                /\b(executed|created a file|wrote to file|ran command|opened browser|scheduled|code ran|task was scheduled|external action occurred)\b/i,
+                /Error:|Traceback:|Exception:|failed with status|API key/i,
+                /tool execution result/i,
                 /http:\/\/localhost:\d+\/downloads/i,
                 /localhost:\d+\/downloads/i,
                 /\/downloads\//i
             ];
+            const hasVisitorBannedClaim = visitorBannedPatterns.some(pattern => pattern.test(replyText));
+            if (hasVisitorBannedClaim) {
+                replyText = "As a visitor, I can explain code, draft plans, and describe Ghost's architecture. I cannot access private workspaces, execute code, or perform external actions.";
+            }
+        } else if (!hasVerifiedExecutionEvidence) {
+            const falseClaimPatterns = [
+                            /\b(tony\s+stark|iron\s+man|stark\s+industries|jarvis|sam\s+altman|elon\s+musk)\b/i,
+                            /\b(?:I\s+(?:have\s+)?(?:saved|remembered|stored|updated|persisted|recorded)\s+(?:that|this|it)\s+(?:in|to)\s+(?:my\s+)?(?:memory|database|profile|records?|context))\b/i,
+                            /\b(?:I\s+will\s+remember\s+(?:that|this))\b/i,
+                            /\b(?:saved\s+to\s+(?:your|my)\s+(?:memory|profile|records?))\b/i,
+                            /\b(?:operating\s+system|network\s+state|ip\s+address|macOS\s+version|local\s+network)\b/i,
+                            /Tool Execution Results/i,
+                            /Execution Results/i,
+                            /script was run successfully/i,
+                            /(?<!not )(?<!n't )generated and executed/i,
+                            /Script Location/i,
+                            /Current directory/i,
+                            /workspace contains/i,
+                            /(?<!not )(?<!n't )created a file/i,
+                            /(?<!not )(?<!n't )file has been created/i,
+                            /(?<!not )(?<!n't )operation was successful/i,
+                            /(?<!not )(?<!n't )access the file via/i,
+                            /(?<!not )(?<!n't )download the file/i,
+                            /(?<!not )(?<!n't )successfully executed/i,
+                            /(?<!not )(?<!n't )wrote to file/i,
+                            /(?<!not )(?<!n't )created outputs/i,
+                            /http:\/\/localhost:\d+\/downloads/i,
+                            /localhost:\d+\/downloads/i,
+                            /\/downloads\//i,
+                            /verified tools/i,
+                            /tool execution results/i,
+                            /orchestrator/i,
+                            /worker-verification/i
+                        ];
 
             const hasFalseClaim = falseClaimPatterns.some(pattern => pattern.test(replyText));
             if (hasFalseClaim) {
-                if (execution.state === 'awaiting_approval') {
+                if (finalRouteExecution.state === 'awaiting_approval') {
                     replyText = "Plan ready for approval. No files were changed.";
-                } else if (execution.state === 'running') {
+                } else if (finalRouteExecution.state === 'running') {
                     replyText = "Approved local task is running. I will report verified results when it finishes.";
-                } else if (execution.state === 'failed') {
+                } else if (finalRouteExecution.state === 'failed') {
                     replyText = "No changes were confirmed.";
                 } else {
-                    replyText = "I can draft code or prepare an approval-gated plan here. No local files were created and no code has run.";
+                    replyText = "I do not have verified information for that claim in this chat, so I will not invent it.";
                 }
             }
         }
 
-        ghostLearn({ safeUser, message, actionTaken: actionTriggered });
+        const ordinaryReceipt = createRouteReceipt('ordinary_no_action_evidence');
+        replyText = applyEvidenceWrapper(replyText, ordinaryReceipt);
+
         userHistory.push({ role: 'user', content: message }, { role: 'assistant', content: replyText.trim() });
         if (userHistory.length > maxMemory) userHistory = userHistory.slice(-maxMemory);
-        res.json({ success: true, text: replyText.trim(), runId: currentRun?.runId, execution });
-
-        if (pool && safeUser) {
-            pool.query(
-                `INSERT INTO user_memories (username, history_json, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (username) DO UPDATE SET history_json = EXCLUDED.history_json, updated_at = NOW()`,
-                [safeUser, JSON.stringify(userHistory)]
-            ).catch(err => console.error('[Memory Save Error]:', err.message));
-        }
+        res.json({ success: true, text: replyText.trim(), runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined, execution: finalRouteExecution });
     } catch (e) {
-        if (currentRun) runController.failRun(currentRun.runId, e.message);
-        if (!res.headersSent) res.json({ success: true, text: `[System Warning]: Matrix Interference: ${e.message}` });
+        console.error('[Chat Error Diagnostic]:', e);
+        if (typeof currentRun !== 'undefined' && currentRun) runController.failRun(currentRun.runId, 'Internal error');
+        if (!res.headersSent) {
+            const isRateLimit = e.message && (e.message.includes('rate limit') || e.message.includes('429'));
+            const safeText = isRateLimit
+                ? "Ghost is briefly cooling down. Please try again in a moment."
+                : "A backend error occurred. Please try again in a moment.";
+            res.json({ success: false, error: safeText, text: safeText });
+        }
     }
     });
 });
 
+
+
+app.get('/api/skills', chatLimiter, securityMiddleware, (req, res) => {
+    // Only return working, confirmed capabilities
+    const skills = [
+        {
+            title: "Ordinary Chat",
+            whatItDoes: "LLM-backed conversation using Groq/NVIDIA NIM fallback chain.",
+            exactLimit: "No memory of other users, no autonomous action."
+        },
+        {
+            title: "Cited News",
+            whatItDoes: "Fetches up to 5 items from Google News RSS (metadata only).",
+            exactLimit: "Does not open, read, or summarize full articles."
+        },
+        {
+            title: "Scholarly Dossier",
+            whatItDoes: "Fetches up to 5 records and abstracts from OpenAlex.",
+            exactLimit: "Abstracts only, does not retrieve or read full papers."
+        },
+        {
+            title: "Coding Copilot (V0)",
+            whatItDoes: "Provides draft-only code and test help via the /copilot command.",
+            exactLimit: "Never writes files, runs code, or touches the repository."
+        },
+        {
+            title: "Technical Copilot (V0)",
+            whatItDoes: "Generates a structured, deterministic technical plan via the 'mission:' command.",
+            exactLimit: "Plan-only, deterministic template, no execution or LLM dependencies."
+        }
+    ];
+    res.json({ success: true, skills });
+});
+
+
+app.get('/api/agent/budget-status', securityMiddleware, async (req, res) => {
+    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const { execSync } = require('child_process');
+    try {
+        const out = execSync('cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/budget.py check').toString();
+        return res.json(JSON.parse(out));
+    } catch (e) {
+        return res.status(500).json({ success: false, error: 'Failed to read budget' });
+    }
+});
+
+app.post('/api/agent/kill-switch', securityMiddleware, async (req, res) => {
+    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    if (global.activeAgentProcess) {
+        const { execSync } = require('child_process');
+        try { execSync('pkill -9 -f "' + global.activeAgentProcess.taskId + '"'); } catch(e) {} global.activeAgentProcess.kill('SIGKILL');
+        try {
+            execSync(`cd mini-swe-agent && uv run --python 3.11 python src/minisweagent/budget.py kill ${global.activeAgentProcess.taskId}`);
+        } catch(e) {}
+        global.activeAgentProcess = null;
+        return res.json({ success: true, status: 'KILLED' });
+    }
+    return res.json({ success: false, error: 'No active agent process to kill' });
+});
+
+
+
+
+app.get('/api/agent/approvals', securityMiddleware, async (req, res) => {
+    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const { execSync } = require('child_process');
+    try {
+        const out = execSync('cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/approvals.py list').toString();
+        return res.json({ success: true, approvals: JSON.parse(out) });
+    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
+});
+app.post('/api/agent/approvals/:id/approve', securityMiddleware, async (req, res) => {
+    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const { execSync } = require('child_process');
+    try {
+        const out = execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/approvals.py resolve "${req.params.id}" APPROVED`).toString();
+        return res.json({ success: true, result: JSON.parse(out) });
+    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
+});
+app.post('/api/agent/approvals/:id/deny', securityMiddleware, async (req, res) => {
+    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const { execSync } = require('child_process');
+    try {
+        const out = execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/approvals.py resolve "${req.params.id}" DENIED`).toString();
+        return res.json({ success: true, result: JSON.parse(out) });
+    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
+});
+
+
+// --- OBJECTIVES ROUTES ---
+
+// --- DAEMON STATUS ROUTE ---
+app.get('/api/daemon/status', async (req, res) => {
+    const { execSync } = await import('child_process');
+    try {
+        const out = execSync(`sqlite3 mini-swe-agent/ghost_agent_runs.db "SELECT last_heartbeat FROM daemon_status WHERE id = 'daemon1'"`).toString().trim();
+        const lastHeartbeat = parseFloat(out) || 0;
+        const now = Date.now() / 1000;
+        const isAlive = (now - lastHeartbeat) < 30; // 30 seconds threshold
+        return res.json({ success: true, isAlive, lastHeartbeat, now });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+app.post('/api/objectives', securityMiddleware, async (req, res) => {
+    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const { execSync } = await import('child_process');
+    try {
+        const out = execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/objectives.py create "admin" "${req.body.goal_text.replace(/"/g, '\"')}" "${req.body.check_interval_seconds || 'null'}" "${req.body.max_runs || 'null'}"`).toString();
+        return res.json(JSON.parse(out));
+    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
+});
+app.get('/api/objectives', securityMiddleware, async (req, res) => {
+    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const { execSync } = await import('child_process');
+    try {
+        const out = execSync('cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/objectives.py list').toString();
+        return res.json({ success: true, objectives: JSON.parse(out) });
+    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
+});
+app.get('/api/objectives/:id', securityMiddleware, async (req, res) => {
+    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const { execSync } = await import('child_process');
+    try {
+        const out = execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/objectives.py get "${req.params.id}"`).toString();
+        return res.json({ success: true, objective: JSON.parse(out) });
+    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
+});
+app.patch('/api/objectives/:id', securityMiddleware, async (req, res) => {
+    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const { execSync } = await import('child_process');
+    try {
+        const out = execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/objectives.py patch "${req.params.id}" "${req.body.status || 'undefined'}" "${(req.body.goal_text || 'undefined').replace(/"/g, '\"')}"`).toString();
+        return res.json(JSON.parse(out));
+    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
+});
+app.delete('/api/objectives/:id', securityMiddleware, async (req, res) => {
+    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const { execSync } = await import('child_process');
+    try {
+        const out = execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/objectives.py delete "${req.params.id}"`).toString();
+        return res.json(JSON.parse(out));
+    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
+});
+
+
+
+app.post('/api/agent/schedule', securityMiddleware, async (req, res) => {
+    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const { execSync } = require('child_process');
+    try {
+        const out = execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/scheduler.py create "${req.body.goal.replace(/"/g, '\"')}" "${req.body.cron_expression || 'test'}"`).toString();
+        const parsed = JSON.parse(out); if (!parsed.success) return res.status(400).json(parsed); return res.json(parsed);
+    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
+});
+app.get('/api/agent/schedule', securityMiddleware, async (req, res) => {
+    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const { execSync } = require('child_process');
+    try {
+        const out = execSync('cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/scheduler.py list').toString();
+        return res.json({ success: true, schedules: JSON.parse(out) });
+    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
+});
+app.delete('/api/agent/schedule/:id', securityMiddleware, async (req, res) => {
+    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const { execSync } = require('child_process');
+    try {
+        execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/scheduler.py delete "${req.params.id}"`);
+        return res.json({ success: true });
+    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
+});
+app.patch('/api/agent/schedule/:id', securityMiddleware, async (req, res) => {
+    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const { execSync } = require('child_process');
+    try {
+        execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/scheduler.py toggle "${req.params.id}" "${req.body.enabled}"`);
+        return res.json({ success: true });
+    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
+});
+
+
+
+app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => {
+    console.log('[API] /api/agent/run request received with goal: ' + req.body.goal);
+    try {
+        const token = req.cookies && req.cookies.ghost_session;
+        if (!token && process.env.GHOST_DEPLOYMENT_MODE !== 'public') {
+            return res.status(401).json({ success: false, error: 'Unauthorized: Session missing or invalid.' });
+        }
+        const isAdmin = checkIsAdmin(req);
+        if (!isAdmin) {
+            return res.status(401).json({ success: false, error: 'Unauthorized: Owner access required.' });
+        }
+
+        const goal = req.body.goal || '';
+        if (!goal.trim()) {
+            return res.status(400).json({ success: false, error: 'Empty goal.' });
+        }
+
+        // Budget check
+        const { execSync, exec } = await import('child_process');
+        try {
+            const budgetOut = execSync('cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/budget.py check').toString();
+            const budgetObj = JSON.parse(budgetOut);
+            if (!budgetObj.ok) {
+                return res.status(403).json({ success: false, error: budgetObj.reason });
+            }
+            execSync('cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/budget.py add_spawn');
+        } catch(e) {
+            return res.status(500).json({ success: false, error: 'Budget check failed' });
+        }
+
+        const taskId = "task-" + Date.now();
+        const cmd = `cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/pevr_service.py --goal "${goal.replace(/"/g, '\"')}" --task_id ${taskId} ${req.body.schedule_id ? "--schedule_id " + req.body.schedule_id : ""}`;
+        
+        const child = exec(cmd, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+            if (global.activeAgentProcess === child) global.activeAgentProcess = null;
+            if (error && !stdout.trim()) {
+                if (error.signal === 'SIGKILL') {
+                    return res.json({ success: false, error: 'Agent execution killed.', status: 'KILLED' });
+                }
+                console.error("Agent execution failed:", error, stderr);
+                return res.status(500).json({ success: false, error: 'Agent execution failed.', stderr });
+            }
+            
+            try {
+                const lines = stdout.trim().split('\n');
+                let result = null;
+                for (let i = lines.length - 1; i >= 0; i--) {
+                    if (lines[i].startsWith('{')) {
+                        result = JSON.parse(lines[i]);
+                        break;
+                    }
+                }
+                if (!result) throw new Error("No JSON found in stdout");
+                return res.json(result);
+            } catch (parseError) {
+                console.error("Failed to parse agent output:", parseError, stdout);
+                return res.status(500).json({ success: false, error: 'Agent output parsing failed.', stdout, stderr });
+            }
+        });
+        child.taskId = taskId;
+        global.activeAgentProcess = child;
+    } catch (err) {
+        console.error("Agent Run Error:", err);
+        return res.status(500).json({ success: false, error: 'Internal Server Error' });
+    }
+});
+
+app.post('/api/coding-copilot', chatLimiter, securityMiddleware, async (req, res) => {
+    try {
+        const token = req.cookies && req.cookies.ghost_session;
+        if (!token && process.env.GHOST_DEPLOYMENT_MODE !== 'public') {
+            return res.status(401).json({ success: false, error: 'Unauthorized: Session missing or invalid.' });
+        }
+
+        const isAdmin = checkIsAdmin(req);
+        if (!isAdmin) {
+            return res.status(401).json({ success: false, error: 'Unauthorized: Owner access required.' });
+        }
+
+        const message = req.body.message || '';
+        if (!message.trim()) {
+            return res.json({ success: false, error: 'Empty request.' });
+        }
+
+        const systemPrompt = "You are a coding copilot. Output a code draft/plan only. You do not execute code, write files, or run commands. Always prefix response with 'PLAN ONLY — NO LOCAL WRITES'.";
+
+        // Code-level guard: use direct LLM chat without passing any tool schemas
+        const { chat: localChat } = require('./src/tools/llm.js');
+        let responseText = await localChat([
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: message }
+        ], { maxTokens: 2048 });
+
+        // Fallback guard to ensure prefix is strictly applied
+        if (!responseText.includes('PLAN ONLY — NO LOCAL WRITES')) {
+            responseText = 'PLAN ONLY — NO LOCAL WRITES\n\n' + responseText;
+        }
+
+        return res.json({ success: true, text: responseText, mode: 'plan-only' });
+    } catch (err) {
+        console.error('[Coding Copilot Error]:', err);
+        return res.status(500).json({ success: false, error: 'Internal Server Error' });
+    }
+});
 app.post('/api/runs/:runId/cancel', securityMiddleware, async (req, res) => {
     const { runId } = req.params;
     const user = checkIsAdmin(req) ? 'master_manoj' : (req.body.user || 'anonymous');
@@ -2351,6 +3544,8 @@ app.post('/api/agent/create-voice-agent', async (req, res) => {
 
 // Mounted pipeline router BEFORE dummy stubs to prevent Express route collisions
 app.use('/api/pipeline', createPipelineRoutes(workflowEngine));
+
+
 
 app.post('/api/pipeline/execute', async (req, res) => {
     if ((process.env.DEPLOYMENT_MODE || process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
@@ -2709,6 +3904,735 @@ app.get('/api/admin/observability', requireAdminToken, async (req, res) => {
     }
 });
 
+// --- REPO INSPECTOR ROUTE (Owner authorized read-only inspection) ---
+app.post('/api/repo/inspect', async (req, res) => {
+    if (!checkIsAdmin(req)) {
+        return res.status(401).json({
+            success: false,
+            error: 'Unauthorized: Owner access required for repository inspection.'
+        });
+    }
+    try {
+        const result = await inspectRepo(req.body ? req.body.targetPath : null);
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        return res.status(500).json({
+            success: false,
+            error: `Repository inspection failed: ${err.message}`
+        });
+    }
+});
+
+// --- HERMES-INSPIRED PLAN/DIFF WORKER V1 ROUTE (Owner authorized read-only proposal) ---
+app.post('/api/plan/draft', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({
+            success: false,
+            error: 'Forbidden: Owner clearance required for Plan/Diff Worker.',
+            status: 'PLAN_ONLY'
+        });
+    }
+    try {
+        const taskPrompt = req.body ? (req.body.task || req.body.prompt || '') : '';
+        const targetPath = req.body ? req.body.targetPath : null;
+        const requestId = req.body ? req.body.requestId : null;
+
+        if (!taskPrompt.trim()) {
+            return res.status(400).json({
+                success: false,
+                error: 'Task description cannot be empty.',
+                status: 'PLAN_ONLY'
+            });
+        }
+
+        // Bounded owner Personal Core context retrieval
+        let approvedContextLines = [];
+        try {
+            const [goals, memories] = await Promise.all([
+                listOwnerGoals(owner.ownerId, pool),
+                listExplicitMemories(owner.ownerId, pool)
+            ]);
+            const activeGoals = (goals || []).filter(g => g.status === 'active' && !isPotentialSecret(g.title) && !isPotentialSecret(g.note)).slice(0, 5);
+            const safeMemories = (memories || []).filter(m => !isPotentialSecret(m.text)).slice(0, 5);
+
+            if (activeGoals.length > 0) {
+                approvedContextLines.push(`Active Goals:`);
+                activeGoals.forEach(g => {
+                    approvedContextLines.push(`- [Goal] ${g.title}${g.note ? `: ${g.note}` : ''}`);
+                });
+            }
+            if (safeMemories.length > 0) {
+                if (approvedContextLines.length > 0) approvedContextLines.push('');
+                approvedContextLines.push(`Saved Memories:`);
+                safeMemories.forEach(m => {
+                    approvedContextLines.push(`- [Memory] ${m.text}`);
+                });
+            }
+        } catch (ctxErr) {
+            console.warn('[PlanDraft] Could not fetch personal context:', ctxErr.message);
+        }
+
+        const approvedPersonalContext = approvedContextLines.length > 0
+            ? approvedContextLines.join('\n')
+            : "No approved personal context was available.";
+
+        const augmentedPrompt = approvedContextLines.length > 0
+            ? `${taskPrompt}\n\n[Approved Personal Core Context]:\n${approvedPersonalContext}`
+            : taskPrompt;
+
+        const planDraft = await generatePlanDraft(augmentedPrompt, { targetPath });
+        planDraft.approvedPersonalContext = approvedPersonalContext;
+        planDraft.requestedTask = taskPrompt;
+        planDraft.requestId = requestId;
+        return res.json(planDraft);
+    } catch (err) {
+        console.error('[PlanDraft Route Error]:', err.stack || err.message || err);
+        return res.status(500).json({
+            success: false,
+            error: `Plan draft generation error: ${err.message}`,
+            status: 'PLAN_ONLY'
+        });
+    }
+});
+
+// --- PERSONAL CORE V1 ROUTES (Owner-Only Memory, Goals, Continuity) ---
+app.get('/api/personal/overview', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+    try {
+        const overview = await getPersonalOverview(owner.ownerId, pool);
+        return res.json(overview);
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to retrieve personal overview.' });
+    }
+});
+
+app.get('/api/personal/memories', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+    try {
+        const memories = await listExplicitMemories(owner.ownerId, pool);
+        return res.json({ success: true, memories });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to list memories.' });
+    }
+});
+
+app.post('/api/personal/memories', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+    try {
+        const result = await saveExplicitMemory(owner.ownerId, req.body, pool);
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to save memory.' });
+    }
+});
+
+app.delete('/api/personal/memories/:id', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+    try {
+        const result = await deleteExplicitMemory(owner.ownerId, req.params.id, pool);
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to delete memory.' });
+    }
+});
+
+app.get('/api/personal/goals', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+    try {
+        const goals = await listOwnerGoals(owner.ownerId, pool);
+        return res.json({ success: true, goals });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to list goals.' });
+    }
+});
+
+app.post('/api/personal/goals', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+    try {
+        const result = await createOwnerGoal(owner.ownerId, req.body, pool);
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to create goal.' });
+    }
+});
+
+app.patch('/api/personal/goals/:id', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+    try {
+        const result = await updateOwnerGoal(owner.ownerId, req.params.id, req.body, pool);
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to update goal.' });
+    }
+});
+
+app.delete('/api/personal/goals/:id', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+    try {
+        const result = await deleteOwnerGoal(owner.ownerId, req.params.id, pool);
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to delete goal.' });
+    }
+});
+
+// --- TASK LEDGER V1 ROUTES (Owner-Only Bounded Task Queue & Immutable Ledger) ---
+app.get('/api/personal/tasks', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+    try {
+        const tasks = await listPersonalTasks(owner.ownerId, pool);
+        return res.json({ success: true, tasks });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to list personal tasks.' });
+    }
+});
+
+app.post('/api/personal/tasks', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+    try {
+        const result = await createPersonalTask(owner.ownerId, req.body, pool);
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to create personal task.' });
+    }
+});
+
+app.patch('/api/personal/tasks/:taskId/status', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+    try {
+        const result = await updatePersonalTaskStatus(owner.ownerId, req.params.taskId, req.body, pool);
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to update personal task status.' });
+    }
+});
+
+app.get('/api/personal/tasks/:taskId/events', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+    try {
+        const result = await listPersonalTaskEvents(owner.ownerId, req.params.taskId, pool);
+        if (!result.success) {
+            return res.status(404).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to list task events.' });
+    }
+});
+
+// --- CHAT-FIRST TASK MEMORY V0: PROPOSAL CONFIRMATION & DISMISSAL ROUTES ---
+app.post('/api/personal/tasks/confirm-proposal', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+
+    const { proposalId } = req.body || {};
+    if (!proposalId || typeof proposalId !== 'string' || !proposalId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid proposalId is required.' });
+    }
+
+    try {
+        const result = await confirmTaskProposal(owner.ownerId, proposalId.trim(), pool);
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error('[PersonalCore] Task proposal confirmation error:', err.message);
+        return res.status(500).json({ success: false, error: 'Failed to confirm task proposal.' });
+    }
+});
+
+app.post('/api/personal/tasks/dismiss-proposal', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+
+    const { proposalId } = req.body || {};
+    if (!proposalId || typeof proposalId !== 'string' || !proposalId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid proposalId is required.' });
+    }
+
+    try {
+        const result = await dismissTaskProposal(owner.ownerId, proposalId.trim());
+        return res.json(result);
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to dismiss task proposal.' });
+    }
+});
+
+// --- GHOST AGENT V0 ROUTES (Owner-Only Bounded Task Proposal) ---
+app.post('/api/task-agent/propose', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+
+    const { taskId } = req.body || {};
+    if (!taskId || typeof taskId !== 'string' || !taskId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid taskId is required.' });
+    }
+
+    if (isPotentialSecret(taskId)) {
+        return res.status(400).json({ success: false, error: SECRET_REJECTION_MESSAGE });
+    }
+
+    try {
+        const result = await generateTaskProposal(owner.ownerId, taskId.trim(), { dbPool: pool });
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error('[TaskAgent] Proposal generation error:', err.message);
+        return res.status(500).json({ success: false, error: 'Failed to generate task proposal.' });
+    }
+});
+
+app.post('/api/task-agent/feedback', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+
+    const { taskId, proposalId, rating, note } = req.body || {};
+    if (!taskId || typeof taskId !== 'string' || !taskId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid taskId is required.' });
+    }
+    if (!proposalId || typeof proposalId !== 'string' || !proposalId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid proposalId is required.' });
+    }
+    if (!rating || typeof rating !== 'string' || !rating.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid rating is required.' });
+    }
+
+    if (isPotentialSecret(taskId) || (note && isPotentialSecret(note))) {
+        return res.status(400).json({ success: false, error: SECRET_REJECTION_MESSAGE });
+    }
+
+    try {
+        const result = await recordProposalFeedback(owner.ownerId, taskId.trim(), {
+            proposalId: proposalId.trim(),
+            rating: rating.trim(),
+            note: note || ''
+        }, { dbPool: pool });
+
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error('[TaskAgent] Feedback recording error:', err.message);
+        return res.status(500).json({ success: false, error: 'Failed to record proposal feedback.' });
+    }
+});
+
+// --- APPROVAL CONTRACT V1 ROUTES (Owner-Only Preparation Layer for Future Edit/Test Worker) ---
+app.post('/api/approval-contract/draft', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+
+    const { taskId, purpose, proposedFileScope, proposedCommandScope, expiryMinutes } = req.body || {};
+    if (!taskId || typeof taskId !== 'string' || !taskId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid taskId is required.' });
+    }
+
+    if (isPotentialSecret(taskId) || (purpose && isPotentialSecret(purpose))) {
+        return res.status(400).json({ success: false, error: SECRET_REJECTION_MESSAGE });
+    }
+
+    try {
+        const result = await draftApprovalContract(owner.ownerId, taskId.trim(), {
+            purpose,
+            proposedFileScope,
+            proposedCommandScope,
+            expiryMinutes
+        }, { dbPool: pool });
+
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error('[ApprovalContract] Draft error:', err.message);
+        return res.status(500).json({ success: false, error: 'Failed to draft approval contract.' });
+    }
+});
+
+app.get('/api/approval-contract/task/:taskId', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+
+    const { taskId } = req.params;
+    if (!taskId || typeof taskId !== 'string' || !taskId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid taskId is required.' });
+    }
+
+    try {
+        const result = await getApprovalContractForTask(owner.ownerId, taskId.trim(), { dbPool: pool });
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error('[ApprovalContract] Fetch error:', err.message);
+        return res.status(500).json({ success: false, error: 'Failed to fetch approval contract.' });
+    }
+});
+
+app.post('/api/approval-contract/:contractId/review', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+
+    const { contractId } = req.params;
+    if (!contractId || typeof contractId !== 'string' || !contractId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid contractId is required.' });
+    }
+
+    try {
+        const result = await reviewApprovalContract(owner.ownerId, contractId.trim(), { dbPool: pool });
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error('[ApprovalContract] Review error:', err.message);
+        return res.status(500).json({ success: false, error: 'Failed to review approval contract.' });
+    }
+});
+
+app.post('/api/approval-contract/:contractId/cancel', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+
+    const { contractId } = req.params;
+    if (!contractId || typeof contractId !== 'string' || !contractId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid contractId is required.' });
+    }
+
+    try {
+        const result = await cancelApprovalContract(owner.ownerId, contractId.trim(), { dbPool: pool });
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error('[ApprovalContract] Cancel error:', err.message);
+        return res.status(500).json({ success: false, error: 'Failed to cancel approval contract.' });
+    }
+});
+
+// --- APPROVAL-GATED TEST WORKER V0 ROUTES (Owner-Only Execution for Reviewed Contracts) ---
+app.post('/api/approval-test-runs/:contractId/start', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+
+    const { contractId } = req.params;
+    if (!contractId || typeof contractId !== 'string' || !contractId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid contractId is required.' });
+    }
+
+    try {
+        const result = await startApprovedTestRun(owner.ownerId, contractId.trim(), { dbPool: pool });
+        if (!result.success) {
+            const statusCode = result.conflict ? 409 : (result.forbidden ? 403 : 400);
+            return res.status(statusCode).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error('[ApprovalTestWorker] Start error:', err.message);
+        return res.status(500).json({ success: false, error: 'Failed to start approved test run.' });
+    }
+});
+
+app.get('/api/approval-test-runs/:runId', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+
+    const { runId } = req.params;
+    if (!runId || typeof runId !== 'string' || !runId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid runId is required.' });
+    }
+
+    try {
+        const result = await getApprovedTestRun(owner.ownerId, runId.trim(), { dbPool: pool });
+        if (!result.success) {
+            return res.status(404).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error('[ApprovalTestWorker] Fetch error:', err.message);
+        return res.status(500).json({ success: false, error: 'Failed to fetch test run evidence.' });
+    }
+});
+
+app.get('/api/approval-test-runs/contract/:contractId/latest', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+
+    const { contractId } = req.params;
+    if (!contractId || typeof contractId !== 'string' || !contractId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid contractId is required.' });
+    }
+
+    try {
+        const result = await getLatestTestRunForContract(owner.ownerId, contractId.trim(), { dbPool: pool });
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error('[ApprovalTestWorker] Fetch latest error:', err.message);
+        return res.status(500).json({ success: false, error: 'Failed to fetch latest test run for contract.' });
+    }
+});
+
+app.post('/api/approval-test-runs/:runId/cancel', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+
+    const { runId } = req.params;
+    if (!runId || typeof runId !== 'string' || !runId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid runId is required.' });
+    }
+
+    try {
+        const result = await cancelApprovedTestRun(owner.ownerId, runId.trim(), { dbPool: pool });
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error('[ApprovalTestWorker] Cancel error:', err.message);
+        return res.status(500).json({ success: false, error: 'Failed to cancel test run.' });
+    }
+});
+
+// --- PATCH DRAFT/REVIEW V1 ROUTES (Owner-Only Non-Writing Proposal & Review Layer) ---
+app.post('/api/patch-draft/propose', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+
+    const { taskId, targetPath, proposedAfterContent, expiryMinutes } = req.body || {};
+    if (!taskId || typeof taskId !== 'string' || !taskId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid taskId is required.' });
+    }
+
+    if (isPotentialSecret(taskId) || (targetPath && isPotentialSecret(targetPath))) {
+        return res.status(400).json({ success: false, error: SECRET_REJECTION_MESSAGE });
+    }
+
+    try {
+        const result = await proposePatchDraft(owner.ownerId, taskId.trim(), {
+            targetPath,
+            proposedAfterContent,
+            expiryMinutes
+        }, { dbPool: pool });
+
+        if (!result.success) {
+            const statusCode = result.reasonCode === 'SECRET_DETECTED' ? 400 : (result.reasonCode === 'PATH_TRAVERSAL_REJECTED' || result.reasonCode === 'PROTECTED_PATH_REJECTED' ? 403 : 400);
+            return res.status(statusCode).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error('[PatchDraftWorker] Propose error:', err.message);
+        return res.status(500).json({ success: false, error: 'Failed to propose patch draft.' });
+    }
+});
+
+app.get('/api/patch-draft/task/:taskId', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+
+    const { taskId } = req.params;
+    if (!taskId || typeof taskId !== 'string' || !taskId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid taskId is required.' });
+    }
+
+    try {
+        const result = await getPatchDraftForTask(owner.ownerId, taskId.trim(), { dbPool: pool });
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error('[PatchDraftWorker] Fetch error:', err.message);
+        return res.status(500).json({ success: false, error: 'Failed to fetch patch draft.' });
+    }
+});
+
+app.get('/api/patch-draft/:draftId', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+
+    const { draftId } = req.params;
+    if (!draftId || typeof draftId !== 'string' || !draftId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid draftId is required.' });
+    }
+
+    try {
+        const result = await getPatchDraftById(owner.ownerId, draftId.trim(), { dbPool: pool });
+        if (!result.success) {
+            return res.status(404).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error('[PatchDraftWorker] Fetch error:', err.message);
+        return res.status(500).json({ success: false, error: 'Failed to fetch patch draft.' });
+    }
+});
+
+app.post('/api/patch-draft/:draftId/review', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+
+    const { draftId } = req.params;
+    if (!draftId || typeof draftId !== 'string' || !draftId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid draftId is required.' });
+    }
+
+    const { proposedAfterContent } = req.body || {};
+
+    try {
+        const result = await reviewPatchDraft(owner.ownerId, draftId.trim(), { proposedAfterContent }, { dbPool: pool });
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error('[PatchDraftWorker] Review error:', err.message);
+        return res.status(500).json({ success: false, error: 'Failed to review patch draft.' });
+    }
+});
+
+app.post('/api/patch-draft/:draftId/cancel', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+
+    const { draftId } = req.params;
+    if (!draftId || typeof draftId !== 'string' || !draftId.trim()) {
+        return res.status(400).json({ success: false, error: 'Valid draftId is required.' });
+    }
+
+    try {
+        const result = await cancelPatchDraft(owner.ownerId, draftId.trim(), { dbPool: pool });
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error('[PatchDraftWorker] Cancel error:', err.message);
+        return res.status(500).json({ success: false, error: 'Failed to cancel patch draft.' });
+    }
+});
+
+// --- AI NEWS V1 ROUTE (Owner-Only On-Demand Google News RSS) ---
+app.get('/api/ai-news', async (req, res) => {
+    const owner = authenticateOwner(req);
+    if (!owner || !owner.isOwner) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Owner clearance required.' });
+    }
+    try {
+        const result = await fetchAiNews();
+        if (!result.success) {
+            return res.status(502).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error('[AINews] Fetch error:', err.message);
+        return res.status(500).json({ success: false, error: 'Failed to fetch AI news.' });
+    }
+});
+
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 
 const PORT = process.env.PORT || 3000;
@@ -2717,6 +4641,7 @@ Promise.all([
     initGoogleAuthTable(pool).catch(err => console.error('[Google Auth Init Warn]:', err.message)),
     initTraceTable(pool).catch(err => console.error('[Trace Store Init Warn]:', err.message)),
     initPersistenceTables(pool).catch(err => console.error('[Persistence Init Warn]:', err.message)),
+    initPersonalTaskTables(pool).catch(err => console.error('[Personal Tasks Init Warn]:', err.message)),
     loadPlugins().catch(err => console.error('[Plugins Load Warn]:', err.message))
 ]).then(() => {
     startAutoLearning(ghostLearn, pool);

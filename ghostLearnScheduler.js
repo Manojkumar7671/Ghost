@@ -25,6 +25,7 @@ export function startAutoLearning(ghostLearnFn, pool) {
                     message: 'auto-review',
                     actionTaken: 'auto_learn_cycle'
                 });
+                await new Promise(resolve => setTimeout(resolve, 50)); // Explicitly yield to event loop
             }
 
             console.log('[ghostLearn] auto-run complete.', rows.length, 'users reviewed.');

@@ -23660,3 +23660,1199 @@
 2026-08-01 15:15:05: (Use `node --trace-deprecation ...` to show where the warning was created)
 2026-08-01 15:15:08: (node:62288) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
 2026-08-01 15:15:08: (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-08-14 14:13:54: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:13:55: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:13:55: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:13:55: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:13:56: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:13:57: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:13:57: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:13:58: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:13:58: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:13:59: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:00: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:00: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:01: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:02: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:02: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:03: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:04: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:14:05: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:05: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:06: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:06: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:07: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:08: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:08: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:09: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:10: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:10: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:11: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:11: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:12: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:13: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:13: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:14: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:15: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:15: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:16: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:16: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:17: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:18: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:18: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:19: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:20: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:20: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:21: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:21: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:22: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:23: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:23: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:24: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:25: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:25: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:26: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:26: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:27: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:28: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:28: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:29: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:30: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:30: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:31: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:31: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:32: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:33: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:33: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:34: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:35: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:35: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:36: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:36: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:37: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:38: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:38: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:39: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:40: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:40: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:41: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:41: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:42: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:43: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:43: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:44: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:45: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:45: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:46: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:46: [DesktopOverlay] Native screenshot failed: Capture already in progress
+2026-08-14 14:14:48: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:15:29: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:15:45: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:15:52: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:15:54: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:16:16: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:18:53: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:19:44: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:19:55: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:19:59: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:20:07: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:20:25: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:21:04: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:21:13: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:21:17: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:21:24: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:21:28: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:21:32: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED ::1:3099, connect ECONNREFUSED 127.0.0.1:3099. Skipping MCP tools.
+2026-08-14 14:21:32: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 31ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-14 14:21:33: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED ::1:3099, connect ECONNREFUSED 127.0.0.1:3099. Skipping MCP tools.
+2026-08-14 14:21:33: [MCP Client] Error calling tool "undefined": MCP server connection unavailable.
+2026-08-14 14:21:33: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 4ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-14 14:21:34: [Memory] Turbovec index sync warning: turbovec: id 1 already present in index
+2026-08-14 14:21:34: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED ::1:3099, connect ECONNREFUSED 127.0.0.1:3099. Skipping MCP tools.
+2026-08-14 14:21:34: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 3ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-14 14:21:34: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 4ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-14 14:21:35: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 3ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-14 14:21:35: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-14 14:21:35: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 6ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-14 14:21:36: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-14 14:21:37: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:23:01: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:23:05: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED ::1:3099, connect ECONNREFUSED 127.0.0.1:3099. Skipping MCP tools.
+2026-08-14 14:23:05: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 2ms (fetch failed). Trying next provider...
+2026-08-14 14:23:06: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED ::1:3099, connect ECONNREFUSED 127.0.0.1:3099. Skipping MCP tools.
+2026-08-14 14:23:06: [MCP Client] Error calling tool "undefined": MCP server connection unavailable.
+2026-08-14 14:23:06: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 1ms (fetch failed). Trying next provider...
+2026-08-14 14:23:06: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED ::1:3099, connect ECONNREFUSED 127.0.0.1:3099. Skipping MCP tools.
+2026-08-14 14:23:06: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 1ms (fetch failed). Trying next provider...
+2026-08-14 14:23:07: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 2ms (fetch failed). Trying next provider...
+2026-08-14 14:23:07: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 2ms (fetch failed). Trying next provider...
+2026-08-14 14:23:07: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 1ms (fetch failed). Trying next provider...
+2026-08-14 14:23:07: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 2ms (fetch failed). Trying next provider...
+2026-08-14 14:23:08: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 1ms (fetch failed). Trying next provider...
+2026-08-14 14:23:08: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 1ms (fetch failed). Trying next provider...
+2026-08-14 14:23:09: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 2ms (fetch failed). Trying next provider...
+2026-08-14 14:23:09: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 2ms (fetch failed). Trying next provider...
+2026-08-14 14:23:09: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 2ms (fetch failed). Trying next provider...
+2026-08-14 14:23:09: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 2ms (fetch failed). Trying next provider...
+2026-08-14 14:23:11: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 1ms (fetch failed). Trying next provider...
+2026-08-14 14:23:13: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:24:02: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:24:12: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:24:19: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 14:24:23: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED ::1:3099, connect ECONNREFUSED 127.0.0.1:3099. Skipping MCP tools.
+2026-08-14 14:24:23: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 2ms (fetch failed). Trying next provider...
+2026-08-14 14:24:24: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED ::1:3099, connect ECONNREFUSED 127.0.0.1:3099. Skipping MCP tools.
+2026-08-14 14:24:24: [MCP Client] Error calling tool "undefined": MCP server connection unavailable.
+2026-08-14 14:24:24: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 2ms (fetch failed). Trying next provider...
+2026-08-14 14:24:24: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED ::1:3099, connect ECONNREFUSED 127.0.0.1:3099. Skipping MCP tools.
+2026-08-14 14:24:24: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 2ms (fetch failed). Trying next provider...
+2026-08-14 14:24:25: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 3ms (fetch failed). Trying next provider...
+2026-08-14 14:24:25: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 3ms (fetch failed). Trying next provider...
+2026-08-14 14:24:25: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 3ms (fetch failed). Trying next provider...
+2026-08-14 14:24:26: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 3ms (fetch failed). Trying next provider...
+2026-08-14 14:24:26: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 3ms (fetch failed). Trying next provider...
+2026-08-14 14:24:26: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 4ms (fetch failed). Trying next provider...
+2026-08-14 14:24:27: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 4ms (fetch failed). Trying next provider...
+2026-08-14 14:24:27: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 3ms (fetch failed). Trying next provider...
+2026-08-14 14:24:28: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 2ms (fetch failed). Trying next provider...
+2026-08-14 14:24:32: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 4ms (fetch failed). Trying next provider...
+2026-08-14 14:24:32: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 3ms (fetch failed). Trying next provider...
+2026-08-14 14:24:32: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 4ms (fetch failed). Trying next provider...
+2026-08-14 14:24:33: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (fetch failed). Trying next provider...
+2026-08-14 14:24:34: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 4ms (fetch failed). Trying next provider...
+2026-08-14 14:25:43: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-14 15:00:54: [2026-08-14T09:30:54.415Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Fri Aug 14 2026 15:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-14 15:00:54: [Watchdog] [2026-08-14T09:30:54.614Z] WARN: Event loop blocked for 554932ms.
+2026-08-14 16:47:58: [Watchdog] [2026-08-14T11:17:58.419Z] WARN: Event loop blocked for 291788ms.
+2026-08-14 17:03:40: [Watchdog] [2026-08-14T11:33:40.405Z] WARN: Event loop blocked for 189483ms.
+2026-08-14 18:29:06: [Watchdog] [2026-08-14T12:59:06.439Z] WARN: Event loop blocked for 929853ms.
+2026-08-14 18:41:43: [Watchdog] [2026-08-14T13:11:43.295Z] WARN: Event loop blocked for 326651ms.
+2026-08-14 19:50:44: [Watchdog] [2026-08-14T14:20:44.090Z] WARN: Event loop blocked for 1009099ms.
+2026-08-14 20:05:48: [Watchdog] [2026-08-14T14:35:48.956Z] WARN: Event loop blocked for 900867ms.
+2026-08-14 20:05:48: [2026-08-14T14:35:48.959Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Fri Aug 14 2026 20:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-14 20:20:54: [Watchdog] [2026-08-14T14:50:54.836Z] WARN: Event loop blocked for 901877ms.
+2026-08-14 20:36:01: [2026-08-14T15:06:01.634Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Fri Aug 14 2026 20:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-14 20:36:02: [Watchdog] [2026-08-14T15:06:02.694Z] WARN: Event loop blocked for 901860ms.
+2026-08-14 20:38:41: [Watchdog] [2026-08-14T15:08:41.631Z] WARN: Event loop blocked for 154936ms.
+2026-08-14 20:42:44: [Watchdog] [2026-08-14T15:12:44.059Z] WARN: Event loop blocked for 236421ms.
+2026-08-14 20:43:53: [Watchdog] [2026-08-14T15:13:53.222Z] WARN: Event loop blocked for 65158ms.
+2026-08-14 20:58:59: [Watchdog] [2026-08-14T15:28:59.098Z] WARN: Event loop blocked for 901872ms.
+2026-08-14 21:01:05: [2026-08-14T15:31:05.468Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Fri Aug 14 2026 21:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-14 21:01:06: [Watchdog] [2026-08-14T15:31:06.243Z] WARN: Event loop blocked for 107114ms.
+2026-08-14 21:16:12: [Watchdog] [2026-08-14T15:46:12.131Z] WARN: Event loop blocked for 901884ms.
+2026-08-14 21:21:01: [Watchdog] [2026-08-14T15:51:01.440Z] WARN: Event loop blocked for 281309ms.
+2026-08-14 21:36:03: [Watchdog] [2026-08-14T16:06:03.242Z] WARN: Event loop blocked for 73371ms.
+2026-08-14 21:52:39: [Watchdog] [2026-08-14T16:22:39.410Z] WARN: Event loop blocked for 115648ms.
+2026-08-14 21:54:23: [Watchdog] [2026-08-14T16:24:23.384Z] WARN: Event loop blocked for 99966ms.
+2026-08-14 22:09:55: [2026-08-14T16:39:55.251Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Fri Aug 14 2026 22:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-14 22:09:55: [Watchdog] [2026-08-14T16:39:55.574Z] WARN: Event loop blocked for 902634ms.
+2026-08-14 22:11:46: [Watchdog] [2026-08-14T16:41:46.065Z] WARN: Event loop blocked for 90465ms.
+2026-08-14 22:13:39: [Watchdog] [2026-08-14T16:43:39.638Z] WARN: Event loop blocked for 103563ms.
+2026-08-14 22:15:49: [Watchdog] [2026-08-14T16:45:49.934Z] WARN: Event loop blocked for 71247ms.
+2026-08-14 23:06:45: [2026-08-14T17:36:45.912Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Fri Aug 14 2026 23:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-14 23:06:47: [Watchdog] [2026-08-14T17:36:47.040Z] WARN: Event loop blocked for 902613ms.
+2026-08-14 23:21:55: [Watchdog] [2026-08-14T17:51:55.711Z] WARN: Event loop blocked for 902662ms.
+2026-08-14 23:37:02: [2026-08-14T18:07:02.902Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Fri Aug 14 2026 23:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-14 23:37:04: [Watchdog] [2026-08-14T18:07:04.254Z] WARN: Event loop blocked for 902542ms.
+2026-08-14 23:52:16: [Watchdog] [2026-08-14T18:22:16.877Z] WARN: Event loop blocked for 902623ms.
+2026-08-15 00:07:37: [2026-08-14T18:37:37.040Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 00:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 00:07:37: [2026-08-14T18:37:37.045Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 00:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 00:07:37: [Watchdog] [2026-08-14T18:37:37.943Z] WARN: Event loop blocked for 901067ms.
+2026-08-15 00:23:01: [Watchdog] [2026-08-14T18:53:01.862Z] WARN: Event loop blocked for 901924ms.
+2026-08-15 00:38:24: [2026-08-14T19:08:24.790Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 00:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 00:38:25: [Watchdog] [2026-08-14T19:08:25.720Z] WARN: Event loop blocked for 901847ms.
+2026-08-15 00:52:39: [Watchdog] [2026-08-14T19:22:39.525Z] WARN: Event loop blocked for 831852ms.
+2026-08-15 01:08:01: [2026-08-14T19:38:01.349Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 01:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 01:08:01: [Watchdog] [2026-08-14T19:38:01.378Z] WARN: Event loop blocked for 901834ms.
+2026-08-15 01:23:25: [Watchdog] [2026-08-14T19:53:25.350Z] WARN: Event loop blocked for 901865ms.
+2026-08-15 01:38:47: [2026-08-14T20:08:47.261Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 01:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 01:38:47: [Watchdog] [2026-08-14T20:08:47.259Z] WARN: Event loop blocked for 901871ms.
+2026-08-15 01:53:38: [Watchdog] [2026-08-14T20:23:38.755Z] WARN: Event loop blocked for 869454ms.
+2026-08-15 02:09:09: [2026-08-14T20:39:09.450Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 02:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 02:09:09: [Watchdog] [2026-08-14T20:39:09.460Z] WARN: Event loop blocked for 908673ms.
+2026-08-15 02:24:17: [Watchdog] [2026-08-14T20:54:17.245Z] WARN: Event loop blocked for 901853ms.
+2026-08-15 02:39:25: [2026-08-14T21:09:25.717Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 02:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 02:39:25: [Watchdog] [2026-08-14T21:09:25.814Z] WARN: Event loop blocked for 902556ms.
+2026-08-15 02:54:34: [Watchdog] [2026-08-14T21:24:34.774Z] WARN: Event loop blocked for 902960ms.
+2026-08-15 03:09:51: [2026-08-14T21:39:51.580Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 03:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 03:09:52: [Watchdog] [2026-08-14T21:39:52.655Z] WARN: Event loop blocked for 901874ms.
+2026-08-15 03:25:03: [Watchdog] [2026-08-14T21:55:03.524Z] WARN: Event loop blocked for 900855ms.
+2026-08-15 03:40:08: [2026-08-14T22:10:08.071Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 03:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 03:40:08: [Watchdog] [2026-08-14T22:10:08.402Z] WARN: Event loop blocked for 900883ms.
+2026-08-15 03:55:21: [Watchdog] [2026-08-14T22:25:21.002Z] WARN: Event loop blocked for 902587ms.
+2026-08-15 04:10:28: [2026-08-14T22:40:28.388Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 04:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 04:10:28: [Watchdog] [2026-08-14T22:40:28.896Z] WARN: Event loop blocked for 901875ms.
+2026-08-15 04:25:39: [Watchdog] [2026-08-14T22:55:39.600Z] WARN: Event loop blocked for 904704ms.
+2026-08-15 04:40:53: [2026-08-14T23:10:53.209Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 04:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 04:40:54: [Watchdog] [2026-08-14T23:10:54.168Z] WARN: Event loop blocked for 902575ms.
+2026-08-15 04:56:04: [Watchdog] [2026-08-14T23:26:04.736Z] WARN: Event loop blocked for 902557ms.
+2026-08-15 05:12:00: [2026-08-14T23:42:00.548Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 05:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 05:12:01: [Watchdog] [2026-08-14T23:42:01.733Z] WARN: Event loop blocked for 902457ms.
+2026-08-15 05:27:08: [Watchdog] [2026-08-14T23:57:08.266Z] WARN: Event loop blocked for 902529ms.
+2026-08-15 05:42:20: [2026-08-15T00:12:20.996Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 05:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 05:42:22: [Watchdog] [2026-08-15T00:12:22.176Z] WARN: Event loop blocked for 901889ms.
+2026-08-15 05:57:04: [Watchdog] [2026-08-15T00:27:04.795Z] WARN: Event loop blocked for 754610ms.
+2026-08-15 06:12:29: [2026-08-15T00:42:29.071Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 06:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 06:12:30: [Watchdog] [2026-08-15T00:42:30.276Z] WARN: Event loop blocked for 903463ms.
+2026-08-15 06:27:54: [Watchdog] [2026-08-15T00:57:54.161Z] WARN: Event loop blocked for 901898ms.
+2026-08-15 06:43:17: [2026-08-15T01:13:17.321Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 06:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 06:43:17: [Watchdog] [2026-08-15T01:13:17.636Z] WARN: Event loop blocked for 903471ms.
+2026-08-15 06:45:40: [Watchdog] [2026-08-15T01:15:40.461Z] WARN: Event loop blocked for 120807ms.
+2026-08-15 06:48:55: [Watchdog] [2026-08-15T01:18:55.051Z] WARN: Event loop blocked for 188583ms.
+2026-08-15 06:50:52: [Watchdog] [2026-08-15T01:20:52.750Z] WARN: Event loop blocked for 111692ms.
+2026-08-15 06:54:57: [Watchdog] [2026-08-15T01:24:57.856Z] WARN: Event loop blocked for 239100ms.
+2026-08-15 06:56:44: [Watchdog] [2026-08-15T01:26:44.135Z] WARN: Event loop blocked for 100273ms.
+2026-08-15 06:58:05: [Watchdog] [2026-08-15T01:28:05.791Z] WARN: Event loop blocked for 71646ms.
+2026-08-15 07:02:01: [2026-08-15T01:32:01.643Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 07:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 07:02:02: [Watchdog] [2026-08-15T01:32:02.750Z] WARN: Event loop blocked for 224947ms.
+2026-08-15 07:05:23: [Watchdog] [2026-08-15T01:35:23.486Z] WARN: Event loop blocked for 194721ms.
+2026-08-15 07:20:33: [Watchdog] [2026-08-15T01:50:33.355Z] WARN: Event loop blocked for 901853ms.
+2026-08-15 07:35:31: [2026-08-15T02:05:31.934Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 07:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 07:35:33: [Watchdog] [2026-08-15T02:05:33.036Z] WARN: Event loop blocked for 871624ms.
+2026-08-15 08:45:47: [Watchdog] [2026-08-15T03:15:47.657Z] WARN: Event loop blocked for 900716ms.
+2026-08-15 08:47:54: [Watchdog] [2026-08-15T03:17:54.347Z] WARN: Event loop blocked for 82644ms.
+2026-08-15 09:15:46: [Watchdog] [2026-08-15T03:45:46.803Z] WARN: Event loop blocked for 901986ms.
+2026-08-15 09:31:10: [2026-08-15T04:01:10.738Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 09:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 09:31:10: [Watchdog] [2026-08-15T04:01:10.746Z] WARN: Event loop blocked for 901928ms.
+2026-08-15 09:46:34: [Watchdog] [2026-08-15T04:16:34.527Z] WARN: Event loop blocked for 901864ms.
+2026-08-15 10:02:02: [2026-08-15T04:32:02.922Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 10:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 10:02:04: [Watchdog] [2026-08-15T04:32:04.390Z] WARN: Event loop blocked for 901844ms.
+2026-08-15 10:17:28: [Watchdog] [2026-08-15T04:47:28.399Z] WARN: Event loop blocked for 901970ms.
+2026-08-15 10:21:34: [Watchdog] [2026-08-15T04:51:34.891Z] WARN: Event loop blocked for 226455ms.
+2026-08-15 10:36:42: [2026-08-15T05:06:42.081Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 10:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 10:36:42: [Watchdog] [2026-08-15T05:06:42.781Z] WARN: Event loop blocked for 901881ms.
+2026-08-15 10:40:18: [Watchdog] [2026-08-15T05:10:18.219Z] WARN: Event loop blocked for 183400ms.
+2026-08-15 10:42:04: [Watchdog] [2026-08-15T05:12:04.943Z] WARN: Event loop blocked for 100717ms.
+2026-08-15 10:43:56: [Watchdog] [2026-08-15T05:13:56.011Z] WARN: Event loop blocked for 105061ms.
+2026-08-15 10:59:04: [Watchdog] [2026-08-15T05:29:04.653Z] WARN: Event loop blocked for 902635ms.
+2026-08-15 11:00:49: [2026-08-15T05:30:49.694Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 11:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 11:00:50: [Watchdog] [2026-08-15T05:30:50.264Z] WARN: Event loop blocked for 85646ms.
+2026-08-15 11:16:02: [Watchdog] [2026-08-15T05:46:02.874Z] WARN: Event loop blocked for 902603ms.
+2026-08-15 11:31:30: [2026-08-15T06:01:30.872Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 11:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 11:31:30: [Watchdog] [2026-08-15T06:01:30.871Z] WARN: Event loop blocked for 901975ms.
+2026-08-15 11:34:21: [Watchdog] [2026-08-15T06:04:21.954Z] WARN: Event loop blocked for 96013ms.
+2026-08-15 11:49:29: [Watchdog] [2026-08-15T06:19:29.855Z] WARN: Event loop blocked for 901891ms.
+2026-08-15 11:51:15: [Watchdog] [2026-08-15T06:21:15.600Z] WARN: Event loop blocked for 85720ms.
+2026-08-15 12:01:49: [Watchdog] [2026-08-15T06:31:49.708Z] WARN: Event loop blocked for 626100ms.
+2026-08-15 12:01:49: [2026-08-15T06:31:49.709Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 12:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 12:11:29: [Watchdog] [2026-08-15T06:41:29.188Z] WARN: Event loop blocked for 559478ms.
+2026-08-15 12:20:22: [Watchdog] [2026-08-15T06:50:22.691Z] WARN: Event loop blocked for 517490ms.
+2026-08-15 12:35:36: [2026-08-15T07:05:36.048Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 12:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 12:35:37: [Watchdog] [2026-08-15T07:05:37.346Z] WARN: Event loop blocked for 902645ms.
+2026-08-15 12:50:50: [Watchdog] [2026-08-15T07:20:50.183Z] WARN: Event loop blocked for 902815ms.
+2026-08-15 12:52:41: [Watchdog] [2026-08-15T07:22:41.077Z] WARN: Event loop blocked for 100953ms.
+2026-08-15 12:54:31: [Watchdog] [2026-08-15T07:24:31.273Z] WARN: Event loop blocked for 94181ms.
+2026-08-15 12:56:21: [Watchdog] [2026-08-15T07:26:21.675Z] WARN: Event loop blocked for 104397ms.
+2026-08-15 12:58:12: [Watchdog] [2026-08-15T07:28:12.313Z] WARN: Event loop blocked for 104636ms.
+2026-08-15 13:00:02: [Watchdog] [2026-08-15T07:30:02.348Z] WARN: Event loop blocked for 100024ms.
+2026-08-15 13:01:51: [Watchdog] [2026-08-15T07:31:51.889Z] WARN: Event loop blocked for 99534ms.
+2026-08-15 13:03:42: [Watchdog] [2026-08-15T07:33:42.232Z] WARN: Event loop blocked for 104337ms.
+2026-08-15 13:05:29: [Watchdog] [2026-08-15T07:35:29.468Z] WARN: Event loop blocked for 103232ms.
+2026-08-15 13:09:01: [Watchdog] [2026-08-15T07:39:01.449Z] WARN: Event loop blocked for 184917ms.
+2026-08-15 13:25:04: [Watchdog] [2026-08-15T07:55:04.004Z] WARN: Event loop blocked for 901861ms.
+2026-08-15 13:40:27: [Watchdog] [2026-08-15T08:10:27.762Z] WARN: Event loop blocked for 903731ms.
+2026-08-15 13:40:27: [2026-08-15T08:10:27.763Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 13:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 13:56:51: [Watchdog] [2026-08-15T08:26:51.284Z] WARN: Event loop blocked for 901849ms.
+2026-08-15 13:58:41: [Watchdog] [2026-08-15T08:28:41.165Z] WARN: Event loop blocked for 87799ms.
+2026-08-15 14:01:31: [2026-08-15T08:31:31.576Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 14:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 14:01:33: [Watchdog] [2026-08-15T08:31:33.314Z] WARN: Event loop blocked for 164144ms.
+2026-08-15 14:02:51: [Watchdog] [2026-08-15T08:32:51.109Z] WARN: Event loop blocked for 73792ms.
+2026-08-15 14:18:01: [Watchdog] [2026-08-15T08:48:01.735Z] WARN: Event loop blocked for 902616ms.
+2026-08-15 14:33:23: [2026-08-15T09:03:23.864Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 14:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 14:33:24: [Watchdog] [2026-08-15T09:03:24.381Z] WARN: Event loop blocked for 902611ms.
+2026-08-15 14:35:11: [Watchdog] [2026-08-15T09:05:11.063Z] WARN: Event loop blocked for 78659ms.
+2026-08-15 14:50:19: [Watchdog] [2026-08-15T09:20:19.580Z] WARN: Event loop blocked for 902513ms.
+2026-08-15 15:03:50: [2026-08-15T09:33:50.831Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 15:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 15:03:52: [Watchdog] [2026-08-15T09:33:52.509Z] WARN: Event loop blocked for 784881ms.
+2026-08-15 15:19:21: [Watchdog] [2026-08-15T09:49:21.128Z] WARN: Event loop blocked for 902590ms.
+2026-08-15 15:22:28: [Watchdog] [2026-08-15T09:52:28.256Z] WARN: Event loop blocked for 159138ms.
+2026-08-15 15:25:42: [Watchdog] [2026-08-15T09:55:42.479Z] WARN: Event loop blocked for 188219ms.
+2026-08-15 15:28:01: [Watchdog] [2026-08-15T09:58:01.752Z] WARN: Event loop blocked for 133269ms.
+2026-08-15 15:29:50: [Watchdog] [2026-08-15T09:59:50.895Z] WARN: Event loop blocked for 101138ms.
+2026-08-15 15:31:43: [ghostLearn] auto-run failed: Connection terminated due to connection timeout
+2026-08-15 15:31:44: [Watchdog] [2026-08-15T10:01:44.549Z] WARN: Event loop blocked for 105646ms.
+2026-08-15 15:46:52: [Watchdog] [2026-08-15T10:16:52.432Z] WARN: Event loop blocked for 901877ms.
+2026-08-15 16:02:14: [2026-08-15T10:32:14.004Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 16:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 16:02:14: [Watchdog] [2026-08-15T10:32:14.308Z] WARN: Event loop blocked for 901860ms.
+2026-08-15 16:04:53: [Watchdog] [2026-08-15T10:34:53.148Z] WARN: Event loop blocked for 136809ms.
+2026-08-15 16:09:14: [Watchdog] [2026-08-15T10:39:14.358Z] WARN: Event loop blocked for 255202ms.
+2026-08-15 16:24:30: [Watchdog] [2026-08-15T10:54:30.235Z] WARN: Event loop blocked for 901864ms.
+2026-08-15 16:26:17: [Watchdog] [2026-08-15T10:56:17.965Z] WARN: Event loop blocked for 79693ms.
+2026-08-15 16:28:27: [Watchdog] [2026-08-15T10:58:27.550Z] WARN: Event loop blocked for 123579ms.
+2026-08-15 16:43:35: [2026-08-15T11:13:35.251Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 16:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 16:43:36: [Watchdog] [2026-08-15T11:13:36.199Z] WARN: Event loop blocked for 902644ms.
+2026-08-15 16:58:59: [Watchdog] [2026-08-15T11:28:59.835Z] WARN: Event loop blocked for 903615ms.
+2026-08-15 17:00:15: [2026-08-15T11:30:15.594Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 17:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 17:05:53: [Watchdog] [2026-08-15T11:35:53.535Z] WARN: Event loop blocked for 326935ms.
+2026-08-15 17:07:39: [Watchdog] [2026-08-15T11:37:39.821Z] WARN: Event loop blocked for 90276ms.
+2026-08-15 17:22:46: [Watchdog] [2026-08-15T11:52:46.462Z] WARN: Event loop blocked for 902637ms.
+2026-08-15 17:24:33: [Watchdog] [2026-08-15T11:54:33.709Z] WARN: Event loop blocked for 77241ms.
+2026-08-15 17:26:19: [Watchdog] [2026-08-15T11:56:19.540Z] WARN: Event loop blocked for 101827ms.
+2026-08-15 17:30:40: [2026-08-15T12:00:40.726Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 17:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 17:30:41: [Watchdog] [2026-08-15T12:00:41.506Z] WARN: Event loop blocked for 255960ms.
+2026-08-15 17:45:50: [Watchdog] [2026-08-15T12:15:50.039Z] WARN: Event loop blocked for 902526ms.
+2026-08-15 18:01:13: [2026-08-15T12:31:13.665Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 18:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 18:01:13: [Watchdog] [2026-08-15T12:31:13.877Z] WARN: Event loop blocked for 901819ms.
+2026-08-15 18:06:54: [Watchdog] [2026-08-15T12:36:54.101Z] WARN: Event loop blocked for 318200ms.
+2026-08-15 18:22:17: [Watchdog] [2026-08-15T12:52:17.733Z] WARN: Event loop blocked for 903610ms.
+2026-08-15 18:37:40: [2026-08-15T13:07:40.324Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 18:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 18:37:41: [Watchdog] [2026-08-15T13:07:41.626Z] WARN: Event loop blocked for 901874ms.
+2026-08-15 18:53:06: [Watchdog] [2026-08-15T13:23:06.128Z] WARN: Event loop blocked for 904486ms.
+2026-08-15 18:56:49: [Watchdog] [2026-08-15T13:26:49.318Z] WARN: Event loop blocked for 201231ms.
+2026-08-15 18:58:33: [Watchdog] [2026-08-15T13:28:33.790Z] WARN: Event loop blocked for 96464ms.
+2026-08-15 19:00:50: [2026-08-15T13:30:50.001Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 19:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 19:00:50: [Watchdog] [2026-08-15T13:30:50.400Z] WARN: Event loop blocked for 126601ms.
+2026-08-15 19:07:54: [Watchdog] [2026-08-15T13:37:54.397Z] WARN: Event loop blocked for 413989ms.
+2026-08-15 19:25:08: [Watchdog] [2026-08-15T13:55:08.151Z] WARN: Event loop blocked for 901871ms.
+2026-08-15 19:40:37: [2026-08-15T14:10:37.693Z] [PID: 36310] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Sat Aug 15 2026 19:30:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.
+2026-08-15 19:40:38: [Watchdog] [2026-08-15T14:10:38.636Z] WARN: Event loop blocked for 902449ms.
+2026-08-15 19:42:21: [Watchdog] [2026-08-15T14:12:21.477Z] WARN: Event loop blocked for 82835ms.
+2026-08-21 12:24:16: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 12:25:53: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED 127.0.0.1:3099, connect ECONNREFUSED ::1:3099. Skipping MCP tools.
+2026-08-21 12:25:53: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 12:25:55: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 12:25:59: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 12:26:00: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 12:26:02: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 12:26:06: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 11ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 12:26:06: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 12:26:08: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 12:26:12: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 12:41:20: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 12:41:35: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED 127.0.0.1:3099, connect ECONNREFUSED ::1:3099. Skipping MCP tools.
+2026-08-21 12:41:35: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 12:41:37: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 12:41:41: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 12:41:42: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 12:41:44: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 12:41:48: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 7ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 12:41:48: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 12:41:50: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 12:41:54: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 12:42:17: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED 127.0.0.1:3099, connect ECONNREFUSED ::1:3099. Skipping MCP tools.
+2026-08-21 12:42:17: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 12:42:19: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 12:42:23: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 12:42:24: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 12:42:26: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 12:42:30: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 12:43:31: [voiceAgent] Groq Whisper transcription failed: Invalid API Key
+2026-08-21 12:43:31: [voiceAgent] NVIDIA NIM audio transcription failed: Request failed with status code 404
+2026-08-21 12:43:34: [voiceAgent] Groq Whisper transcription failed: Invalid API Key
+2026-08-21 12:43:34: [voiceAgent] NVIDIA NIM audio transcription failed: Request failed with status code 404
+2026-08-21 12:43:47: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED 127.0.0.1:3099, connect ECONNREFUSED ::1:3099. Skipping MCP tools.
+2026-08-21 12:43:47: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 12:43:49: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 12:43:53: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 12:43:57: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 12:43:59: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 12:44:03: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 10ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 12:59:28: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 13:00:08: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED 127.0.0.1:3099, connect ECONNREFUSED ::1:3099. Skipping MCP tools.
+2026-08-21 13:00:08: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:00:10: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:00:14: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:00:14: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:00:17: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:00:21: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 11ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:00:21: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:00:23: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:00:27: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 10ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:00:27: [Orchestrator Plan Critique] Critique pass failed, retaining original plan: Expected ':' after property name in JSON at position 46 (line 2 column 45)
+2026-08-21 13:00:27: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:00:29: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:00:33: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 10ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:00:34: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:00:36: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:00:40: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 6ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:00:40: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:00:42: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:00:46: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:00:47: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:00:49: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:00:53: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:00:58: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:01:00: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:01:04: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 6ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:01:04: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:01:06: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:01:10: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 10ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:01:11: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:01:13: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:01:17: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 10ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:01:17: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:01:19: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:01:23: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:01:26: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:01:28: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:01:32: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:01:32: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:01:34: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:01:38: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:01:38: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:01:40: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:01:44: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 6ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:01:45: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:01:47: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:01:51: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:01:52: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:01:54: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:01:56: [voiceAgent] Groq Whisper transcription failed: Invalid API Key
+2026-08-21 13:01:56: [voiceAgent] NVIDIA NIM audio transcription failed: Request failed with status code 404
+2026-08-21 13:01:58: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:08:07: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED 127.0.0.1:3099, connect ECONNREFUSED ::1:3099. Skipping MCP tools.
+2026-08-21 13:08:07: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:08:09: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:08:13: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:08:13: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:08:15: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:08:19: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:08:20: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:08:22: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:08:26: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:08:26: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:08:28: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:08:32: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 6ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:08:32: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:08:34: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:08:38: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:08:39: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:08:41: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:08:45: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 2ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:08:50: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:08:52: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:08:56: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:08:56: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:08:58: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:09:02: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:09:03: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:09:05: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:09:09: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:09:09: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:09:11: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:09:15: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:09:17: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:09:19: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:09:23: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:09:24: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:09:26: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:09:30: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:09:30: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:09:32: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:09:36: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 6ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:09:36: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:09:38: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:09:42: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:09:44: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:09:46: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:09:50: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:18:24: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED 127.0.0.1:3099, connect ECONNREFUSED ::1:3099. Skipping MCP tools.
+2026-08-21 13:18:24: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:18:26: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:18:30: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:18:32: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:18:34: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:18:38: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 7ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:18:38: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:18:40: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:18:44: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED 127.0.0.1:3099, connect ECONNREFUSED ::1:3099. Skipping MCP tools.
+2026-08-21 13:18:44: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:18:44: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:18:44: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:18:46: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:18:46: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:18:50: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:18:50: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:18:52: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:18:53: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:18:54: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:18:55: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:18:58: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:18:59: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED 127.0.0.1:3099, connect ECONNREFUSED ::1:3099. Skipping MCP tools.
+2026-08-21 13:18:59: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:18:59: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 6ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:18:59: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:19:01: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:19:01: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:19:05: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 3ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:19:05: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 6ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:19:07: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:19:07: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:19:09: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:19:09: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:19:13: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 4ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:19:13: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 3ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:19:13: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:19:15: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:19:19: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:19:20: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:19:22: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:19:26: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:19:26: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:19:28: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:19:32: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 7ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:19:34: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:19:36: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:19:40: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 7ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:19:47: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED 127.0.0.1:3099, connect ECONNREFUSED ::1:3099. Skipping MCP tools.
+2026-08-21 13:19:47: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:19:49: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:19:53: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:19:54: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:19:56: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:20:00: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 6ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:20:00: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:20:02: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:20:06: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 7ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:20:08: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:20:08: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED 127.0.0.1:3099, connect ECONNREFUSED ::1:3099. Skipping MCP tools.
+2026-08-21 13:20:08: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:20:10: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:20:10: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:20:14: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 7ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:20:14: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 2ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:20:14: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:20:15: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:20:16: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:20:17: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:20:20: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 7ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:20:20: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:20:21: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 6ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:20:22: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:20:22: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED 127.0.0.1:3099, connect ECONNREFUSED ::1:3099. Skipping MCP tools.
+2026-08-21 13:20:22: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:20:24: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:20:26: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 6ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:20:27: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:20:28: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 6ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:20:29: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:20:31: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:20:33: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:20:33: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 7ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:20:36: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:20:37: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 6ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:20:38: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:20:42: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 10ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:20:42: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:20:44: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:20:48: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:20:48: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:20:50: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:20:54: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:20:55: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:20:57: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:21:01: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:21:03: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:21:05: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:21:09: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:29:51: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED 127.0.0.1:3099, connect ECONNREFUSED ::1:3099. Skipping MCP tools.
+2026-08-21 13:29:51: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:29:53: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:29:57: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:29:59: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:30:01: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:30:05: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:33:19: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED 127.0.0.1:3099, connect ECONNREFUSED ::1:3099. Skipping MCP tools.
+2026-08-21 13:33:19: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:33:21: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:33:25: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 7ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:33:31: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:33:33: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:33:37: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 10ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:34:07: [voiceAgent] Groq Whisper transcription failed: Invalid API Key
+2026-08-21 13:34:07: [voiceAgent] NVIDIA NIM audio transcription failed: Request failed with status code 404
+2026-08-21 13:40:21: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED 127.0.0.1:3099, connect ECONNREFUSED ::1:3099. Skipping MCP tools.
+2026-08-21 13:40:21: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:40:23: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:40:27: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:40:33: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:40:35: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:40:39: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 4ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:40:42: [MCP Client] Failed to connect to MCP server (http://localhost:3099/sse): SSE error: TypeError: fetch failed: connect ECONNREFUSED 127.0.0.1:3099, connect ECONNREFUSED ::1:3099. Skipping MCP tools.
+2026-08-21 13:40:42: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:40:44: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:40:48: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 4ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:40:51: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:40:53: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:40:57: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:46:25: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 13:46:52: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:46:54: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:46:58: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 13:47:05: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 13:47:07: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 13:47:11: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 14:14:35: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 14:23:40: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 14:27:46: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 14:27:48: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 14:27:52: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 11ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 14:28:13: [voiceAgent] Groq Whisper transcription failed: Invalid API Key
+2026-08-21 14:28:13: [voiceAgent] NVIDIA NIM audio transcription failed: Request failed with status code 404
+2026-08-21 15:01:08: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 15:01:54: [voiceAgent] Groq Whisper transcription failed: Invalid API Key
+2026-08-21 15:01:54: [voiceAgent] NVIDIA NIM audio transcription failed: Request failed with status code 404
+2026-08-21 15:05:26: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 15:07:27: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 15:12:13: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 15:30:12: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 15:30:34: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:30:36: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:30:40: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 10ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 15:30:41: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:30:43: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:30:47: [LLM Router Timing] Provider Groq failed in 83ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 15:31:29: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:31:31: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:31:35: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 7ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 15:31:35: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:31:37: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:31:41: [LLM Router Timing] Provider Groq failed in 93ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 15:32:49: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:32:51: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:32:55: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 15:32:56: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:32:58: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:33:02: [LLM Router Timing] Provider Groq failed in 90ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 15:33:41: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 15:33:47: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:33:49: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:33:53: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 11ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 15:33:53: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:33:55: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:33:59: [LLM Router Timing] Provider Groq failed in 84ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 15:34:02: [PlanDraft Route Error]: TypeError: f.toLowerCase is not a function
+2026-08-21 15:34:02:     at file:///Users/manojkumarmathangi/Ghost/services/planDiffWorker.js:152:65
+2026-08-21 15:34:02:     at Array.map (<anonymous>)
+2026-08-21 15:34:02:     at generatePlanDraft (file:///Users/manojkumarmathangi/Ghost/services/planDiffWorker.js:152:54)
+2026-08-21 15:34:02:     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+2026-08-21 15:34:02:     at async file:///Users/manojkumarmathangi/Ghost/server.js:2769:27
+2026-08-21 15:34:29: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 15:34:35: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:34:37: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:34:41: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 15:34:41: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:34:43: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:34:47: [LLM Router Timing] Provider Groq failed in 82ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 15:34:51: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:34:53: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:34:57: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 3ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 15:34:57: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:34:59: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:35:04: [LLM Router Timing] Provider Groq failed in 85ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 15:42:16: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:42:18: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:42:22: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 15:42:22: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:42:24: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:42:28: [LLM Router Timing] Provider Groq failed in 88ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 15:45:07: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:45:09: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:45:13: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 3ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 15:45:13: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:45:15: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:45:20: [LLM Router Timing] Provider Groq failed in 88ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 15:45:22: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:45:24: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:45:28: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 4ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 15:45:28: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:45:30: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:45:34: [LLM Router Timing] Provider Groq failed in 114ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 15:45:35: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:45:37: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:45:41: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 15:45:41: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:45:43: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:45:47: [LLM Router Timing] Provider Groq failed in 87ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 15:45:52: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:45:54: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:45:58: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 7ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 15:45:58: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:46:00: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:46:04: [LLM Router Timing] Provider Groq failed in 101ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 15:46:09: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:46:11: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:46:15: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 15:46:15: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 15:46:17: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 15:46:21: [LLM Router Timing] Provider Groq failed in 107ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 15:53:56: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 16:02:02: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:02:04: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:02:06: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:02:08: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:02:08: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:02:08: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:02:10: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:02:12: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:02:12: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:02:14: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:02:15: [LLM Router Timing] Provider Groq failed in 47ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:02:18: [LLM Router Timing] Provider Groq failed in 50ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:02:18: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:02:20: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:02:24: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 6ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:02:25: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:02:27: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:02:31: [LLM Router Timing] Provider Groq failed in 80ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:02:33: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:02:35: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:02:39: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:02:39: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:02:41: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:02:45: [LLM Router Timing] Provider Groq failed in 87ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:02:48: [Security Vet] MEDIUM RISK WARNING: Skill file SKILL.md contains sensitive pattern: /process\.env|token|secret|key|password|auth|cookie/i. Loaded with caution.
+2026-08-21 16:02:48: [Security Vet] MEDIUM RISK WARNING: Skill file SKILL.md contains sensitive pattern: /process\.env|token|secret|key|password|auth|cookie/i. Loaded with caution.
+2026-08-21 16:02:48: [Security Vet] MEDIUM RISK WARNING: Skill file SKILL.md contains sensitive pattern: /process\.env|token|secret|key|password|auth|cookie/i. Loaded with caution.
+2026-08-21 16:02:48: [Security Vet] MEDIUM RISK WARNING: Skill file SKILL.md contains sensitive pattern: /process\.env|token|secret|key|password|auth|cookie/i. Loaded with caution.
+2026-08-21 16:02:48: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:02:50: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:02:54: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:02:54: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:02:56: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:03:00: [LLM Router Timing] Provider Groq failed in 108ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:03:02: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:03:04: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:03:08: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:03:08: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:03:10: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:03:14: [LLM Router Timing] Provider Groq failed in 98ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:03:16: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:03:18: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:03:22: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 7ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:03:22: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:03:24: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:03:28: [LLM Router Timing] Provider Groq failed in 84ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:03:30: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:03:32: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:03:36: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:03:36: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:03:38: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:03:42: [LLM Router Timing] Provider Groq failed in 106ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:03:44: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:03:46: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:03:50: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 7ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:03:50: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:03:52: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:03:57: [LLM Router Timing] Provider Groq failed in 122ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:03:59: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:04:01: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:04:05: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:04:05: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:04:07: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:04:11: [LLM Router Timing] Provider Groq failed in 91ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:04:15: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:04:17: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:04:21: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:04:21: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:04:24: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:04:28: [LLM Router Timing] Provider Groq failed in 83ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:04:29: [Intent Planner Retry] Step "Implement visible task queue system for user to view and manage tasks" attempt 1 exception: [SYSTEM OVERRIDE]: Tool 'web_scrape' is disabled in local mode. Action blocked.
+2026-08-21 16:04:29: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:04:31: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:04:35: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:04:35: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:04:37: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:04:41: [LLM Router Timing] Provider Groq failed in 85ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:04:44: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:04:46: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:04:50: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 2ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:04:50: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:04:52: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:04:56: [LLM Router Timing] Provider Groq failed in 86ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:04:57: [Intent Planner Retry] Step "Implement Mac-control session framework" attempt 1 exception: [SYSTEM OVERRIDE]: Tool 'web_scrape' is disabled in local mode. Action blocked.
+2026-08-21 16:04:57: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:04:59: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:05:03: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:05:03: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:05:05: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:05:09: [LLM Router Timing] Provider Groq failed in 87ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:05:12: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:05:14: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:05:18: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 3ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:05:18: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:05:20: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:05:24: [LLM Router Timing] Provider Groq failed in 73ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:05:25: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:05:27: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:05:31: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:05:31: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:05:33: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:05:37: [LLM Router Timing] Provider Groq failed in 84ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:05:38: [Verify Stage] Retry failed for step "Implement visible task queue system for user to view and manage tasks": [SYSTEM OVERRIDE]: Tool 'web_scrape' is disabled in local mode. Action blocked.
+2026-08-21 16:05:38: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:05:40: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:05:44: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:05:44: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:05:46: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:05:50: [LLM Router Timing] Provider Groq failed in 104ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:08:16: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 16:08:35: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:08:37: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:08:41: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 12ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:08:41: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:08:43: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:08:47: [LLM Router Timing] Provider Groq failed in 84ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:08:55: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:08:57: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:09:01: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 10ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:09:01: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:09:03: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:09:07: [LLM Router Timing] Provider Groq failed in 84ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:09:17: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:09:19: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:09:23: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 10ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:09:23: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:09:25: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:09:29: [LLM Router Timing] Provider Groq failed in 112ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:10:21: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:10:23: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:10:27: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:10:27: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:10:29: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:10:33: [LLM Router Timing] Provider Groq failed in 82ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:10:41: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:10:43: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:10:47: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:10:47: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:10:49: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:10:53: [LLM Router Timing] Provider Groq failed in 87ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:10:57: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:10:59: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:11:03: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:11:03: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:11:05: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:11:09: [LLM Router Timing] Provider Groq failed in 102ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:11:40: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:11:42: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:11:46: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:11:46: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:11:48: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:11:52: [LLM Router Timing] Provider Groq failed in 89ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:12:14: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:12:16: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:12:20: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:12:20: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:12:22: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:12:26: [LLM Router Timing] Provider Groq failed in 89ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:12:35: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:12:37: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:12:41: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:12:41: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:12:44: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:12:48: [LLM Router Timing] Provider Groq failed in 98ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:12:51: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:12:53: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:12:57: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 6ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:12:57: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:12:59: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:13:03: [LLM Router Timing] Provider Groq failed in 93ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:14:50: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:14:52: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:14:56: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 7ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:14:56: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:14:59: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:15:03: [LLM Router Timing] Provider Groq failed in 86ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:16:01: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:16:03: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:16:07: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 7ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:16:07: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:16:09: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:16:14: [LLM Router Timing] Provider Groq failed in 89ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:16:22: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:16:24: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:16:28: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:16:28: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:16:30: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:16:34: [LLM Router Timing] Provider Groq failed in 84ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:24:18: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:24:20: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:24:24: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:24:24: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:24:26: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:24:30: [LLM Router Timing] Provider Groq failed in 80ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:24:30: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:24:32: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:24:37: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:24:37: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:24:39: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:24:43: [LLM Router Timing] Provider Groq failed in 103ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:24:46: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:24:48: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:24:52: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 7ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:24:52: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:24:54: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:24:58: [LLM Router Timing] Provider Groq failed in 104ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:24:59: [Security Vet] MEDIUM RISK WARNING: Skill file SKILL.md contains sensitive pattern: /process\.env|token|secret|key|password|auth|cookie/i. Loaded with caution.
+2026-08-21 16:24:59: [Security Vet] MEDIUM RISK WARNING: Skill file SKILL.md contains sensitive pattern: /process\.env|token|secret|key|password|auth|cookie/i. Loaded with caution.
+2026-08-21 16:24:59: [Security Vet] MEDIUM RISK WARNING: Skill file SKILL.md contains sensitive pattern: /process\.env|token|secret|key|password|auth|cookie/i. Loaded with caution.
+2026-08-21 16:24:59: [Security Vet] MEDIUM RISK WARNING: Skill file SKILL.md contains sensitive pattern: /process\.env|token|secret|key|password|auth|cookie/i. Loaded with caution.
+2026-08-21 16:24:59: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:25:01: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:25:04: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:25:05: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:25:05: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:25:06: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:25:07: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:25:10: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:25:10: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:25:12: [LLM Router Timing] Provider Groq failed in 55ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:25:12: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:25:12: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:25:14: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:25:17: [LLM Router Timing] Provider Groq failed in 91ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:25:17: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:25:18: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:25:18: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:25:19: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:25:20: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:25:23: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:25:23: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:25:24: [LLM Router Timing] Provider Groq failed in 44ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:25:26: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:25:27: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:25:29: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:25:30: [LLM Router Timing] Provider Groq failed in 305ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:25:33: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:25:33: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:25:33: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:25:35: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:25:35: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:25:39: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:25:39: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:25:39: [LLM Router Timing] Provider Groq failed in 50ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:25:41: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:25:41: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:25:43: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:25:45: [LLM Router Timing] Provider Groq failed in 89ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:25:46: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:25:47: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 7ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:25:47: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:25:48: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:25:49: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:25:52: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:25:52: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:25:53: [LLM Router Timing] Provider Groq failed in 49ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:25:54: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:25:54: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:25:56: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:25:59: [LLM Router Timing] Provider Groq failed in 91ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:25:59: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:26:00: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:26:00: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:26:01: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:26:02: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:26:05: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:26:05: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:26:06: [LLM Router Timing] Provider Groq failed in 47ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:26:07: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:26:08: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:26:10: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:26:11: [LLM Router Timing] Provider Groq failed in 103ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:26:13: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:26:14: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:26:14: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:26:15: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:26:16: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:26:19: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:26:19: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:26:20: [LLM Router Timing] Provider Groq failed in 44ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:26:21: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:26:22: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:26:23: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:26:26: [LLM Router Timing] Provider Groq failed in 89ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:26:27: [Intent Planner Retry] Step "Integrate the Mac-control Session Framework with the existing system, ensuring seamless remote control and management of Mac devices." attempt 1 exception: [SYSTEM OVERRIDE]: Tool 'workspace_run_command' is disabled in local mode. Action blocked.
+2026-08-21 16:26:27: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:26:27: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 6ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:26:27: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:26:29: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:26:29: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:26:33: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:26:33: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:26:33: [LLM Router Timing] Provider Groq failed in 57ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:26:35: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:26:39: [LLM Router Timing] Provider Groq failed in 79ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:26:42: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:26:44: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:26:48: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:26:48: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:26:50: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:26:54: [LLM Router Timing] Provider Groq failed in 86ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:26:56: [Intent Planner Retry] Step "Test and refine the security and control mechanisms for approval-gated edit/test work, ensuring secure and controlled testing and deployment." attempt 1 exception: [SYSTEM OVERRIDE]: Tool 'workspace_run_command' is disabled in local mode. Action blocked.
+2026-08-21 16:26:57: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:26:59: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:27:03: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:27:03: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:27:05: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:27:09: [LLM Router Timing] Provider Groq failed in 102ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:27:12: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:27:14: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:27:18: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:27:18: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:27:20: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:27:24: [LLM Router Timing] Provider Groq failed in 113ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:27:25: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:27:27: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:27:31: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:27:31: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:27:33: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:27:37: [LLM Router Timing] Provider Groq failed in 77ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:27:39: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:27:42: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 16:37:59: [Watchdog] [2026-08-21T11:07:59.866Z] WARN: Event loop blocked for 271942ms.
+2026-08-21 16:47:42: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:47:44: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:47:48: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:47:48: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:47:50: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:47:55: [LLM Router Timing] Provider Groq failed in 82ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:47:55: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:47:57: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:48:01: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 3ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:48:01: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:48:03: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:48:08: [LLM Router Timing] Provider Groq failed in 105ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:48:11: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:48:13: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:48:17: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:48:17: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:48:19: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:48:23: [LLM Router Timing] Provider Groq failed in 102ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:48:24: [Security Vet] MEDIUM RISK WARNING: Skill file SKILL.md contains sensitive pattern: /process\.env|token|secret|key|password|auth|cookie/i. Loaded with caution.
+2026-08-21 16:48:24: [Security Vet] MEDIUM RISK WARNING: Skill file SKILL.md contains sensitive pattern: /process\.env|token|secret|key|password|auth|cookie/i. Loaded with caution.
+2026-08-21 16:48:24: [Security Vet] MEDIUM RISK WARNING: Skill file SKILL.md contains sensitive pattern: /process\.env|token|secret|key|password|auth|cookie/i. Loaded with caution.
+2026-08-21 16:48:24: [Security Vet] MEDIUM RISK WARNING: Skill file SKILL.md contains sensitive pattern: /process\.env|token|secret|key|password|auth|cookie/i. Loaded with caution.
+2026-08-21 16:48:24: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:48:26: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:48:30: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:48:30: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:48:32: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:48:37: [LLM Router Timing] Provider Groq failed in 83ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:48:37: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:48:39: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:48:43: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:48:43: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:48:45: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:48:49: [LLM Router Timing] Provider Groq failed in 84ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:48:51: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:48:53: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:48:57: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 4ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:48:57: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:48:59: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:49:03: [LLM Router Timing] Provider Groq failed in 89ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:49:06: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:49:08: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:49:12: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 10ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:49:12: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:49:14: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:49:18: [LLM Router Timing] Provider Groq failed in 73ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:49:19: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:49:21: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:49:25: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 10ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:49:25: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:49:27: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:49:31: [LLM Router Timing] Provider Groq failed in 90ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:49:33: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:49:35: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:49:39: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:49:39: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:49:41: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:49:46: [LLM Router Timing] Provider Groq failed in 80ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:49:47: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:49:49: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:49:53: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:49:53: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:49:55: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:49:59: [LLM Router Timing] Provider Groq failed in 83ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:50:00: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:50:02: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:50:06: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 10ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:50:06: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:50:08: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:50:12: [LLM Router Timing] Provider Groq failed in 147ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:51:28: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 16:51:46: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:51:48: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:51:52: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 10ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:51:52: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:51:54: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:51:58: [LLM Router Timing] Provider Groq failed in 87ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:51:59: [Server] brain.think() failed: startTime is not defined
+2026-08-21 16:52:41: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:52:43: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:52:47: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 10ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:52:47: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:52:49: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:52:53: [LLM Router Timing] Provider Groq failed in 86ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:52:55: [Server] brain.think() failed: startTime is not defined
+2026-08-21 16:52:56: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:52:58: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:53:02: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:53:02: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:53:04: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:53:09: [LLM Router Timing] Provider Groq failed in 84ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:53:09: [Server] brain.think() failed: startTime is not defined
+2026-08-21 16:53:10: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:53:12: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:53:16: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:53:16: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:53:18: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:53:22: [LLM Router Timing] Provider Groq failed in 87ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:53:28: [Server] brain.think() failed: startTime is not defined
+2026-08-21 16:53:29: [Server] brain.think() failed: startTime is not defined
+2026-08-21 16:53:52: [TelephonyBridge] Missing Twilio credentials. Telephony subsystem inactive.
+2026-08-21 16:54:01: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:54:03: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:54:07: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:54:07: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:54:09: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:54:13: [LLM Router Timing] Provider Groq failed in 83ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:54:16: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:54:18: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:54:22: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:54:23: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:54:25: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:54:29: [LLM Router Timing] Provider Groq failed in 87ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:54:31: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:54:33: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:54:37: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:54:37: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:54:39: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:54:43: [LLM Router Timing] Provider Groq failed in 98ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:54:47: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:54:49: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:54:53: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:54:53: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:54:55: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:54:59: [LLM Router Timing] Provider Groq failed in 84ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:55:32: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:55:34: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:55:38: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:55:38: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:55:40: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:55:44: [LLM Router Timing] Provider Groq failed in 85ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:55:47: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:55:49: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:55:53: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:55:53: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:55:55: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:55:59: [LLM Router Timing] Provider Groq failed in 84ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:56:01: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:56:03: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:56:07: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 9ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:56:07: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:56:09: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:56:13: [LLM Router Timing] Provider Groq failed in 89ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:56:16: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:56:18: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:56:22: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 5ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:56:22: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:56:24: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:56:28: [LLM Router Timing] Provider Groq failed in 87ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 16:56:54: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:56:56: [LLM Router] Provider FreeLLMAPI (Local) connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:57:00: [LLM Router Timing] Provider FreeLLMAPI (Local) failed in 8ms (HTTP 401 Unauthorized: {"error":{"message":"Invalid API key","type":"authentication_error"}}). Trying next provider...
+2026-08-21 16:57:00: [LLM Router] Provider Groq connection error. Retrying in 2000ms (Attempt 1/3)
+2026-08-21 16:57:02: [LLM Router] Provider Groq connection error. Retrying in 4000ms (Attempt 2/3)
+2026-08-21 16:57:06: [LLM Router Timing] Provider Groq failed in 86ms (HTTP 404 Not Found: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.","type":"invalid_request_error","code":"model). Trying next provider...
+2026-08-21 17:00:04: [2026-08-21T11:30:04.447Z] [PID: 23000] [32m[NODE-CRON][32m [33m[WARN][0m missed execution at Fri Aug 21 2026 17:00:00 GMT+0530 (India Standard Time)! Possible blocking IO or high CPU user at the same process used by node-cron.

@@ -10,34 +10,34 @@ const COST_FILE = path.join(MEMORY_DIR, 'cost_tracker.json');
 
 fs.ensureDirSync(MEMORY_DIR);
 
-function getHistoryFile(username) {
-  const safe = (username || 'guest').replace(/[^a-zA-Z0-9_-]/g, '_');
-  return path.join(MEMORY_DIR, `chat_history_${safe}.json`);
-}
+const sessionHistories = new Map();
 
 function loadHistory(username) {
-  const file = getHistoryFile(username);
-  return fs.existsSync(file) ? fs.readJsonSync(file) : [];
+  const safe = username || 'guest';
+  if (!sessionHistories.has(safe)) {
+    sessionHistories.set(safe, []);
+  }
+  return sessionHistories.get(safe);
 }
 
 function saveMessage(username, role, content) {
   const history = loadHistory(username);
-  let safeContent = content;
-  if (typeof safeContent === 'string' && safeContent.length > 10000) {
+  let safeContent = typeof content === 'string' ? content : (content ? String(content) : '');
+  if (safeContent.length > 10000) {
     safeContent = safeContent.substring(0, 10000) + '... [TRUNCATED DUE TO SIZE]';
   }
   history.push({ role, content: safeContent, ts: new Date().toISOString() });
-  if (history.length > 100) history.splice(0, history.length - 100);
-  fs.writeJsonSync(getHistoryFile(username), history, { spaces: 2 });
+  if (history.length > 12) history.splice(0, history.length - 12);
 }
 
-function getHistory(username, limit = 20) {
+function getHistory(username, limit = 6) {
   const h = loadHistory(username);
   return h.slice(-limit).map(m => ({ role: m.role, content: m.content }));
 }
 
-function clearHistory(username) { 
-  fs.writeJsonSync(getHistoryFile(username), []); 
+function clearHistory(username) {
+  const safe = username || 'guest';
+  sessionHistories.delete(safe);
 }
 function loadMemory(username) {
   const file = getMemoryFile(username);
