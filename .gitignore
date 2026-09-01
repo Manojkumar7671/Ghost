@@ -19,3 +19,6 @@ scratch/
 
 release/
 
+cookie.txt
+*.db
+mini-swe-agent/
