@@ -161,28 +161,626 @@
                     </div>
                 </div>
                 <div class="header-actions">
+                    <div id="livePipelineWidget" class="pipeline-widget" style="display: flex; align-items: center; gap: 8px; margin-right: 16px; font-size: 0.85rem;">
+                        <span id="pipePlan" class="pipe-stage" style="color: gray;">Plan</span> ➔ 
+                        <span id="pipeExecute" class="pipe-stage" style="color: gray;">Execute</span> ➔ 
+                        <span id="pipeVerify" class="pipe-stage" style="color: gray;">Verify</span>
+                        <span id="pipeStatusBadge" class="status-badge" style="margin-left: 8px; padding: 2px 6px; border-radius: 4px; background: #333; color: white;">Idle</span>
+                    </div>
+
                     <button class="btn-text" id="headerUnlockBtn" style="display: none;">Unlock Ghost</button>
-                    <div class="workspace-actions-wrapper" id="workspaceActionsWrapper">
-                        <button type="button" class="btn-icon workspace-actions-btn" id="workspaceActionsBtn" aria-label="Workspace actions" aria-expanded="false" aria-haspopup="true" title="Workspace actions">
-                            <span class="btn-icon-prefix">⚡</span>
-                            <span>Actions</span>
-                            <span class="dropdown-arrow">▾</span>
-                        </button>
-                        <div class="workspace-actions-menu" id="workspaceActionsMenu" role="menu" aria-label="Workspace actions" style="display: none;">
-                            <button type="button" class="menu-item owner-only" id="capabilityStatusBtn" role="menuitem" title="View Capability Status" style="display: none;">
-                                <span class="menu-item-icon">📋</span>
-                                <span>Capability Status</span>
-                            </button>
-                            <button type="button" class="menu-item owner-only" id="controlCenterBtn" role="menuitem" title="Open Control Center" style="display: none;">
-                                <span class="menu-item-icon">⚙️</span>
-                                <span>Control Center</span>
-                            </button>
-                            <button type="button" class="menu-item" id="newChatBtn" role="menuitem" title="Clear chat message stream">
-                                <span class="menu-item-icon">🗑️</span>
-                                <span>Clear Stream</span>
-                            </button>
+                    
+                </div>
+            </header>
+
+            <!-- CHAT WORKSPACE MAIN SPLIT -->
+            <div class="chat-workspace-main">
+                <!-- CHAT MESSAGE LOG STREAM -->
+                <div class="chat-log" id="chatLog">
+                    <!-- Initial welcome message generated in JS -->
+                </div>
+
+                <!-- 4D HOLOGRAPHIC PARTICLE GLOBE VISUALIZER -->
+                <div id="visualizerContainer" class="visualizer-container-main"></div>
+            </div>
+
+            <!-- THINKING INDICATOR -->
+            <div id="thinking-indicator">
+                <div class="thinking-pulse">
+                    <span></span><span></span><span></span>
+                </div>
+                <span>Ghost is preparing a response...</span>
+            </div>
+
+            <!-- FLOATING INPUT BAR -->
+            <div class="input-wrapper">
+                <div class="input-bar">
+                    <button class="btn-icon" id="attachBtn" title="Attach Media or PDF">📎</button>
+                    <input type="file" id="attachmentInput" style="display: none;" />
+                    <input type="text" id="userInput" placeholder="Command Ghost AI..." autocomplete="off" />
+                    <button class="send-btn" id="sendBtn">SEND</button>
+                </div>
+                <div id="guidedComposerShortcuts" class="guided-composer-shortcuts" aria-label="Guided shortcuts" style="display: none; gap: 8px; justify-content: center; align-items: center; margin-top: 8px; flex-wrap: wrap;">
+                    <button type="button" class="btn-text guided-composer-shortcut-btn" data-guidedkey="my_tasks" style="font-size: 0.8rem; color: var(--text-dim); padding: 4px 10px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;">My Tasks</button>
+                    <button type="button" class="btn-text guided-composer-shortcut-btn" data-guidedkey="my_goals" style="font-size: 0.8rem; color: var(--text-dim); padding: 4px 10px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;">My Goals</button>
+                    <button type="button" class="btn-text guided-composer-shortcut-btn" data-guidedkey="research_topic" style="font-size: 0.8rem; color: var(--text-dim); padding: 4px 10px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;">Research a Topic</button>
+                </div>
+            </div>
+        </main>
+
+    </div>
+
+    <!-- LIVE APP VIEWER MODAL -->
+    <div id="app-viewer">
+        <div id="app-header">
+            <span>LIVE PREVIEW</span>
+            <span id="closeAppViewer">✕</span>
+        </div>
+        <iframe id="app-iframe"></iframe>
+    </div>
+
+    <!-- COMPILED CODE DRAWER -->
+    <div id="code-sidebar">
+        <div id="sidebar-header">
+            <span>COMPILED CODE DATA</span>
+            <span id="closeSidebar">✕</span>
+        </div>
+        <div id="code-content"></div>
+    </div>
+
+    <!-- MODAL FOR VISITOR ACTIONS -->
+    <div id="visitorModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <h3 id="visitorModalTitle">Action Unavailable</h3>
+            <p id="visitorModalBody">This feature is reserved for the owner.</p>
+            <div class="modal-actions">
+                <button id="visitorModalCloseBtn" class="btn-text">Close</button>
+                <button id="visitorModalUnlockBtn" class="btn-primary-action">Unlock Ghost</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CAPABILITY STATUS MODAL -->
+    <div id="capabilityStatusModal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="capabilityStatusTitle">
+        <div class="modal-content" style="max-width: 800px; width: 90%; background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 8px; padding: 24px; color: var(--text-main); font-family: sans-serif;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">
+                <div>
+                    <h3 id="capabilityStatusTitle" style="margin: 0; font-size: 1.25rem;">Capability Status</h3>
+                    <p style="margin: 4px 0 0 0; font-size: 0.9rem; color: var(--text-dim);">A local view of what Ghost can and cannot do in this version.</p>
+                </div>
+                <button id="closeCapabilityStatusBtn" class="btn-close-icon" aria-label="Close Capability Status" style="background: none; border: none; color: var(--text-main); font-size: 1.2rem; cursor: pointer;">✕</button>
+            </div>
+
+            <div id="capabilityStatusCatalogue" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; max-height: 60vh; overflow-y: auto; margin-bottom: 16px;">
+                <!-- Rendered dynamically from fixed catalogue in JS -->
+            </div>
+
+            <div style="border-top: 1px solid var(--border-color); padding-top: 12px; font-size: 0.85rem; color: var(--text-dim);">
+                Status labels are informational only. They do not run, enable, or configure anything.
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTROL CENTER MODAL -->
+    <div id="controlCenterModal" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="controlCenterTitle">
+        <div class="modal-content" style="max-width: 800px; width: 90%; background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 8px; padding: 24px; color: var(--text-main); font-family: sans-serif;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 24px;">
+                <h3 id="controlCenterTitle" style="margin: 0; font-size: 1.25rem;">Control Center <span class="owner-badge">Owner Only</span></h3>
+                <div>
+                    <button id="ccRefreshBtn" class="btn-primary-action" style="margin-right: 8px;">Refresh</button>
+                    <button id="ccCloseBtn" class="btn-close-icon" aria-label="Close Control Center" style="background: none; border: none; color: var(--text-main); font-size: 1.2rem; cursor: pointer;">✕</button>
+                </div>
+            </div>
+            
+            <div class="cc-sections" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; max-height: 70vh; overflow-y: auto;">
+                <div class="cc-column">
+                    <section style="margin-bottom: 32px;">
+                        <h4 style="border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 16px;">Run a Safety Check</h4>
+                        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: 16px; margin-bottom: 16px;">
+                            <h5 style="margin-top: 0; margin-bottom: 8px;">Session Context Check</h5>
+                            <button class="btn-primary-action cc-prepare-btn" data-testkey="session_context" style="width: 100%;">Prepare</button>
+                        </div>
+                        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: 16px;">
+                            <h5 style="margin-top: 0; margin-bottom: 8px;">Golden Safety Check</h5>
+                            <button class="btn-primary-action cc-prepare-btn" data-testkey="golden_baseline" style="width: 100%;">Prepare</button>
+                        </div>
+                        
+                        <!-- Preview Panel -->
+                        <div id="ccPreviewPanel" style="display: none; background: var(--bg-code); border: 1px solid var(--border-color); border-radius: 6px; padding: 16px; margin-top: 16px;">
+                            <h5 style="margin-top: 0; margin-bottom: 8px;">Preview</h5>
+                            <p id="ccPreviewText" style="font-size: 0.9rem; margin-bottom: 16px; color: var(--text-dim);"></p>
+                            <div style="display: flex; gap: 8px;">
+                                <button id="ccConfirmPrepareBtn" class="btn-primary-action" style="flex: 1;">Send Prepare Request</button>
+                                <button id="ccCancelPreviewBtn" class="btn-text" style="flex: 1;">Close</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Active Proposal Panel -->
+                        <div id="ccActiveProposalPanel" style="display: none; background: var(--bg-card); border: 1px solid var(--accent-cyan); border-radius: 6px; padding: 16px; margin-top: 16px;">
+                            <h5 style="margin-top: 0; margin-bottom: 8px; color: var(--accent-cyan);">Active Proposal</h5>
+                            <p id="ccActiveProposalText" style="font-size: 0.9rem; margin-bottom: 16px;"></p>
+                            <div style="display: flex; gap: 8px;">
+                                <button id="ccConfirmRunBtn" class="btn-primary-action" style="flex: 1;">Confirm and Run</button>
+                                <button id="ccCancelProposalBtn" class="btn-text" style="flex: 1; color: var(--accent-rose);">Cancel Proposal</button>
+                            </div>
+                        </div>
+                    </section>
+                    
+                    <section>
+                        <h4 style="border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 16px;">Approval Queue</h4>
+                        <div id="ccApprovalQueueData" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: 16px; font-size: 0.9rem; white-space: pre-wrap; font-family: monospace;">Queue not loaded. Select Refresh to request the current owner-safe queue.</div>
+                    </section>
+                </div>
+                
+                <div class="cc-column">
+                    <section style="margin-bottom: 32px;">
+                        <h4 style="border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 16px;">Capabilities</h4>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.9rem;">
+                            <li style="margin-bottom: 8px;"><strong>Chat:</strong> Available</li>
+                            <li style="margin-bottom: 8px;"><strong>Cited Research:</strong> Available</li>
+                            <li style="margin-bottom: 8px;"><strong>Research Dossier:</strong> Available</li>
+                            <li style="margin-bottom: 8px;"><strong>Planning:</strong> Pending verification</li>
+                            <li style="margin-bottom: 8px;"><strong>Task Proposals:</strong> Pending verification</li>
+                            <li style="margin-bottom: 8px;"><strong>Session Context:</strong> Available</li>
+                            <li style="margin-bottom: 8px;"><strong>Safety Checks:</strong> Available</li>
+                            <li style="margin-bottom: 8px;"><strong>Approval Queue:</strong> Available</li>
+                        </ul>
+                    </section>
+                    
+                    <section>
+                        <h4 style="border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 16px;">Admin Guardrails</h4>
+                        <ul style="padding-left: 20px; margin: 0; font-size: 0.9rem; color: var(--text-dim);">
+                            <li>Ghost cannot run arbitrary terminal commands.</li>
+                            <li>Ghost cannot control the browser/Mac.</li>
+                            <li>Ghost cannot access secrets.</li>
+                            <li>Ghost cannot send external messages/payments.</li>
+                            <li>Ghost cannot scrape arbitrary sites.</li>
+                            <li>Ghost cannot run background loops.</li>
+                        </ul>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PERSONAL CORE V1 MODAL (Owner Only) -->
+    <div id="personalCoreModal" class="modal-overlay personal-core-modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="personalCoreTitle">
+        <div class="modal-content personal-core-modal-content">
+            <div class="personal-core-header">
+                <div class="personal-core-title-group">
+                    <h3 id="personalCoreTitle">Personal Core</h3>
+                    <span class="owner-badge">Owner Only</span>
+                </div>
+                <button id="personalCoreCloseBtn" class="btn-close-icon" aria-label="Close Personal Core">✕</button>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="personal-core-tabs" role="tablist">
+                <button class="personal-tab-btn active" id="tabContinueBtn" role="tab" aria-selected="true" data-tab="continue">Continue</button>
+                <button class="personal-tab-btn" id="tabTasksBtn" role="tab" aria-selected="false" data-tab="tasks">Tasks</button>
+                <button class="personal-tab-btn" id="tabGoalsBtn" role="tab" aria-selected="false" data-tab="goals">My Goals</button>
+                <button class="personal-tab-btn" id="tabRememberBtn" role="tab" aria-selected="false" data-tab="remember">Remember</button>
+                <button class="personal-tab-btn" id="tabMemoriesBtn" role="tab" aria-selected="false" data-tab="memories">Saved Memories</button>
+                <button class="personal-tab-btn" id="tabSkillsBtn" role="tab" aria-selected="false" data-tab="skills">Skills V0</button>
+            </div>
+
+            <!-- Alert / Status Notice Banner -->
+            <div id="personalCoreNotice" class="personal-core-notice" style="display: none;" role="alert"></div>
+
+            <!-- Tab Content 1: Continue (Deterministic Current Context Summary) -->
+            <div id="tabContentContinue" class="personal-tab-panel active" role="tabpanel">
+                <div class="panel-section-title">Continuity Summary</div>
+                <p class="panel-subtext">Deterministic context derived strictly from your active goals, outstanding tasks, and explicitly saved memories.</p>
+                <div class="continuity-box" id="continuitySummaryBox">
+                    <pre id="continuitySummaryText" class="continuity-text">Loading continuity context...</pre>
+                </div>
+                <div class="panel-actions">
+                    <button class="btn-primary-action" id="refreshContinueBtn">Refresh Summary</button>
+                </div>
+            </div>
+
+            <!-- Tab Content 2: Tasks (Owner-Visible Task Queue & Activity Ledger) -->
+            <div id="tabContentTasks" class="personal-tab-panel" role="tabpanel" style="display: none;">
+                <div class="panel-section-title">Task Queue & Activity Ledger</div>
+                <p class="panel-subtext">Owner-visible task queue and immutable append-only activity history. Tasks are never automatically executed.</p>
+
+                <!-- Create Task Form -->
+                <form id="createTaskForm" class="personal-form task-create-box">
+                    <div class="form-row">
+                        <div class="form-group flex-grow">
+                            <label for="taskTitleInput" class="form-label">Task Title (max 160 chars):</label>
+                            <input type="text" id="taskTitleInput" class="personal-input" placeholder="e.g., Design the owner-visible task queue" maxlength="160" required />
+                        </div>
+                        <div class="form-group">
+                            <label for="taskGoalSelect" class="form-label">Linked Goal (optional):</label>
+                            <select id="taskGoalSelect" class="personal-select">
+                                <option value="">-- No linked goal --</option>
+                            </select>
                         </div>
                     </div>
+                    <div class="form-group">
+                        <label for="taskDescInput" class="form-label">Description (optional, max 1000 chars):</label>
+                        <textarea id="taskDescInput" class="personal-textarea" rows="2" placeholder="Optional scope, constraints, or notes..." maxlength="1000"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary-action" id="submitTaskBtn">Create Task</button>
+                    </div>
+                </form>
+
+                <!-- Tasks Layout Container -->
+                <div class="tasks-layout-container">
+                    <div class="tasks-list-section">
+                        <div class="section-subtitle">Owner Tasks (<span id="tasksCountBadge">0</span>)</div>
+                        <div id="tasksListContainer" class="personal-items-list">
+                            <div class="loading-state">Loading tasks...</div>
+                        </div>
+                    </div>
+
+                    <!-- Task Ledger / Detail Section -->
+                    <div class="task-detail-section" id="taskDetailSection" style="display: none;">
+                        <div class="section-subtitle">Task Activity Ledger</div>
+                        <div class="task-detail-card" id="taskDetailCard">
+                            <div class="task-detail-header">
+                                <h4 id="detailTaskTitle" class="detail-task-title"></h4>
+                                <span id="detailTaskStatus" class="status-tag"></span>
+                            </div>
+                            <div id="detailTaskGoalRow" class="detail-info-row" style="display: none;">
+                                <span class="detail-label">Goal:</span>
+                                <span id="detailTaskGoal" class="detail-value"></span>
+                            </div>
+                            <div id="detailTaskDescRow" class="detail-info-row" style="display: none;">
+                                <span class="detail-label">Description:</span>
+                                <p id="detailTaskDesc" class="detail-desc-text"></p>
+                            </div>
+                            <div id="detailTaskBlockerRow" class="detail-blocker-row warning-banner" style="display: none;">
+                                <strong>Blocker:</strong> <span id="detailTaskBlocker"></span>
+                            </div>
+
+                            <!-- Ghost Agent V0 Bounded Task Proposal Control -->
+                            <div class="task-agent-control-box" id="taskAgentControlBox">
+                                <div class="agent-control-header">
+                                    <div class="agent-title-row">
+                                        <span class="agent-control-title">🤖 Ghost Agent V0</span>
+                                        <span class="agent-badge">Observer &amp; Planner</span>
+                                    </div>
+                                    <button type="button" class="btn-primary-action btn-ask-agent" id="btnAskTaskAgent">Ask Ghost Agent</button>
+                                </div>
+                                <div id="taskAgentStatusNote" class="agent-status-note" style="display: none;"></div>
+                                <div id="taskAgentProposalContainer" class="task-agent-proposal-container" style="display: none;"></div>
+                            </div>
+
+                            <!-- Approval Contract V1 Control Box (Preparation Layer for Future Worker) -->
+                            <div class="approval-contract-control-box" id="approvalContractControlBox">
+                                <div class="contract-control-header">
+                                    <div class="contract-title-row">
+                                        <span class="contract-control-title">📜 Approval Contract V1</span>
+                                        <span class="contract-badge">Preparation Layer</span>
+                                    </div>
+                                    <button type="button" class="btn-secondary-action btn-prepare-contract" id="btnPrepareApprovalContract">Prepare Approval Contract</button>
+                                </div>
+                                <div id="approvalContractStatusNote" class="contract-status-note" style="display: none;"></div>
+                                <div id="approvalContractContainer" class="approval-contract-container" style="display: none;"></div>
+                            </div>
+
+                            <!-- Patch Draft/Review V1 Control Box (Non-Writing Proposal & Review Layer) -->
+                            <div class="approval-contract-control-box" id="patchDraftControlBox">
+                                <div class="contract-control-header">
+                                    <div class="contract-title-row">
+                                        <span class="contract-control-title">📝 Patch Draft/Review V1</span>
+                                        <span class="contract-badge">Non-Writing</span>
+                                    </div>
+                                    <button type="button" class="btn-secondary-action btn-prepare-contract" id="btnPreparePatchDraft">Propose Patch Draft</button>
+                                </div>
+                                <div id="patchDraftStatusNote" class="contract-status-note" style="display: none;"></div>
+                                <div id="patchDraftContainer" class="approval-contract-container" style="display: none;"></div>
+                            </div>
+
+                            <!-- State Transition Controls -->
+                            <div class="task-transition-controls">
+                                <span class="detail-label">Transition State:</span>
+                                <div class="transition-btn-group">
+                                    <button type="button" class="btn-state-action" id="btnMarkPlanned">Mark Planned</button>
+                                    <button type="button" class="btn-state-action" id="btnMarkBlocked">Mark Blocked</button>
+                                    <button type="button" class="btn-state-action" id="btnMarkCancelled">Cancel Task</button>
+                                </div>
+                            </div>
+
+                            <!-- Blocker Input Box (visible when Mark Blocked clicked) -->
+                            <div id="blockerInputRow" class="blocker-input-row" style="display: none;">
+                                <label for="blockerReasonInput" class="form-label">Blocker Reason (required):</label>
+                                <div class="form-row">
+                                    <input type="text" id="blockerReasonInput" class="personal-input flex-grow" placeholder="Why is this task blocked? (max 500 chars)" maxlength="500" />
+                                    <button type="button" class="btn-primary-action" id="btnConfirmBlocker">Confirm Blocked</button>
+                                    <button type="button" class="btn-secondary-action" id="btnCancelBlockerInput">Dismiss</button>
+                                </div>
+                            </div>
+
+                            <!-- Immutable Ledger History (Progressive Disclosure) -->
+                            <details class="ledger-disclosure" id="taskActivityDisclosure" open>
+                                <summary class="ledger-disclosure-summary">
+                                    <span class="ledger-subtitle">Activity Ledger (Immutable History)</span>
+                                </summary>
+                                <div class="ledger-history-section">
+                                    <div id="taskLedgerEventsList" class="ledger-events-list">
+                                        <div class="loading-state">Select a task to view activity events.</div>
+                                    </div>
+                                </div>
+                            </details>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content 3: Remember (Explicit Memory Creation) -->
+            <div id="tabContentRemember" class="personal-tab-panel" role="tabpanel" style="display: none;">
+                <div class="panel-section-title">Save Memory Intentionally</div>
+                <p class="panel-subtext">Save a specific fact, preference, decision, or project note. Normal chat is never stored automatically.</p>
+                <div class="warning-banner">
+                    ⚠️ <strong>Safety Warning:</strong> Do not save passwords, API keys, or other secrets.
+                </div>
+                <form id="saveMemoryForm" class="personal-form">
+                    <label for="memoryInputText" class="form-label">Memory Content (max 500 chars):</label>
+                    <textarea id="memoryInputText" class="personal-textarea" rows="4" placeholder="Enter an explicit fact, preference, or decision..." maxlength="500" required></textarea>
+                    <div class="char-counter"><span id="memoryCharCount">0</span>/500</div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary-action" id="submitMemoryBtn">Save Memory</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Tab Content 4: Goals (Active Work & Goal Management) -->
+            <div id="tabContentGoals" class="personal-tab-panel" role="tabpanel" style="display: none;">
+                <div class="panel-section-title">My Goals</div>
+                <p class="panel-subtext">Create and manage active, paused, or completed work goals.</p>
+
+                <!-- Create Goal Form -->
+                <form id="createGoalForm" class="personal-form goal-create-box">
+                    <div class="form-row">
+                        <div class="form-group flex-grow">
+                            <label for="goalTitleInput" class="form-label">Goal Title (max 160 chars):</label>
+                            <input type="text" id="goalTitleInput" class="personal-input" placeholder="e.g., Implement Personal Core V1" maxlength="160" required />
+                        </div>
+                        <div class="form-group">
+                            <label for="goalStatusSelect" class="form-label">Status:</label>
+                            <select id="goalStatusSelect" class="personal-select">
+                                <option value="active">Active</option>
+                                <option value="paused">Paused</option>
+                                <option value="done">Done</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="goalNoteInput" class="form-label">Note / Details (optional, max 600 chars):</label>
+                        <textarea id="goalNoteInput" class="personal-textarea" rows="2" placeholder="Optional context, milestones, or constraints..." maxlength="600"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary-action" id="submitGoalBtn">Add Goal</button>
+                    </div>
+                </form>
+
+                <!-- Goals List Container -->
+                <div class="goals-list-section">
+                    <div class="section-subtitle">Current Goals (<span id="goalsCountBadge">0</span>)</div>
+                    <div id="goalsListContainer" class="personal-items-list">
+                        <div class="loading-state">Loading goals...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content 5: Saved Memories List -->
+            <div id="tabContentMemories" class="personal-tab-panel" role="tabpanel" style="display: none;">
+                <div class="panel-section-title">Explicit Memories</div>
+                <p class="panel-subtext">Review and delete explicitly saved personal memories. Ghost never derives memories silently.</p>
+                <div id="memoriesListContainer" class="personal-items-list">
+                    <div class="loading-state">Loading memories...</div>
+                </div>
+            </div>
+
+            <!-- Tab Content 6: Skills V0 -->
+            <div id="tabContentSkills" class="personal-tab-panel" role="tabpanel" style="display: none;">
+                <div class="panel-section-title">Ghost Skills V0</div>
+                <p class="panel-subtext">Verified working capabilities and their explicit limitations.</p>
+                <div id="skillsListContainer" class="skills-card-list">
+                    <div class="loading-state">Loading skills...</div>
+                </div>
+            </div>
+
+        
+            <!-- Tab Content 6: Skills V0 -->
+            <div id="tabContentSkills" class="personal-tab-panel" role="tabpanel" style="display: none;">
+                <div class="panel-section-title">Ghost Skills V0</div>
+                <p class="panel-subtext">Verified working capabilities and their explicit limitations.</p>
+                <div id="skillsListContainer" class="personal-items-list">
+                    <div class="loading-state">Loading skills...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/ghost-ui.js"></script>
+</body>
+</html><nav class="sidebar-nav">
+                <button type="button" class="nav-item active" id="navChatBtn" title="Chat">
+                    <span class="nav-icon">💬</span>
+                    <span class="nav-label">Chat</span>
+                </button>
+                <button type="button" class="nav-item" id="navCodingAgentBtn" title="Coding agent">
+                    <span class="nav-icon">💻</span>
+                    <span class="nav-label">Coding agent</span>
+                </button>
+                <button type="button" class="nav-item" id="navResearchBtn" title="Research">
+                    <span class="nav-icon">🔍</span>
+                    <span class="nav-label">Research</span>
+                </button>
+                <button type="button" class="nav-item" id="navMemoryBtn" title="Memory">
+                    <span class="nav-icon">🗄️</span>
+                    <span class="nav-label">Memory</span>
+                </button>
+            </nav>TYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghost</title>
+    <link rel="stylesheet" href="/style.css">
+    <script src="/api-config.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';</script>
+</head>
+<body>
+    <!-- VISITOR GATE OVERLAY -->
+    <div id="visitorGateOverlay" class="auth-overlay">
+        <div class="brand-badge">GHOST<button class="personal-tab-btn" data-tab="tabContentSkills">Skills V0</button>
+        </div>
+        <p class="login-sub">Personal AI, built for work that must be explainable.</p>
+        <p class="login-prompt">What should Ghost call you?</p>
+        <form id="visitorForm" onsubmit="return false;">
+            <div class="input-row">
+                <input type="text" id="visitorNameInput" placeholder="Display name" autocomplete="off" autofocus />
+                <button type="submit" id="visitorContinueBtn" class="btn-primary-action">Continue</button>
+            </div>
+        </form>
+        <div class="unlock-row">
+            <span class="unlock-label">Private workspace?</span>
+            <button id="showUnlockBtn" class="btn-text" type="button">Unlock Ghost</button>
+        </div>
+    </div>
+
+    <!-- OWNER AUTHENTICATION OVERLAY -->
+    <div id="loginOverlay" class="auth-overlay" style="display: none;">
+        <div class="brand-badge">GHOST</div>
+        <p class="login-sub">Owner Access</p>
+        <div id="ownerAuthError" class="auth-error-inline" role="alert" aria-live="polite" style="display: none;"></div>
+        <form id="ownerLoginForm" onsubmit="return false;">
+            <div class="input-row">
+                <input type="password" id="authInput" placeholder="Enter clearance key..." autocomplete="off" />
+                <button type="submit" id="ownerUnlockBtn" class="btn-primary-action">Unlock Ghost</button>
+            </div>
+            <div class="unlock-row">
+                <button id="backToVisitorBtn" class="btn-text" type="button">Back</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- MAIN DESKTOP LAYOUT -->
+    <div id="app-layout">
+        <!-- SIDEBAR (Collapsible Desktop / Drawer Mobile) -->
+        <aside class="sidebar" id="appSidebar" aria-label="Main Navigation">
+            <div class="sidebar-header">
+                <div class="ghost-logo" title="Ghost · Local AI Workspace">
+                    <span class="logo-dot"></span>
+                    <div class="logo-text-group">
+                        <span class="logo-brand">GHOST</span>
+                        <span class="logo-subtext">Local AI Workspace</span>
+                    </div>
+                </div>
+                <button type="button" id="sidebarCollapseBtn" class="sidebar-collapse-btn" aria-label="Collapse navigation" title="Collapse navigation" aria-expanded="true">
+                    <span class="collapse-icon">◀</span>
+                </button>
+            </div>
+
+            <!-- PRIMARY NAVIGATION -->
+            <nav class="sidebar-nav primary-nav-group" aria-label="Primary Navigation">
+                <button type="button" class="nav-item active" id="navChatBtn" title="Chat Workspace">
+                    <span class="nav-icon">💬</span>
+                    <span class="nav-label">Chat</span>
+                </button>
+                <button type="button" class="nav-item" id="navPersonalCoreBtn" title="Guided Workspace">
+                    <span class="nav-icon">🗄️</span>
+                    <span class="nav-label">Workspace</span>
+                </button>
+                <button type="button" class="nav-item" id="navInspectRepoBtn" title="Inspect Ghost repository (read-only)">
+                    <span class="nav-icon">🔍</span>
+                    <span class="nav-label">Inspect Repo</span>
+                </button>
+            </nav>
+
+            <!-- TILES FOR VISITORS (Hidden by default until initialized) -->
+            <div id="visitorTiles" class="sidebar-nav" style="display: none;">
+                <div class="control-group">
+                    <span class="control-title">Capabilities</span>
+                    <div class="tile-card">Plan</div>
+                    <div class="tile-card">Review</div>
+                    <div class="tile-card">Verify</div>
+                </div>
+            </div>
+
+            <!-- CONVERSATION HISTORY (Owner only) -->
+            <div id="historyContainer" class="history-container owner-only" style="display: none;">
+                <div class="history-title">Recent Chats</div>
+                <div class="history-list" id="historyList">
+                    <div class="history-item active">Current Session</div>
+                </div>
+            </div>
+
+            <!-- PROJECTS (Owner only) -->
+            <div id="projectsContainer" class="history-container owner-only" style="display: none;">
+                <div class="history-title-row">
+                    <span class="history-title">Projects</span>
+                    <button class="btn-small-icon" id="createProjectBtn" title="Create New Project">+</button>
+                </div>
+                <div class="history-list" id="projectsList">
+                    <div class="history-item loading-text">Loading projects...</div>
+                </div>
+            </div>
+
+            <!-- SYSTEM MEMORY (Owner only) -->
+            <div id="memoryContainer" class="history-container owner-only" style="display: none;">
+                <div class="history-title-row">
+                    <span class="history-title">Memory</span>
+                    <button class="btn-small-icon" id="saveMemoryBtn" title="Save Memory Note">+</button>
+                </div>
+                <div class="history-list" id="memoryList">
+                    <div class="history-item loading-text">Loading memories...</div>
+                </div>
+            </div>
+
+            <!-- CORE CONTROL TOGGLES -->
+            <div class="sidebar-nav">
+                <div class="control-group">
+                    <span class="control-title">Core Controls</span>
+                    <button class="toggle-card" id="ghostCodeBtn" title="Toggle Ghost Code">
+                        <span class="toggle-indicator"></span>
+                        <div class="toggle-info">
+                            <span class="toggle-name">Ghost Code</span>
+                            <span class="toggle-sub" id="ghostCodeStatus">Private workspace · Owner unlock required</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <button type="button" class="nav-item nav-settings-btn" id="navSettingsBtn" title="Workspace Settings">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-label">Settings</span>
+                </button>
+                <div class="system-status-badge" title="Ghost Workspace">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Private Workspace</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- BACKDROP OVERLAY FOR MOBILE DRAWER -->
+        <div id="sidebarBackdrop" class="sidebar-backdrop" style="display: none;" aria-hidden="true"></div>
+
+        <!-- CHAT WORKSPACE AREA -->
+        <main class="chat-container">
+            <!-- TOP BAR -->
+            <header class="chat-header">
+                <div class="header-left">
+                    <button type="button" id="mobileMenuBtn" class="mobile-menu-btn" aria-label="Open navigation menu" aria-expanded="false">
+                        <span class="hamburger-icon">☰</span>
+                    </button>
+                    <div class="chat-title-group">
+                        <div class="chat-main-title">Chat</div>
+                        <div class="chat-sub-title">Private. Local. Yours.</div>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-text" id="headerUnlockBtn" style="display: none;">Unlock Ghost</button>
+                    
                 </div>
             </header>
 

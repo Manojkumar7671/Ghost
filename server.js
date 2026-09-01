@@ -43,10 +43,7 @@ import { traceLocalStorage, initTraceTable, saveTrace, cleanupTraces } from './s
 import { loadPlugins, matchAndRun } from './services/pluginSystem.js';
 import { recordSelfEdit, getSelfEditLessons } from './services/selfEditMemory.js';
 import { runClaudeReasoningPrestep } from './services/claudeReasoning.js';
-// import { createVoiceAgent } from './services/synthflowBridge.js';
 import { initDesktopOverlay } from './services/desktopOverlay.js';
-import { initTelephonyBridge } from './services/telephonyBridge.js';
-import { initAgentBridge } from './services/agentBridge.js';
 import { initPersistenceTables } from './services/persistence.js';
 import * as approvedTestRunner from './services/approvedTestRunner.js';
 import { runAutonomousTask, resumeAutonomousTask } from './services/autonomousLoop.js';
@@ -3049,32 +3046,6 @@ app.get('/api/skills', chatLimiter, securityMiddleware, (req, res) => {
 });
 
 
-app.get('/api/agent/budget-status', securityMiddleware, async (req, res) => {
-    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const { execSync } = require('child_process');
-    try {
-        const out = execSync('cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/budget.py check').toString();
-        return res.json(JSON.parse(out));
-    } catch (e) {
-        return res.status(500).json({ success: false, error: 'Failed to read budget' });
-    }
-});
-
-app.post('/api/agent/kill-switch', securityMiddleware, async (req, res) => {
-    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    if (global.activeAgentProcess) {
-        const { execSync } = require('child_process');
-        try { execSync('pkill -9 -f "' + global.activeAgentProcess.taskId + '"'); } catch(e) {} global.activeAgentProcess.kill('SIGKILL');
-        try {
-            execSync(`cd mini-swe-agent && uv run --python 3.11 python src/minisweagent/budget.py kill ${global.activeAgentProcess.taskId}`);
-        } catch(e) {}
-        global.activeAgentProcess = null;
-        return res.json({ success: true, status: 'KILLED' });
-    }
-    return res.json({ success: false, error: 'No active agent process to kill' });
-});
-
-
 
 
 app.get('/api/agent/approvals', securityMiddleware, async (req, res) => {
@@ -3105,96 +3076,6 @@ app.post('/api/agent/approvals/:id/deny', securityMiddleware, async (req, res) =
 
 // --- OBJECTIVES ROUTES ---
 
-// --- DAEMON STATUS ROUTE ---
-app.get('/api/daemon/status', async (req, res) => {
-    const { execSync } = await import('child_process');
-    try {
-        const out = execSync(`sqlite3 mini-swe-agent/ghost_agent_runs.db "SELECT last_heartbeat FROM daemon_status WHERE id = 'daemon1'"`).toString().trim();
-        const lastHeartbeat = parseFloat(out) || 0;
-        const now = Date.now() / 1000;
-        const isAlive = (now - lastHeartbeat) < 30; // 30 seconds threshold
-        return res.json({ success: true, isAlive, lastHeartbeat, now });
-    } catch (err) {
-        return res.status(500).json({ success: false, error: err.message });
-    }
-});
-
-app.post('/api/objectives', securityMiddleware, async (req, res) => {
-    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const { execSync } = await import('child_process');
-    try {
-        const out = execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/objectives.py create "admin" "${req.body.goal_text.replace(/"/g, '\"')}" "${req.body.check_interval_seconds || 'null'}" "${req.body.max_runs || 'null'}"`).toString();
-        return res.json(JSON.parse(out));
-    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
-});
-app.get('/api/objectives', securityMiddleware, async (req, res) => {
-    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const { execSync } = await import('child_process');
-    try {
-        const out = execSync('cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/objectives.py list').toString();
-        return res.json({ success: true, objectives: JSON.parse(out) });
-    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
-});
-app.get('/api/objectives/:id', securityMiddleware, async (req, res) => {
-    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const { execSync } = await import('child_process');
-    try {
-        const out = execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/objectives.py get "${req.params.id}"`).toString();
-        return res.json({ success: true, objective: JSON.parse(out) });
-    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
-});
-app.patch('/api/objectives/:id', securityMiddleware, async (req, res) => {
-    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const { execSync } = await import('child_process');
-    try {
-        const out = execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/objectives.py patch "${req.params.id}" "${req.body.status || 'undefined'}" "${(req.body.goal_text || 'undefined').replace(/"/g, '\"')}"`).toString();
-        return res.json(JSON.parse(out));
-    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
-});
-app.delete('/api/objectives/:id', securityMiddleware, async (req, res) => {
-    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const { execSync } = await import('child_process');
-    try {
-        const out = execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/objectives.py delete "${req.params.id}"`).toString();
-        return res.json(JSON.parse(out));
-    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
-});
-
-
-
-app.post('/api/agent/schedule', securityMiddleware, async (req, res) => {
-    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const { execSync } = require('child_process');
-    try {
-        const out = execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/scheduler.py create "${req.body.goal.replace(/"/g, '\"')}" "${req.body.cron_expression || 'test'}"`).toString();
-        const parsed = JSON.parse(out); if (!parsed.success) return res.status(400).json(parsed); return res.json(parsed);
-    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
-});
-app.get('/api/agent/schedule', securityMiddleware, async (req, res) => {
-    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const { execSync } = require('child_process');
-    try {
-        const out = execSync('cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/scheduler.py list').toString();
-        return res.json({ success: true, schedules: JSON.parse(out) });
-    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
-});
-app.delete('/api/agent/schedule/:id', securityMiddleware, async (req, res) => {
-    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const { execSync } = require('child_process');
-    try {
-        execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/scheduler.py delete "${req.params.id}"`);
-        return res.json({ success: true });
-    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
-});
-app.patch('/api/agent/schedule/:id', securityMiddleware, async (req, res) => {
-    if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const { execSync } = require('child_process');
-    try {
-        execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/scheduler.py toggle "${req.params.id}" "${req.body.enabled}"`);
-        return res.json({ success: true });
-    } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
-});
-
 
 
 app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => {
@@ -3214,18 +3095,8 @@ app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => 
             return res.status(400).json({ success: false, error: 'Empty goal.' });
         }
 
-        // Budget check
-        const { execSync, exec } = await import('child_process');
-        try {
-            const budgetOut = execSync('cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/budget.py check').toString();
-            const budgetObj = JSON.parse(budgetOut);
-            if (!budgetObj.ok) {
-                return res.status(403).json({ success: false, error: budgetObj.reason });
-            }
-            execSync('cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/budget.py add_spawn');
-        } catch(e) {
-            return res.status(500).json({ success: false, error: 'Budget check failed' });
-        }
+        const { execSync, exec } = await import("child_process");
+
 
         const taskId = "task-" + Date.now();
         const cmd = `cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/pevr_service.py --goal "${goal.replace(/"/g, '\"')}" --task_id ${taskId} ${req.body.schedule_id ? "--schedule_id " + req.body.schedule_id : ""}`;
@@ -3526,26 +3397,6 @@ app.post('/api/execute-action', requireAdminToken, async (req, res) => {
     } catch (err) { return res.status(500).json({ success: false, error: `Pipeline failure: ${err.message}` }); }
 });
 
-app.post('/api/agent/create-voice-agent', async (req, res) => {
-    return res.status(501).json({ success: false, error: 'Voice features disabled post-v1' });
-    /*
-    if (process.env.DEPLOYMENT_MODE === 'public') {
-        return res.status(403).json({ success: false, error: 'Tool disabled in public mode' });
-    }
-    try {
-        const result = await createVoiceAgent(req.body);
-        if (!result.success && result.status === 'AUTH_ERROR') {
-            return res.status(401).json(result);
-        }
-        if (!result.success) {
-            return res.status(500).json(result);
-        }
-        res.json(result);
-    } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
-    }
-    */
-});
 
 // Mounted pipeline router BEFORE dummy stubs to prevent Express route collisions
 app.use('/api/pipeline', createPipelineRoutes(workflowEngine));
@@ -3562,61 +3413,10 @@ app.post('/api/pipeline/execute', async (req, res) => {
     res.json({ success: true, result: `Pipeline executed with skills: ${skills.join(', ')}, input: ${input}` });
 });
 
-app.post('/api/admin/toggle-autonomy', requireAdminToken, async (req, res) => {
-    const { mode } = req.body;
-    try {
-        const { setAutonomousMode } = await import('./services/autonomousLoop.js');
-        const activeMode = setAutonomousMode(mode);
-        res.json({ success: true, mode: activeMode, message: `Ghost Autonomous Mode updated to [${activeMode}].` });
-    } catch (err) {
-        res.status(400).json({ success: false, error: err.message });
-    }
-});
 
-app.post('/api/voice/activate', async (req, res) => {
-    const { wakeWord } = req.body;
-    res.json({ success: true, message: `Voice activation ready for wake-word: ${wakeWord}` });
-});
 
-app.post('/api/voice/transcribe', async (req, res) => {
-    try {
-        const { audioBase64, filename } = req.body;
-        if (!audioBase64) return res.status(400).json({ error: 'Missing audioBase64 in request body.' });
 
-        const base64Data = audioBase64.replace(/^data:[^;]+;base64,/, '');
-        const audioBuffer = Buffer.from(base64Data, 'base64');
 
-        const voiceAgent = require('./src/agents/voiceAgent.js');
-        const result = await voiceAgent.transcribeAudio(audioBuffer, filename || 'recording.webm');
-        res.json(result);
-    } catch (err) {
-        res.status(500).json({ error: `Server audio processing error: ${err.message}` });
-    }
-});
-
-app.post('/api/voice/tts', async (req, res) => {
-    try {
-        const { text } = req.body;
-        if (!text || !text.trim()) return res.status(400).json({ error: 'Missing text parameter.' });
-
-        const voiceAgent = require('./src/agents/voiceAgent.js');
-        const ttsResult = await voiceAgent.textToSpeech(text);
-        if (ttsResult.success && ttsResult.file) {
-            const filename = path.basename(ttsResult.file);
-            res.json({ success: true, audioUrl: `/downloads/audio/${filename}`, file: ttsResult.file });
-        } else {
-            res.status(500).json({ success: false, error: ttsResult.error || 'TTS synthesis failed.' });
-        }
-    } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
-    }
-});
-
-app.post('/api/desktop/notify', (req, res) => {
-    const { title, message } = req.body || {};
-    console.log(`[Desktop Notification Request] 🔔 ${title}: ${message}`);
-    res.json({ success: true, message: 'Notification event logged.' });
-});
 
 app.post('/api/browser/navigate', async (req, res) => {
     const { url } = req.body;
@@ -3625,26 +3425,6 @@ app.post('/api/browser/navigate', async (req, res) => {
     res.json({ success: true, message: `Browser navigating to: ${url}` });
 });
 
-app.post('/api/modes/activate', requireAdminToken, async (req, res) => {
-    const { mode, schedule, target, condition, user = 'master_manoj' } = req.body;
-    if (mode === 'morning_digest') {
-        const result = activateMorningDigest(schedule || '0 7 * * *', user, pool);
-        return res.json({ success: true, message: 'Morning digest activated', result });
-    }
-    if (mode === 'scheduled_monitor') {
-        const result = activateScheduledMonitor(schedule || '*/30 * * * *', target, condition, user, pool);
-        return res.json({ success: true, message: 'Scheduled monitor activated', result });
-    }
-    if (mode === 'code_assistant') {
-        sessionModes.set(user, 'code_assistant');
-        return res.json({ success: true, message: 'Code assistant mode activated for user' });
-    }
-    if (mode === 'deep_research') {
-        sessionModes.set(user, 'deep_research');
-        return res.json({ success: true, message: 'Deep research mode activated for user' });
-    }
-    res.status(400).json({ error: 'Invalid mode specified' });
-});
 
 
 
@@ -4651,8 +4431,6 @@ Promise.all([
 ]).then(() => {
     startAutoLearning(ghostLearn, pool);
     cleanupTraces(pool).catch(err => console.error('[Cleanup Traces Warn]:', err.message));
-    initTelephonyBridge(app, pool);
-    initAgentBridge(pool);
 }).catch(err => console.error('[Startup Init Error]:', err.message));
 const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Ghost AI Engine Online on port ${PORT}.`);

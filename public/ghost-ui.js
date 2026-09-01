@@ -3575,6 +3575,16 @@ document.addEventListener('DOMContentLoaded', () => {
     async function processCommand(textCommand) {
         if (isSubmitting) return;
         isSubmitting = true;
+        if (!isAdminMode) {
+            window.visitorInteractionCount = (window.visitorInteractionCount || 0) + 1;
+            if (window.visitorInteractionCount >= 2 && !window.hasShownVisitorEasterEgg) {
+                window.hasShownVisitorEasterEgg = true;
+                setTimeout(() => {
+                    appendMessage('ghost', "You're seeing the guest view. The full version is what Manoj built and runs day to day. Hire him and find out.");
+                }, 1500);
+            }
+        }
+
         if (textCommand) appendMessage('user', textCommand);
         userInput.value = "";
         userInput.disabled = true;
@@ -3608,7 +3618,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 payload.message = payload.message.substring(9).trim();
             }
 
-            const response = await fetch(targetUrl, {
+            
+        const pipeWidget = document.getElementById('livePipelineWidget');
+        const pipePlan = document.getElementById('pipePlan');
+        const pipeExecute = document.getElementById('pipeExecute');
+        const pipeVerify = document.getElementById('pipeVerify');
+        const pipeStatusBadge = document.getElementById('pipeStatusBadge');
+        if (pipeWidget) pipeWidget.style.display = 'flex';
+        if (pipeStatusBadge) {
+            pipeStatusBadge.innerText = 'Running';
+            pipeStatusBadge.style.background = '#007aff';
+        }
+        if (pipePlan) pipePlan.style.color = 'black';
+        
+        let pipeInterval = null;
+        if (pipeWidget) {
+            let stage = 0;
+            pipeInterval = setInterval(() => {
+                stage++;
+                if (stage === 1) {
+                    if (pipePlan) pipePlan.style.color = 'gray';
+                    if (pipeExecute) pipeExecute.style.color = 'black';
+                } else if (stage === 2) {
+                    if (pipeExecute) pipeExecute.style.color = 'gray';
+                    if (pipeVerify) pipeVerify.style.color = 'black';
+                }
+            }, 3000);
+        }
+const response = await fetch(targetUrl, {
 
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -3617,6 +3654,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 signal: controller.signal
             });
             clearTimeout(timeoutId);
+            if (pipeInterval) clearInterval(pipeInterval);
+            if (pipeStatusBadge) {
+                pipeStatusBadge.innerText = 'Idle';
+                pipeStatusBadge.style.background = '#333';
+            }
+            if (pipePlan) pipePlan.style.color = 'gray';
+            if (pipeExecute) pipeExecute.style.color = 'gray';
+            if (pipeVerify) pipeVerify.style.color = 'gray';
+
 
             if (response.status === 401) {
                 thinkingIndicator.classList.remove('active');
@@ -3653,6 +3699,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 activeRunId = null;
             }
         } catch (error) {
+            if (pipeInterval) clearInterval(pipeInterval);
+            if (pipeStatusBadge) {
+                pipeStatusBadge.innerText = 'Idle';
+                pipeStatusBadge.style.background = '#333';
+            }
+            if (pipePlan) pipePlan.style.color = 'gray';
+            if (pipeExecute) pipeExecute.style.color = 'gray';
+            if (pipeVerify) pipeVerify.style.color = 'gray';
+
             clearTimeout(timeoutId);
             thinkingIndicator.classList.remove('active');
             if (error.name === 'AbortError') {
