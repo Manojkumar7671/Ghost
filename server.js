@@ -12,7 +12,6 @@ process.on('unhandledRejection', (reason) => {
 
 import { checkToolAccess } from './src/services/authorizationService.js';
 import { startAutoLearning } from './ghostLearnScheduler.js';
-import { initCronScheduler } from './services/cronScheduler.js';
 import { startWatchdog } from './services/watchdog.js';
 import express from 'express';
 import path from 'path';
@@ -153,26 +152,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 
-app.get('/health', async (req, res) => {
-    let renderReachable = false;
-    try {
-        const renderAgent = require('./src/agents/renderAgent.js');
-        renderReachable = await renderAgent.ping();
-    } catch (e) {}
-
-    // Add lightweight check for LLM router configuration
-    let llmProviders = 0;
-    try {
-        const llmRouter = await import('./llmRouter.js');
-        llmProviders = llmRouter.getProviders().length;
-    } catch(e) {}
-
+app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'ok',
         uptime: process.uptime(),
-        localBrain: 'healthy',
-        renderBrain: renderReachable ? 'reachable' : 'unreachable_fallback_active',
-        llmRoutes: llmProviders,
         timestamp: new Date().toISOString()
     });
 });
@@ -4434,7 +4417,6 @@ Promise.all([
 }).catch(err => console.error('[Startup Init Error]:', err.message));
 const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Ghost AI Engine Online on port ${PORT}.`);
-    initCronScheduler();
     initDesktopOverlay();
     if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'local') {
         console.log('[Local Control Server] Auto-spawning Local Control Daemon client...');
