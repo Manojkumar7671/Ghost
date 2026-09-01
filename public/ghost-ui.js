@@ -619,7 +619,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 masterUser = "Guest";
                 isAdminMode = false;
                 hideLoginOverlay();
-                if (isLocalOrigin) {
+                if (true) {
                     if (visitorGateOverlay) visitorGateOverlay.style.display = '';
                 } else {
                     hideVisitorGate();
@@ -632,7 +632,7 @@ document.addEventListener('DOMContentLoaded', () => {
             masterUser = "Guest";
             isAdminMode = false;
             hideLoginOverlay();
-            if (isLocalOrigin) {
+            if (true) {
                 if (visitorGateOverlay) visitorGateOverlay.style.display = '';
             } else {
                 hideVisitorGate();
