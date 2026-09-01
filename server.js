@@ -3244,9 +3244,14 @@ app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => 
                 const lines = stdout.trim().split('\n');
                 let result = null;
                 for (let i = lines.length - 1; i >= 0; i--) {
-                    if (lines[i].startsWith('{')) {
-                        result = JSON.parse(lines[i]);
-                        break;
+                    const line = lines[i].trim();
+                    if (line.startsWith('{')) {
+                        try {
+                            result = JSON.parse(line);
+                            break;
+                        } catch (e) {
+                            // ignore and keep looking upwards
+                        }
                     }
                 }
                 if (!result) throw new Error("No JSON found in stdout");
