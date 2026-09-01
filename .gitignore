@@ -22,3 +22,5 @@ release/
 cookie.txt
 *.db
 mini-swe-agent/
+curl_*.json
+test*.json
