@@ -3070,8 +3070,22 @@ app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => 
             return res.status(401).json({ success: false, error: 'Unauthorized: Session missing or invalid.' });
         }
         const isAdmin = checkIsAdmin(req);
+        
+        let safeUser = 'guest';
+        if (token) {
+            try {
+                const decoded = require('jsonwebtoken').verify(token, JWT_SECRET);
+                safeUser = decoded.user || 'guest';
+            } catch (e) {}
+        }
+
         if (!isAdmin) {
-            return res.status(401).json({ success: false, error: 'Unauthorized: Owner access required.' });
+            if (!global.guestExecCounts) global.guestExecCounts = new Map();
+            const count = global.guestExecCounts.get(safeUser) || 0;
+            if (count >= 5) {
+                return res.status(429).json({ success: false, error: 'Friendly limit reached: You have exhausted your 5 allowed code executions for this session.' });
+            }
+            global.guestExecCounts.set(safeUser, count + 1);
         }
 
         const goal = req.body.goal || '';
@@ -3081,11 +3095,20 @@ app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => 
 
         const { execSync, exec } = await import("child_process");
 
-
         const taskId = "task-" + Date.now();
-        const cmd = `cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/pevr_service.py --goal "${goal.replace(/"/g, '\"')}" --task_id ${taskId} ${req.body.schedule_id ? "--schedule_id " + req.body.schedule_id : ""}`;
+        let cmd = `cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/pevr_service.py --goal "${goal.replace(/"/g, '\"')}" --task_id ${taskId} ${req.body.schedule_id ? "--schedule_id " + req.body.schedule_id : ""}`;
         
-        const child = exec(cmd, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+        let timeoutOpts = { maxBuffer: 1024 * 1024 * 10 };
+        if (!isAdmin) {
+            const os = require('os');
+            const path = require('path');
+            const fs = require('fs');
+            const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ghost-guest-'));
+            cmd += ` --workspace "${tempDir}"`;
+            timeoutOpts.timeout = 10000;
+        }
+
+        const child = exec(cmd, timeoutOpts, (error, stdout, stderr) => {
             if (global.activeAgentProcess === child) global.activeAgentProcess = null;
             if (error && !stdout.trim()) {
                 if (error.signal === 'SIGKILL') {

@@ -343,9 +343,33 @@ async function execute(action, userMessage, previousResults = [], userContext = 
     }
     case 'workspace_run_command': {
       const isPublic = (process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public';
-      const { isAdmin = false } = userContext;
+      const { isAdmin = false, safeUser = 'guest' } = userContext;
       if (isPublic && !isAdmin) {
-        return 'Access Denied: Local shell command execution is restricted to admin clearance in public deployment mode.';
+        if (!global.guestExecCounts) global.guestExecCounts = new Map();
+        const count = global.guestExecCounts.get(safeUser) || 0;
+        if (count >= 5) {
+            return 'Friendly limit reached: You have exhausted your 5 allowed code executions for this session.';
+        }
+        global.guestExecCounts.set(safeUser, count + 1);
+        
+        const cmd = params.command || '';
+        const blocked = ['rm', 'sudo', 'chmod', 'curl', 'wget', '..'];
+        if (blocked.some(b => cmd.includes(b))) {
+            return `Blocked dangerous command/pattern for guest role.`;
+        }
+        
+        const os = require('os');
+        const path = require('path');
+        const fs = require('fs');
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ghost-guest-'));
+        
+        const { execSync } = require('child_process');
+        try {
+            const out = execSync(cmd, { cwd: tempDir, timeout: 10000, maxBuffer: 1024*1024 });
+            return out.toString();
+        } catch(e) {
+            return `Error: ${e.message}\n${e.stdout ? e.stdout.toString() : ''}`;
+        }
       }
       return await workspaceTools.runWorkspaceCommand(params);
     }

@@ -3457,7 +3457,9 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/>/g, '&gt;');
 
         // Code blocks ```...```
-        html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+        html = html.replace(/```(?:[a-zA-Z0-9-]*\n)?([\s\S]*?)```/g, (match, code) => {
+            return `<div class="code-wrapper" style="position:relative; margin:8px 0;"><button onclick="navigator.clipboard.writeText(this.nextElementSibling.innerText); this.innerText='Copied!'; setTimeout(()=>this.innerText='Copy', 2000);" style="position:absolute; top:8px; right:8px; background:#475569; color:#f8fafc; border:none; border-radius:4px; padding:4px 8px; font-size:11px; cursor:pointer; opacity:0.8; transition:opacity 0.2s;">Copy</button><pre style="padding:28px 12px 12px 12px; margin:0; background:#1e293b; border-radius:8px; overflow-x:auto;"><code>${code}</code></pre></div>`;
+        });
         // Inline code `...`
         html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
         // Bold **text**
@@ -3590,15 +3592,6 @@ document.addEventListener('DOMContentLoaded', () => {
     async function processCommand(textCommand) {
         if (isSubmitting) return;
         isSubmitting = true;
-        if (!isAdminMode) {
-            window.visitorInteractionCount = (window.visitorInteractionCount || 0) + 1;
-            if (window.visitorInteractionCount >= 2 && !window.hasShownVisitorEasterEgg) {
-                window.hasShownVisitorEasterEgg = true;
-                setTimeout(() => {
-                    appendMessage('ghost', "You're seeing the guest view. The full version is what Manoj built and runs day to day. Hire him and find out.");
-                }, 1500);
-            }
-        }
 
         if (textCommand) appendMessage('user', textCommand);
         userInput.value = "";
@@ -3623,7 +3616,7 @@ document.addEventListener('DOMContentLoaded', () => {
         attachmentInput.value = "";
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000);
+        const timeoutId = setTimeout(() => controller.abort(), 120000);
 
         try {
             
@@ -3725,7 +3718,7 @@ const response = await fetch(targetUrl, {
             clearTimeout(timeoutId);
             thinkingIndicator.classList.remove('active');
             if (error.name === 'AbortError') {
-                appendMessage('ghost', "Response timed out. You can continue typing.");
+                appendMessage('ghost', "That took too long — try again or simplify the request.");
             } else {
                 appendMessage('ghost', "Critical failure: Server unreachable.");
             }
