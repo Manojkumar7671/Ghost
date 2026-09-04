@@ -670,9 +670,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (visitorGateOverlay) visitorGateOverlay.style.display = '';
         });
     }
-    function submitVisitorForm() {
+    async function submitVisitorForm() {
         const name = visitorNameInput ? visitorNameInput.value.trim().replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 40) : '';
         masterUser = capitalizeName(name) || 'Guest';
+        try {
+            await fetch('/api/auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ name: masterUser, user: masterUser })
+            });
+        } catch (e) {
+            console.error(e);
+        }
         isAdminMode = false;
         hideVisitorGate();
         hideLoginOverlay();
@@ -3666,8 +3676,7 @@ const response = await fetch(targetUrl, {
 
             if (response.status === 401) {
                 thinkingIndicator.classList.remove('active');
-                loginOverlay.style.opacity = '1';
-                loginOverlay.style.visibility = 'visible';
+                showLoginOverlay();
                 appLayout.classList.remove('active');
                 return;
             }
