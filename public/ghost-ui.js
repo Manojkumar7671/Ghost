@@ -669,6 +669,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (visitorGateOverlay) visitorGateOverlay.style.display = '';
         });
     }
+    let greetingSent = false;
     async function submitVisitorForm() {
         const name = visitorNameInput ? visitorNameInput.value.trim().replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 40) : '';
         masterUser = capitalizeName(name) || 'Guest';
@@ -688,7 +689,10 @@ document.addEventListener('DOMContentLoaded', () => {
         setVisitorHeader(masterUser);
         appLayout.classList.add('active');
         
-        appendMessage('assistant', "Hi, I'm Ghost — an autonomous AI agent platform built by Mathangi Manoj Kumar, a CS graduate (Chalapathi Institute of Engineering and Technology, 2026) focused on reliable, evidence-verified AI systems. He built me with a full plan-execute-verify-recover loop, multi-provider LLM routing, browser automation, and safety infrastructure like kill-switches and budget caps. He also built a real-time edge-vision vehicle detection system with 91.7% mAP, and a SAP S/4HANA knowledge assistant. He's AWS Academy and SAP Certified Associate certified. Ask me anything, or check out his work at github.com/Manojkumar7671.");
+        if (!greetingSent) {
+            greetingSent = true;
+            appendMessage('assistant', "Hi, I'm Ghost — an autonomous AI agent platform built by Mathangi Manoj Kumar, a CS graduate (Chalapathi Institute of Engineering and Technology, 2026) focused on reliable, evidence-verified AI systems. He built me with a full plan-execute-verify-recover loop, multi-provider LLM routing, browser automation, and safety infrastructure like kill-switches and budget caps. He also built a real-time edge-vision vehicle detection system with 91.7% mAP, and a SAP S/4HANA knowledge assistant. He's AWS Academy and SAP Certified Associate certified. Ask me anything, or check out his work at github.com/Manojkumar7671.");
+        }
     }
     const visitorForm = document.getElementById('visitorForm');
     if (visitorForm) {
