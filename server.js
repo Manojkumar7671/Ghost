@@ -442,6 +442,7 @@ app.post('/api/auth', authLimiter, async (req, res) => {
         } catch (e) {}
     }
 
+    console.log('DEBUG authString:', JSON.stringify(authString), 'expected:', JSON.stringify(ADMIN_PASSPHRASE));
     const suppliedHash = crypto.createHash('sha256').update(String(authString || '')).digest();
     const expectedHash = crypto.createHash('sha256').update(ADMIN_PASSPHRASE).digest();
     if (authString && crypto.timingSafeEqual(suppliedHash, expectedHash)) {
