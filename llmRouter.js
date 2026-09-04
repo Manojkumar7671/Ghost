@@ -18,6 +18,12 @@ export function getProviders() {
   const localSlash = freeLLMLocal.endsWith('/v1') ? '' : '/v1';
 
   const providers = [
+    ...(freeLLMCloud ? [{
+      name: 'FreeLLMAPI (Render Cloud)',
+      endpoint: `${freeLLMCloud}${freeLLMCloud.endsWith('/v1') ? '' : '/v1'}/chat/completions`,
+      model: 'auto',
+      apiKey: process.env.FREELLMAPI_API_KEY || 'free'
+    }] : []),
     {
       name: 'Groq',
       endpoint: 'https://api.groq.com/openai/v1/chat/completions',
@@ -56,15 +62,6 @@ export function getProviders() {
     }
   ];
 
-  if (freeLLMCloud) {
-    const cloudSlash = freeLLMCloud.endsWith('/v1') ? '' : '/v1';
-    providers.push({
-      name: 'FreeLLMAPI (Render Cloud)',
-      endpoint: `${freeLLMCloud}${cloudSlash}/chat/completions`,
-      model: 'auto',
-      apiKey: process.env.FREELLMAPI_API_KEY || 'free'
-    });
-  }
 
 
   providers.push({
