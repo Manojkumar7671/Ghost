@@ -572,7 +572,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const displayName = visitorName ? capitalizeName(visitorName) : 'GUEST';
         if (userTag) { userTag.innerText = displayName.toUpperCase(); userTag.style.color = ''; }
         if (userRoleBadge) userRoleBadge.innerText = '· Visitor';
-        if (headerUnlockBtn && isLocalOrigin) headerUnlockBtn.style.display = '';
+        if (headerUnlockBtn) headerUnlockBtn.style.display = '';
         const inspectBtn = document.getElementById('inspectRepoBtn');
         if (inspectBtn) inspectBtn.style.display = 'none';
         const planBtn = document.getElementById('planDiffBtn');
@@ -645,7 +645,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- VISITOR GATE & UNLOCK WIRING (localhost only) ---
     function showOwnerAuthPrompt() {
-        if (!isLocalOrigin) return;
         hideVisitorGate();
         if (visitorModal) visitorModal.style.display = 'none';
         storedClearanceKey = '';
