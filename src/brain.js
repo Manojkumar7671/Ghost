@@ -518,9 +518,16 @@ async function think(userMessage, userContext = { safeUser: 'guest', isAdmin: fa
   // DETERMINISTIC LIVE-NEWS BOUNDARY: Check before anything that can call plan() or an LLM
   const isNewsQuery = /\b(what is the news|latest news|news today|current headlines|news)\b/i.test(userMessage);
   if (isNewsQuery) {
-    const reply = "I don't have verified live research data in this chat. I can help you frame a search or summarize sources you provide.";
-    saveMessage(username, 'assistant', reply);
-    return { reply, actions: [{ tool: 'chat', reason: 'Direct honest news response', status: 'done' }] };
+    try {
+      const sr = await webAgent.searchWeb(userMessage);
+      const reply = sr.summary || JSON.stringify(sr);
+      saveMessage(username, 'assistant', reply);
+      return { reply, actions: [{ tool: 'web_search', reason: 'Live news query', status: 'done' }] };
+    } catch (err) {
+      const reply = "I tried to search live but hit an error: " + err.message;
+      saveMessage(username, 'assistant', reply);
+      return { reply, actions: [{ tool: 'web_search', reason: 'Live news query failed', status: 'error' }] };
+    }
   }
 
   // FAST PATH: Ordinary normal chat skips planner/orchestrator/subtask loops completely

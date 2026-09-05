@@ -3627,11 +3627,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             
-        const pipeWidget = document.getElementById('livePipelineWidget');
-        const pipePlan = document.getElementById('pipePlan');
-        const pipeExecute = document.getElementById('pipeExecute');
-        const pipeVerify = document.getElementById('pipeVerify');
-        const pipeStatusBadge = document.getElementById('pipeStatusBadge');
+        var pipeWidget = document.getElementById('livePipelineWidget');
+        var pipePlan = document.getElementById('pipePlan');
+        var pipeExecute = document.getElementById('pipeExecute');
+        var pipeVerify = document.getElementById('pipeVerify');
+        var pipeStatusBadge = document.getElementById('pipeStatusBadge');
         if (pipeWidget) pipeWidget.style.display = 'flex';
         if (pipeStatusBadge) {
             pipeStatusBadge.innerText = 'Running';
@@ -3639,7 +3639,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (pipePlan) pipePlan.style.color = 'black';
         
-        let pipeInterval = null;
+        var pipeInterval = null;
         if (pipeWidget) {
             let stage = 0;
             pipeInterval = setInterval(() => {
