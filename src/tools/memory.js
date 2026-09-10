@@ -27,10 +27,10 @@ function saveMessage(username, role, content) {
     safeContent = safeContent.substring(0, 10000) + '... [TRUNCATED DUE TO SIZE]';
   }
   history.push({ role, content: safeContent, ts: new Date().toISOString() });
-  if (history.length > 12) history.splice(0, history.length - 12);
+  if (history.length > 40) history.splice(0, history.length - 40);
 }
 
-function getHistory(username, limit = 6) {
+function getHistory(username, limit = 40) {
   const h = loadHistory(username);
   return h.slice(-limit).map(m => ({ role: m.role, content: m.content }));
 }

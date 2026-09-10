@@ -7,11 +7,20 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET;
+if (!process.env.ADMIN_PASSPHRASE) {
+  throw new Error('ADMIN_PASSPHRASE environment variable is required at startup');
+}
+const adminPassphrase = process.env.ADMIN_PASSPHRASE;
 const inMemoryUsers = new Map();
 const inMemorySessions = new Map();
 
 function hashPassword(password) {
   return crypto.createHash('sha256').update(String(password)).digest('hex');
+}
+
+// Helper to seed initial DB structure if it were SQLite (kept for reference)
+function initDB() {
+  console.log('[Auth] In-memory auth initialized.');
 }
 
 async function registerUser(username, email, password, role = 'user') {
@@ -42,7 +51,6 @@ async function loginUser(username, password) {
     return { success: false, error: 'Username and password required.' };
   }
 
-  const adminPassphrase = process.env.ADMIN_PASSPHRASE || 'ghost_admin';
   if ((username === 'master_manoj' || username === 'boss') && password === adminPassphrase) {
     const token = jwt.sign({ user_id: 'admin-id-001', username: 'master_manoj', role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
     inMemorySessions.set(token, { user_id: 'admin-id-001', username: 'master_manoj', role: 'admin', expires_at: Date.now() + 86400000 });

@@ -1,0 +1,1 @@
+{"success":true,"task_id":"task-1789042251740","status":"SUCCESS","plan":{"steps":[{"step_id":"s1","objective":"Send an email","permitted_tools":["send_email"],"verification_method":{"type":"run_command","command":"echo ok"},"retry_budget":3,"dependencies":[]}]},"evidence":["MODEL_CALL tier=fast model=mock","MODEL_CALL tier=fast model=mock"]}

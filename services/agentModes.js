@@ -12,7 +12,7 @@ const memory = require('../src/tools/memory.js');
 const { saveMessage } = memory;
 
 const webAgent = require('../src/agents/webAgent.js');
-const voiceAgent = require('../src/agents/voiceAgent.js');
+
 
 const activeJobs = new Map();
 
@@ -61,19 +61,9 @@ Keep the briefing short, direct, conversational, and under 150 words (suitable f
                 systemPrompt: "You are Ghost, Manoj's loyal AI assistant. Output only the spoken briefing text."
             });
 
-            let voiceMessage = '';
-            if (process.env.ELEVENLABS_API_KEY) {
-                try {
-                    const ttsRes = await voiceAgent.textToSpeech(briefing, `morning_digest_${Date.now()}.mp3`);
-                    if (ttsRes.success) {
-                        voiceMessage = ` [Voice briefing generated: logs/audio/${path.basename(ttsRes.file)}]`;
-                    }
-                } catch (e) {
-                    console.error('[Agent Modes] TTS generation failed:', e.message);
-                }
-            }
 
-            saveMessage(username, 'assistant', briefing + voiceMessage);
+
+            saveMessage(username, 'assistant', briefing);
             console.log(`[Agent Modes] Morning Digest sent to ${username}`);
         } catch (err) {
             console.error('[Agent Modes] Morning Digest execution failed:', err.message);

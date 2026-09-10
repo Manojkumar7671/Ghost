@@ -4,7 +4,7 @@ const emailAgent = require('./agents/emailAgent');
 const githubAgent = require('./agents/githubAgent');
 const imageAgent = require('./agents/imageAgent');
 const notionAgent = require('./agents/notionAgent');
-const voiceAgent = require('./agents/voiceAgent');
+
 const goalAgent = require('./agents/goalAgent');
 const selfAgent = require('./agents/selfAgent');
 const scheduler = require('./agents/scheduler');
@@ -133,15 +133,7 @@ const adaptedSelfAgent = {
   }
 };
 
-const adaptedVoiceAgent = {
-  run: async (task, context) => {
-    const params = await extractParams('voiceAgent', task, context, 
-      `Return JSON with a single key "text" containing the text to be spoken.`
-    );
-    const vr = await voiceAgent.textToSpeech(params?.text || task);
-    return vr.success ? `Speaking audio saved.` : `Voice failed: ${vr.error}`;
-  }
-};
+
 
 const adaptedScheduler = {
   run: async (task, context) => {
@@ -216,7 +208,7 @@ module.exports = {
   notionAgent: adaptedNotionAgent,
   goalAgent: adaptedGoalAgent,
   selfAgent: adaptedSelfAgent,
-  voiceAgent: adaptedVoiceAgent,
+
   scheduler: adaptedScheduler,
   dailyBriefingAgent,
   codeReviewAgent,

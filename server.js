@@ -42,7 +42,7 @@ import { traceLocalStorage, initTraceTable, saveTrace, cleanupTraces } from './s
 import { loadPlugins, matchAndRun } from './services/pluginSystem.js';
 import { recordSelfEdit, getSelfEditLessons } from './services/selfEditMemory.js';
 import { runClaudeReasoningPrestep } from './services/claudeReasoning.js';
-import { initDesktopOverlay } from './services/desktopOverlay.js';
+
 import { initPersistenceTables } from './services/persistence.js';
 import * as approvedTestRunner from './services/approvedTestRunner.js';
 import { runAutonomousTask, resumeAutonomousTask } from './services/autonomousLoop.js';
@@ -144,6 +144,8 @@ if (!process.env.BROWSERBASE_API_KEY) console.warn("[WARN] BROWSERBASE_API_KEY m
 if (!process.env.OBSIDIAN_API_KEY || !process.env.OBSIDIAN_VAULT_PATH) console.warn("[WARN] OBSIDIAN_API_KEY or OBSIDIAN_VAULT_PATH missing — Obsidian features disabled");
 
 const ADMIN_PASSPHRASE = process.env.ADMIN_PASSPHRASE;
+console.log("ADMIN_PASSPHRASE is", process.env.ADMIN_PASSPHRASE ? "SET" : "MISSING");
+
 const JWT_SECRET = process.env.JWT_SECRET;
 const OBSIDIAN_API_KEY = process.env.OBSIDIAN_API_KEY || '';
 const OBSIDIAN_VAULT_PATH = process.env.OBSIDIAN_VAULT_PATH || '';
@@ -164,6 +166,12 @@ app.set('trust proxy', 1);
 app.use(express.json({ limit: '10mb' })); // Restricted standard payload sizes to prevent memory-limit DoS attacks
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(cookieParser());
+app.use((err, req, res, next) => {
+    if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
+        return res.status(400).json({ success: false, error: "Malformed JSON payload." });
+    }
+    next(err);
+});
 app.use('/api', (req, res, next) => {
     if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
         const cType = req.headers['content-type'];
@@ -442,7 +450,6 @@ app.post('/api/auth', authLimiter, async (req, res) => {
         } catch (e) {}
     }
 
-    console.log('DEBUG authString:', JSON.stringify(authString), 'expected:', JSON.stringify(ADMIN_PASSPHRASE));
     const suppliedHash = crypto.createHash('sha256').update(String(authString || '')).digest();
     const expectedHash = crypto.createHash('sha256').update(ADMIN_PASSPHRASE).digest();
     if (authString && crypto.timingSafeEqual(suppliedHash, expectedHash)) {
@@ -3124,15 +3131,11 @@ app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => 
                 for (let i = lines.length - 1; i >= 0; i--) {
                     const line = lines[i].trim();
                     if (line.startsWith('{')) {
-                        try {
-                            result = JSON.parse(line);
-                            break;
-                        } catch (e) {
-                            // ignore and keep looking upwards
-                        }
+                        result = JSON.parse(line);
+                        break;
                     }
                 }
-                if (!result) throw new Error("No JSON found in stdout");
+                if (!result) throw new Error("No JSON found in stdout. Raw stdout: " + stdout);
                 return res.json(result);
             } catch (parseError) {
                 console.error("Failed to parse agent output:", parseError, stdout);
@@ -4441,12 +4444,7 @@ Promise.all([
 }).catch(err => console.error('[Startup Init Error]:', err.message));
 const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Ghost AI Engine Online on port ${PORT}.`);
-    initDesktopOverlay();
-    if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'local') {
-        console.log('[Local Control Server] Auto-spawning Local Control Daemon client...');
-        try { execSync('pkill -f "node ./services/localControlDaemon.js" 2>/dev/null'); } catch (e) {}
-        spawn('node', ['./services/localControlDaemon.js'], { stdio: 'inherit' });
-    }
+
 });
 
 server.on('upgrade', (req, socket, head) => {

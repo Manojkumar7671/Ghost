@@ -10,7 +10,7 @@ const emailAgent = require('./agents/emailAgent');
 const githubAgent = require('./agents/githubAgent');
 const imageAgent = require('./agents/imageAgent');
 const notionAgent = require('./agents/notionAgent');
-const voiceAgent = require('./agents/voiceAgent');
+
 const goalAgent = require('./agents/goalAgent');
 const selfAgent = require('./agents/selfAgent');
 const scheduler = require('./agents/scheduler');
@@ -228,7 +228,7 @@ async function execute(action, userMessage, previousResults = [], userContext = 
   switch (tool) {
     case 'chat': {
       const { safeUser = 'guest', isAdmin = false, history: customHistory } = userContext;
-      const history = customHistory && customHistory.length > 0 ? customHistory : getHistory(safeUser, 15);
+      const history = customHistory && customHistory.length > 0 ? customHistory : getHistory(safeUser, 40);
       if (history.length > 0 && history[history.length - 1].role === 'user' && history[history.length - 1].content === userMessage) {
         return await chat(history, {
           systemPrompt: getSystemPrompt(userContext)
@@ -283,15 +283,13 @@ async function execute(action, userMessage, previousResults = [], userContext = 
     case 'self_analyze':
       const sa = await selfAgent.analyzeSelf();
       return `Self analysis:\n${sa.analysis}`;
-    case 'voice_speak':
-      const vr = await voiceAgent.textToSpeech(params.text || context || userMessage);
-      return vr.success ? `Speaking audio saved.` : `Voice failed: ${vr.error}`;
+
     case 'briefing':
       const br = await scheduler.generateBriefing();
       return `Briefing:\n${br}`;
     case 'memory_save': {
       const { safeUser = 'guest' } = userContext;
-      const history = getHistory(safeUser, 10);
+      const history = getHistory(safeUser, 40);
       let valToSave = params.value;
       const isDemonstrative = !valToSave || 
         valToSave === userMessage || 
@@ -533,7 +531,7 @@ async function think(userMessage, userContext = { safeUser: 'guest', isAdmin: fa
   // FAST PATH: Ordinary normal chat skips planner/orchestrator/subtask loops completely
   if (isOrdinaryChatRequest(userMessage, userContext)) {
     console.log(`[Brain Fast Path] Routing ordinary chat request directly to single bounded chat completion: "${userMessage.substring(0, 40)}..."`);
-    const history = getHistory(username, 6);
+    const history = getHistory(username, 40);
     const historyMsgs = history && history.length > 0
       ? history.map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content }))
       : [];
@@ -612,7 +610,7 @@ Factual Humility & Boundaries:
     : '';
   
   // Retrieve short-term conversation history for pronoun resolution
-  const history = getHistory(username, 15);
+  const history = getHistory(username, 40);
   
   const actions = await plan(userMessage, userContext, memoryContext, cagContext, history);
   console.log('[Brain Debug] Planned actions:', JSON.stringify(actions));
