@@ -13,7 +13,8 @@ import { redactSecrets } from './services/secretRedactor.js';
 import { logUsage } from './services/usageTracker.js';
 
 export function getProviders() {
-  const freeLLMCloud = (process.env.FREELLMAPI_RENDER_URL || process.env.FREELLMAPI_BASE_URL || '').replace(/\/+$/, '');
+  const isLocal = (process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'local';
+  const freeLLMCloud = (process.env.FREELLMAPI_RENDER_URL || (isLocal ? process.env.FREELLMAPI_BASE_URL : 'https://freellmapi-e17x.onrender.com') || '').replace(/\/+$/, '');
   const freeLLMLocal = (process.env.FREELLMAPI_LOCAL_URL || 'http://localhost:3001/v1').replace(/\/+$/, '');
   const localSlash = freeLLMLocal.endsWith('/v1') ? '' : '/v1';
 
@@ -22,7 +23,8 @@ export function getProviders() {
       name: 'FreeLLMAPI (Render Cloud)',
       endpoint: `${freeLLMCloud}${freeLLMCloud.endsWith('/v1') ? '' : '/v1'}/chat/completions`,
       model: 'auto',
-      apiKey: process.env.FREELLMAPI_API_KEY || 'free'
+      apiKey: process.env.FREELLMAPI_API_KEY || 'free',
+      timeoutMs: process.env.FREELLMAPI_TIMEOUT_MS ? parseInt(process.env.FREELLMAPI_TIMEOUT_MS, 10) : 8000
     }] : []),
     {
       name: 'Groq',
@@ -30,16 +32,16 @@ export function getProviders() {
       model: 'openai/gpt-oss-120b',
       apiKey: process.env.GROQ_API_KEY
     },
-    {
+    ...(isLocal ? [{
       name: 'FreeLLMAPI (Local)',
       endpoint: `${freeLLMLocal}${localSlash}/chat/completions`,
       model: 'auto',
       apiKey: process.env.FREELLMAPI_API_KEY || 'free'
-    },
+    }] : []),
     {
       name: 'NVIDIA NIM',
       endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions',
-      model: 'meta/llama-3.1-8b-instruct',
+      model: 'meta/llama-3.2-11b-vision-instruct',
       apiKey: process.env.NVIDIA_API_KEY
     },
     {
@@ -62,14 +64,14 @@ export function getProviders() {
     }
   ];
 
-
-
-  providers.push({
-    name: 'Osaurus Local',
-    endpoint: process.env.OSAURUS_ENDPOINT || 'http://localhost:1337/v1/chat/completions',
-    model: process.env.OSAURUS_MODEL || 'foundation',
-    apiKey: 'osaurus_local_key'
-  });
+  if (isLocal) {
+    providers.push({
+      name: 'Osaurus Local',
+      endpoint: process.env.OSAURUS_ENDPOINT || 'http://localhost:1337/v1/chat/completions',
+      model: process.env.OSAURUS_MODEL || 'foundation',
+      apiKey: 'osaurus_local_key'
+    });
+  }
 
   providers.push({
     name: 'Kimi K2',
@@ -161,10 +163,10 @@ export async function callLLM(messages = [], options = {}) {
           selectedModel = customModel.replace(/^google\//, '');
         }
       } else if (provider.name === 'NVIDIA NIM') {
-        if (customModel.includes('llama-3.1-8b')) {
-          selectedModel = 'meta/llama-3.1-8b-instruct';
-        } else if (customModel.includes('llama-3.3-70b')) {
-          selectedModel = 'meta/llama-3.3-70b-instruct';
+        if (customModel.includes('llama-3.1-8b') || customModel.includes('llama-3.2-11b')) {
+          selectedModel = 'meta/llama-3.2-11b-vision-instruct';
+        } else if (customModel.includes('llama-3.3-70b') || customModel.includes('llama-3.2-90b')) {
+          selectedModel = 'meta/llama-3.2-90b-vision-instruct';
         }
       } else if (provider.name === 'Groq') {
         if (customModel.includes('llama-3.3-70b')) {
@@ -180,8 +182,9 @@ export async function callLLM(messages = [], options = {}) {
 
     while (attempts < maxAttempts && !success) {
       attempts++;
+      const effectiveTimeout = provider.timeoutMs || timeoutMs;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
 
       const startProviderTime = Date.now();
       try {
@@ -244,7 +247,7 @@ export async function callLLM(messages = [], options = {}) {
       } catch (err) {
         clearTimeout(timeoutId);
         const isAbort = err.name === 'AbortError';
-        const errMsg = redactSecrets(isAbort ? `Timeout after ${timeoutMs}ms` : err.message);
+        const errMsg = redactSecrets(isAbort ? `Timeout after ${effectiveTimeout}ms` : err.message);
 
         // If abort/timeout, or if we reached max attempts, break out of retry loop
         if (isAbort || attempts >= maxAttempts) {
