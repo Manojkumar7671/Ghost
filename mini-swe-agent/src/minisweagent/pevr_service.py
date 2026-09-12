@@ -43,6 +43,32 @@ def log_event(task_id, step_id, event_type, tier, details):
     conn.commit()
     conn.close()
 
+def extract_json(content):
+    if not content:
+        raise ValueError("Empty content to parse JSON from.")
+    decoder = json.JSONDecoder()
+    idx = content.find('{')
+    while idx != -1:
+        try:
+            obj, end = decoder.raw_decode(content, idx)
+            if isinstance(obj, dict) and "steps" in obj:
+                return obj
+            idx = content.find('{', idx + 1)
+        except Exception:
+            idx = content.find('{', idx + 1)
+    
+    clean = content.strip()
+    if clean.startswith("```"):
+        lines = clean.splitlines()
+        if lines[0].startswith("```"): lines = lines[1:]
+        if lines and lines[-1].startswith("```"): lines = lines[:-1]
+        clean = "\n".join(lines).strip()
+    s = clean.find('{')
+    e = clean.rfind('}')
+    if s != -1 and e != -1 and e > s:
+        return json.loads(clean[s:e+1])
+    return json.loads(clean)
+
 class ModelGateway:
     def __init__(self):
         self.total_tokens = 0
@@ -50,38 +76,73 @@ class ModelGateway:
         self.api_calls = 0
 
         candidates = []
-        # Support Gemini, Groq, Nvidia, OpenRouter
-        if os.environ.get("GEMINI_API_KEY"):
-            candidates.append(("gemini/gemini-1.5-flash", "gemini/gemini-1.5-pro"))
+        nvidia_key = os.environ.get("NVIDIA_API_KEY") or os.environ.get("META_API_KEY")
+        if nvidia_key:
+            candidates.append({
+                "name": "nvidia",
+                "fast": "openai/meta/llama-3.2-11b-vision-instruct",
+                "strong": "openai/meta/llama-3.2-11b-vision-instruct",
+                "api_base": "https://integrate.api.nvidia.com/v1",
+                "api_key": nvidia_key
+            })
         if os.environ.get("GROQ_API_KEY"):
-            candidates.append(("groq/llama-3.1-8b-instant", "groq/llama-3.3-70b-versatile"))
-            candidates.append(("groq/openai/gpt-oss-20b", "groq/openai/gpt-oss-120b"))
-        if os.environ.get("NVIDIA_API_KEY"):
-            candidates.append(("nvidia_nim/meta/llama-3.1-8b-instruct", "nvidia_nim/nvidia/llama-3.3-nemotron-super-49b-v1"))
+            candidates.append({
+                "name": "groq",
+                "fast": "groq/llama-3.1-8b-instant",
+                "strong": "groq/llama-3.3-70b-versatile",
+                "api_base": None,
+                "api_key": os.environ.get("GROQ_API_KEY")
+            })
         if os.environ.get("OPENROUTER_API_KEY"):
-            candidates.append(("openrouter/meta-llama/llama-3.1-8b-instruct", "openrouter/meta-llama/llama-3.3-70b-instruct"))
+            candidates.append({
+                "name": "openrouter",
+                "fast": "openrouter/meta-llama/llama-3.1-8b-instruct",
+                "strong": "openrouter/meta-llama/llama-3.3-70b-instruct",
+                "api_base": None,
+                "api_key": os.environ.get("OPENROUTER_API_KEY")
+            })
+        if os.environ.get("GEMINI_API_KEY"):
+            candidates.append({
+                "name": "gemini",
+                "fast": "gemini/gemini-1.5-flash",
+                "strong": "gemini/gemini-1.5-pro",
+                "api_base": None,
+                "api_key": os.environ.get("GEMINI_API_KEY")
+            })
 
         if not candidates:
-            candidates.append(("groq/openai/gpt-oss-20b", "groq/openai/gpt-oss-120b"))
+            candidates.append({
+                "name": "groq",
+                "fast": "groq/openai/gpt-oss-20b",
+                "strong": "groq/openai/gpt-oss-120b",
+                "api_base": None,
+                "api_key": None
+            })
 
-        self.model_candidates = candidates
-        self.fast, self.strong = candidates[0]
+        self.candidates = candidates
+        self.current_provider = candidates[0]
 
     def call_planner(self, goal):
-        prompt = f"Goal: {goal}\nCreate a step-by-step plan. Return ONLY JSON matching this schema: {{ 'steps': [ {{'step_id', 'objective', 'permitted_tools', 'verification_method': {{'type': 'run_command', 'command': '...'}}, 'retry_budget', 'dependencies'}} ] }}."
+        prompt = f"Goal: {goal}\nCreate a step-by-step plan. Return ONLY raw valid JSON matching this schema: {{ 'steps': [ {{'step_id', 'objective', 'permitted_tools', 'verification_method': {{'type': 'run_command', 'command': '...'}}, 'retry_budget', 'dependencies'}} ] }}."
         last_err = None
-        for fast_m, strong_m in self.model_candidates:
+        for prov in self.candidates:
             start = time.time()
             try:
-                resp = litellm.completion(model=strong_m, messages=[{"role": "user", "content": prompt}], response_format={"type": "json_object"})
+                kwargs = {
+                    "model": prov["strong"],
+                    "messages": [{"role": "user", "content": prompt}]
+                }
+                if prov.get("api_base"): kwargs["api_base"] = prov["api_base"]
+                if prov.get("api_key"): kwargs["api_key"] = prov["api_key"]
+
+                resp = litellm.completion(**kwargs)
                 lat = time.time() - start
                 self.total_latency += lat
                 self.api_calls += 1
                 toks = resp.usage.total_tokens if hasattr(resp, 'usage') and resp.usage else 0
                 self.total_tokens += toks
-                self.fast = fast_m
-                self.strong = strong_m
-                return json.loads(resp.choices[0].message.content)
+                self.current_provider = prov
+                return extract_json(resp.choices[0].message.content)
             except Exception as e:
                 last_err = e
                 continue
@@ -89,22 +150,26 @@ class ModelGateway:
 
     def call_executor(self, messages, tools, tier):
         last_err = None
-        models_to_try = [(self.fast if tier == "fast" else self.strong)]
-        for f, s in self.model_candidates:
-            cand = f if tier == "fast" else s
-            if cand not in models_to_try:
-                models_to_try.append(cand)
-
-        for model in models_to_try:
+        for prov in self.candidates:
             start = time.time()
+            model = prov["fast"] if tier == "fast" else prov["strong"]
             try:
-                resp = litellm.completion(model=model, messages=messages, tools=tools, tool_choice="auto" if tools else "none")
+                kwargs = {
+                    "model": model,
+                    "messages": messages,
+                    "tools": tools,
+                    "tool_choice": "auto" if tools else "none"
+                }
+                if prov.get("api_base"): kwargs["api_base"] = prov["api_base"]
+                if prov.get("api_key"): kwargs["api_key"] = prov["api_key"]
+
+                resp = litellm.completion(**kwargs)
                 lat = time.time() - start
                 self.total_latency += lat
                 self.api_calls += 1
                 toks = resp.usage.total_tokens if hasattr(resp, 'usage') and resp.usage else 0
                 self.total_tokens += toks
-                
+
                 msg = resp.choices[0].message
                 actions = []
                 if msg.tool_calls:
