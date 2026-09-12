@@ -197,22 +197,22 @@ function getAgentCommand(scriptArgs) {
     
     let uvWorks = false;
     try {
-        const out = execSync(`"${uvBin}" --version`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'], timeout: 2000 });
+        const out = execSync(`unset VIRTUAL_ENV; "${uvBin}" --version`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'], timeout: 2000 });
         if (out && out.toLowerCase().includes('uv')) uvWorks = true;
     } catch (e) {}
 
     if (uvWorks) {
-        return `cd mini-swe-agent && PYTHONUNBUFFERED=1 "${uvBin}" run --python 3.11 python ${scriptArgs}`;
+        return `unset VIRTUAL_ENV && cd mini-swe-agent && PYTHONUNBUFFERED=1 "${uvBin}" run --python 3.11 python ${scriptArgs}`;
     }
 
     try {
         if (fs.existsSync(venvPython)) {
             fs.accessSync(venvPython, fs.constants.X_OK);
-            return `cd mini-swe-agent && PYTHONUNBUFFERED=1 "${venvPython}" ${scriptArgs}`;
+            return `unset VIRTUAL_ENV && cd mini-swe-agent && PYTHONUNBUFFERED=1 "${venvPython}" ${scriptArgs}`;
         }
     } catch (e) {}
 
-    return `cd mini-swe-agent && PYTHONUNBUFFERED=1 python3 ${scriptArgs}`;
+    return `unset VIRTUAL_ENV && cd mini-swe-agent && PYTHONUNBUFFERED=1 python3 ${scriptArgs}`;
 }
 
 const app = express();
@@ -1864,8 +1864,10 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                     runAgentSqlite(`INSERT OR REPLACE INTO tasks (task_id, goal, plan, status, start_time) VALUES ('${taskId}', '${safeGoal}', '[]', 'RUNNING', ${Date.now() / 1000})`);
 
                     const cmd = getAgentCommand(`src/minisweagent/pevr_service.py --goal "${message.replace(/"/g, '\\"')}" --task_id ${taskId}`);
+                    const childEnv = { ...process.env, PATH: process.env.PATH };
+                    delete childEnv.VIRTUAL_ENV;
                     const { exec } = await import('child_process');
-                    exec(cmd, { env: { ...process.env, PATH: process.env.PATH } }, (error, stdout, stderr) => {
+                    exec(cmd, { env: childEnv, timeout: 90000 }, (error, stdout, stderr) => {
                         if (error && !stdout.trim()) {
                             console.error("Agent background process execution failed:", error.message, stderr);
                             runAgentSqlite(`UPDATE tasks SET status = 'FAILED', end_time = ${Date.now() / 1000} WHERE task_id = '${taskId}'`);
@@ -3516,10 +3518,9 @@ app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => 
         }
 
         let cmd = getAgentCommand(scriptArgs);
-        let timeoutOpts = { maxBuffer: 1024 * 1024 * 10, env: { ...process.env, PATH: process.env.PATH } };
-        if (!isAdmin) {
-            timeoutOpts.timeout = 10000;
-        }
+        const childEnv = { ...process.env, PATH: process.env.PATH };
+        delete childEnv.VIRTUAL_ENV;
+        let timeoutOpts = { maxBuffer: 1024 * 1024 * 10, env: childEnv, timeout: 90000 };
 
         const child = exec(cmd, timeoutOpts, (error, stdout, stderr) => {
             if (global.activeAgentProcess === child) global.activeAgentProcess = null;
