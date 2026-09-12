@@ -178,7 +178,7 @@ class PEVRAgent:
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         start = time.time()
-        c.execute("INSERT INTO tasks (task_id, goal, status, start_time, total_tokens, total_latency) VALUES (?, ?, ?, ?, ?, ?)",
+        c.execute("INSERT OR REPLACE INTO tasks (task_id, goal, status, start_time, total_tokens, total_latency) VALUES (?, ?, ?, ?, ?, ?)",
                   (self.task_id, goal, "RUNNING", start, 0, 0))
         conn.commit()
         if schedule_id:
