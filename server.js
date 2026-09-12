@@ -1249,18 +1249,99 @@ function extractTextFromPdfBuffer(pdfBuffer) {
     }
 }
 
+// SQLite Agent Task Database Auto-Initialization
+function initAgentDatabase() {
+    const dbDir = path.join(__dirname, 'mini-swe-agent');
+    const dbPath = path.join(dbDir, 'ghost_agent_runs.db');
+    try {
+        if (!fs.existsSync(dbDir)) {
+            fs.mkdirSync(dbDir, { recursive: true });
+        }
+        const schema = `
+CREATE TABLE IF NOT EXISTS tasks (
+    task_id TEXT PRIMARY KEY,
+    goal TEXT,
+    plan TEXT,
+    status TEXT,
+    start_time REAL,
+    end_time REAL,
+    total_tokens INTEGER,
+    total_latency REAL
+);
+CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT,
+    step_id TEXT,
+    event_type TEXT,
+    tier TEXT,
+    details TEXT,
+    timestamp REAL
+);
+CREATE TABLE IF NOT EXISTS pending_approvals (
+    approval_id TEXT PRIMARY KEY,
+    task_id TEXT,
+    step_id TEXT,
+    tool_name TEXT,
+    args TEXT,
+    tier TEXT,
+    status TEXT,
+    created_at REAL,
+    resolved_at REAL
+);
+`;
+        try {
+            execSync(`sqlite3 "${dbPath}" "${schema.replace(/\n+/g, ' ')}"`);
+        } catch (cliErr) {
+            const pyInit = `import sqlite3; conn = sqlite3.connect('${dbPath}'); conn.executescript('''${schema}'''); conn.commit(); conn.close()`;
+            execSync(`python3 -c "${pyInit.replace(/\n/g, ' ')}"`);
+        }
+        return true;
+    } catch (err) {
+        console.error(`[Database Init Error]: Failed to initialize agent SQLite database:`, err.message);
+        return false;
+    }
+}
+
+function runAgentSqlite(sql) {
+    const dbDir = path.join(__dirname, 'mini-swe-agent');
+    const dbPath = path.join(dbDir, 'ghost_agent_runs.db');
+    if (!fs.existsSync(dbPath)) {
+        initAgentDatabase();
+    }
+    try {
+        return execSync(`sqlite3 "${dbPath}" "${sql.replace(/"/g, '\\"')}"`).toString();
+    } catch (cliErr) {
+        try {
+            const pyScript = `import sqlite3, sys
+conn = sqlite3.connect(sys.argv[1])
+c = conn.cursor()
+c.execute(sys.argv[2])
+if sys.argv[2].strip().upper().startswith("SELECT"):
+    for row in c.fetchall():
+        print('|'.join(str(x) if x is not None else '' for x in row))
+conn.commit()
+conn.close()`;
+            return execSync(`python3 -c "${pyScript.replace(/\n/g, '; ')}" "${dbPath}" "${sql.replace(/"/g, '\\"')}"`).toString();
+        } catch (pyErr) {
+            console.error('[runAgentSqlite Error]:', cliErr.message);
+            return "";
+        }
+    }
+}
+
+// Ensure agent SQLite DB is initialized on boot
+initAgentDatabase();
+
 // Background Task Status & Evidence Resolver
 function getAgentTaskDetails(targetTaskId) {
-    const dbPath = path.join(__dirname, 'mini-swe-agent', 'ghost_agent_runs.db');
-    if (!fs.existsSync(dbPath)) return null;
-
+    initAgentDatabase();
     try {
         let rawTask = "";
         if (targetTaskId) {
             const cleanId = String(targetTaskId).replace(/[^a-zA-Z0-9_-]/g, '');
-            rawTask = execSync(`sqlite3 "${dbPath}" "SELECT task_id, goal, plan, status, start_time, end_time FROM tasks WHERE task_id = '${cleanId}'"`).toString().trim();
+            rawTask = runAgentSqlite(`SELECT task_id, goal, plan, status, start_time, end_time FROM tasks WHERE task_id = '${cleanId}'`).trim();
         } else {
-            rawTask = execSync(`sqlite3 "${dbPath}" "SELECT task_id, goal, plan, status, start_time, end_time FROM tasks ORDER BY start_time DESC LIMIT 1"`).toString().trim();
+            rawTask = runAgentSqlite(`SELECT task_id, goal, plan, status, start_time, end_time FROM tasks ORDER BY start_time DESC LIMIT 1`).trim();
         }
 
         if (!rawTask) return null;
@@ -1272,7 +1353,7 @@ function getAgentTaskDetails(targetTaskId) {
         // Check pending approvals
         let pendingApproval = null;
         try {
-            const apprOut = execSync(`sqlite3 "${dbPath}" "SELECT approval_id, tool_name FROM pending_approvals WHERE task_id = '${id}' AND status = 'PENDING'"`).toString().trim();
+            const apprOut = runAgentSqlite(`SELECT approval_id, tool_name FROM pending_approvals WHERE task_id = '${id}' AND status = 'PENDING'`).trim();
             if (apprOut) {
                 const [appId, tname] = apprOut.split('|');
                 pendingApproval = { approval_id: appId, tool_name: tname };
@@ -1283,7 +1364,7 @@ function getAgentTaskDetails(targetTaskId) {
         let evidence = [];
         let lastError = null;
         try {
-            const evOut = execSync(`sqlite3 "${dbPath}" "SELECT event_type, details FROM events WHERE task_id = '${id}' ORDER BY id ASC"`).toString().trim();
+            const evOut = runAgentSqlite(`SELECT event_type, details FROM events WHERE task_id = '${id}' ORDER BY id ASC`).trim();
             for (const line of evOut.split('\n')) {
                 const parts = line.split('|');
                 if (parts.length >= 2) {
@@ -1326,10 +1407,9 @@ function getAgentTaskDetails(targetTaskId) {
 }
 
 function listAgentTasks(limit = 20) {
-    const dbPath = path.join(__dirname, 'mini-swe-agent', 'ghost_agent_runs.db');
-    if (!fs.existsSync(dbPath)) return [];
+    initAgentDatabase();
     try {
-        const raw = execSync(`sqlite3 "${dbPath}" "SELECT task_id, goal, status, start_time, end_time FROM tasks ORDER BY start_time DESC LIMIT ${limit}"`).toString().trim();
+        const raw = runAgentSqlite(`SELECT task_id, goal, status, start_time, end_time FROM tasks ORDER BY start_time DESC LIMIT ${limit}`).trim();
         if (!raw) return [];
         return raw.split('\n').filter(Boolean).map(line => {
             const [taskId, goal, status, start, end] = line.split('|');
@@ -1716,11 +1796,18 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                 if (intentResult === 'TASK') {
                     console.log("[Intent] Routing to PEVR (TASK):", message);
                     const taskId = "task-" + Date.now();
+                    const safeGoal = message.replace(/'/g, "''");
+                    runAgentSqlite(`INSERT OR REPLACE INTO tasks (task_id, goal, plan, status, start_time) VALUES ('${taskId}', '${safeGoal}', '[]', 'RUNNING', ${Date.now() / 1000})`);
+
                     const cmd = `cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/pevr_service.py --goal "${message.replace(/"/g, '\"')}" --task_id ${taskId}`;
                     const { exec } = await import('child_process');
-                    exec(cmd); // spawn in background
+                    exec(cmd, (error, stdout, stderr) => {
+                        if (error && !stdout.trim()) {
+                            console.error("Agent background process execution failed:", error.message);
+                            runAgentSqlite(`UPDATE tasks SET status = 'FAILED', end_time = ${Date.now() / 1000} WHERE task_id = '${taskId}'`);
+                        }
+                    });
                     
-                    const { execSync } = await import('child_process');
                     let foundStatus = null;
                     let evidence = [];
                     let pendingApproval = null;
@@ -1728,10 +1815,10 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                     for (let i = 0; i < 20; i++) {
                         await new Promise(r => setTimeout(r, 500));
                         try {
-                            const statusOut = execSync(`sqlite3 mini-swe-agent/ghost_agent_runs.db "SELECT status FROM tasks WHERE task_id = '${taskId}'"`).toString().trim();
+                            const statusOut = runAgentSqlite(`SELECT status FROM tasks WHERE task_id = '${taskId}'`).trim();
                             if (statusOut === 'SUCCESS' || statusOut === 'FAILED') {
                                 foundStatus = statusOut;
-                                const evOut = execSync(`sqlite3 mini-swe-agent/ghost_agent_runs.db "SELECT event_type, details FROM events WHERE task_id = '${taskId}'"`).toString().trim();
+                                const evOut = runAgentSqlite(`SELECT event_type, details FROM events WHERE task_id = '${taskId}'`).trim();
                                 for (const line of evOut.split('\n')) {
                                     const parts = line.split('|');
                                     if (parts.length >= 2) {
@@ -1752,7 +1839,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                                 break;
                             }
                             
-                            const apprOut = execSync(`sqlite3 mini-swe-agent/ghost_agent_runs.db "SELECT approval_id, tool_name FROM pending_approvals WHERE task_id = '${taskId}' AND status = 'PENDING'"`).toString().trim();
+                            const apprOut = runAgentSqlite(`SELECT approval_id, tool_name FROM pending_approvals WHERE task_id = '${taskId}' AND status = 'PENDING'`).trim();
                             if (apprOut) {
                                 const parts = apprOut.split('|');
                                 pendingApproval = { approval_id: parts[0], tool_name: parts[1] };
@@ -3276,26 +3363,40 @@ app.get('/api/skills', chatLimiter, securityMiddleware, (req, res) => {
 
 app.get('/api/agent/approvals', securityMiddleware, async (req, res) => {
     if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const { execSync } = require('child_process');
     try {
-        const out = execSync('cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/approvals.py list').toString();
-        return res.json({ success: true, approvals: JSON.parse(out) });
+        const raw = runAgentSqlite("SELECT approval_id, task_id, step_id, tool_name, args, tier, status, created_at FROM pending_approvals WHERE status = 'PENDING'");
+        const approvals = raw ? raw.trim().split('\n').filter(Boolean).map(line => {
+            const parts = line.split('|');
+            let parsedArgs = {};
+            try { parsedArgs = JSON.parse(parts[4]); } catch (e) { parsedArgs = parts[4]; }
+            return {
+                approval_id: parts[0],
+                task_id: parts[1],
+                step_id: parts[2],
+                tool_name: parts[3],
+                args: parsedArgs,
+                tier: parts[5],
+                status: parts[6],
+                created_at: Number(parts[7]) || 0
+            };
+        }) : [];
+        return res.json({ success: true, approvals });
     } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
 });
 app.post('/api/agent/approvals/:id/approve', securityMiddleware, async (req, res) => {
     if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const { execSync } = require('child_process');
     try {
-        const out = execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/approvals.py resolve "${req.params.id}" APPROVED`).toString();
-        return res.json({ success: true, result: JSON.parse(out) });
+        const cleanId = String(req.params.id).replace(/[^a-zA-Z0-9_-]/g, '');
+        runAgentSqlite(`UPDATE pending_approvals SET status = 'APPROVED', resolved_at = ${Date.now() / 1000} WHERE approval_id = '${cleanId}'`);
+        return res.json({ success: true, result: { ok: true, status: 'APPROVED' } });
     } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
 });
 app.post('/api/agent/approvals/:id/deny', securityMiddleware, async (req, res) => {
     if (!checkIsAdmin(req)) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const { execSync } = require('child_process');
     try {
-        const out = execSync(`cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/approvals.py resolve "${req.params.id}" DENIED`).toString();
-        return res.json({ success: true, result: JSON.parse(out) });
+        const cleanId = String(req.params.id).replace(/[^a-zA-Z0-9_-]/g, '');
+        runAgentSqlite(`UPDATE pending_approvals SET status = 'DENIED', resolved_at = ${Date.now() / 1000} WHERE approval_id = '${cleanId}'`);
+        return res.json({ success: true, result: { ok: true, status: 'DENIED' } });
     } catch (e) { console.error("API error:", e); return res.status(500).json({ success: false, error: e.message }); }
 });
 
@@ -3338,6 +3439,9 @@ app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => 
         const { execSync, exec } = await import("child_process");
 
         const taskId = "task-" + Date.now();
+        const safeGoal = goal.replace(/'/g, "''");
+        runAgentSqlite(`INSERT OR REPLACE INTO tasks (task_id, goal, plan, status, start_time) VALUES ('${taskId}', '${safeGoal}', '[]', 'RUNNING', ${Date.now() / 1000})`);
+
         let cmd = `cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/pevr_service.py --goal "${goal.replace(/"/g, '\"')}" --task_id ${taskId} ${req.body.schedule_id ? "--schedule_id " + req.body.schedule_id : ""}`;
         
         let timeoutOpts = { maxBuffer: 1024 * 1024 * 10 };
@@ -3353,6 +3457,7 @@ app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => 
         const child = exec(cmd, timeoutOpts, (error, stdout, stderr) => {
             if (global.activeAgentProcess === child) global.activeAgentProcess = null;
             if (error && !stdout.trim()) {
+                runAgentSqlite(`UPDATE tasks SET status = 'FAILED', end_time = ${Date.now() / 1000} WHERE task_id = '${taskId}'`);
                 if (error.signal === 'SIGKILL') {
                     return res.json({ success: false, error: 'Agent execution killed.', status: 'KILLED' });
                 }
@@ -4672,7 +4777,8 @@ Promise.all([
     initTraceTable(pool).catch(err => console.error('[Trace Store Init Warn]:', err.message)),
     initPersistenceTables(pool).catch(err => console.error('[Persistence Init Warn]:', err.message)),
     initPersonalTaskTables(pool).catch(err => console.error('[Personal Tasks Init Warn]:', err.message)),
-    loadPlugins().catch(err => console.error('[Plugins Load Warn]:', err.message))
+    loadPlugins().catch(err => console.error('[Plugins Load Warn]:', err.message)),
+    Promise.resolve().then(() => initAgentDatabase()).catch(err => console.error('[Agent DB Init Warn]:', err.message))
 ]).then(() => {
     startAutoLearning(ghostLearn, pool);
     cleanupTraces(pool).catch(err => console.error('[Cleanup Traces Warn]:', err.message));
