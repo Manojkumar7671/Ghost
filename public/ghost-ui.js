@@ -3691,6 +3691,9 @@ const response = await fetch(targetUrl, {
 
             if (data.success) {
                 if (data.runId) activeRunId = data.runId;
+                if (data.execution && (data.execution.state === 'completed' || data.execution.state === 'failed') && data.execution.taskId) {
+                    reportedTaskTerminalStates.add(data.execution.taskId);
+                }
                 handleGhostResponse(data.text, data.execution, data);
                 if (data.proposedTask && data.proposedTask.proposalId) {
                     renderProposedTaskCard(data.proposedTask);
@@ -3736,6 +3739,7 @@ const response = await fetch(targetUrl, {
     }
 
     const activeTaskPollers = new Set();
+    const reportedTaskTerminalStates = new Set();
     function pollBackgroundTask(taskId) {
         if (!taskId || activeTaskPollers.has(taskId)) return;
         activeTaskPollers.add(taskId);
@@ -3766,6 +3770,13 @@ const response = await fetch(targetUrl, {
                 if (t.status === 'SUCCESS' || t.status === 'COMPLETED' || t.status === 'FAILED') {
                     clearInterval(pollInterval);
                     activeTaskPollers.delete(taskId);
+
+                    if (reportedTaskTerminalStates.has(taskId)) {
+                        console.log(`[Task Poller] Task ${taskId} terminal state already reported, skipping duplicate message.`);
+                        if (typeof loadTasks === 'function') loadTasks();
+                        return;
+                    }
+                    reportedTaskTerminalStates.add(taskId);
 
                     let resultMsg = `Background task ${taskId} finished with status: ${t.status}.`;
                     if (t.evidence && t.evidence.length > 0) {

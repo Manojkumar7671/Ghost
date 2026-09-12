@@ -1763,11 +1763,14 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
 
             const hasFileAttachment = Boolean(extractedPdfText || fileContent || fileBase64);
 
-            // TASK STATUS QUERY INTERCEPTOR
-            // Directly query and return evidence for specific task IDs or queries like "is the task done"
+            // Clean stray leading/trailing quotes and trim message
+            const cleanMsg = (message || '').trim().replace(/^["']+|["']+$/g, '');
+
+            // TASK STATUS QUERY INTERCEPTOR (Fix for Bug 3)
+            // Directly query and return evidence for specific task IDs or natural queries like "did you finish the task"
             const taskIdRegex = /\b(task-\d{10,16}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\b/i;
-            const isTaskStatusQuery = /(?:is (?:the )?task (?:done|finished|complete|running)|task status|check (?:the )?task|task result)/i.test(message);
-            const taskMatch = message.match(taskIdRegex);
+            const isTaskStatusQuery = /(?:(?:did|have|has)\s+(?:you\s+)?(?:finish(?:ed)?|complete(?:d)?|done)\s+(?:the\s+|that\s+)?task|(?:did|has)\s+(?:the\s+|that\s+)?task\s+(?:finish(?:ed)?|complete(?:d)?)|is\s+(?:the\s+|that\s+)?task\s+(?:done|finished|complete|running)|(?:what(?:'s|\s+is)\s+(?:the\s+)?)?task\s+status|status\s+of\s+(?:the\s+|that\s+)?task|check\s+(?:the\s+|that\s+)?task|task\s+result|(?:did\s+it|is\s+it|has\s+it)\s+(?:finish(?:ed)?|done|complete(?:d)?))/i.test(cleanMsg);
+            const taskMatch = cleanMsg.match(taskIdRegex);
 
             if (taskMatch || (isTaskStatusQuery && !hasFileAttachment)) {
                 const targetTaskId = taskMatch ? taskMatch[1] : null;
@@ -1808,15 +1811,35 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                 }
             }
 
-            // INTENT CLASSIFICATION
-            // Gate with !hasFileAttachment: uploaded documents should be answered by Ghost brain/LLM directly, not spawned as blind PEVR shell tasks
-            if (isAdmin && !hasFileAttachment && !message.startsWith('/') && !message.match(/^prepare\s+plan/i)) {
+            // REAL-TIME FACTUAL & QUESTION BOUNDARY (Fix for Bug 1 & Bug 2)
+            // 1. Real-time factual queries (weather, live sports, stock prices, breaking news) must NEVER be routed to PEVR coding tasks.
+            //    They must proceed directly to brain.think where live search / honest refusal pipeline executes.
+            // 2. Vague or conversational questions without explicit code/file execution commands must NEVER spawn PEVR tasks.
+            const isFactualQuery = typeof brain.isRealTimeFactualQuery === 'function' && brain.isRealTimeFactualQuery(cleanMsg);
+            const lowerMsg = cleanMsg.toLowerCase();
+            const isVagueQuestion = /^(?:where|what|why|who|when|which|how|is\s+there|can\s+you\s+explain|tell\s+me\s+about)\b/i.test(lowerMsg);
+            const hasDirectAction = /\b(?:write|create|generate|build|implement|fix|refactor|run|execute)\s+(?:a\s+|the\s+)?(?:python\s+|js\s+|bash\s+|node\s+)?(?:script|code|program|file|function|test|benchmark)\b/i.test(lowerMsg);
+            const hasExecutionVerb = /\b(?:write|create|generate|build|implement|fix|refactor|run|execute|test|deploy|benchmark|solve|program)\b/i.test(lowerMsg);
+
+            const isPevrEligible = isAdmin && !hasFileAttachment && !message.startsWith('/') && !message.match(/^prepare\s+plan/i) && !isFactualQuery && (!isVagueQuestion || hasDirectAction) && hasExecutionVerb;
+
+            if (isPevrEligible) {
                 let intentResult = 'CONVERSATION';
                 try {
                     const { callLLM } = await import('./src/tools/llm.js');
                     const intentRes = await callLLM([
-                        { role: 'system', content: 'Classify this message as either CONVERSATION or TASK. TASK means it requires real file/code/command execution to fulfill. Respond with only one word.' },
-                        { role: 'user', content: message }
+                        { 
+                            role: 'system', 
+                            content: `You are an intent classifier for an autonomous coding agent.
+Classify the user message as either CONVERSATION or TASK.
+
+Rules:
+- TASK: ONLY when the user is explicitly commanding the agent to write code, create/modify files, run commands, or execute scripts (e.g. "write a script that...", "create test.py", "run the benchmark", "build the project", "fix the bug in...").
+- CONVERSATION: Everything else, including questions (e.g. "where can i find this file", "how does this work"), explanations, chit-chat, advice, or discussions.
+
+Respond with ONLY one word: CONVERSATION or TASK.`
+                        },
+                        { role: 'user', content: cleanMsg }
                     ], 10);
                     if (intentRes && intentRes.toLowerCase().includes('task')) {
                         intentResult = 'TASK';
