@@ -19,18 +19,18 @@ async function runTests() {
   console.log('\n=== TEST 2: Persistent Vector Memory ===');
   const testFact = `Ghost is an autonomous AI agent framework created for Master Manoj.`;
   console.log(`Saving memory: "${testFact}"`);
-  const saved = saveMemory(testFact, { source: 'unit_test' });
+  const saved = await saveMemory(testFact, { source: 'unit_test' });
   console.log(`Memory saved with ID: ${saved.id}`);
 
   console.log(`Querying memory for "who created Ghost?"...`);
-  const results = queryMemory('who created Ghost?', 10);
+  const results = await queryMemory('who created Ghost?', 10);
   console.log(`Query returned ${results.length} result(s):`);
   results.forEach((res, i) => {
     console.log(` Match ${i + 1} (Score: ${res.score.toFixed(4)}): "${res.text}"`);
   });
 
   if (results.length > 0 && results.some(r => r.text.includes('Master Manoj'))) {
-    console.log('\nSUCCESS: Vector Memory saving, embedding, and querying verified!'); process.exit(0);
+    console.log('\nSUCCESS: Vector Memory saving, embedding, and querying verified!');
   } else {
     console.error('\nFAILURE: Memory query did not return expected match.');
     process.exit(1);

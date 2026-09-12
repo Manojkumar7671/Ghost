@@ -3700,6 +3700,9 @@ const response = await fetch(targetUrl, {
                 if (data.actionRequired && data.actionId) {
                     renderHitlActionCard(data.actionId);
                 }
+                if (data.execution && data.execution.state === 'running' && data.execution.taskId) {
+                    pollBackgroundTask(data.execution.taskId);
+                }
                 activeRunId = null;
             } else {
                 appendMessage('ghost', data.error || "Matrix error: Backend disconnected.");
@@ -3729,6 +3732,63 @@ const response = await fetch(targetUrl, {
             userInput.disabled = false;
             sendBtn.disabled = false;
         }
+    }
+
+    const activeTaskPollers = new Set();
+    function pollBackgroundTask(taskId) {
+        if (!taskId || activeTaskPollers.has(taskId)) return;
+        activeTaskPollers.add(taskId);
+        console.log(`[Task Poller] Subscribed to background task: ${taskId}`);
+
+        const startTime = Date.now();
+        const maxPollDuration = 3 * 60 * 1000; // 3 minutes max
+
+        const pollInterval = setInterval(async () => {
+            if (Date.now() - startTime > maxPollDuration) {
+                clearInterval(pollInterval);
+                activeTaskPollers.delete(taskId);
+                console.log(`[Task Poller] Polling timed out for task: ${taskId}`);
+                return;
+            }
+
+            try {
+                const res = await fetch(apiUrl(`/api/agent/tasks/${encodeURIComponent(taskId)}/status`), {
+                    credentials: 'include'
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!data || !data.success || !data.task) return;
+
+                const t = data.task;
+                if (t.status === 'SUCCESS' || t.status === 'COMPLETED' || t.status === 'FAILED') {
+                    clearInterval(pollInterval);
+                    activeTaskPollers.delete(taskId);
+
+                    let resultMsg = `Background task ${taskId} finished with status: ${t.status}.`;
+                    if (t.evidence && t.evidence.length > 0) {
+                        resultMsg += `\n\nExecution Evidence:\n${t.evidence.join('\n')}`;
+                    } else if (t.status === 'SUCCESS') {
+                        resultMsg += `\nTask completed successfully.`;
+                    }
+                    if (t.error) {
+                        resultMsg += `\nError details: ${t.error}`;
+                    }
+
+                    handleGhostResponse(resultMsg, {
+                        taskId,
+                        state: t.status === 'SUCCESS' ? 'completed' : 'failed',
+                        evidence: t.evidence
+                    });
+                } else if (t.pendingApproval) {
+                    clearInterval(pollInterval);
+                    activeTaskPollers.delete(taskId);
+
+                    appendMessage('ghost', `Approval required for task ${taskId}: Tool "${t.pendingApproval.tool_name}" (ID: ${t.pendingApproval.approval_id}).`);
+                }
+            } catch (err) {
+                console.warn(`[Task Poller] Error checking task ${taskId}:`, err.message);
+            }
+        }, 2500);
     }
 
     function renderProposedTaskCard(proposedTask) {
@@ -4015,8 +4075,9 @@ const response = await fetch(targetUrl, {
 
     function handleGhostResponse(fullText, execution = null, meta = null) {
         fullText = typeof fullText === 'string' ? fullText : '';
+        const isTaskExecutionResponse = Boolean(execution && (execution.taskId || execution.state === 'completed' || execution.state === 'running' || execution.evidence));
         const hasApprovalFlowEvidence = Boolean(meta && ((Array.isArray(meta.plan) && meta.plan.length > 0) || meta.actionRequired === true));
-        const hasVerifiedExecutionEvidence = Boolean(hasApprovalFlowEvidence && execution && execution.state === 'succeeded' && Array.isArray(execution.artifacts) && execution.artifacts.length > 0);
+        const hasVerifiedExecutionEvidence = Boolean(isTaskExecutionResponse || (hasApprovalFlowEvidence && execution && execution.state === 'succeeded' && Array.isArray(execution.artifacts) && execution.artifacts.length > 0));
         if (!hasVerifiedExecutionEvidence) {
             const looksLikeProvenanceClaim = /(Tool Execution (?:Results|Summary)|Execution Results|workspace_edit_file|workspace_run_command|Script Location|Current directory|file (?:was )?successfully written|requested example was written|run the newly created|\/downloads\/|~\/Ghost\/)/i.test(fullText);
             let sanitizedText = fullText
@@ -4108,6 +4169,8 @@ const response = await fetch(targetUrl, {
             appViewer.classList.add('open');
             if (spokenText.trim() === "") spokenText = "Interface rendered.";
         }
+
+        appendMessage('ghost', fullText);
     }
 
     // --- INITIALIZE MIC ON LOAD ---

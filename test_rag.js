@@ -23,13 +23,12 @@ const session = [
 ];
 
 for (let i = 0; i < session.length; i++) {
-  saveMemory(session[i], { turn: i + 1 });
+  await saveMemory(session[i], { turn: i + 1 });
 }
 
 console.log("\n=== Querying RAG ===");
 const query = "What is my secret codename?";
-const results = queryMemory(query, 3);
+const results = await queryMemory(query, 3);
 console.log(`Query: "${query}"`);
 console.log("Raw Retrieval Output:");
 console.log(JSON.stringify(results, null, 2));
-

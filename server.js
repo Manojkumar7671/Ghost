@@ -1128,86 +1128,220 @@ app.get('/downloads/*', (req, res) => {
 });
 
 function extractTextFromPdfBuffer(pdfBuffer) {
+    if (!pdfBuffer || pdfBuffer.length === 0) return "";
+
+    // 1. High-fidelity python pypdf extraction via mini-swe-agent if available
+    try {
+        const tmpPdf = path.join(os.tmpdir(), `ghost_pdf_${Date.now()}_${Math.random().toString(36).slice(2)}.pdf`);
+        fs.writeFileSync(tmpPdf, pdfBuffer);
+        try {
+            const pyScript = `from pypdf import PdfReader\nreader = PdfReader('${tmpPdf}')\nprint('\\n'.join([p.extract_text() or '' for p in reader.pages]).strip())`;
+            const pyOut = execSync(`cd mini-swe-agent && uv run --python 3.11 python -c "${pyScript.replace(/"/g, '\\"')}"`, { timeout: 10000 }).toString().trim();
+            if (pyOut && pyOut.length > 5) {
+                return pyOut.slice(0, 16000);
+            }
+        } finally {
+            try { fs.unlinkSync(tmpPdf); } catch (e) {}
+        }
+    } catch (pyErr) {
+        // Fallback to pure JavaScript decoder below
+    }
+
+    // 2. Pure JavaScript CMap & Stream Parser
     try {
         const zlib = require('zlib');
-        const pdfStr = pdfBuffer.toString('binary');
+        const marker = Buffer.from('stream');
+        let pos = 0;
+        const decompressed = [];
 
-        // 1. Build /ToUnicode CMap character lookup dictionary
-        const cmapMap = new Map();
-        const streamRegex = /stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g;
-        let match;
+        while (pos < pdfBuffer.length) {
+            const s = pdfBuffer.indexOf(marker, pos);
+            if (s === -1) break;
 
-        while ((match = streamRegex.exec(pdfStr)) !== null) {
-            let decompressed = '';
-            try {
-                decompressed = zlib.inflateSync(Buffer.from(match[1], 'binary')).toString('utf-8');
-            } catch(e) {
-                decompressed = match[1];
+            let zStart = -1;
+            for (let i = s + 6; i < s + 25 && i < pdfBuffer.length; i++) {
+                if (pdfBuffer[i] === 0x78 && (pdfBuffer[i+1] === 0x9c || pdfBuffer[i+1] === 0x01 || pdfBuffer[i+1] === 0xda)) {
+                    zStart = i;
+                    break;
+                }
             }
 
-            if (decompressed.includes('beginbfchar') || decompressed.includes('beginbfrange')) {
-                const bfcharMatches = decompressed.matchAll(/<([0-9a-fA-F]+)>\s+<([0-9a-fA-F]+)>/g);
-                for (const m of bfcharMatches) {
-                    const srcHex = m[1];
-                    const dstHex = m[2];
-                    const dstChar = String.fromCharCode(parseInt(dstHex, 16));
-                    cmapMap.set(srcHex, dstChar);
-                }
-                const bfrangeMatches = decompressed.matchAll(/<([0-9a-fA-F]+)>\s+<([0-9a-fA-F]+)>\s+<([0-9a-fA-F]+)>/g);
-                for (const m of bfrangeMatches) {
-                    const start = parseInt(m[1], 16);
-                    const end = parseInt(m[2], 16);
-                    const dstStart = parseInt(m[3], 16);
-                    for (let i = 0; i <= (end - start); i++) {
-                        const srcHex = (start + i).toString(16).padStart(m[1].length, '0');
-                        const dstChar = String.fromCharCode(dstStart + i);
-                        cmapMap.set(srcHex, dstChar);
+            if (zStart !== -1) {
+                const endMarker = pdfBuffer.indexOf(Buffer.from('endstream'), zStart);
+                if (endMarker !== -1) {
+                    const candidateLen = endMarker - zStart;
+                    for (let delta = 0; delta >= -12; delta--) {
+                        try {
+                            const dec = zlib.inflateSync(pdfBuffer.slice(zStart, zStart + candidateLen + delta)).toString('utf-8');
+                            decompressed.push(dec);
+                            break;
+                        } catch(e) {}
                     }
                 }
             }
+            pos = s + 7;
         }
 
-        // 2. Decode stream text using CMap dictionary & standard ASCII
-        let text = '';
-        let streamMatch;
-        const streamRegex2 = /stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g;
-
-        while ((streamMatch = streamRegex2.exec(pdfStr)) !== null) {
-            let decompressed = '';
-            try {
-                decompressed = zlib.inflateSync(Buffer.from(streamMatch[1], 'binary')).toString('utf-8');
-            } catch(e) {
-                decompressed = streamMatch[1];
-            }
-
-            if (cmapMap.size > 0) {
-                const tjMatches = decompressed.matchAll(/<([0-9a-fA-F]+)>\s*Tj/g);
-                for (const m of tjMatches) {
-                    const hex = m[1];
-                    if (cmapMap.has(hex)) text += cmapMap.get(hex);
-                    else {
-                        for (let i = 0; i < hex.length; i += 4) {
-                            const chunk = hex.slice(i, i + 4);
-                            if (cmapMap.has(chunk)) text += cmapMap.get(chunk);
+        const cmapMap = new Map();
+        for (const dec of decompressed) {
+            const bfcharBlocks = dec.matchAll(/beginbfchar([\s\S]*?)endbfchar/g);
+            for (const block of bfcharBlocks) {
+                const pairs = block[1].matchAll(/<([0-9a-fA-F]+)>\s+<([0-9a-fA-F]+)>/g);
+                for (const m of pairs) {
+                    const charCode = parseInt(m[2], 16);
+                    if (!isNaN(charCode)) {
+                        cmapMap.set(m[1].toLowerCase(), String.fromCharCode(charCode));
+                        if (m[1].length === 2) {
+                            cmapMap.set(('00' + m[1]).toLowerCase(), String.fromCharCode(charCode));
                         }
                     }
                 }
             }
-            const stringTj = decompressed.matchAll(/\(([^()]+)\)\s*Tj/g);
-            for (const m of stringTj) {
-                text += ' ' + m[1];
+
+            const bfrangeBlocks = dec.matchAll(/beginbfrange([\s\S]*?)endbfrange/g);
+            for (const block of bfrangeBlocks) {
+                const ranges = block[1].matchAll(/<([0-9a-fA-F]+)>\s+<([0-9a-fA-F]+)>\s+<([0-9a-fA-F]+)>/g);
+                for (const m of ranges) {
+                    const start = parseInt(m[1], 16);
+                    const end = parseInt(m[2], 16);
+                    const dstStart = parseInt(m[3], 16);
+                    if (!isNaN(start) && !isNaN(end) && !isNaN(dstStart)) {
+                        for (let i = 0; i <= (end - start); i++) {
+                            const srcHex = (start + i).toString(16).padStart(m[1].length, '0').toLowerCase();
+                            const dstChar = String.fromCharCode(dstStart + i);
+                            cmapMap.set(srcHex, dstChar);
+                        }
+                    }
+                }
             }
         }
 
-        const cleaned = text.replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
-        if (cleaned.length > 50) return cleaned;
+        let extractedText = '';
+        for (const dec of decompressed) {
+            if (cmapMap.size > 0) {
+                const tjMatches = dec.matchAll(/<([0-9a-fA-F]+)>\s*Tj/g);
+                for (const m of tjMatches) {
+                    let hex = m[1].toLowerCase();
+                    if (hex.length % 2 !== 0) hex = '0' + hex;
+                    for (let i = 0; i < hex.length; i += 2) {
+                        const byte = hex.slice(i, i + 2);
+                        if (cmapMap.has(byte)) {
+                            extractedText += cmapMap.get(byte);
+                        } else if (i + 4 <= hex.length && cmapMap.has(hex.slice(i, i + 4))) {
+                            extractedText += cmapMap.get(hex.slice(i, i + 4));
+                            i += 2;
+                        }
+                    }
+                }
+            }
+            const literalMatches = dec.matchAll(/\(([^()]+)\)\s*Tj/g);
+            for (const m of literalMatches) {
+                extractedText += ' ' + m[1];
+            }
+        }
 
-        // Fallback standard text extraction
-        return pdfStr.replace(/[^\x20-\x7E\n\r\t]/g, ' ').slice(0, 8000).trim();
+        const cleaned = extractedText.replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (cleaned.length > 0) return cleaned;
+
+        return pdfBuffer.toString('binary').replace(/[^\x20-\x7E\n\r\t]/g, ' ').slice(0, 8000).trim();
     } catch (e) {
         return "";
     }
 }
+
+// Background Task Status & Evidence Resolver
+function getAgentTaskDetails(targetTaskId) {
+    const dbPath = path.join(__dirname, 'mini-swe-agent', 'ghost_agent_runs.db');
+    if (!fs.existsSync(dbPath)) return null;
+
+    try {
+        let rawTask = "";
+        if (targetTaskId) {
+            const cleanId = String(targetTaskId).replace(/[^a-zA-Z0-9_-]/g, '');
+            rawTask = execSync(`sqlite3 "${dbPath}" "SELECT task_id, goal, plan, status, start_time, end_time FROM tasks WHERE task_id = '${cleanId}'"`).toString().trim();
+        } else {
+            rawTask = execSync(`sqlite3 "${dbPath}" "SELECT task_id, goal, plan, status, start_time, end_time FROM tasks ORDER BY start_time DESC LIMIT 1"`).toString().trim();
+        }
+
+        if (!rawTask) return null;
+        const [id, goal, planJson, status, start, end] = rawTask.split('|');
+        const startTime = Number(start) || Date.now() / 1000;
+        const endTime = end ? Number(end) : null;
+        const elapsedSeconds = Math.max(0, Math.round((endTime || (Date.now() / 1000)) - startTime));
+
+        // Check pending approvals
+        let pendingApproval = null;
+        try {
+            const apprOut = execSync(`sqlite3 "${dbPath}" "SELECT approval_id, tool_name FROM pending_approvals WHERE task_id = '${id}' AND status = 'PENDING'"`).toString().trim();
+            if (apprOut) {
+                const [appId, tname] = apprOut.split('|');
+                pendingApproval = { approval_id: appId, tool_name: tname };
+            }
+        } catch (e) {}
+
+        // Gather events & evidence
+        let evidence = [];
+        let lastError = null;
+        try {
+            const evOut = execSync(`sqlite3 "${dbPath}" "SELECT event_type, details FROM events WHERE task_id = '${id}' ORDER BY id ASC"`).toString().trim();
+            for (const line of evOut.split('\n')) {
+                const parts = line.split('|');
+                if (parts.length >= 2) {
+                    const etype = parts[0];
+                    const details = parts.slice(1).join('|');
+                    try {
+                        const d = JSON.parse(details);
+                        if (etype === 'TOOL_SUCCESS' && d.tool) {
+                            evidence.push(`Used ${d.tool.tool_name}: ${JSON.stringify(d.tool.args)}`);
+                        } else if (etype === 'VERIFICATION' && d.passed) {
+                            evidence.push(`Verified: ${d.cmd} (PASSED)`);
+                        } else if (etype === 'PATH_CHECK' && d.safe === false) {
+                            evidence.push("Blocked path escape.");
+                        } else if (etype === 'DENIED') {
+                            evidence.push("User denied action.");
+                        } else if (etype === 'STEP_FAIL') {
+                            lastError = d.error || d.content || 'Step failed';
+                            evidence.push(`Step failed: ${lastError}`);
+                        }
+                    } catch (e) {}
+                }
+            }
+        } catch (e) {}
+
+        return {
+            taskId: id,
+            goal: goal || '',
+            status: status || 'UNKNOWN',
+            startTime,
+            endTime,
+            elapsedSeconds,
+            pendingApproval,
+            evidence,
+            error: lastError
+        };
+    } catch (err) {
+        console.error("[Task Lookup Error]:", err.message);
+        return null;
+    }
+}
+
+app.get('/api/agent/tasks/:taskId/status', async (req, res) => {
+    const { taskId } = req.params;
+    const task = getAgentTaskDetails(taskId);
+    if (!task) {
+        return res.status(404).json({ success: false, error: `Task ${taskId} not found.` });
+    }
+    return res.json({ success: true, task });
+});
+
+app.get('/api/agent-tasks/:taskId/status', async (req, res) => {
+    const { taskId } = req.params;
+    const task = getAgentTaskDetails(taskId);
+    if (!task) {
+        return res.status(404).json({ success: false, error: `Task ${taskId} not found.` });
+    }
+    return res.json({ success: true, task });
+});
 
 // ============================================================
 // MAIN CHAT ENDPOINT — UNIFIED PIPELINE
@@ -1461,8 +1595,78 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             }
 
 
+            // File attachment & PDF text extraction
+            let extractedPdfText = "";
+            let savedUploadedFilePath = null;
+            if (fileBase64 && (fileBase64.includes('application/pdf') || fileBase64.startsWith('data:application/pdf') || (fileName && fileName.toLowerCase().endsWith('.pdf')))) {
+                try {
+                    const pdfData = fileBase64.replace(/^data:[^;]+;base64,/, '');
+                    const pdfBuffer = Buffer.from(pdfData, 'base64');
+                    extractedPdfText = extractTextFromPdfBuffer(pdfBuffer);
+                    console.log(`[PDF Extraction Trace] Extracted ${extractedPdfText.length} characters from PDF "${fileName || 'attachment.pdf'}"`);
+                    
+                    // Also save copy for sandbox / tools if needed
+                    const sandboxDir = path.join(__dirname, 'mini-swe-agent', '.gondolin_sandbox_mini-swe-agent');
+                    if (fs.existsSync(sandboxDir)) {
+                        const safeName = (fileName || 'uploaded_document.pdf').replace(/[^a-zA-Z0-9_.-]/g, '_');
+                        savedUploadedFilePath = path.join(sandboxDir, safeName);
+                        fs.writeFileSync(savedUploadedFilePath, pdfBuffer);
+                    }
+                } catch (e) {
+                    console.error("[PDF Extraction Error]:", e.message);
+                }
+            }
+
+            const hasFileAttachment = Boolean(extractedPdfText || fileContent || fileBase64);
+
+            // TASK STATUS QUERY INTERCEPTOR
+            // Directly query and return evidence for specific task IDs or queries like "is the task done"
+            const taskIdRegex = /\b(task-\d{10,16}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\b/i;
+            const isTaskStatusQuery = /(?:is (?:the )?task (?:done|finished|complete|running)|task status|check (?:the )?task|task result)/i.test(message);
+            const taskMatch = message.match(taskIdRegex);
+
+            if (taskMatch || (isTaskStatusQuery && !hasFileAttachment)) {
+                const targetTaskId = taskMatch ? taskMatch[1] : null;
+                const taskDetails = getAgentTaskDetails(targetTaskId);
+                if (taskDetails) {
+                    let statusText = `Task ${taskDetails.taskId} is currently: ${taskDetails.status}`;
+                    if (taskDetails.goal) statusText += `\nGoal: "${taskDetails.goal}"`;
+                    if (taskDetails.elapsedSeconds) statusText += `\nElapsed: ${taskDetails.elapsedSeconds}s`;
+
+                    if (taskDetails.pendingApproval) {
+                        statusText += `\n\nApproval Required: Tool "${taskDetails.pendingApproval.tool_name}" (ID: ${taskDetails.pendingApproval.approval_id}).\nApprove via /api/agent/approvals/${taskDetails.pendingApproval.approval_id}/approve`;
+                    } else if (taskDetails.status === 'SUCCESS' || taskDetails.status === 'COMPLETED') {
+                        statusText += `\n\nExecution Evidence:\n${taskDetails.evidence.length > 0 ? taskDetails.evidence.join('\n') : 'Task completed successfully.'}`;
+                    } else if (taskDetails.status === 'FAILED') {
+                        statusText += `\n\nTask failed.\n${taskDetails.error ? 'Error: ' + taskDetails.error + '\n' : ''}${taskDetails.evidence.join('\n')}`;
+                    } else {
+                        statusText += `\n\nTask is running in the background. Results will be delivered when complete.`;
+                    }
+
+                    return res.json({
+                        success: true,
+                        text: statusText,
+                        execution: {
+                            state: (taskDetails.status === 'SUCCESS' || taskDetails.status === 'COMPLETED') ? 'completed' : (taskDetails.status === 'FAILED' ? 'failed' : 'running'),
+                            taskId: taskDetails.taskId,
+                            status: taskDetails.status,
+                            summary: `Task ${taskDetails.taskId} ${taskDetails.status}`,
+                            evidence: taskDetails.evidence,
+                            pendingApproval: taskDetails.pendingApproval
+                        }
+                    });
+                } else if (targetTaskId) {
+                    return res.json({
+                        success: true,
+                        text: `No background task found with ID: ${targetTaskId}.`,
+                        execution: { state: "not_found", taskId: targetTaskId, summary: "Task ID not found." }
+                    });
+                }
+            }
+
             // INTENT CLASSIFICATION
-            if (isAdmin && !message.startsWith('/') && !message.match(/^prepare\s+plan/i)) {
+            // Gate with !hasFileAttachment: uploaded documents should be answered by Ghost brain/LLM directly, not spawned as blind PEVR shell tasks
+            if (isAdmin && !hasFileAttachment && !message.startsWith('/') && !message.match(/^prepare\s+plan/i)) {
                 let intentResult = 'CONVERSATION';
                 try {
                     const { callLLM } = await import('./src/tools/llm.js');
@@ -2406,8 +2610,7 @@ ${evidence.join('\n')}`,
         }
 
         // Vision mode still uses callLLM directly (brain.think doesn't handle images)
-        let extractedPdfText = "";
-        if (fileBase64 && (fileBase64.includes('application/pdf') || fileBase64.startsWith('data:application/pdf'))) {
+        if (!extractedPdfText && fileBase64 && (fileBase64.includes('application/pdf') || fileBase64.startsWith('data:application/pdf'))) {
             const pdfData = fileBase64.replace(/^data:[^;]+;base64,/, '');
             const pdfBuffer = Buffer.from(pdfData, 'base64');
             extractedPdfText = extractTextFromPdfBuffer(pdfBuffer);

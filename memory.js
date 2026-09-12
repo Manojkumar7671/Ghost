@@ -1,37 +1,54 @@
 /**
- * memory.js - Persistent Vector Store & RAG Memory System for Ghost
+ * memory.js - Persistent Vector Store & Semantic RAG Memory System for Ghost
  *
- * Implements an embeddable, disk-persistent vector database.
- * Stores conversation history and key facts as embeddings in ./memory/vector_store.json.
+ * Uses local, ONNX-based sentence transformers (Xenova/all-MiniLM-L6-v2 via @huggingface/transformers)
+ * to produce real 384-dimensional dense semantic embeddings.
+ * Supports fast vector search with @memwarden/turbovec and disk persistence in ./memory/vector_store.json.
  */
 
 import fs from 'fs-extra';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
+import { pipeline } from '@huggingface/transformers';
+import { TurbovecIndex } from '@memwarden/turbovec';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const MEMORY_DIR = path.join(__dirname, 'memory');
 const VECTOR_STORE_FILE = path.join(MEMORY_DIR, 'vector_store.json');
+const TURBOVEC_INDEX_FILE = path.join(MEMORY_DIR, 'vector_store.tvim');
+const EMBEDDING_MODEL_NAME = 'Xenova/all-MiniLM-L6-v2';
+const VECTOR_DIM = 384;
 
 // Ensure memory directory exists
 fs.ensureDirSync(MEMORY_DIR);
 
+let embedderPromise = null;
+
 /**
- * Generate a dense L2-normalized embedding vector for input text.
- * Uses a multi-scale hashing and n-gram term frequency representation (384 dimensions).
+ * Lazy singleton for the local transformer feature-extraction pipeline.
  */
-export function generateEmbedding(text) {
-  const VECTOR_DIM = 384;
+async function getEmbedder() {
+  if (!embedderPromise) {
+    embedderPromise = pipeline('feature-extraction', EMBEDDING_MODEL_NAME, {
+      dtype: 'fp32'
+    });
+  }
+  return embedderPromise;
+}
+
+/**
+ * Fallback n-gram hash vector generator (used only if model fails to load).
+ */
+function generateHashEmbedding(text) {
   const vector = new Array(VECTOR_DIM).fill(0);
   if (!text || typeof text !== 'string') return vector;
 
   const normalized = text.toLowerCase().trim();
   const words = normalized.split(/\W+/).filter(Boolean);
 
-  // 1. Unigram & Bigram Hashing
   for (let i = 0; i < words.length; i++) {
     const word = words[i];
     let hash = 0;
@@ -54,7 +71,6 @@ export function generateEmbedding(text) {
     }
   }
 
-  // 2. Character Tri-gram Hashing for subword / morph similarity
   for (let i = 0; i < normalized.length - 2; i++) {
     const trigram = normalized.substring(i, i + 3);
     let triHash = 0;
@@ -66,19 +82,35 @@ export function generateEmbedding(text) {
     vector[triIdx] += 0.25;
   }
 
-  // 3. L2 Normalization
   let norm = 0;
-  for (let i = 0; i < VECTOR_DIM; i++) {
-    norm += vector[i] * vector[i];
-  }
+  for (let i = 0; i < VECTOR_DIM; i++) norm += vector[i] * vector[i];
   norm = Math.sqrt(norm);
   if (norm > 0) {
-    for (let i = 0; i < VECTOR_DIM; i++) {
-      vector[i] /= norm;
-    }
+    for (let i = 0; i < VECTOR_DIM; i++) vector[i] /= norm;
+  }
+  return vector;
+}
+
+/**
+ * Generate a real dense L2-normalized 384-dimensional embedding vector for input text
+ * using the local sentence transformer model.
+ *
+ * @param {string} text - Input text to embed
+ * @returns {Promise<Array<number>>} 384-dimensional dense vector
+ */
+export async function generateEmbedding(text) {
+  if (!text || typeof text !== 'string' || !text.trim()) {
+    return new Array(VECTOR_DIM).fill(0);
   }
 
-  return vector;
+  try {
+    const embedder = await getEmbedder();
+    const output = await embedder(text.trim(), { pooling: 'mean', normalize: true });
+    return Array.from(output.data);
+  } catch (err) {
+    console.warn(`[Memory] Transformer embedding failed, using hash fallback: ${err.message}`);
+    return generateHashEmbedding(text);
+  }
 }
 
 /**
@@ -118,13 +150,12 @@ function saveVectorStore(entries) {
   }
 }
 
-import { TurbovecIndex } from '@memwarden/turbovec';
-
-const TURBOVEC_INDEX_FILE = path.join(MEMORY_DIR, 'vector_store.tvim');
-
 let turbovecInstance = null;
 
 function getTurbovecIndex() {
+  if (!fs.existsSync(TURBOVEC_INDEX_FILE)) {
+    turbovecInstance = null;
+  }
   if (turbovecInstance) return turbovecInstance;
   try {
     if (fs.existsSync(TURBOVEC_INDEX_FILE)) {
@@ -134,12 +165,15 @@ function getTurbovecIndex() {
   } catch (err) {
     console.warn('[Memory] Failed to load existing Turbovec index, creating new instance:', err.message);
   }
-  turbovecInstance = new TurbovecIndex(384, 4);
+  turbovecInstance = new TurbovecIndex(VECTOR_DIM, 4);
   return turbovecInstance;
 }
 
 function syncTurbovecIndex(store) {
   try {
+    if (!fs.existsSync(TURBOVEC_INDEX_FILE)) {
+      turbovecInstance = null;
+    }
     let index = getTurbovecIndex();
     if (index && index.len === store.length - 1) {
       const item = store[store.length - 1];
@@ -149,15 +183,15 @@ function syncTurbovecIndex(store) {
       index.save(TURBOVEC_INDEX_FILE);
       return;
     }
-    
+
     // Otherwise, rebuild the whole index
-    index = new TurbovecIndex(384, 4);
+    index = new TurbovecIndex(VECTOR_DIM, 4);
     if (store.length > 0) {
-      const allVecs = new Float32Array(store.length * 384);
+      const allVecs = new Float32Array(store.length * VECTOR_DIM);
       const allIds = new BigUint64Array(store.length);
       for (let i = 0; i < store.length; i++) {
         const item = store[i];
-        allVecs.set(item.vector, i * 384);
+        allVecs.set(item.vector, i * VECTOR_DIM);
         allIds[i] = BigInt(i + 1);
       }
       index.addWithIds(allVecs, allIds);
@@ -174,9 +208,9 @@ function syncTurbovecIndex(store) {
  *
  * @param {string|Object} entry - Text string or object { text, metadata }
  * @param {Object} [metadata={}] - Optional additional metadata
- * @returns {Object} The saved memory record
+ * @returns {Promise<Object>} The saved memory record
  */
-export function saveMemory(entry, metadata = {}) {
+export async function saveMemory(entry, metadata = {}) {
   let text = '';
   let meta = { ...metadata };
 
@@ -189,7 +223,9 @@ export function saveMemory(entry, metadata = {}) {
 
   if (!text || !text.trim()) return null;
 
-  const vector = generateEmbedding(text);
+  const vector = await generateEmbedding(text);
+  meta.embeddingModel = EMBEDDING_MODEL_NAME;
+
   const record = {
     id: uuidv4(),
     text: text.trim(),
@@ -212,12 +248,12 @@ export function saveMemory(entry, metadata = {}) {
  *
  * @param {string} query - Query text to search against stored memories
  * @param {number} [topK=3] - Maximum number of relevant memories to return
- * @returns {Array<Object>} Sorted list of top matching memory records with score
+ * @returns {Promise<Array<Object>>} Sorted list of top matching memory records with score
  */
-export function queryMemory(query, topK = 3) {
+export async function queryMemory(query, topK = 3) {
   if (!query || typeof query !== 'string' || !query.trim()) return [];
 
-  const queryVector = generateEmbedding(query);
+  const queryVector = await generateEmbedding(query);
   const store = loadVectorStore();
 
   if (store.length === 0) return [];
@@ -257,9 +293,43 @@ export function queryMemory(query, topK = 3) {
   return scored.slice(0, topK).filter(item => item.score > 0.05);
 }
 
+/**
+ * Re-indexes all memories in vector_store.json to use the current embedding model.
+ * Migrates old n-gram hash vectors to real transformer embeddings.
+ *
+ * @returns {Promise<{ migrated: number, total: number }>}
+ */
+export async function reindexVectorStore() {
+  const store = loadVectorStore();
+  if (store.length === 0) return { migrated: 0, total: 0 };
+
+  console.log(`[Memory] Starting re-indexing of ${store.length} memory entries...`);
+  let migrated = 0;
+
+  for (let i = 0; i < store.length; i++) {
+    const item = store[i];
+    if (item.metadata?.embeddingModel !== EMBEDDING_MODEL_NAME || !item.vector || item.vector.length !== VECTOR_DIM) {
+      item.vector = await generateEmbedding(item.text);
+      item.metadata = { ...(item.metadata || {}), embeddingModel: EMBEDDING_MODEL_NAME };
+      migrated++;
+    }
+  }
+
+  if (migrated > 0) {
+    saveVectorStore(store);
+    syncTurbovecIndex(store);
+    console.log(`[Memory] Re-indexing complete: ${migrated} entries updated to ${EMBEDDING_MODEL_NAME}.`);
+  } else {
+    console.log(`[Memory] All entries already up-to-date with ${EMBEDDING_MODEL_NAME}.`);
+  }
+
+  return { migrated, total: store.length };
+}
+
 export default {
   saveMemory,
   queryMemory,
   generateEmbedding,
-  cosineSimilarity
+  cosineSimilarity,
+  reindexVectorStore
 };
