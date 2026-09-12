@@ -369,7 +369,9 @@ class PEVRAgent:
         tools_to_pass = [t for t in ALL_TOOLS if t['function']['name'] in allowed] if allowed else ALL_TOOLS
         if not tools_to_pass: tools_to_pass = ALL_TOOLS
         
-        while retries >= 0:
+        turn_limit = 8
+        while retries >= 0 and turn_limit > 0:
+            turn_limit -= 1
             try:
                 actions, msg = self.gateway.call_executor(messages, tools_to_pass, tier)
                 log_event(self.task_id, step['step_id'], "MODEL_CALL", tier, {"model": msg.get("_model_used", "unknown"), "tier": tier})
@@ -439,7 +441,6 @@ class PEVRAgent:
                     messages.append({"role": "tool", "tool_call_id": action.get("tool_call_id", ""), "name": action['tool_name'], "content": str(exec_result)})
 
                 if actions:
-                    retries -= 1
                     continue
                 
                 content = str(msg.get("content") or "").lower()

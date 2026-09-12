@@ -82,23 +82,30 @@ class GondolinEnvironment:
             
         wrapped_command = f"{command}\nret=$?\necho '____GHOST_CWD____'\npwd\nexit $ret"
         
-        gondolin_cmd = [
-            "node",
-            self.config.gondolin_cli,
-            "exec",
-            "--mount-hostfs",
-            f"{sandbox_dir}:{exec_cwd}",
-            "--cwd",
-            exec_cwd,
-            "--",
-            "sh",
-            "-c",
-            wrapped_command
-        ]
+        use_gondolin = os.path.exists(self.config.gondolin_cli)
+        if use_gondolin:
+            cmd_to_run = [
+                "node",
+                self.config.gondolin_cli,
+                "exec",
+                "--mount-hostfs",
+                f"{sandbox_dir}:{exec_cwd}",
+                "--cwd",
+                exec_cwd,
+                "--",
+                "sh",
+                "-c",
+                wrapped_command
+            ]
+            run_cwd = None
+        else:
+            cmd_to_run = ["sh", "-c", wrapped_command]
+            run_cwd = exec_cwd
         
         try:
             result = subprocess.run(
-                gondolin_cmd,
+                cmd_to_run,
+                cwd=run_cwd,
                 text=True,
                 timeout=timeout or self.config.timeout,
                 encoding="utf-8",
