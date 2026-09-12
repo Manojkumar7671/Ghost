@@ -171,48 +171,16 @@ try {
     process.env.PATH = existing.join(':');
 } catch (e) {}
 
-function getUvPath() {
-    const candidatePaths = [
-        path.join(__dirname, 'bin', 'uv'),
-        '/usr/local/bin/uv',
-        path.join(os.homedir(), '.local', 'bin', 'uv'),
-        '/opt/render/.local/bin/uv',
-        '/usr/bin/uv',
-        '/root/.local/bin/uv'
-    ];
-    for (const p of candidatePaths) {
-        try {
-            if (fs.existsSync(p)) {
-                fs.accessSync(p, fs.constants.X_OK);
-                return p;
-            }
-        } catch (e) {}
-    }
-    return 'uv';
-}
-
 function getAgentCommand(scriptArgs) {
-    const uvBin = getUvPath();
     const venvPython = path.join(__dirname, 'mini-swe-agent', '.venv', 'bin', 'python');
-    
-    let uvWorks = false;
-    try {
-        const out = execSync(`unset VIRTUAL_ENV; "${uvBin}" --version`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'], timeout: 2000 });
-        if (out && out.toLowerCase().includes('uv')) uvWorks = true;
-    } catch (e) {}
-
-    if (uvWorks) {
-        return `unset VIRTUAL_ENV && cd mini-swe-agent && PYTHONUNBUFFERED=1 "${uvBin}" run --python 3.11 python ${scriptArgs}`;
-    }
-
     try {
         if (fs.existsSync(venvPython)) {
             fs.accessSync(venvPython, fs.constants.X_OK);
-            return `unset VIRTUAL_ENV && cd mini-swe-agent && PYTHONUNBUFFERED=1 "${venvPython}" ${scriptArgs}`;
+            return `cd mini-swe-agent && PYTHONUNBUFFERED=1 "${venvPython}" ${scriptArgs}`;
         }
     } catch (e) {}
 
-    return `unset VIRTUAL_ENV && cd mini-swe-agent && PYTHONUNBUFFERED=1 python3 ${scriptArgs}`;
+    return `cd mini-swe-agent && PYTHONUNBUFFERED=1 python3 ${scriptArgs}`;
 }
 
 const app = express();
