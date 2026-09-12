@@ -30,3 +30,5 @@ mini-swe-agent/out*.txt
 mini-swe-agent/debug_err.txt
 curl_*.json
 test*.json
+node_task_api/
+cookie_admin.txt
