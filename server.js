@@ -1816,10 +1816,10 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             //    They must proceed directly to brain.think where live search / honest refusal pipeline executes.
             // 2. Vague or conversational questions without explicit code/file execution commands must NEVER spawn PEVR tasks.
             const isFactualQuery = typeof brain.isRealTimeFactualQuery === 'function' && brain.isRealTimeFactualQuery(cleanMsg);
-            const lowerMsg = cleanMsg.toLowerCase();
-            const isVagueQuestion = /^(?:where|what|why|who|when|which|how|is\s+there|can\s+you\s+explain|tell\s+me\s+about)\b/i.test(lowerMsg);
-            const hasDirectAction = /\b(?:write|create|generate|build|implement|fix|refactor|run|execute)\s+(?:a\s+|the\s+)?(?:python\s+|js\s+|bash\s+|node\s+)?(?:script|code|program|file|function|test|benchmark)\b/i.test(lowerMsg);
-            const hasExecutionVerb = /\b(?:write|create|generate|build|implement|fix|refactor|run|execute|test|deploy|benchmark|solve|program)\b/i.test(lowerMsg);
+            const cleanLowerMsg = cleanMsg.toLowerCase();
+            const isVagueQuestion = /^(?:where|what|why|who|when|which|how|is\s+there|can\s+you\s+explain|tell\s+me\s+about)\b/i.test(cleanLowerMsg);
+            const hasDirectAction = /\b(?:write|create|generate|build|implement|fix|refactor|run|execute)\s+(?:a\s+|the\s+)?(?:python\s+|js\s+|bash\s+|node\s+)?(?:script|code|program|file|function|test|benchmark)\b/i.test(cleanLowerMsg);
+            const hasExecutionVerb = /\b(?:write|create|generate|build|implement|fix|refactor|run|execute|test|deploy|benchmark|solve|program)\b/i.test(cleanLowerMsg);
 
             const isPevrEligible = isAdmin && !hasFileAttachment && !message.startsWith('/') && !message.match(/^prepare\s+plan/i) && !isFactualQuery && (!isVagueQuestion || hasDirectAction) && hasExecutionVerb;
 
