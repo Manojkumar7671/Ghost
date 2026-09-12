@@ -481,9 +481,38 @@ async function summarize(userMessage, actions, results, userContext = {}) {
   return cleanAnswer;
 }
 
+function isRealTimeFactualQuery(message) {
+  if (!message || typeof message !== 'string') return false;
+  const msg = message.toLowerCase().trim();
+
+  // Conceptual / explanatory questions should remain normal chat
+  if (/\b(?:what\s+is\s+(?:weather|temperature|a\s+stock|a\s+share)\b|explain|why\s+does|how\s+does|how\s+do|difference\s+between|definition\s+of|science\s+of|write\s+(?:a|an)?\s+(?:poem|story|song|essay|code))\b/i.test(msg)) {
+    return false;
+  }
+
+  // Real-time weather patterns
+  const weatherPattern = /\b(?:what(?:'s|\s+is)\s+(?:the\s+)?(?:current\s+)?weather|weather\s+(?:in|for|today|tomorrow|at)|forecast\s+(?:in|for|today|tomorrow)|(?:what(?:'s|\s+is)\s+the\s+)?temperature\s+(?:in|at|today)|how\s+(?:hot|cold)\s+is\s+it\s+in|is\s+it\s+raining\s+in|will\s+it\s+rain\s+(?:today|tomorrow|in))\b/i;
+
+  // Real-time sports scores
+  const sportsPattern = /\b(?:(?:what(?:'s|\s+is)\s+the\s+)?(?:live\s+|current\s+)?(?:match|game|cricket|ipl|football|soccer|nba)\s+score|who\s+won\s+(?:the\s+match|the\s+game|today|yesterday)|current\s+score\s+of)\b/i;
+
+  // Real-time financial / crypto quotes
+  const marketPattern = /\b(?:(?:what(?:'s|\s+is)\s+the\s+)?(?:current\s+)?(?:stock\s+price|share\s+price|crypto\s+price|bitcoin\s+price|btc\s+price|eth\s+price)\s+of|(?:current\s+)?price\s+of\s+[A-Za-z0-9]+|how\s+much\s+is\s+(?:bitcoin|btc|eth|sol|apple\s+stock|tesla\s+stock)\s+(?:right\s+now|today|trading\s+at))\b/i;
+
+  // Breaking news / current events
+  const newsPattern = /\b(?:what(?:'s|\s+is)\s+the\s+(?:latest|breaking|current)\s+news|what\s+happened\s+today|today's\s+news\s+headlines|current\s+headlines)\b/i;
+
+  return weatherPattern.test(msg) || sportsPattern.test(msg) || marketPattern.test(msg) || newsPattern.test(msg);
+}
+
 function isOrdinaryChatRequest(userMessage, userContext = {}) {
   const msg = (userMessage || '').trim().toLowerCase();
   if (!msg) return true;
+
+  // Real-time factual queries (weather, live sports, stock prices, breaking news) must NOT take ordinary chat fast path
+  if (isRealTimeFactualQuery(userMessage)) {
+    return false;
+  }
 
   // Explicit instruction to not make changes / not execute commands is always ordinary chat
   if (/\b(do\s+not\s+make\s+changes|do\s+not\s+run\s+commands|no\s+changes|plan\s+only|as\s+text)\b/i.test(msg)) {
@@ -513,19 +542,52 @@ async function think(userMessage, userContext = { safeUser: 'guest', isAdmin: fa
   const username = userContext.safeUser || 'guest';
   saveMessage(username, 'user', userMessage);
 
-  // DETERMINISTIC LIVE-NEWS BOUNDARY: Check before anything that can call plan() or an LLM
-  const isNewsQuery = /\b(what is the news|latest news|news today|current headlines|news)\b/i.test(userMessage);
-  if (isNewsQuery) {
-    try {
-      const sr = await webAgent.searchWeb(userMessage);
-      const reply = sr.summary || JSON.stringify(sr);
-      saveMessage(username, 'assistant', reply);
-      return { reply, actions: [{ tool: 'web_search', reason: 'Live news query', status: 'done' }] };
-    } catch (err) {
-      const reply = "I tried to search live but hit an error: " + err.message;
-      saveMessage(username, 'assistant', reply);
-      return { reply, actions: [{ tool: 'web_search', reason: 'Live news query failed', status: 'error' }] };
+  // DETERMINISTIC REAL-TIME FACTUAL BOUNDARY: Check before anything that can call an LLM directly
+  if (isRealTimeFactualQuery(userMessage)) {
+    console.log(`[Real-Time Factual Boundary] Intercepted live query: "${userMessage}"`);
+
+    // 1. If stock quote query, try stockAgent first if applicable
+    const isStockQuery = /\b(?:stock|share)\s+price\b/i.test(userMessage);
+    if (isStockQuery) {
+      try {
+        const stockAgent = require('./agents/stockAgent');
+        const stockRes = await stockAgent.run(userMessage);
+        if (stockRes && stockRes.success && stockRes.text) {
+          saveMessage(username, 'assistant', stockRes.text);
+          return { reply: stockRes.text, actions: [{ tool: 'stock_quote', reason: 'Live market quote', status: 'done' }] };
+        }
+      } catch (e) {}
     }
+
+    // 2. Attempt real web search via webAgent if SERPER_API_KEY is configured
+    if (process.env.SERPER_API_KEY) {
+      try {
+        const sr = await webAgent.searchWeb(userMessage);
+        if (sr && Array.isArray(sr.results) && sr.results.length > 0) {
+          const searchContext = sr.results.map((r, i) => `${i + 1}. ${r.title}\n${r.snippet}\n${r.url}`).join('\n\n');
+          const summaryPrompt = `User question: "${userMessage}"\n\nVerified Live Web Search Results:\n${searchContext}\n\nProvide an accurate, concise answer based strictly on the search results above. Do not fabricate any information not found in the search results. Include source URLs where appropriate.`;
+          const summaryAnswer = await chat([{ role: 'user', content: summaryPrompt }], {
+            systemPrompt: 'You are Ghost. Answer the user question based STRICTLY and ONLY on the provided live web search results. If the search results do not contain the answer, state that live data could not confirm it. Do not invent numbers, temperatures, or scores.'
+          });
+          const cleanAnswer = summaryAnswer.replace(/^(?:\[?(?:NOVA|ECHO|ROUTER|ORCHESTRATOR|ADVISOR|ENGINEER|chat ➔ llm)\]?:?\s*)+/i, '').trim();
+          saveMessage(username, 'assistant', cleanAnswer);
+          return { reply: cleanAnswer, actions: [{ tool: 'web_search', reason: 'Live search for real-time factual query', status: 'done' }] };
+        }
+      } catch (err) {
+        console.warn('[Live Query Search Error]:', err.message);
+      }
+    }
+
+    // 3. Honest Refusal Boundary: live search is unavailable or unconfigured
+    let category = 'live data';
+    if (/\b(weather|temperature|forecast|rain|snow|degrees)\b/i.test(userMessage)) category = 'current weather';
+    else if (/\b(score|game|match|cricket|ipl|nba|football|soccer)\b/i.test(userMessage)) category = 'live sports scores';
+    else if (/\b(stock|crypto|price|trading|bitcoin|btc|eth)\b/i.test(userMessage)) category = 'real-time market prices';
+    else if (/\b(news|headlines|what happened)\b/i.test(userMessage)) category = 'breaking news';
+
+    const honestRefusal = `I don't have live data access for ${category} right now (live web search is not configured or unavailable). I won't guess or fabricate numbers. Please check a live service for current updates.`;
+    saveMessage(username, 'assistant', honestRefusal);
+    return { reply: honestRefusal, actions: [{ tool: 'live_data_boundary', reason: `Refused ${category} fabrication without live feed`, status: 'done' }] };
   }
 
   // FAST PATH: Ordinary normal chat skips planner/orchestrator/subtask loops completely
@@ -685,4 +747,4 @@ Factual Humility & Boundaries:
   return { reply, actions: actions.map((a,i) => ({ tool: a.tool, reason: a.reason, status: results[i]?.status })) };
 }
 
-module.exports = { think, execute, extractJSON, summarize, isOrdinaryChatRequest };
+module.exports = { think, execute, extractJSON, summarize, isOrdinaryChatRequest, isRealTimeFactualQuery };
