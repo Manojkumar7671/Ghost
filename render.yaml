@@ -3,7 +3,7 @@ services:
     name: ghost-v2
     env: node
     plan: free
-    buildCommand: curl -LsSf https://astral.sh/uv/install.sh | sh && export PATH="$HOME/.local/bin:$PATH" && uv python install 3.11 && (cd mini-swe-agent && uv sync --python 3.11) && npm install
+    buildCommand: mkdir -p bin && (curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$(pwd)/bin" sh) && export PATH="$(pwd)/bin:$PATH" && (cp bin/uv /usr/local/bin/uv 2>/dev/null || true) && uv python install 3.11 && (cd mini-swe-agent && uv sync --python 3.11) && chmod -R 777 mini-swe-agent bin 2>/dev/null || true && npm install
     startCommand: npm start
     envVars:
       - key: GROQ_API_KEY

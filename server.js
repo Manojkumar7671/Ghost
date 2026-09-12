@@ -174,18 +174,45 @@ try {
 function getUvPath() {
     const candidatePaths = [
         path.join(__dirname, 'bin', 'uv'),
-        path.join(os.homedir(), '.local', 'bin', 'uv'),
-        '/root/.local/bin/uv',
-        '/opt/render/.local/bin/uv',
         '/usr/local/bin/uv',
-        '/usr/bin/uv'
+        path.join(os.homedir(), '.local', 'bin', 'uv'),
+        '/opt/render/.local/bin/uv',
+        '/usr/bin/uv',
+        '/root/.local/bin/uv'
     ];
     for (const p of candidatePaths) {
         try {
-            if (fs.existsSync(p)) return p;
+            if (fs.existsSync(p)) {
+                fs.accessSync(p, fs.constants.X_OK);
+                return p;
+            }
         } catch (e) {}
     }
     return 'uv';
+}
+
+function getAgentCommand(scriptArgs) {
+    const uvBin = getUvPath();
+    const venvPython = path.join(__dirname, 'mini-swe-agent', '.venv', 'bin', 'python');
+    
+    let uvWorks = false;
+    try {
+        const out = execSync(`"${uvBin}" --version`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'], timeout: 2000 });
+        if (out && out.toLowerCase().includes('uv')) uvWorks = true;
+    } catch (e) {}
+
+    if (uvWorks) {
+        return `cd mini-swe-agent && PYTHONUNBUFFERED=1 "${uvBin}" run --python 3.11 python ${scriptArgs}`;
+    }
+
+    try {
+        if (fs.existsSync(venvPython)) {
+            fs.accessSync(venvPython, fs.constants.X_OK);
+            return `cd mini-swe-agent && PYTHONUNBUFFERED=1 "${venvPython}" ${scriptArgs}`;
+        }
+    } catch (e) {}
+
+    return `cd mini-swe-agent && PYTHONUNBUFFERED=1 python3 ${scriptArgs}`;
 }
 
 const app = express();
@@ -1172,8 +1199,8 @@ function extractTextFromPdfBuffer(pdfBuffer) {
         fs.writeFileSync(tmpPdf, pdfBuffer);
         try {
             const pyScript = `from pypdf import PdfReader\nreader = PdfReader('${tmpPdf}')\nprint('\\n'.join([p.extract_text() or '' for p in reader.pages]).strip())`;
-            const uvBin = getUvPath();
-            const pyOut = execSync(`cd mini-swe-agent && "${uvBin}" run --python 3.11 python -c "${pyScript.replace(/"/g, '\\"')}"`, { timeout: 10000, env: { ...process.env, PATH: process.env.PATH } }).toString().trim();
+            const pdfCmd = getAgentCommand(`-c "${pyScript.replace(/"/g, '\\"')}"`);
+            const pyOut = execSync(pdfCmd, { timeout: 10000, env: { ...process.env, PATH: process.env.PATH } }).toString().trim();
             if (pyOut && pyOut.length > 5) {
                 return pyOut.slice(0, 16000);
             }
@@ -1836,8 +1863,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                     const safeGoal = message.replace(/'/g, "''");
                     runAgentSqlite(`INSERT OR REPLACE INTO tasks (task_id, goal, plan, status, start_time) VALUES ('${taskId}', '${safeGoal}', '[]', 'RUNNING', ${Date.now() / 1000})`);
 
-                    const uvBin = getUvPath();
-                    const cmd = `cd mini-swe-agent && PYTHONUNBUFFERED=1 "${uvBin}" run --python 3.11 python src/minisweagent/pevr_service.py --goal "${message.replace(/"/g, '\"')}" --task_id ${taskId}`;
+                    const cmd = getAgentCommand(`src/minisweagent/pevr_service.py --goal "${message.replace(/"/g, '\\"')}" --task_id ${taskId}`);
                     const { exec } = await import('child_process');
                     exec(cmd, { env: { ...process.env, PATH: process.env.PATH } }, (error, stdout, stderr) => {
                         if (error && !stdout.trim()) {
@@ -3480,16 +3506,18 @@ app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => 
         const safeGoal = goal.replace(/'/g, "''");
         runAgentSqlite(`INSERT OR REPLACE INTO tasks (task_id, goal, plan, status, start_time) VALUES ('${taskId}', '${safeGoal}', '[]', 'RUNNING', ${Date.now() / 1000})`);
 
-        const uvBin = getUvPath();
-        let cmd = `cd mini-swe-agent && PYTHONUNBUFFERED=1 "${uvBin}" run --python 3.11 python src/minisweagent/pevr_service.py --goal "${goal.replace(/"/g, '\"')}" --task_id ${taskId} ${req.body.schedule_id ? "--schedule_id " + req.body.schedule_id : ""}`;
-        
-        let timeoutOpts = { maxBuffer: 1024 * 1024 * 10, env: { ...process.env, PATH: process.env.PATH } };
+        let scriptArgs = `src/minisweagent/pevr_service.py --goal "${goal.replace(/"/g, '\\"')}" --task_id ${taskId}${req.body.schedule_id ? " --schedule_id " + req.body.schedule_id : ""}`;
         if (!isAdmin) {
             const os = require('os');
             const path = require('path');
             const fs = require('fs');
             const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ghost-guest-'));
-            cmd += ` --workspace "${tempDir}"`;
+            scriptArgs += ` --workspace "${tempDir}"`;
+        }
+
+        let cmd = getAgentCommand(scriptArgs);
+        let timeoutOpts = { maxBuffer: 1024 * 1024 * 10, env: { ...process.env, PATH: process.env.PATH } };
+        if (!isAdmin) {
             timeoutOpts.timeout = 10000;
         }
 
