@@ -118,6 +118,17 @@
                 </div>
             </div>
 
+            <!-- BACKGROUND TASKS (Owner only) -->
+            <div id="tasksContainer" class="history-container owner-only" style="display: none;">
+                <div class="history-title-row">
+                    <span class="history-title">Background Tasks</span>
+                    <button class="btn-small-icon" id="refreshTasksBtn" title="Refresh Tasks">↻</button>
+                </div>
+                <div class="history-list" id="tasksList">
+                    <div class="history-item loading-text">Loading tasks...</div>
+                </div>
+            </div>
+
             <!-- CORE CONTROL TOGGLES -->
             <div class="sidebar-nav">
                 <div class="control-group">
@@ -592,6 +603,36 @@
                 <p class="panel-subtext">Verified working capabilities and their explicit limitations.</p>
                 <div id="skillsListContainer" class="personal-items-list">
                     <div class="loading-state">Loading skills...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TASK EVIDENCE MODAL -->
+    <div id="taskEvidenceModal" class="task-modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="taskModalId">
+        <div class="task-modal-backdrop" id="taskModalBackdrop"></div>
+        <div class="task-modal-card">
+            <div class="task-modal-header">
+                <div class="task-modal-badge-group">
+                    <span class="task-status-badge" id="taskModalBadge">SUCCESS</span>
+                    <h3 class="task-modal-title" id="taskModalId">Task Details</h3>
+                </div>
+                <button type="button" class="task-modal-close" id="closeTaskModalBtn" aria-label="Close dialog">&times;</button>
+            </div>
+            <div class="task-modal-body">
+                <div class="task-meta-group">
+                    <div class="task-meta-item">
+                        <span class="task-meta-label">Goal:</span>
+                        <div class="task-meta-text" id="taskModalGoal">Goal description</div>
+                    </div>
+                    <div class="task-meta-item-inline">
+                        <span class="task-meta-label">Elapsed:</span>
+                        <span class="task-meta-text" id="taskModalElapsed">0s</span>
+                    </div>
+                </div>
+                <div class="task-evidence-block">
+                    <div class="task-evidence-label">Execution Evidence:</div>
+                    <div class="task-evidence-content" id="taskModalEvidence">No evidence recorded yet.</div>
                 </div>
             </div>
         </div>

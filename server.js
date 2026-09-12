@@ -1325,6 +1325,38 @@ function getAgentTaskDetails(targetTaskId) {
     }
 }
 
+function listAgentTasks(limit = 20) {
+    const dbPath = path.join(__dirname, 'mini-swe-agent', 'ghost_agent_runs.db');
+    if (!fs.existsSync(dbPath)) return [];
+    try {
+        const raw = execSync(`sqlite3 "${dbPath}" "SELECT task_id, goal, status, start_time, end_time FROM tasks ORDER BY start_time DESC LIMIT ${limit}"`).toString().trim();
+        if (!raw) return [];
+        return raw.split('\n').filter(Boolean).map(line => {
+            const [taskId, goal, status, start, end] = line.split('|');
+            const startTime = Number(start) || Date.now() / 1000;
+            const endTime = end ? Number(end) : null;
+            const elapsedSeconds = Math.max(0, Math.round((endTime || (Date.now() / 1000)) - startTime));
+            return {
+                taskId,
+                goal: goal || '',
+                status: status || 'UNKNOWN',
+                startTime,
+                endTime,
+                elapsedSeconds
+            };
+        });
+    } catch (e) {
+        console.error("[List Tasks Error]:", e.message);
+        return [];
+    }
+}
+
+app.get('/api/agent/tasks', async (req, res) => {
+    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+    const tasks = listAgentTasks(limit);
+    return res.json({ success: true, tasks });
+});
+
 app.get('/api/agent/tasks/:taskId/status', async (req, res) => {
     const { taskId } = req.params;
     const task = getAgentTaskDetails(taskId);

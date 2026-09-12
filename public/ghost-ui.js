@@ -3370,6 +3370,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateInitialGreeting(masterUser);
                 loadProjects();
                 loadMemories();
+                loadTasks();
                 authInput.value = '';
             } else {
                 isAdminMode = false;
@@ -3739,6 +3740,7 @@ const response = await fetch(targetUrl, {
         if (!taskId || activeTaskPollers.has(taskId)) return;
         activeTaskPollers.add(taskId);
         console.log(`[Task Poller] Subscribed to background task: ${taskId}`);
+        if (typeof loadTasks === 'function') loadTasks();
 
         const startTime = Date.now();
         const maxPollDuration = 3 * 60 * 1000; // 3 minutes max
@@ -3748,6 +3750,7 @@ const response = await fetch(targetUrl, {
                 clearInterval(pollInterval);
                 activeTaskPollers.delete(taskId);
                 console.log(`[Task Poller] Polling timed out for task: ${taskId}`);
+                if (typeof loadTasks === 'function') loadTasks();
                 return;
             }
 
@@ -3779,11 +3782,13 @@ const response = await fetch(targetUrl, {
                         state: t.status === 'SUCCESS' ? 'completed' : 'failed',
                         evidence: t.evidence
                     });
+                    if (typeof loadTasks === 'function') loadTasks();
                 } else if (t.pendingApproval) {
                     clearInterval(pollInterval);
                     activeTaskPollers.delete(taskId);
 
                     appendMessage('ghost', `Approval required for task ${taskId}: Tool "${t.pendingApproval.tool_name}" (ID: ${t.pendingApproval.approval_id}).`);
+                    if (typeof loadTasks === 'function') loadTasks();
                 }
             } catch (err) {
                 console.warn(`[Task Poller] Error checking task ${taskId}:`, err.message);
@@ -4338,11 +4343,135 @@ const response = await fetch(targetUrl, {
         return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    // Load projects and memories if logged in (check every second until initialized)
+    // --- BACKGROUND TASK STATUS PANEL & EVIDENCE MODAL ---
+    const tasksContainer = document.getElementById('tasksContainer');
+    const tasksList = document.getElementById('tasksList');
+    const refreshTasksBtn = document.getElementById('refreshTasksBtn');
+    const taskEvidenceModal = document.getElementById('taskEvidenceModal');
+    const taskModalBackdrop = document.getElementById('taskModalBackdrop');
+    const closeTaskModalBtn = document.getElementById('closeTaskModalBtn');
+    const taskModalBadge = document.getElementById('taskModalBadge');
+    const taskModalId = document.getElementById('taskModalId');
+    const taskModalGoal = document.getElementById('taskModalGoal');
+    const taskModalElapsed = document.getElementById('taskModalElapsed');
+    const taskModalEvidence = document.getElementById('taskModalEvidence');
+
+    function closeTaskDetailsModal() {
+        if (taskEvidenceModal) taskEvidenceModal.style.display = 'none';
+    }
+
+    if (closeTaskModalBtn) closeTaskModalBtn.addEventListener('click', closeTaskDetailsModal);
+    if (taskModalBackdrop) taskModalBackdrop.addEventListener('click', closeTaskDetailsModal);
+
+    function showTaskDetailsModal(task) {
+        if (!taskEvidenceModal || !task) return;
+        const status = (task.status || 'UNKNOWN').toUpperCase();
+        if (taskModalBadge) {
+            taskModalBadge.innerText = status;
+            taskModalBadge.className = 'task-status-badge ' + (
+                status === 'SUCCESS' || status === 'COMPLETED' ? 'status-success' :
+                status === 'FAILED' ? 'status-failed' :
+                status === 'PENDING' ? 'status-pending' : 'status-running'
+            );
+        }
+        if (taskModalId) taskModalId.innerText = task.taskId || 'Task';
+        if (taskModalGoal) taskModalGoal.innerText = task.goal || 'No goal description provided.';
+        if (taskModalElapsed) taskModalElapsed.innerText = `${task.elapsedSeconds ?? 0}s`;
+        
+        let evidenceText = '';
+        if (task.pendingApproval) {
+            evidenceText += `[APPROVAL REQUIRED]\nTool: ${task.pendingApproval.tool_name}\nApproval ID: ${task.pendingApproval.approval_id}\n\n`;
+        }
+        if (task.error) {
+            evidenceText += `[ERROR DETAILS]\n${task.error}\n\n`;
+        }
+        if (task.evidence && task.evidence.length > 0) {
+            evidenceText += task.evidence.join('\n');
+        } else {
+            evidenceText += (status === 'SUCCESS' || status === 'COMPLETED')
+                ? 'Task completed successfully.'
+                : (status === 'FAILED' ? 'Task execution failed.' : 'Task is currently running. Logs will appear when complete.');
+        }
+
+        if (taskModalEvidence) taskModalEvidence.innerText = evidenceText;
+        taskEvidenceModal.style.display = 'flex';
+    }
+
+    async function loadTasks() {
+        if (tasksContainer) tasksContainer.style.display = 'flex';
+        if (!tasksList) return;
+        try {
+            const res = await fetch(apiUrl('/api/agent/tasks?limit=15'), { credentials: 'include' });
+            if (!res.ok) {
+                tasksList.innerHTML = '<div class="loading-text">Unable to load tasks.</div>';
+                return;
+            }
+            const data = await res.json();
+            if (!data.success || !Array.isArray(data.tasks)) {
+                tasksList.innerHTML = '<div class="loading-text">No tasks found.</div>';
+                return;
+            }
+            if (data.tasks.length === 0) {
+                tasksList.innerHTML = '<div class="loading-text">No background tasks yet.</div>';
+                return;
+            }
+
+            tasksList.innerHTML = '';
+            data.tasks.forEach(task => {
+                const item = document.createElement('div');
+                item.className = 'task-item';
+                const status = (task.status || 'UNKNOWN').toUpperCase();
+                const badgeClass = status === 'SUCCESS' || status === 'COMPLETED' ? 'status-success' :
+                                   status === 'FAILED' ? 'status-failed' :
+                                   status === 'PENDING' ? 'status-pending' : 'status-running';
+
+                item.innerHTML = `
+                    <div class="task-item-header">
+                        <span class="task-item-goal" title="${escapeHtml(task.goal)}">${escapeHtml(task.goal || task.taskId)}</span>
+                        <span class="task-status-badge ${badgeClass}">${status}</span>
+                    </div>
+                    <div class="task-item-meta">
+                        <span>${escapeHtml(task.taskId)}</span>
+                        <span>${task.elapsedSeconds ?? 0}s</span>
+                    </div>
+                `;
+
+                item.addEventListener('click', async () => {
+                    try {
+                        const statusRes = await fetch(apiUrl(`/api/agent/tasks/${encodeURIComponent(task.taskId)}/status`), { credentials: 'include' });
+                        if (statusRes.ok) {
+                            const statusData = await statusRes.json();
+                            if (statusData.success && statusData.task) {
+                                showTaskDetailsModal(statusData.task);
+                                return;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[Task Click Error]:', e);
+                    }
+                    showTaskDetailsModal(task);
+                });
+
+                tasksList.appendChild(item);
+            });
+        } catch (e) {
+            tasksList.innerHTML = '<div class="loading-text">Error loading tasks.</div>';
+        }
+    }
+
+    if (refreshTasksBtn) {
+        refreshTasksBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            loadTasks();
+        });
+    }
+
+    // Load projects, memories, and tasks if logged in (check every second until initialized)
     const checkAuthTimer = setInterval(() => {
         if (isAdminMode) {
             loadProjects();
             loadMemories();
+            loadTasks();
             clearInterval(checkAuthTimer);
         }
     }, 1000);
