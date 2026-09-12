@@ -7,6 +7,13 @@ import uuid
 import litellm
 litellm._turn_on_debug()
 
+try:
+    from dotenv import load_dotenv
+    env_candidate = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '.env'))
+    if os.path.exists(env_candidate):
+        load_dotenv(env_candidate, override=False)
+except Exception: pass
+
 import argparse
 
 from minisweagent.environments.gondolin import GondolinEnvironment
@@ -38,55 +45,78 @@ def log_event(task_id, step_id, event_type, tier, details):
 
 class ModelGateway:
     def __init__(self):
-        self.fast = "groq/openai/gpt-oss-20b"
-        self.strong = "groq/openai/gpt-oss-120b"
         self.total_tokens = 0
         self.total_latency = 0
         self.api_calls = 0
 
+        candidates = []
+        # Support Gemini, Groq, Nvidia, OpenRouter
+        if os.environ.get("GEMINI_API_KEY"):
+            candidates.append(("gemini/gemini-1.5-flash", "gemini/gemini-1.5-pro"))
+        if os.environ.get("GROQ_API_KEY"):
+            candidates.append(("groq/llama-3.1-8b-instant", "groq/llama-3.3-70b-versatile"))
+            candidates.append(("groq/openai/gpt-oss-20b", "groq/openai/gpt-oss-120b"))
+        if os.environ.get("NVIDIA_API_KEY"):
+            candidates.append(("nvidia_nim/meta/llama-3.1-8b-instruct", "nvidia_nim/nvidia/llama-3.3-nemotron-super-49b-v1"))
+        if os.environ.get("OPENROUTER_API_KEY"):
+            candidates.append(("openrouter/meta-llama/llama-3.1-8b-instruct", "openrouter/meta-llama/llama-3.3-70b-instruct"))
+
+        if not candidates:
+            candidates.append(("groq/openai/gpt-oss-20b", "groq/openai/gpt-oss-120b"))
+
+        self.model_candidates = candidates
+        self.fast, self.strong = candidates[0]
+
     def call_planner(self, goal):
-
-        start = time.time()
-        # Keep schema matching standard PEVR definition
         prompt = f"Goal: {goal}\nCreate a step-by-step plan. Return ONLY JSON matching this schema: {{ 'steps': [ {{'step_id', 'objective', 'permitted_tools', 'verification_method': {{'type': 'run_command', 'command': '...'}}, 'retry_budget', 'dependencies'}} ] }}."
-        try:
-            resp = litellm.completion(model=self.strong, messages=[{"role": "user", "content": prompt}], response_format={"type": "json_object"})
-            lat = time.time() - start
-            self.total_latency += lat
-            self.api_calls += 1
-            self.api_calls += 1
-            toks = resp.usage.total_tokens if hasattr(resp, 'usage') and resp.usage else 0
-            self.total_tokens += toks
-            return json.loads(resp.choices[0].message.content)
-        except Exception as e:
-            raise ValueError(f"Litellm completion failed: {e}")
-
+        last_err = None
+        for fast_m, strong_m in self.model_candidates:
+            start = time.time()
+            try:
+                resp = litellm.completion(model=strong_m, messages=[{"role": "user", "content": prompt}], response_format={"type": "json_object"})
+                lat = time.time() - start
+                self.total_latency += lat
+                self.api_calls += 1
+                toks = resp.usage.total_tokens if hasattr(resp, 'usage') and resp.usage else 0
+                self.total_tokens += toks
+                self.fast = fast_m
+                self.strong = strong_m
+                return json.loads(resp.choices[0].message.content)
+            except Exception as e:
+                last_err = e
+                continue
+        raise ValueError(f"Litellm completion failed across all models: {last_err}")
 
     def call_executor(self, messages, tools, tier):
-        model = self.fast if tier == "fast" else self.strong
-        start = time.time()
-        
-        try:
-            resp = litellm.completion(model=model, messages=messages, tools=tools, tool_choice="auto" if tools else "none")
-            lat = time.time() - start
-            self.total_latency += lat
-            self.api_calls += 1
-            self.api_calls += 1
-            toks = resp.usage.total_tokens if hasattr(resp, 'usage') and resp.usage else 0
-            self.total_tokens += toks
-            
-            msg = resp.choices[0].message
-            actions = []
-            if msg.tool_calls:
-                for tc in msg.tool_calls:
-                    actions.append({"tool_name": tc.function.name, "args": json.loads(tc.function.arguments), "tool_call_id": tc.id})
-            result = msg.model_dump(exclude_none=True)
-            result["_model_used"] = model  # inject for logging
-            return actions, result
-        except Exception as e:
-            raise ValueError(f"Litellm completion failed: {e}")
+        last_err = None
+        models_to_try = [(self.fast if tier == "fast" else self.strong)]
+        for f, s in self.model_candidates:
+            cand = f if tier == "fast" else s
+            if cand not in models_to_try:
+                models_to_try.append(cand)
 
-            raise ValueError(f"Litellm completion failed: {e}")
+        for model in models_to_try:
+            start = time.time()
+            try:
+                resp = litellm.completion(model=model, messages=messages, tools=tools, tool_choice="auto" if tools else "none")
+                lat = time.time() - start
+                self.total_latency += lat
+                self.api_calls += 1
+                toks = resp.usage.total_tokens if hasattr(resp, 'usage') and resp.usage else 0
+                self.total_tokens += toks
+                
+                msg = resp.choices[0].message
+                actions = []
+                if msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        actions.append({"tool_name": tc.function.name, "args": json.loads(tc.function.arguments), "tool_call_id": tc.id})
+                result = msg.model_dump(exclude_none=True)
+                result["_model_used"] = model
+                return actions, result
+            except Exception as e:
+                last_err = e
+                continue
+        raise ValueError(f"Litellm completion failed across all models: {last_err}")
 
 # Import Multimodal Connectors for browser integration
 try:
