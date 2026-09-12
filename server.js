@@ -152,6 +152,42 @@ const OBSIDIAN_VAULT_PATH = process.env.OBSIDIAN_VAULT_PATH || '';
 const { Pool } = pkg;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Ensure ~/.local/bin and standard tool directories are in PATH for non-interactive shells
+try {
+    const extraPaths = [
+        path.join(__dirname, 'bin'),
+        path.join(os.homedir(), '.local', 'bin'),
+        '/root/.local/bin',
+        '/opt/render/.local/bin',
+        '/usr/local/bin'
+    ];
+    const existing = (process.env.PATH || '').split(':');
+    for (const p of extraPaths) {
+        if (!existing.includes(p)) {
+            existing.unshift(p);
+        }
+    }
+    process.env.PATH = existing.join(':');
+} catch (e) {}
+
+function getUvPath() {
+    const candidatePaths = [
+        path.join(__dirname, 'bin', 'uv'),
+        path.join(os.homedir(), '.local', 'bin', 'uv'),
+        '/root/.local/bin/uv',
+        '/opt/render/.local/bin/uv',
+        '/usr/local/bin/uv',
+        '/usr/bin/uv'
+    ];
+    for (const p of candidatePaths) {
+        try {
+            if (fs.existsSync(p)) return p;
+        } catch (e) {}
+    }
+    return 'uv';
+}
+
 const app = express();
 
 app.get('/health', (req, res) => {
@@ -1136,7 +1172,8 @@ function extractTextFromPdfBuffer(pdfBuffer) {
         fs.writeFileSync(tmpPdf, pdfBuffer);
         try {
             const pyScript = `from pypdf import PdfReader\nreader = PdfReader('${tmpPdf}')\nprint('\\n'.join([p.extract_text() or '' for p in reader.pages]).strip())`;
-            const pyOut = execSync(`cd mini-swe-agent && uv run --python 3.11 python -c "${pyScript.replace(/"/g, '\\"')}"`, { timeout: 10000 }).toString().trim();
+            const uvBin = getUvPath();
+            const pyOut = execSync(`cd mini-swe-agent && "${uvBin}" run --python 3.11 python -c "${pyScript.replace(/"/g, '\\"')}"`, { timeout: 10000, env: { ...process.env, PATH: process.env.PATH } }).toString().trim();
             if (pyOut && pyOut.length > 5) {
                 return pyOut.slice(0, 16000);
             }
@@ -1799,11 +1836,12 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                     const safeGoal = message.replace(/'/g, "''");
                     runAgentSqlite(`INSERT OR REPLACE INTO tasks (task_id, goal, plan, status, start_time) VALUES ('${taskId}', '${safeGoal}', '[]', 'RUNNING', ${Date.now() / 1000})`);
 
-                    const cmd = `cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/pevr_service.py --goal "${message.replace(/"/g, '\"')}" --task_id ${taskId}`;
+                    const uvBin = getUvPath();
+                    const cmd = `cd mini-swe-agent && PYTHONUNBUFFERED=1 "${uvBin}" run --python 3.11 python src/minisweagent/pevr_service.py --goal "${message.replace(/"/g, '\"')}" --task_id ${taskId}`;
                     const { exec } = await import('child_process');
-                    exec(cmd, (error, stdout, stderr) => {
+                    exec(cmd, { env: { ...process.env, PATH: process.env.PATH } }, (error, stdout, stderr) => {
                         if (error && !stdout.trim()) {
-                            console.error("Agent background process execution failed:", error.message);
+                            console.error("Agent background process execution failed:", error.message, stderr);
                             runAgentSqlite(`UPDATE tasks SET status = 'FAILED', end_time = ${Date.now() / 1000} WHERE task_id = '${taskId}'`);
                         }
                     });
@@ -3442,9 +3480,10 @@ app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => 
         const safeGoal = goal.replace(/'/g, "''");
         runAgentSqlite(`INSERT OR REPLACE INTO tasks (task_id, goal, plan, status, start_time) VALUES ('${taskId}', '${safeGoal}', '[]', 'RUNNING', ${Date.now() / 1000})`);
 
-        let cmd = `cd mini-swe-agent && PYTHONUNBUFFERED=1 uv run --python 3.11 python src/minisweagent/pevr_service.py --goal "${goal.replace(/"/g, '\"')}" --task_id ${taskId} ${req.body.schedule_id ? "--schedule_id " + req.body.schedule_id : ""}`;
+        const uvBin = getUvPath();
+        let cmd = `cd mini-swe-agent && PYTHONUNBUFFERED=1 "${uvBin}" run --python 3.11 python src/minisweagent/pevr_service.py --goal "${goal.replace(/"/g, '\"')}" --task_id ${taskId} ${req.body.schedule_id ? "--schedule_id " + req.body.schedule_id : ""}`;
         
-        let timeoutOpts = { maxBuffer: 1024 * 1024 * 10 };
+        let timeoutOpts = { maxBuffer: 1024 * 1024 * 10, env: { ...process.env, PATH: process.env.PATH } };
         if (!isAdmin) {
             const os = require('os');
             const path = require('path');

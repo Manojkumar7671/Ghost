@@ -21,6 +21,12 @@ release/
 
 cookie.txt
 *.db
-mini-swe-agent/
+mini-swe-agent/.venv/
+mini-swe-agent/*.db
+mini-swe-agent/*.log
+mini-swe-agent/.ghost.db
+mini-swe-agent/err*.txt
+mini-swe-agent/out*.txt
+mini-swe-agent/debug_err.txt
 curl_*.json
 test*.json

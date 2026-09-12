@@ -570,8 +570,9 @@ async function think(userMessage, userContext = { safeUser: 'guest', isAdmin: fa
             systemPrompt: 'You are Ghost. Answer the user question based STRICTLY and ONLY on the provided live web search results. If the search results do not contain the answer, state that live data could not confirm it. Do not invent numbers, temperatures, or scores.'
           });
           const cleanAnswer = summaryAnswer.replace(/^(?:\[?(?:NOVA|ECHO|ROUTER|ORCHESTRATOR|ADVISOR|ENGINEER|chat ➔ llm)\]?:?\s*)+/i, '').trim();
-          saveMessage(username, 'assistant', cleanAnswer);
-          return { reply: cleanAnswer, actions: [{ tool: 'web_search', reason: 'Live search for real-time factual query', status: 'done' }] };
+          const liveAnswer = `[Live Web Search via Serper]\n\n${cleanAnswer}`;
+          saveMessage(username, 'assistant', liveAnswer);
+          return { reply: liveAnswer, actions: [{ tool: 'web_search', reason: 'Live search for real-time factual query', status: 'done' }] };
         }
       } catch (err) {
         console.warn('[Live Query Search Error]:', err.message);
