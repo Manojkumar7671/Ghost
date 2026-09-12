@@ -5,7 +5,7 @@ import time
 import sqlite3
 import uuid
 import litellm
-litellm._turn_on_debug()
+# litellm._turn_on_debug()
 
 try:
     from dotenv import load_dotenv
@@ -76,6 +76,32 @@ class ModelGateway:
         self.api_calls = 0
 
         candidates = []
+
+        # 1. FreeLLMAPI (Cloud or Local) - High speed, unmetered, native tool-calling
+        free_base = os.environ.get("FREELLMAPI_RENDER_URL") or os.environ.get("FREELLMAPI_BASE_URL") or "https://freellmapi-e17x.onrender.com"
+        free_base = free_base.rstrip("/")
+        if not free_base.endswith("/v1"):
+            free_base += "/v1"
+        candidates.append({
+            "name": "freellmapi",
+            "fast": "openai/auto",
+            "strong": "openai/auto",
+            "api_base": free_base,
+            "api_key": os.environ.get("FREELLMAPI_API_KEY") or "free"
+        })
+
+        # 2. Groq
+        groq_key = os.environ.get("GROQ_API_KEY")
+        if groq_key:
+            candidates.append({
+                "name": "groq",
+                "fast": "groq/openai/gpt-oss-20b",
+                "strong": "groq/openai/gpt-oss-120b",
+                "api_base": None,
+                "api_key": groq_key
+            })
+
+        # 3. NVIDIA NIM
         nvidia_key = os.environ.get("NVIDIA_API_KEY") or os.environ.get("META_API_KEY")
         if nvidia_key:
             candidates.append({
@@ -85,14 +111,8 @@ class ModelGateway:
                 "api_base": "https://integrate.api.nvidia.com/v1",
                 "api_key": nvidia_key
             })
-        if os.environ.get("GROQ_API_KEY"):
-            candidates.append({
-                "name": "groq",
-                "fast": "groq/llama-3.1-8b-instant",
-                "strong": "groq/llama-3.3-70b-versatile",
-                "api_base": None,
-                "api_key": os.environ.get("GROQ_API_KEY")
-            })
+
+        # 4. OpenRouter
         if os.environ.get("OPENROUTER_API_KEY"):
             candidates.append({
                 "name": "openrouter",
@@ -101,6 +121,8 @@ class ModelGateway:
                 "api_base": None,
                 "api_key": os.environ.get("OPENROUTER_API_KEY")
             })
+
+        # 5. Gemini
         if os.environ.get("GEMINI_API_KEY"):
             candidates.append({
                 "name": "gemini",
@@ -108,15 +130,6 @@ class ModelGateway:
                 "strong": "gemini/gemini-1.5-pro",
                 "api_base": None,
                 "api_key": os.environ.get("GEMINI_API_KEY")
-            })
-
-        if not candidates:
-            candidates.append({
-                "name": "groq",
-                "fast": "groq/openai/gpt-oss-20b",
-                "strong": "groq/openai/gpt-oss-120b",
-                "api_base": None,
-                "api_key": None
             })
 
         self.candidates = candidates
@@ -505,4 +518,4 @@ if __name__ == "__main__":
     
     agent = PEVRAgent(args.task_id, workspace=args.workspace)
     res = agent.run(args.goal, schedule_id=args.schedule_id)
-    print(json.dumps(res))
+    print(json.dumps(res), flush=True)

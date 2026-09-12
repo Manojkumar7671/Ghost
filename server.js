@@ -1866,10 +1866,14 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                     const cmd = getAgentCommand(`src/minisweagent/pevr_service.py --goal "${message.replace(/"/g, '\\"')}" --task_id ${taskId}`);
                     const childEnv = { ...process.env, PATH: process.env.PATH };
                     delete childEnv.VIRTUAL_ENV;
+                    childEnv.GHOST_AUTO_APPROVE = "1";
                     if (process.env.GEMINI_API_KEY) childEnv.GEMINI_API_KEY = process.env.GEMINI_API_KEY;
                     if (process.env.GROQ_API_KEY) childEnv.GROQ_API_KEY = process.env.GROQ_API_KEY;
                     if (process.env.NVIDIA_API_KEY) childEnv.NVIDIA_API_KEY = process.env.NVIDIA_API_KEY;
                     if (process.env.OPENROUTER_API_KEY) childEnv.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+                    if (process.env.FREELLMAPI_RENDER_URL) childEnv.FREELLMAPI_RENDER_URL = process.env.FREELLMAPI_RENDER_URL;
+                    if (process.env.FREELLMAPI_BASE_URL) childEnv.FREELLMAPI_BASE_URL = process.env.FREELLMAPI_BASE_URL;
+                    if (process.env.FREELLMAPI_API_KEY) childEnv.FREELLMAPI_API_KEY = process.env.FREELLMAPI_API_KEY;
                     const { exec } = await import('child_process');
                     exec(cmd, { env: childEnv, timeout: 90000 }, (error, stdout, stderr) => {
                         if (error && !stdout.trim()) {
@@ -3524,10 +3528,14 @@ app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => 
         let cmd = getAgentCommand(scriptArgs);
         const childEnv = { ...process.env, PATH: process.env.PATH };
         delete childEnv.VIRTUAL_ENV;
+        if (req.body.auto_approve !== false) childEnv.GHOST_AUTO_APPROVE = "1";
         if (process.env.GEMINI_API_KEY) childEnv.GEMINI_API_KEY = process.env.GEMINI_API_KEY;
         if (process.env.GROQ_API_KEY) childEnv.GROQ_API_KEY = process.env.GROQ_API_KEY;
         if (process.env.NVIDIA_API_KEY) childEnv.NVIDIA_API_KEY = process.env.NVIDIA_API_KEY;
         if (process.env.OPENROUTER_API_KEY) childEnv.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+        if (process.env.FREELLMAPI_RENDER_URL) childEnv.FREELLMAPI_RENDER_URL = process.env.FREELLMAPI_RENDER_URL;
+        if (process.env.FREELLMAPI_BASE_URL) childEnv.FREELLMAPI_BASE_URL = process.env.FREELLMAPI_BASE_URL;
+        if (process.env.FREELLMAPI_API_KEY) childEnv.FREELLMAPI_API_KEY = process.env.FREELLMAPI_API_KEY;
         let timeoutOpts = { maxBuffer: 1024 * 1024 * 10, env: childEnv, timeout: 90000 };
 
         const child = exec(cmd, timeoutOpts, (error, stdout, stderr) => {
@@ -3547,8 +3555,10 @@ app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => 
                 for (let i = lines.length - 1; i >= 0; i--) {
                     const line = lines[i].trim();
                     if (line.startsWith('{')) {
-                        result = JSON.parse(line);
-                        break;
+                        try {
+                            result = JSON.parse(line);
+                            break;
+                        } catch (e) {}
                     }
                 }
                 if (!result) throw new Error("No JSON found in stdout. Raw stdout: " + stdout);
