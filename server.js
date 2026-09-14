@@ -3552,6 +3552,14 @@ app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => 
                         } catch (e) {}
                     }
                 }
+                if (!result) {
+                    const firstBrace = stdout.indexOf('{');
+                    if (firstBrace !== -1) {
+                        try {
+                            result = JSON.parse(stdout.substring(firstBrace));
+                        } catch (e) {}
+                    }
+                }
                 if (!result) throw new Error("No JSON found in stdout. Raw stdout: " + stdout);
                 return res.json(result);
             } catch (parseError) {
