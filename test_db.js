@@ -1,24 +1,21 @@
 import pkg from 'pg';
 const { Pool } = pkg;
-import dotenv from 'dotenv';
-dotenv.config({ override: true });
 
-const pool = new Pool({
-    connectionString: process.env.SUPABASE_DB_URL,
-    ssl: { rejectUnauthorized: false }
-});
-
-async function run() {
-    try {
-        const { rows } = await pool.query(`SELECT username, length(history_json::text) as size FROM user_memories WHERE username LIKE 'stress%' OR username = 'bughunt_user'`);
-        console.log("Memory sizes:");
-        for (const r of rows) {
-            console.log(`${r.username}: ${r.size} bytes`);
-        }
-    } catch (e) {
-        console.error(e);
-    } finally {
-        await pool.end();
-    }
+async function testMem() {
+    const pool = new Pool({
+        connectionString: 'postgresql://postgres.nztjqoinkepycntrfavo:Manoj7671014128@aws-1-ap-south-1.pooler.supabase.com:5432/postgres',
+        ssl: { rejectUnauthorized: false }
+    });
+    
+    // Check if we can write to ghost_memory (a table with RLS)
+    console.log("Inserting a test memory...");
+    await pool.query("INSERT INTO ghost_memory (key, value) VALUES ('test_rls_key', 'test_rls_value') ON CONFLICT (key) DO UPDATE SET value = 'test_rls_value';");
+    
+    console.log("Reading test memory...");
+    const res = await pool.query("SELECT * FROM ghost_memory WHERE key = 'test_rls_key';");
+    console.log("Result:", res.rows);
+    
+    await pool.end();
 }
-run();
+
+testMem().catch(console.error);

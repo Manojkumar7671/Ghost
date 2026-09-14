@@ -1,0 +1,58 @@
+diff --git a/middleware/security.js b/middleware/security.js
+index 71789379..66580ae9 100644
+--- a/middleware/security.js
++++ b/middleware/security.js
+@@ -104,6 +104,19 @@ async function securityMiddleware(req, res, next) {
+     }
+   }
+   
++  // CSRF Protection for state-changing requests
++  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
++    // If request uses cookies for auth, it must be protected against CSRF
++    if (req.cookies && req.cookies.ghost_session && !req.headers.authorization) {
++      const origin = req.headers.origin || req.headers.referer;
++      const host = req.headers.host;
++      if (!origin || !origin.includes(host)) {
++        console.warn(`[Security] CSRF attempt blocked from IP ${req.ip}. Origin: ${origin}, Host: ${host}`);
++        return res.status(403).json({ success: false, error: 'CSRF token mismatch or invalid Origin/Referer' });
++      }
++    }
++  }
++
+   next();
+ }
+ 
+diff --git a/server.js b/server.js
+index b88cbfff..dda4c259 100644
+--- a/server.js
++++ b/server.js
+@@ -130,11 +130,19 @@ const { callLLM: routerCallLLM } = require('./llmRouter.js');
+ 
+ startWatchdog();
+ 
+-const REQUIRED_ENV_VARS = ['ADMIN_PASSPHRASE', 'JWT_SECRET'];
++const REQUIRED_ENV_VARS = ['ADMIN_PASSPHRASE', 'JWT_SECRET', 'OBSIDIAN_API_KEY', 'OBSIDIAN_VAULT_PATH'];
+ const missingVars = REQUIRED_ENV_VARS.filter(v => !process.env[v]);
+ if (missingVars.length > 0) {
+     console.error(`\n[CRITICAL FATAL ERROR]: Required environment variables missing: ${missingVars.join(', ')}`);
+     console.error("Halting server boot sequence immediately to prevent insecure operation.\n");
++    process.exit(1); 
++}
++
++const isLocalMode = (process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'local';
++const isAuthRequired = process.env.AUTH_REQUIRED === 'true' || process.env.DEPLOYMENT_MODE === 'public';
++if (!isAuthRequired && !isLocalMode) {
++    console.error("\n[CRITICAL FATAL ERROR]: Authentication requirement (AUTH_REQUIRED=true or DEPLOYMENT_MODE=public) is disabled, but GHOST_DEPLOYMENT_MODE is not 'local'.");
++    console.error("Halting server boot sequence immediately to prevent running an open proxy in production.\n");
+     process.exit(1);
+ }
+ 
+@@ -534,7 +542,7 @@ app.post('/api/auth/login', async (req, res) => {
+     try {
+         const checkPass = passphrase || password;
+         const chosenUser = username || 'Admin';
+-        if (checkPass === process.env.ADMIN_PASSPHRASE || checkPass === 'test_password') {
++        if (checkPass && checkPass === process.env.ADMIN_PASSPHRASE) {
+             const jwtToken = jwt.sign({ role: 'admin', user: chosenUser }, JWT_SECRET, { expiresIn: '7d' });
+             const isProd = process.env.RENDER === 'true' || process.env.NODE_ENV === 'production';
+             res.cookie('ghost_session', jwtToken, {
