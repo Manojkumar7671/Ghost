@@ -130,11 +130,19 @@ const { callLLM: routerCallLLM } = require('./llmRouter.js');
 
 startWatchdog();
 
-const REQUIRED_ENV_VARS = ['ADMIN_PASSPHRASE', 'JWT_SECRET'];
+const REQUIRED_ENV_VARS = ['ADMIN_PASSPHRASE', 'JWT_SECRET', 'OBSIDIAN_API_KEY', 'OBSIDIAN_VAULT_PATH'];
 const missingVars = REQUIRED_ENV_VARS.filter(v => !process.env[v]);
 if (missingVars.length > 0) {
     console.error(`\n[CRITICAL FATAL ERROR]: Required environment variables missing: ${missingVars.join(', ')}`);
     console.error("Halting server boot sequence immediately to prevent insecure operation.\n");
+    process.exit(1); 
+}
+
+const isLocalMode = (process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'local';
+const isAuthRequired = process.env.AUTH_REQUIRED === 'true' || process.env.DEPLOYMENT_MODE === 'public';
+if (!isAuthRequired && !isLocalMode) {
+    console.error("\n[CRITICAL FATAL ERROR]: Authentication requirement (AUTH_REQUIRED=true or DEPLOYMENT_MODE=public) is disabled, but GHOST_DEPLOYMENT_MODE is not 'local'.");
+    console.error("Halting server boot sequence immediately to prevent running an open proxy in production.\n");
     process.exit(1);
 }
 
@@ -534,7 +542,7 @@ app.post('/api/auth/login', async (req, res) => {
     try {
         const checkPass = passphrase || password;
         const chosenUser = username || 'Admin';
-        if (checkPass === process.env.ADMIN_PASSPHRASE || checkPass === 'test_password') {
+        if (checkPass && checkPass === process.env.ADMIN_PASSPHRASE) {
             const jwtToken = jwt.sign({ role: 'admin', user: chosenUser }, JWT_SECRET, { expiresIn: '7d' });
             const isProd = process.env.RENDER === 'true' || process.env.NODE_ENV === 'production';
             res.cookie('ghost_session', jwtToken, {

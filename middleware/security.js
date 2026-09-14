@@ -104,6 +104,19 @@ async function securityMiddleware(req, res, next) {
     }
   }
   
+  // CSRF Protection for state-changing requests
+  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+    // If request uses cookies for auth, it must be protected against CSRF
+    if (req.cookies && req.cookies.ghost_session && !req.headers.authorization) {
+      const origin = req.headers.origin || req.headers.referer;
+      const host = req.headers.host;
+      if (!origin || !origin.includes(host)) {
+        console.warn(`[Security] CSRF attempt blocked from IP ${req.ip}. Origin: ${origin}, Host: ${host}`);
+        return res.status(403).json({ success: false, error: 'CSRF token mismatch or invalid Origin/Referer' });
+      }
+    }
+  }
+
   next();
 }
 
