@@ -48,6 +48,7 @@
   "dependencies": {
     "@memwarden/turbovec": "^0.1.5",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@supabase/supabase-js": "^2.116.0",
     "axios": "^1.6.8",
     "chokidar": "^5.0.0",
     "cookie-parser": "^1.4.6",

@@ -14,11 +14,12 @@ async function chat(messages, options = {}) {
     }
   }
   const router = await import('../../llmRouter.js');
-  const { systemPrompt = null, maxTokens = 1024, model = null } = typeof options === 'object' ? options : {};
+  const opts = typeof options === 'object' ? options : {};
   return await router.callLLM(messages, {
-    systemPrompt,
-    maxTokens,
-    model
+    systemPrompt: null,
+    maxTokens: 1024,
+    model: null,
+    ...opts
   });
 }
 

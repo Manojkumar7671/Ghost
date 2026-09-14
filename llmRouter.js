@@ -9,6 +9,9 @@
  * 5. Google AI Studio / Gemini (https://generativelanguage.googleapis.com/v1beta/openai)
  */
 import crypto from 'crypto';
+import pkg from 'pg';
+const { Pool } = pkg;
+const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
 import { redactSecrets } from './services/secretRedactor.js';
 import { logUsage } from './services/usageTracker.js';
 
@@ -131,6 +134,18 @@ export async function callLLM(messages = [], options = {}) {
     providers = providers.filter(p => p.name.toLowerCase().includes(providerFilter.toLowerCase()));
   }
 
+  
+  console.log("[Telemetry Debug] options:", JSON.stringify(options)); let localTraceId = options.traceId;
+  let localUserId = options.userId || '00000000-0000-0000-0000-000000000000';
+  try {
+      const { createRequire } = await import('module');
+const require = createRequire(import.meta.url);
+const traceLocalStorage = require('./src/services/traceStore.js');
+      const store = traceLocalStorage.getStore(); console.log('[Store Debug]', store);
+      if (store && store.traceId) localTraceId = store.traceId;
+      if (store && store.userId) localUserId = store.userId;
+  } catch(e) { console.error('Store error:', e); }
+
   const errors = [];
 
   if (process.env.MOCK_LLM === 'true') {
@@ -236,6 +251,15 @@ export async function callLLM(messages = [], options = {}) {
 
         const latencyMs = Date.now() - startProviderTime;
         console.log(`[LLM Router Timing] Served by ${provider.name} (${selectedModel}) in ${latencyMs}ms`);
+        console.log('[Telemetry] Final options:', options);
+        console.log("[Telemetry] Executing model_runs insert, traceId:", localTraceId, "userId:", localUserId);
+        if (localTraceId) {
+            pool.query(
+                "INSERT INTO model_runs (id, trace_id, user_id, model, prompt_version, latency_ms, created_at) VALUES ($1, $2, $3, $4, 'v1', $5, NOW()) ON CONFLICT DO NOTHING",
+                [crypto.randomUUID(), localTraceId, localUserId, selectedModel, latencyMs]
+            ).catch(err => console.error("[Telemetry] DB Insert failed:", err.message));
+        }
+
 
         let tokenUsageCost = 0.001;
         if (data.usage && data.usage.total_tokens) {

@@ -542,20 +542,10 @@ app.post('/api/auth/login', async (req, res) => {
     try {
         const checkPass = passphrase || password;
         const chosenUser = username || 'Admin';
-        if (checkPass && checkPass === process.env.ADMIN_PASSPHRASE) {
-            const jwtToken = jwt.sign({ role: 'admin', user: chosenUser }, JWT_SECRET, { expiresIn: '7d' });
-            const isProd = process.env.RENDER === 'true' || process.env.NODE_ENV === 'production';
-            res.cookie('ghost_session', jwtToken, {
-                httpOnly: true,
-                secure: isProd,
-                sameSite: 'lax',
-                maxAge: 7 * 24 * 60 * 60 * 1000
-            });
-            return res.json({ success: true, isAdmin: true, user: chosenUser });
-        }
+
 
         const authService = await import('./src/services/authService.js');
-        const result = await authService.loginUser(username || 'guest', checkPass);
+        const result = await authService.loginUser(chosenUser, checkPass);
         if (!result.success) {
             return res.status(401).json(result);
         }
@@ -1069,6 +1059,7 @@ function requireAdminToken(req, res, next) {
 }
 
 function checkIsAdmin(req) {
+    if (req.user && req.user.role === 'admin') return true;
     const token = (req.cookies && req.cookies.ghost_session) || (req.headers && req.headers.authorization && req.headers.authorization.replace(/^Bearer\s+/i, ''));
     if (!token) return false;
     try {
@@ -1081,6 +1072,7 @@ function checkIsAdmin(req) {
 
 // Agent execution route owner adapter — derives identity solely from server-verified JWT
 function authenticateOwner(req) {
+    if (req.user && req.user.role === 'admin') return { ownerId: String(req.user.username || req.user.email || 'admin'), isOwner: true };
     const token = (req.cookies && req.cookies.ghost_session) || (req.headers && req.headers.authorization && req.headers.authorization.replace(/^Bearer\s+/i, ''));
     if (!token) return null;
     try {
@@ -1620,7 +1612,7 @@ function sanitizeUserInput(rawText) {
 }
 
 app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
-    if (process.env.AUTH_REQUIRED === 'true' || process.env.DEPLOYMENT_MODE === 'public') {
+    if (true) { // ALWAYS validate token so req.user is set!
         const authHeader = req.headers.authorization;
         let token = null;
         if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -1657,6 +1649,37 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
         try {
             const { user, image, fileContent, fileBase64, fileName } = req.body;
             const message = sanitizeUserInput(req.body.message);
+            let { conversationId } = req.body;
+            
+            // Phase 1 Tasks & Conversations Persistence
+            let taskId = null;
+            if (pool) {
+                if (!conversationId) {
+                    conversationId = crypto.randomUUID();
+                    await pool.query("INSERT INTO conversations (id, user_id, title) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", [
+                        conversationId,
+                        req.user?.id || '00000000-0000-0000-0000-000000000000',
+                        message.substring(0, 50) || 'New Chat'
+                    ]).catch(e => console.error("Conversation insert failed:", e.message));
+                }
+
+                const userMsgId = crypto.randomUUID();
+                await pool.query("INSERT INTO messages (id, conversation_id, user_id, role, content) VALUES ($1, $2, $3, $4, $5)", [
+                    userMsgId, conversationId, req.user?.id || '00000000-0000-0000-0000-000000000000', 'user', message
+                ]).catch(e => console.error("Message insert failed:", e.message));
+
+                taskId = crypto.randomUUID();
+                await pool.query("INSERT INTO tasks (id, conversation_id, user_id, status, goal) VALUES ($1, $2, $3, $4, $5)", [
+                    taskId,
+                    conversationId,
+                    req.user?.id || '00000000-0000-0000-0000-000000000000',
+                    'CREATED',
+                    message
+                ]).catch(e => console.error("Task insert failed:", e.message));
+                
+                requestContext.traceId = taskId;
+                requestContext.userId = req.user?.id || '00000000-0000-0000-0000-000000000000';
+            }
 
             // AUDIT LOG: Record every /api/chat call
             if (pool) {
@@ -1683,7 +1706,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             const ghostCodeMode = ghostCodeActive;
 
             const isAdmin = checkIsAdmin(req);
-            const token = req.cookies.ghost_session;
+            const token = req.cookies.ghost_session || (req.headers.authorization && req.headers.authorization.split(' ')[1]);
 
             // Enforce Authentication
             if (!token && process.env.GHOST_DEPLOYMENT_MODE !== 'public') {
@@ -1848,7 +1871,7 @@ Rules:
 Respond with ONLY one word: CONVERSATION or TASK.`
                         },
                         { role: 'user', content: cleanMsg }
-                    ], 10);
+                    ], { maxTokens: 10, traceId: requestContext.traceId, userId: requestContext.userId });
                     if (intentRes && intentRes.toLowerCase().includes('task')) {
                         intentResult = 'TASK';
                     }
@@ -2892,7 +2915,7 @@ ${evidence.join('\n')}`,
                     }
 
                     // 1. Analyze intent
-                    const intent = await analyzeIntent(finalMessage, userHistory);
+                    const intent = await analyzeIntent(finalMessage, userHistory, requestContext.traceId, requestContext.userId);
                     console.log('[Intent Planner] Intent analysis:', JSON.stringify(intent));
 
                     // 2. Check for blocking ambiguities and short-circuit if found

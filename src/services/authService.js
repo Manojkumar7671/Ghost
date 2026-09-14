@@ -1,71 +1,38 @@
 /**
  * authService.js
- * User authentication and session management for Ghost AI.
+ * Supabase-backed authentication for Ghost AI.
  */
 
-const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
+const { createClient } = require('@supabase/supabase-js');
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!process.env.ADMIN_PASSPHRASE) {
-  throw new Error('ADMIN_PASSPHRASE environment variable is required at startup');
-}
-const adminPassphrase = process.env.ADMIN_PASSPHRASE;
-const inMemoryUsers = new Map();
-const inMemorySessions = new Map();
-
-function hashPassword(password) {
-  return crypto.createHash('sha256').update(String(password)).digest('hex');
-}
-
-// Helper to seed initial DB structure if it were SQLite (kept for reference)
-function initDB() {
-  console.log('[Auth] In-memory auth initialized.');
-}
-
-async function registerUser(username, email, password, role = 'user') {
-  if (!username || !email || !password) {
-    throw new Error('Missing required user registration fields.');
-  }
-
-  const existing = Array.from(inMemoryUsers.values()).find(u => u.username === username || u.email === email);
-  if (existing) {
-    throw new Error('User with this username or email already exists.');
-  }
-
-  const user = {
-    id: crypto.randomUUID(),
-    username,
-    email,
-    password_hash: hashPassword(password),
-    role,
-    created_at: new Date().toISOString()
-  };
-
-  inMemoryUsers.set(user.id, user);
-  return { id: user.id, username: user.username, email: user.email, role: user.role };
-}
+// Use the ANON key for client-like authentication (signInWithPassword).
+// The SERVICE_ROLE key is NOT imported or used here to ensure it is never exposed in standard auth flows.
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
 async function loginUser(username, password) {
-  if (!username || !password) {
-    return { success: false, error: 'Username and password required.' };
+  if (!password) {
+    return { success: false, error: 'Password required.' };
   }
 
-  if ((username === 'master_manoj' || username === 'boss') && password === adminPassphrase) {
-    const token = jwt.sign({ user_id: 'admin-id-001', username: 'master_manoj', role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
-    inMemorySessions.set(token, { user_id: 'admin-id-001', username: 'master_manoj', role: 'admin', expires_at: Date.now() + 86400000 });
-    return { success: true, token, user_id: 'admin-id-001', role: 'admin' };
+  const email = process.env.SUPABASE_AUTH_EMAIL || 'owner@ghost.local';
+  
+  // Real Supabase Auth is the only check. No local ADMIN_PASSPHRASE pre-check.
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password
+  });
+
+  if (error) {
+    console.error('[Auth] Supabase signIn failed:', error.message);
+    return { success: false, error: 'Invalid login credentials.' };
   }
 
-  const user = Array.from(inMemoryUsers.values()).find(u => u.username === username || u.email === username);
-  if (!user || user.password_hash !== hashPassword(password)) {
-    return { success: false, error: 'Invalid username or password.' };
-  }
-
-  const token = jwt.sign({ user_id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
-  inMemorySessions.set(token, { user_id: user.id, username: user.username, role: user.role, expires_at: Date.now() + 86400000 });
-
-  return { success: true, token, user_id: user.id, role: user.role };
+  return { 
+    success: true, 
+    token: data.session.access_token, 
+    user_id: data.user.id, 
+    role: 'admin' 
+  };
 }
 
 async function validateToken(token) {
@@ -73,11 +40,19 @@ async function validateToken(token) {
 
   try {
     const cleanToken = token.startsWith('Bearer ') ? token.slice(7) : token;
-    const decoded = jwt.verify(cleanToken, JWT_SECRET);
-    return { valid: true, user: decoded };
+    const { data, error } = await supabase.auth.getUser(cleanToken);
+    
+    if (error || !data.user) {
+      return { valid: false, reason: 'Invalid or expired Supabase token' };
+    }
+    
+    return { 
+      valid: true, 
+      user: { id: data.user.id, email: data.user.email, role: 'admin' } 
+    };
   } catch (err) {
-    return { valid: false, reason: 'Invalid or expired token' };
+    return { valid: false, reason: 'Error validating token' };
   }
 }
 
-module.exports = { registerUser, loginUser, validateToken };
+module.exports = { loginUser, validateToken };

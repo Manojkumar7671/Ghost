@@ -41,7 +41,7 @@ export function classifyComplexity(userMessage) {
     return 'simple';
 }
 
-export async function analyzeIntent(userMessage, conversationContext) {
+export async function analyzeIntent(userMessage, conversationContext, traceId, userId) {
     const systemPrompt = `You are the Intent Analyzer for Ghost. Analyze the user's message and the conversation context to understand their goal, identify any ambiguities, highlight constraints, and infer the implied steps required to accomplish the goal.
 
 CRITICAL RULE FOR BUILT-IN AGENTS & CREDENTIALS:
@@ -65,7 +65,7 @@ ${JSON.stringify(conversationContext || {})}
     const startTime = Date.now();
     const response = await chat(
         [{ role: 'user', content: userMessage }],
-        { systemPrompt, maxTokens: 2048, model: 'google/gemini-2.5-flash' }
+        { systemPrompt, maxTokens: 2048, model: 'google/gemini-2.5-flash', traceId, userId }
     );
     const latency = Date.now() - startTime;
     console.log(`[Intent Planner Timing] analyzeIntent completed in ${latency}ms`);

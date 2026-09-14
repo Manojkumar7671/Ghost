@@ -48,6 +48,41 @@
       "failedStep": "Step 1",
       "error": "Audit test error",
       "correctiveStudyPrompt": "Ghost Self-Study Unit: How to properly format and execute tool \"test_tool\" for step \"Step 1\" without triggering error \"Audit test error\"."
+    },
+    {
+      "timestamp": "2026-09-14T10:09:00.962Z",
+      "tool": "workspace_run_command",
+      "failedStep": "Execute ./wire_test.sh",
+      "error": "Attempt 1 (workspace_run_command): Error: [SYSTEM OVERRIDE]: Tool 'workspace_run_command' is disabled in local mode. Action blocked. | Attempt 2 (local_run_script): Error: Local Control Daemon is not ",
+      "correctiveStudyPrompt": "Ghost Self-Study Unit: How to properly format and execute tool \"workspace_run_command\" for step \"Execute ./wire_test.sh\" without triggering error \"Attempt 1 (workspace_run_command): Error: [SYSTEM OVERRIDE]: Tool 'workspace_run_command' is disable\"."
+    },
+    {
+      "timestamp": "2026-09-14T10:12:10.835Z",
+      "tool": "workspace_run_command",
+      "failedStep": "Execute the script 'wire_test.sh'",
+      "error": "Attempt 1 (workspace_run_command): Error: [SYSTEM OVERRIDE]: Tool 'workspace_run_command' is disabled in local mode. Action blocked. | Attempt 2 (local_run_script): Error: Local Control Daemon is not ",
+      "correctiveStudyPrompt": "Ghost Self-Study Unit: How to properly format and execute tool \"workspace_run_command\" for step \"Execute the script 'wire_test.sh'\" without triggering error \"Attempt 1 (workspace_run_command): Error: [SYSTEM OVERRIDE]: Tool 'workspace_run_command' is disable\"."
+    },
+    {
+      "timestamp": "2026-09-14T10:12:58.153Z",
+      "tool": "workspace_run_command",
+      "failedStep": "Set execution permissions and execute the 'wire_test.sh' script",
+      "error": "Attempt 1 (workspace_run_command): Error: [SYSTEM OVERRIDE]: Tool 'workspace_run_command' is disabled in local mode. Action blocked. | Attempt 2 (local_run_script): Error: Local Control Daemon is not ",
+      "correctiveStudyPrompt": "Ghost Self-Study Unit: How to properly format and execute tool \"workspace_run_command\" for step \"Set execution permissions and execute the 'wire_test.sh' script\" without triggering error \"Attempt 1 (workspace_run_command): Error: [SYSTEM OVERRIDE]: Tool 'workspace_run_command' is disable\"."
+    },
+    {
+      "timestamp": "2026-09-14T10:17:28.106Z",
+      "tool": "workspace_run_command",
+      "failedStep": "Make the script executable and run it to display the output",
+      "error": "Attempt 1 (workspace_run_command): Error: [SYSTEM OVERRIDE]: Tool 'workspace_run_command' is disabled in local mode. Action blocked. | Attempt 2 (local_run_script): Error: Local Control Daemon is not ",
+      "correctiveStudyPrompt": "Ghost Self-Study Unit: How to properly format and execute tool \"workspace_run_command\" for step \"Make the script executable and run it to display the output\" without triggering error \"Attempt 1 (workspace_run_command): Error: [SYSTEM OVERRIDE]: Tool 'workspace_run_command' is disable\"."
+    },
+    {
+      "timestamp": "2026-09-14T10:36:19.558Z",
+      "tool": "workspace_run_command",
+      "failedStep": "Execute the 'wire_test.sh' script and display the output",
+      "error": "Attempt 1 (workspace_run_command): Error: [SYSTEM OVERRIDE]: Tool 'workspace_run_command' is disabled in local mode. Action blocked. | Attempt 2 (local_run_script): Error: Local Control Daemon is not ",
+      "correctiveStudyPrompt": "Ghost Self-Study Unit: How to properly format and execute tool \"workspace_run_command\" for step \"Execute the 'wire_test.sh' script and display the output\" without triggering error \"Attempt 1 (workspace_run_command): Error: [SYSTEM OVERRIDE]: Tool 'workspace_run_command' is disable\"."
     }
   ]
 }
