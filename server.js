@@ -1862,24 +1862,20 @@ Respond with ONLY one word: CONVERSATION or TASK.`
                     const safeGoal = message.replace(/'/g, "''");
                     runAgentSqlite(`INSERT OR REPLACE INTO tasks (task_id, goal, plan, status, start_time) VALUES ('${taskId}', '${safeGoal}', '[]', 'RUNNING', ${Date.now() / 1000})`);
 
-                    const cmd = getAgentCommand(`src/minisweagent/pevr_service.py --goal "${message.replace(/"/g, '\\"')}" --task_id ${taskId}`);
-                    const childEnv = { ...process.env, PATH: process.env.PATH };
-                    delete childEnv.VIRTUAL_ENV;
-                    childEnv.GHOST_AUTO_APPROVE = "1";
-                    if (process.env.GEMINI_API_KEY) childEnv.GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-                    if (process.env.GROQ_API_KEY) childEnv.GROQ_API_KEY = process.env.GROQ_API_KEY;
-                    if (process.env.NVIDIA_API_KEY) childEnv.NVIDIA_API_KEY = process.env.NVIDIA_API_KEY;
-                    if (process.env.OPENROUTER_API_KEY) childEnv.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-                    if (process.env.FREELLMAPI_RENDER_URL) childEnv.FREELLMAPI_RENDER_URL = process.env.FREELLMAPI_RENDER_URL;
-                    if (process.env.FREELLMAPI_BASE_URL) childEnv.FREELLMAPI_BASE_URL = process.env.FREELLMAPI_BASE_URL;
-                    if (process.env.FREELLMAPI_API_KEY) childEnv.FREELLMAPI_API_KEY = process.env.FREELLMAPI_API_KEY;
-                    const { exec } = await import('child_process');
-                    exec(cmd, { env: childEnv, timeout: 90000 }, (error, stdout, stderr) => {
-                        if (error && !stdout.trim()) {
-                            console.error("Agent background process execution failed:", error.message, stderr);
-                            runAgentSqlite(`UPDATE tasks SET status = 'FAILED', end_time = ${Date.now() / 1000} WHERE task_id = '${taskId}'`);
+                    
+                    const { default: MiniSweAdapter } = await import('./adapters/mini-swe/v2-adapter.js');
+                    MiniSweAdapter.runPevrTask(message, taskId, {
+                        env: {
+                            GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+                            GROQ_API_KEY: process.env.GROQ_API_KEY,
+                            NVIDIA_API_KEY: process.env.NVIDIA_API_KEY,
+                            OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+                            FREELLMAPI_RENDER_URL: process.env.FREELLMAPI_RENDER_URL,
+                            FREELLMAPI_BASE_URL: process.env.FREELLMAPI_BASE_URL,
+                            FREELLMAPI_API_KEY: process.env.FREELLMAPI_API_KEY,
+                            GHOST_AUTO_APPROVE: "1"
                         }
-                    });
+                    }).catch(console.error);
                     
                     let foundStatus = null;
                     let evidence = [];
@@ -3515,65 +3511,32 @@ app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => 
         const safeGoal = goal.replace(/'/g, "''");
         runAgentSqlite(`INSERT OR REPLACE INTO tasks (task_id, goal, plan, status, start_time) VALUES ('${taskId}', '${safeGoal}', '[]', 'RUNNING', ${Date.now() / 1000})`);
 
-        let scriptArgs = `src/minisweagent/pevr_service.py --goal "${goal.replace(/"/g, '\\"')}" --task_id ${taskId}${req.body.schedule_id ? " --schedule_id " + req.body.schedule_id : ""}`;
+        const { default: MiniSweAdapter } = await import('./adapters/mini-swe/v2-adapter.js');
+        let tempDir = null;
         if (!isAdmin) {
-            const os = require('os');
-            const path = require('path');
-            const fs = require('fs');
-            const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ghost-guest-'));
-            scriptArgs += ` --workspace "${tempDir}"`;
+            tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ghost-guest-'));
         }
 
-        let cmd = getAgentCommand(scriptArgs);
-        const childEnv = { ...process.env, PATH: process.env.PATH };
-        delete childEnv.VIRTUAL_ENV;
-        if (req.body.auto_approve !== false) childEnv.GHOST_AUTO_APPROVE = "1";
-        if (process.env.GEMINI_API_KEY) childEnv.GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-        if (process.env.GROQ_API_KEY) childEnv.GROQ_API_KEY = process.env.GROQ_API_KEY;
-        if (process.env.NVIDIA_API_KEY) childEnv.NVIDIA_API_KEY = process.env.NVIDIA_API_KEY;
-        if (process.env.OPENROUTER_API_KEY) childEnv.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-        if (process.env.FREELLMAPI_RENDER_URL) childEnv.FREELLMAPI_RENDER_URL = process.env.FREELLMAPI_RENDER_URL;
-        if (process.env.FREELLMAPI_BASE_URL) childEnv.FREELLMAPI_BASE_URL = process.env.FREELLMAPI_BASE_URL;
-        if (process.env.FREELLMAPI_API_KEY) childEnv.FREELLMAPI_API_KEY = process.env.FREELLMAPI_API_KEY;
-        let timeoutOpts = { maxBuffer: 1024 * 1024 * 10, env: childEnv, timeout: 90000 };
+        const env = {
+            GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+            GROQ_API_KEY: process.env.GROQ_API_KEY,
+            NVIDIA_API_KEY: process.env.NVIDIA_API_KEY,
+            OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+            FREELLMAPI_RENDER_URL: process.env.FREELLMAPI_RENDER_URL,
+            FREELLMAPI_BASE_URL: process.env.FREELLMAPI_BASE_URL,
+            FREELLMAPI_API_KEY: process.env.FREELLMAPI_API_KEY
+        };
+        if (req.body.auto_approve !== false) env.GHOST_AUTO_APPROVE = "1";
 
-        const child = exec(cmd, timeoutOpts, (error, stdout, stderr) => {
-            if (global.activeAgentProcess === child) global.activeAgentProcess = null;
-            if (error && !stdout.trim()) {
-                runAgentSqlite(`UPDATE tasks SET status = 'FAILED', end_time = ${Date.now() / 1000} WHERE task_id = '${taskId}'`);
-                if (error.signal === 'SIGKILL') {
-                    return res.json({ success: false, error: 'Agent execution killed.', status: 'KILLED' });
-                }
-                console.error("Agent execution failed:", error, stderr);
-                return res.status(500).json({ success: false, error: 'Agent execution failed.', stderr });
-            }
-            
-            try {
-                const lines = stdout.trim().split('\n');
-                let result = null;
-                for (let i = lines.length - 1; i >= 0; i--) {
-                    const line = lines[i].trim();
-                    if (line.startsWith('{')) {
-                        try {
-                            result = JSON.parse(line);
-                            break;
-                        } catch (e) {}
-                    }
-                }
-                if (!result) {
-                    const firstBrace = stdout.indexOf('{');
-                    if (firstBrace !== -1) {
-                        try {
-                            result = JSON.parse(stdout.substring(firstBrace));
-                        } catch (e) {}
-                    }
-                }
-                if (!result) throw new Error("No JSON found in stdout. Raw stdout: " + stdout);
-                return res.json(result);
-            } catch (parseError) {
-                console.error("Failed to parse agent output:", parseError, stdout);
-                return res.status(500).json({ success: false, error: 'Agent output parsing failed.', stdout, stderr });
-            }
+        MiniSweAdapter.runPevrTask(goal, taskId, {
+            scheduleId: req.body.schedule_id,
+            workspace: tempDir,
+            env
+        }).then(({ result }) => {
+            return res.json(result);
+        }).catch(err => {
+            console.error("Agent execution failed:", err);
+            return res.status(500).json({ success: false, error: 'Agent execution failed.', details: err.message });
         });
         child.taskId = taskId;
         global.activeAgentProcess = child;
