@@ -130,7 +130,7 @@ const { callLLM: routerCallLLM } = require('./llmRouter.js');
 
 startWatchdog();
 
-const REQUIRED_ENV_VARS = ['ADMIN_PASSPHRASE', 'JWT_SECRET', 'OBSIDIAN_API_KEY', 'OBSIDIAN_VAULT_PATH'];
+const REQUIRED_ENV_VARS = ['ADMIN_PASSPHRASE', 'JWT_SECRET'];
 const missingVars = REQUIRED_ENV_VARS.filter(v => !process.env[v]);
 if (missingVars.length > 0) {
     console.error(`\n[CRITICAL FATAL ERROR]: Required environment variables missing: ${missingVars.join(', ')}`);
@@ -149,14 +149,11 @@ if (!isAuthRequired && !isLocalMode) {
 // ENV VAR VALIDATION WARNINGS
 if (!process.env.SERPER_API_KEY) console.warn("[WARN] SERPER_API_KEY missing — web search disabled");
 if (!process.env.BROWSERBASE_API_KEY) console.warn("[WARN] BROWSERBASE_API_KEY missing — browser automation disabled");
-if (!process.env.OBSIDIAN_API_KEY || !process.env.OBSIDIAN_VAULT_PATH) console.warn("[WARN] OBSIDIAN_API_KEY or OBSIDIAN_VAULT_PATH missing — Obsidian features disabled");
 
 const ADMIN_PASSPHRASE = process.env.ADMIN_PASSPHRASE;
 console.log("ADMIN_PASSPHRASE is", process.env.ADMIN_PASSPHRASE ? "SET" : "MISSING");
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const OBSIDIAN_API_KEY = process.env.OBSIDIAN_API_KEY || '';
-const OBSIDIAN_VAULT_PATH = process.env.OBSIDIAN_VAULT_PATH || '';
 const { Pool } = pkg;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -3333,7 +3330,7 @@ ${evidence.join('\n')}`,
 
         if (!isAdmin) {
             const visitorBannedPatterns = [
-                /\b(private project|private workspace|memory|memories|obsidian|vault|database|terminal|mcp tool|browser automation|companion|code execution|commit|email|account access|external action|AIQ|tool execution summary|Tool Execution Results Summary)\b/i,
+                /\b(private project|private workspace|memory|memories|database|terminal|mcp tool|browser automation|companion|code execution|commit|email|account access|external action|AIQ|tool execution summary|Tool Execution Results Summary)\b/i,
                 /\b(executed|created a file|wrote to file|ran command|opened browser|scheduled|code ran|task was scheduled|external action occurred)\b/i,
                 /Error:|Traceback:|Exception:|failed with status|API key/i,
                 /tool execution result/i,

@@ -236,11 +236,11 @@ function sanitizeSegment(segment, receipt) {
     'For this bounded response, Ghost did not deploy any code or service.'
   );
 
-  // 5. Permanent memory, task ledger, or Obsidian write claims
+  // 5. Permanent memory, task ledger,
   // (Always forbidden in V0 routes)
   text = text.replace(
-    /\b(?:I|Ghost)\s+(?:also\s+|just\s+)?(?:saved|stored|recorded|updated|committed|wrote)\s+(?:this|that|it|information)?\s*(?:to|in)\s+(?:permanent\s+memory|long-term\s+memory|Obsidian(?:\s+vault)?|task\s+ledger)\b[^\.\n]*[\.\!]?/gi,
-    'For this bounded response, Ghost did not save permanent memory or update Obsidian.'
+    /\b(?:I|Ghost)\s+(?:also\s+|just\s+)?(?:saved|stored|recorded|updated|committed|wrote)\s+(?:this|that|it|information)?\s*(?:to|in)\s+(?:permanent\s+memory|long-term\s+memory|task\s+ledger)\b[^\.\n]*[\.\!]?/gi,
+    'For this bounded response, Ghost did not save permanent memory.'
   );
 
   // 6. Device control / OS control claims

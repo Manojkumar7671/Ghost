@@ -11,7 +11,7 @@
  * 4. Applies narrow, explicit substitutions for 5 false claim classes:
  *    - Websites / browsing / web search claims in ordinary chat
  *    - Local file read / write / delete / edit claims in ordinary chat
- *    - Permanent memory / Obsidian saved / updated claims in ordinary chat
+ *    - Permanent memory saved / updated claims in ordinary chat
  *    - Reading full papers claims in ordinary chat
  *    - Anthropomorphic AI claims (consciousness, personal goals, independent motivation)
  */
@@ -43,18 +43,18 @@ function processNonCodeSegment(segment) {
     'For this ordinary-chat answer, Ghost did not access or change local files.'
   );
 
-  // 3. Saved / updated / learned permanently in memory or Obsidian
+  /// 3. Saved / updated / learned permanently in memory
   text = text.replace(
-    /\b(?:I|Ghost)\s+(?:just\s+)?(?:saved|stored|recorded|updated|committed|wrote)\s+(?:this|that|it|information)?\s*(?:to|in)\s+(?:permanent\s+memory|long-term\s+memory|Obsidian(?:\s+vault)?)\b[^\.\n]*[\.\!]?/gi,
-    'For this ordinary-chat answer, Ghost did not save permanent memory or update Obsidian.'
+    /\b(?:I|Ghost)\s+(?:just\s+)?(?:saved|stored|recorded|updated|committed|wrote)\s+(?:this|that|it|information)?\s*(?:to|in)\s+(?:permanent\s+memory|long-term\s+memory)\b[^\.\n]*[\.\!]?/gi,
+    'For this ordinary-chat answer, Ghost did not save permanent memory.'
   );
   text = text.replace(
-    /\b(?:I(?:'ve|\s+have)\s+(?:just\s+)?(?:saved|stored|recorded|updated|committed|written)\s+(?:this|that|it|information)?\s*(?:to|in)\s+(?:permanent\s+memory|long-term\s+memory|Obsidian(?:\s+vault)?))\b[^\.\n]*[\.\!]?/gi,
-    'For this ordinary-chat answer, Ghost did not save permanent memory or update Obsidian.'
+    /\b(?:I(?:'ve|\s+have)\s+(?:just\s+)?(?:saved|stored|recorded|updated|committed|written)\s+(?:this|that|it|information)?\s*(?:to|in)\s+(?:permanent\s+memory|long-term\s+memory))\b[^\.\n]*[\.\!]?/gi,
+    'For this ordinary-chat answer, Ghost did not save permanent memory.'
   );
   text = text.replace(
     /\b(?:I|Ghost)\s+(?:have\s+)?(?:permanently\s+)?learned\s+this\s+(?:in|to)\s+(?:my\s+)?(?:permanent\s+)?memory\b[^\.\n]*[\.\!]?/gi,
-    'For this ordinary-chat answer, Ghost did not save permanent memory or update Obsidian.'
+    'For this ordinary-chat answer, Ghost did not save permanent memory.'
   );
 
   // 4. Read full papers claims in ordinary chat

@@ -4,7 +4,7 @@
  * Mac brain calls this; user never talks to Render directly.
  *
  * Routing rule (enforced by agentAdapter, not here):
- *   LOCAL  (Mac)  : file access, PM2, local automation, Obsidian, sysMonAgent,
+ *   LOCAL  (Mac)  : file access, PM2, local automation, sysMonAgent,
  *                   privacy-sensitive tasks, anything needing real Mac hardware.
  *   RENDER (this) : always-on background tasks, scheduled/reminder tasks,
  *                   non-file non-hardware public tasks (web lookups, summaries,
@@ -116,7 +116,7 @@ function shouldDelegate(taskDescription) {
 
   // Always keep on Mac
   const localSignals = [
-    'obsidian', 'vault', 'pm2', 'local file', 'file system', 'read file',
+    'pm2', 'local file', 'file system', 'read file',
     'write file', 'edit file', 'sysmon', 'system monitor', 'cpu', 'memory usage',
     'mac', 'applescript', 'desktop', 'open app', 'privacy', 'personal',
     'my files', 'local folder', 'workspace',

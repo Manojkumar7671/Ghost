@@ -10,7 +10,7 @@
  * - Overall dossier text bounded to 18,000 chars.
  * - Zero full-page HTML fetching, zero web scraping, zero browser automation.
  * - Zero background tasks, zero cron jobs, zero iterative loops.
- * - Zero persistence in database, task ledger, memories, Obsidian, or disk.
+ * - Zero persistence in database, task ledger, memories, or disk.
  * - Pure Node.js built-ins only (no external dependencies).
  */
 
