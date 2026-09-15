@@ -2803,6 +2803,7 @@ ${evidence.join('\n')}`,
             finalMessage = `[Document Uploaded:]\n${fileContent.substring(0, 5000)}\n\nUser Question: ${message}`;
         }
         let fullResponse = "";
+        let reasoningSteps = [];
 
         if (!approvedPersonalContext && (isAdmin || (req.user && req.user.role === 'admin'))) {
             try {
@@ -3317,6 +3318,7 @@ ${evidence.join('\n')}`,
                 });
 
                 fullResponse = brainResult.reply;
+                if (brainResult.actions) reasoningSteps = brainResult.actions;
             } catch (error) {
                 console.error('[Server] brain.think() failed:', error.message);
                 fullResponse = `[System Warning]: Brain processing encountered an error — ${error.message}. Please try again.`;
@@ -3392,7 +3394,7 @@ ${evidence.join('\n')}`,
 
         userHistory.push({ role: 'user', content: message }, { role: 'assistant', content: replyText.trim() });
         if (userHistory.length > maxMemory) userHistory = userHistory.slice(-maxMemory);
-        res.json({ success: true, text: replyText.trim(), runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined, execution: finalRouteExecution });
+        res.json({ success: true, text: replyText.trim(), runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined, execution: finalRouteExecution , reasoning: reasoningSteps });
     } catch (e) {
         console.error('[Chat Error Diagnostic]:', e);
         if (typeof currentRun !== 'undefined' && currentRun) runController.failRun(currentRun.runId, 'Internal error');

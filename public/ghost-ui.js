@@ -205,46 +205,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderWelcomeCard(name) {
         if (!chatLog) return;
         const welcomeUser = name || masterUser || 'Manoj';
-        chatLog.innerHTML = `
-            <div class="message-card ghost welcome-card">
-                <div class="avatar">G</div>
-                <div class="bubble">
-                    <div class="welcome-heading">Welcome, ${welcomeUser}.</div>
-                    <p class="welcome-sub">Ghost Operator is online and ready for technical direction.</p>
-                    <div class="quick-action-pills">
-                        <button type="button" class="quick-action-pill" data-prompt="Open Workspace">
-                            <span class="pill-icon">🗄️</span> Open Workspace
-                        </button>
-                        <button type="button" class="quick-action-pill" data-prompt="Write code as text">
-                            <span class="pill-icon">💻</span> Write code as text
-                        </button>
-                        <button type="button" class="quick-action-pill" data-prompt="Inspect Ghost repository">
-                            <span class="pill-icon">🔍</span> Inspect Ghost repository
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        const pills = chatLog.querySelectorAll('.quick-action-pill');
-        pills.forEach(pill => {
-            pill.addEventListener('click', (e) => {
-                e.preventDefault();
-                const prompt = pill.getAttribute('data-prompt');
-                if (prompt) {
-                    if (prompt === 'Open Workspace') {
-                        if (navPersonalCoreBtn) navPersonalCoreBtn.click();
-                        return;
-                    }
-                    if (prompt === 'Inspect Ghost repository') {
-                        if (navInspectRepoBtn) navInspectRepoBtn.click();
-                        return;
-                    }
-                    userInput.value = prompt;
-                    userInput.focus();
-                }
-            });
-        });
+        
+        const visibleMessages = chatLog.querySelectorAll('.bubble-row');
+        if (visibleMessages.length === 0) {
+            appendMessage('assistant', `Hi ${welcomeUser}, I'm Ghost! I'm ready to help you with chat, executing coding tasks, running deep research pipelines, and learning new skills. What would you like to build today?`);
+        }
     }
 
     function updateInitialGreeting(name) {
@@ -460,10 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setVisitorHeader(masterUser);
         appLayout.classList.add('active');
         
-        if (!greetingSent) {
-            greetingSent = true;
-            appendMessage('assistant', `Hi ${masterUser}, I'm Ghost — an autonomous AI agent platform built by Mathangi Manoj Kumar, a CS graduate (Chalapathi Institute of Engineering and Technology, 2026) focused on reliable, evidence-verified AI systems. He built me with a full plan-execute-verify-recover loop, multi-provider LLM routing, browser automation, and secure sandboxing infrastructure. He also built a real-time edge-vision vehicle detection system with 91.7% mAP, and a SAP S/4HANA knowledge assistant. He's AWS Academy and SAP Certified Associate certified. Ask me anything, or check out his work at github.com/Manojkumar7671.`);
-        }
+        if (!greetingSent) { greetingSent = true; renderWelcomeCard(masterUser); }
     }
     const visitorForm = document.getElementById('visitorForm');
     if (visitorForm) {
@@ -3870,6 +3832,11 @@ const response = await fetch(targetUrl, {
     }
 
     function handleGhostResponse(fullText, execution = null, meta = null) {
+        let reasoningPrefix = '';
+        if (meta && meta.reasoning && meta.reasoning.length > 0) {
+            reasoningPrefix = meta.reasoning.map(r => `*${r.reason || r.tool}...* `).join('\n') + '\n\n';
+        }
+
         fullText = typeof fullText === 'string' ? fullText : '';
         const isTaskExecutionResponse = Boolean(execution && (execution.taskId || execution.state === 'completed' || execution.state === 'running' || execution.evidence));
         const hasApprovalFlowEvidence = Boolean(meta && ((Array.isArray(meta.plan) && meta.plan.length > 0) || meta.actionRequired === true));
@@ -3889,7 +3856,7 @@ const response = await fetch(targetUrl, {
                 sanitizedText = 'I can provide code or explain an error, but I cannot verify file writes, tool output, or command execution from this chat response.';
             }
 
-            appendMessage('ghost', sanitizedText);
+            appendMessage('ghost', reasoningPrefix + sanitizedText);
             return;
         }
         if (fullText.includes('[EXECUTE_OPEN_TAB:')) {
@@ -3966,7 +3933,7 @@ const response = await fetch(targetUrl, {
             if (spokenText.trim() === "") spokenText = "Interface rendered.";
         }
 
-        appendMessage('ghost', fullText);
+        appendMessage('ghost', reasoningPrefix + fullText);
     }
 
     // --- INITIALIZE MIC ON LOAD ---
