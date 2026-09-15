@@ -4,10 +4,18 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
+const WebSocket = require('ws');
 
 // Use the ANON key for client-like authentication (signInWithPassword).
 // The SERVICE_ROLE key is NOT imported or used here to ensure it is never exposed in standard auth flows.
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: false
+  },
+  global: {
+    WebSocket: WebSocket
+  }
+});
 
 async function loginUser(username, password) {
   if (!password) {

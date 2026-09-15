@@ -17,7 +17,7 @@
     "automation"
   ],
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "postinstall": "python3 -m pip install --break-system-packages -r mini-swe-agent/requirements.txt -e ./mini-swe-agent || python3 -m pip install -r mini-swe-agent/requirements.txt -e ./mini-swe-agent || true",
