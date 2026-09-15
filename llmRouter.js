@@ -253,7 +253,7 @@ const traceLocalStorage = require('./src/services/traceStore.js');
         console.log(`[LLM Router Timing] Served by ${provider.name} (${selectedModel}) in ${latencyMs}ms`);
         console.log('[Telemetry] Final options:', options);
         console.log("[Telemetry] Executing model_runs insert, traceId:", localTraceId, "userId:", localUserId);
-        if (localTraceId) {
+        if (localTraceId && localUserId && localUserId !== '00000000-0000-0000-0000-000000000000') {
             pool.query(
                 "INSERT INTO model_runs (id, trace_id, user_id, model, prompt_version, latency_ms, created_at) VALUES ($1, $2, $3, $4, 'v1', $5, NOW()) ON CONFLICT DO NOTHING",
                 [crypto.randomUUID(), localTraceId, localUserId, selectedModel, latencyMs]

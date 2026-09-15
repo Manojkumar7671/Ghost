@@ -1619,23 +1619,28 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
         }
 
         if (!token) {
-            return res.status(401).json({ error: 'Unauthorized: missing or invalid token' });
-        }
-        const authService = await import('./src/services/authService.js');
-        const validation = await authService.validateToken(token);
-        if (!validation.valid) {
-            try {
-                const decoded = jwt.verify(token, JWT_SECRET);
-                if (decoded && (decoded.role === 'admin' || decoded.role === 'guest')) {
-                    req.user = { username: decoded.user || 'Admin', role: decoded.role };
-                } else {
-                    return res.status(401).json({ error: 'Unauthorized: invalid token' });
-                }
-            } catch (err) {
-                return res.status(401).json({ error: 'Unauthorized: invalid token' });
+            if ((process.env.GHOST_DEPLOYMENT_MODE || 'public') !== 'public') {
+                return res.status(401).json({ error: 'Unauthorized: missing or invalid token' });
+            } else {
+                req.user = null; // Unauthenticated guest
             }
         } else {
-            req.user = validation.user;
+            const authService = await import('./src/services/authService.js');
+            const validation = await authService.validateToken(token);
+            if (!validation.valid) {
+                try {
+                    const decoded = jwt.verify(token, JWT_SECRET);
+                    if (decoded && (decoded.role === 'admin' || decoded.role === 'guest')) {
+                        req.user = { username: decoded.user || 'Admin', role: decoded.role };
+                    } else {
+                        return res.status(401).json({ error: 'Unauthorized: invalid token' });
+                    }
+                } catch (err) {
+                    return res.status(401).json({ error: 'Unauthorized: invalid token' });
+                }
+            } else {
+                req.user = validation.user;
+            }
         }
     }
 
@@ -1654,7 +1659,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             const userMsgId = crypto.randomUUID();
             if (pool) {
                 requestContext.traceId = taskId;
-                requestContext.userId = req.user?.id || '00000000-0000-0000-0000-000000000000';
+                requestContext.userId = req.user?.id || null;
             }
 
             // Audit log moved to after LLM call
@@ -3279,8 +3284,8 @@ ${evidence.join('\n')}`,
                 const latencyMs = Date.now() - startTime;
 
                 // Deferred DB writes (Fix for Connection Pool Starvation)
-                if (pool) {
-                    const safeUserId = req.user?.id || '00000000-0000-0000-0000-000000000000';
+                if (pool && req.user && req.user.id) {
+                    const safeUserId = req.user.id;
                     pool.query("INSERT INTO conversations (id, user_id, title) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", [
                         conversationId, safeUserId, message.substring(0, 50) || 'New Chat'
                     ]).catch(e => console.error("Conversation insert failed:", e.message));
@@ -3554,8 +3559,7 @@ app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => 
             console.error("Agent execution failed:", err);
             return res.status(500).json({ success: false, error: 'Agent execution failed.', details: err.message });
         });
-        child.taskId = taskId;
-        global.activeAgentProcess = child;
+        global.activeAgentProcess = MiniSweAdapter.activeTasks.get(taskId);
     } catch (err) {
         console.error("Agent Run Error:", err);
         return res.status(500).json({ success: false, error: 'Internal Server Error' });
