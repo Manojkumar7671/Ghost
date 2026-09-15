@@ -4,6 +4,8 @@ import fs from 'fs';
 import { execSync } from 'child_process';
 
 class MiniSweAdapter {
+    static activeTasks = new Map();
+
     static parseSqliteEvent(etype, tier, details) {
         let parsedDetails = {};
         try { parsedDetails = JSON.parse(details); } catch(e) {}
@@ -86,18 +88,25 @@ class MiniSweAdapter {
                 timeout: timeout
             });
 
-            global.activeAgentProcess = child;
+            MiniSweAdapter.activeTasks.set(taskId, child);
             child.taskId = taskId;
 
             let stdout = '';
             let stderr = '';
+            let trajectory = [];
             
             let lastEventId = 0;
-            const pollInterval = onEvent ? setInterval(() => {
+            const pollInterval = setInterval(() => {
                 try {
-                    const sql = `SELECT id, event_type, tier, details FROM events WHERE task_id = '${taskId}' AND id > ${lastEventId} ORDER BY id ASC`;
-                     
-                    const out = execSync(`sqlite3 "${dbPath}" "${sql}"`, { encoding: 'utf-8' }).trim();
+                    const pythonScript = `
+import sqlite3, json, sys
+conn = sqlite3.connect(sys.argv[1])
+c = conn.cursor()
+c.execute("SELECT id, event_type, tier, details FROM events WHERE task_id = ? AND id > ? ORDER BY id ASC", (sys.argv[2], int(sys.argv[3])))
+for row in c.fetchall():
+    print(f"{row[0]}|{row[1]}|{row[2]}|{row[3]}")
+`;
+                    const out = execSync(`python3 -c '${pythonScript}' "${dbPath}" "${taskId}" "${lastEventId}"`, { encoding: 'utf-8' }).trim();
                     if (out) {
                         for (const line of out.split('\n')) {
                             const parts = line.split('|');
@@ -109,19 +118,22 @@ class MiniSweAdapter {
                                 const details = parts.slice(3).join('|');
                                 
                                 const event = MiniSweAdapter.parseSqliteEvent(etype, tier, details);
-                                if (event) onEvent(event);
+                                if (event) {
+                                    trajectory.push(event);
+                                    if (onEvent) onEvent(event);
+                                }
                             }
                         }
                     }
                 } catch(e) {}
-            }, 500) : null;
+            }, 500);
 
             child.stdout.on('data', (data) => stdout += data.toString());
             child.stderr.on('data', (data) => stderr += data.toString());
 
             child.on('close', (code) => {
-                if (pollInterval) clearInterval(pollInterval);
-                if (global.activeAgentProcess === child) global.activeAgentProcess = null;
+                clearInterval(pollInterval);
+                MiniSweAdapter.activeTasks.delete(taskId);
 
                 if (code !== 0 && !stdout.trim()) {
                     return reject(new Error(`Agent process failed with code ${code}. Stderr: ${stderr}`));
@@ -130,15 +142,15 @@ class MiniSweAdapter {
                 try {
                     const result = MiniSweAdapter.parseFinalOutput(stdout);
                     if (onEvent) onEvent({ type: 'final', details: result });
-                    resolve({ result, stdout, stderr });
+                    resolve({ result, stdout, stderr, trajectory });
                 } catch (parseError) {
                     reject(new Error(`Agent output parsing failed: ${parseError.message}. Stdout: ${stdout}`));
                 }
             });
 
             child.on('error', (err) => {
-                if (pollInterval) clearInterval(pollInterval);
-                if (global.activeAgentProcess === child) global.activeAgentProcess = null;
+                clearInterval(pollInterval);
+                MiniSweAdapter.activeTasks.delete(taskId);
                 reject(err);
             });
         });

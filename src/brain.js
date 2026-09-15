@@ -247,12 +247,43 @@ async function execute(action, userMessage, previousResults = [], userContext = 
       const orchRes = await orchestrator.run(params.task || userMessage, context);
       return `Orchestrator results:\n${orchRes}`;
     }
-    case 'web_search':
-      const sr = await webAgent.searchWeb(params.query || userMessage);
+    case 'web_search': {
+      const knowledgeService = require('./services/knowledgeService.js');
+      const query = params.query || userMessage;
+      // Pre-search check
+      const memMatch = await knowledgeService.retrieveApprovedKnowledge(query);
+      if (memMatch) {
+        return memMatch;
+      }
+      
+      const sr = await webAgent.searchWeb(query);
+      
+      // Async extraction & logging
+      if (sr.results && sr.results.length > 0) {
+        setTimeout(async () => {
+          for (const r of sr.results) {
+            const sid = await knowledgeService.logSource({ taskId: userContext?.requestId || null, url: r.url, title: r.title, content: r.snippet, extractionMethod: 'web_search' });
+            if (sid) {
+              await knowledgeService.extractKnowledgeCandidates(query, r.snippet, sid);
+            }
+          }
+        }, 10);
+      }
       return sr.summary || JSON.stringify(sr);
-    case 'web_scrape':
+    }
+    case 'web_scrape': {
       const sc = await webAgent.scrapeAndSummarize(params.url);
+      if (sc.summary && !sc.summary.includes('Failed to scrape')) {
+        setTimeout(async () => {
+          const knowledgeService = require('./services/knowledgeService.js');
+          const sid = await knowledgeService.logSource({ taskId: userContext?.requestId || null, url: params.url, title: params.url, content: sc.summary, extractionMethod: 'web_scrape' });
+          if (sid) {
+            await knowledgeService.extractKnowledgeCandidates(params.url, sc.summary, sid);
+          }
+        }, 10);
+      }
       return sc.summary;
+    }
     case 'email_draft':
       const draft = await emailAgent.draftEmail({ to: params.to || '', subject: params.subject || userMessage, context: params.context || userMessage });
       return `Email drafted to ${draft.to}:\n\nSubject: ${draft.subject}\n\n${draft.body}`;

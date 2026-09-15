@@ -1,7 +1,7 @@
 const { chat } = require('../tools/llm');
 const axios = require('axios');
 
-const SERPER_API_KEY = process.env.SERPER_API_KEY;
+require("dotenv").config(); const SERPER_API_KEY = process.env.SERPER_API_KEY;
 
 /**
  * Search the web using Serper (Google Search API).

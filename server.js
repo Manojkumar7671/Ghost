@@ -264,7 +264,7 @@ if (process.env.NODE_ENV === 'test') {
     pool = new Pool({
         connectionString: process.env.SUPABASE_DB_URL,
         ssl: (process.env.SUPABASE_DB_URL.includes('localhost') || process.env.SUPABASE_DB_URL.includes('127.0.0.1')) ? false : { rejectUnauthorized: false },
-        max: 2,
+        max: 15,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
         keepAlive: true
@@ -1652,44 +1652,15 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             let { conversationId } = req.body;
             
             // Phase 1 Tasks & Conversations Persistence
-            let taskId = null;
+            let taskId = crypto.randomUUID();
+            if (!conversationId) conversationId = crypto.randomUUID();
+            const userMsgId = crypto.randomUUID();
             if (pool) {
-                if (!conversationId) {
-                    conversationId = crypto.randomUUID();
-                    await pool.query("INSERT INTO conversations (id, user_id, title) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", [
-                        conversationId,
-                        req.user?.id || '00000000-0000-0000-0000-000000000000',
-                        message.substring(0, 50) || 'New Chat'
-                    ]).catch(e => console.error("Conversation insert failed:", e.message));
-                }
-
-                const userMsgId = crypto.randomUUID();
-                await pool.query("INSERT INTO messages (id, conversation_id, user_id, role, content) VALUES ($1, $2, $3, $4, $5)", [
-                    userMsgId, conversationId, req.user?.id || '00000000-0000-0000-0000-000000000000', 'user', message
-                ]).catch(e => console.error("Message insert failed:", e.message));
-
-                taskId = crypto.randomUUID();
-                await pool.query("INSERT INTO tasks (id, conversation_id, user_id, status, goal) VALUES ($1, $2, $3, $4, $5)", [
-                    taskId,
-                    conversationId,
-                    req.user?.id || '00000000-0000-0000-0000-000000000000',
-                    'CREATED',
-                    message
-                ]).catch(e => console.error("Task insert failed:", e.message));
-                
                 requestContext.traceId = taskId;
                 requestContext.userId = req.user?.id || '00000000-0000-0000-0000-000000000000';
             }
 
-            // AUDIT LOG: Record every /api/chat call
-            if (pool) {
-                const auditUser = (req.user && req.user.username) || user || 'anonymous';
-                const auditIp = req.ip || 'unknown';
-                pool.query(
-                    'INSERT INTO activity_logs (username, status, ip_address, user_agent) VALUES ($1, $2, $3, $4)',
-                    [auditUser, 'chat_request', auditIp, req.headers['user-agent'] || 'unknown']
-                ).catch(() => {});
-            }
+            // Audit log moved to after LLM call
             if (!message || !message.trim() || /^\.+$/.test(message.trim())) {
                 return res.json({
                     success: true,
@@ -3308,6 +3279,29 @@ ${evidence.join('\n')}`,
                     history: userHistory
                 });
                 const latencyMs = Date.now() - startTime;
+
+                // Deferred DB writes (Fix for Connection Pool Starvation)
+                if (pool) {
+                    const safeUserId = req.user?.id || '00000000-0000-0000-0000-000000000000';
+                    pool.query("INSERT INTO conversations (id, user_id, title) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", [
+                        conversationId, safeUserId, message.substring(0, 50) || 'New Chat'
+                    ]).catch(e => console.error("Conversation insert failed:", e.message));
+
+                    pool.query("INSERT INTO messages (id, conversation_id, user_id, role, content) VALUES ($1, $2, $3, $4, $5)", [
+                        userMsgId, conversationId, safeUserId, 'user', message
+                    ]).catch(e => console.error("Message insert failed:", e.message));
+
+                    pool.query("INSERT INTO tasks (id, conversation_id, user_id, status, goal) VALUES ($1, $2, $3, $4, $5)", [
+                        taskId, conversationId, safeUserId, 'CREATED', message
+                    ]).catch(e => console.error("Task insert failed:", e.message));
+                    
+                    const auditUser = (req.user && req.user.username) || user || 'anonymous';
+                    const auditIp = req.ip || 'unknown';
+                    pool.query(
+                        'INSERT INTO activity_logs (username, status, ip_address, user_agent) VALUES ($1, $2, $3, $4)',
+                        [auditUser, 'chat_request', auditIp, req.headers['user-agent'] || 'unknown']
+                    ).catch(() => {});
+                }
 
                 const lastCalls = requestContext.llmCalls || [];
                 const primaryCall = lastCalls.find(c => c.status === 'success') || lastCalls[0];
