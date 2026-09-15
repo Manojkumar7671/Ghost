@@ -24,7 +24,7 @@ async function logSource({ taskId, url, title, content, extractionMethod = 'web_
 /**
  * Extract factual claims from raw text and insert them as 'candidate' items.
  */
-async function extractKnowledgeCandidates(topic, rawText, sourceId) {
+async function extractKnowledgeCandidates(topic, rawText, sourceId, isMastered = false) {
     if (!pool || !rawText || rawText.trim() === '') return;
     
     // Quick prompt to extract facts
@@ -54,9 +54,9 @@ ${rawText.substring(0, 3000)}`;
         const items = JSON.parse(cleanJson);
         for (const item of items) {
             await pool.query(
-                `INSERT INTO knowledge_items (topic, claim, claim_type, confidence, provenance, review_state)
-                 VALUES ($1, $2, $3, $4, $5, 'candidate')`,
-                [topic, item.claim, item.claim_type, item.confidence, JSON.stringify([sourceId])]
+                `INSERT INTO knowledge_items (topic, claim, claim_type, confidence, provenance, review_state, is_mastered)
+                 VALUES ($1, $2, $3, $4, $5, 'candidate', $6)`,
+                [topic, item.claim, item.claim_type, item.confidence, JSON.stringify([sourceId]), isMastered]
             );
         }
         console.log(`[Knowledge] Extracted ${items.length} candidate claims for topic: ${topic}`);
@@ -76,11 +76,11 @@ async function retrieveApprovedKnowledge(query) {
     try {
         // Step 1: FTS Match
         const res = await pool.query(
-            `SELECT id, topic, claim, confidence 
+            `SELECT id, topic, claim, confidence, is_mastered 
              FROM knowledge_items 
              WHERE review_state = 'approved'
-             AND to_tsvector('english', topic || ' ' || claim) @@ plainto_tsquery('english', $1)
-             ORDER BY ts_rank(to_tsvector('english', topic || ' ' || claim), plainto_tsquery('english', $1)) DESC
+             AND to_tsvector('english', topic || ' ' || claim) @@ to_tsquery('english', array_to_string(tsvector_to_array(to_tsvector('english', $1)), ' | '))
+             ORDER BY ts_rank(to_tsvector('english', topic || ' ' || claim), to_tsquery('english', array_to_string(tsvector_to_array(to_tsvector('english', $1)), ' | '))) DESC
              LIMIT 5`,
             [query]
         );
@@ -104,6 +104,13 @@ If it does not fully answer the question, respond with exactly "NO".`;
             const answer = evalClean.replace(/^YES\s*/, '').trim();
             console.log('[Knowledge] High-confidence memory match found. Bypassing live search.');
             return `[Ghost Approved Memory]\n${answer}`;
+        }
+        
+        const isMastered = res.rows.some(r => r.is_mastered);
+        if (isMastered) {
+             const topTopic = res.rows.find(r => r.is_mastered).topic;
+             console.log('[Knowledge] Question relates to a mastered topic, but stored knowledge lacks the answer. Bypassing live search by user directive.');
+             return `[Ghost Approved Memory]\nI have mastered the topic "${topTopic}", but my stored knowledge does not contain the specific answer to your question. I am answering from memory only and will not perform a live search.`;
         }
         
         console.log('[Knowledge] Memories found via FTS, but rejected by LLM threshold. Proceeding to live search.');

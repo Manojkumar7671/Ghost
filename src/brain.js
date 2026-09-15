@@ -116,9 +116,10 @@ ${learnings}
 ${mcpToolsPrompt}
 ${historyPrompt}
 
-Available tools: [chat, orchestrator_run, web_search, web_scrape, email_draft, email_send, github_repos, github_analyze, github_push, image_generate, notion_search, notion_create, goal_run, self_analyze, voice_speak, schedule, briefing, memory_save, memory_get, workspace_view_file, workspace_edit_file, workspace_run_command, database_query, mcp_call, browser_automation]
+Available tools: [chat, deep_research, orchestrator_run, web_search, web_scrape, email_draft, email_send, github_repos, github_analyze, github_push, image_generate, notion_search, notion_create, goal_run, self_analyze, voice_speak, schedule, briefing, memory_save, memory_get, workspace_view_file, workspace_edit_file, workspace_run_command, database_query, mcp_call, browser_automation]
 
 CRITICAL ROUTING DIRECTIVES:
+- deep_research: Only use this when the owner explicitly asks to "deep research X", "master X", or "deeply study X". This triggers the permanent mastery pipeline. Do NOT use this automatically for normal queries.
 - chat: Use "chat" tool for direct Q&A, general conversation, or when an attached document ([ATTACHED PDF DOCUMENT: ...]) is provided. NEVER use web_search or web_scrape when a document is attached!
 - image_generate: ONLY for visual image/picture generation (PNG/JPG graphics). NEVER use image_generate for writing code, python scripts, HTML pages, or programming.
 - workspace_edit_file / workspace_run_command: For writing, generating, or running code (Python, JS, HTML, scripts). Any prompt asking to write/generate python, code, login pages, or scripts MUST route here.
@@ -226,6 +227,14 @@ async function execute(action, userMessage, previousResults = [], userContext = 
 
   const context = previousResults.map(r => r.output).join('\n');
   switch (tool) {
+    case 'deep_research': {
+      if (!userContext.isAdmin) {
+        return "Deep research is restricted to the owner.";
+      }
+      const deepResearch = require('./agents/deepResearchAgent.js');
+      const topic = params.topic || params.query || userMessage;
+      return await deepResearch.run(topic, userContext);
+    }
     case 'chat': {
       const { safeUser = 'guest', isAdmin = false, history: customHistory } = userContext;
       const history = customHistory && customHistory.length > 0 ? customHistory : getHistory(safeUser, 40);
@@ -250,11 +259,7 @@ async function execute(action, userMessage, previousResults = [], userContext = 
     case 'web_search': {
       const knowledgeService = require('./services/knowledgeService.js');
       const query = params.query || userMessage;
-      // Pre-search check
-      const memMatch = await knowledgeService.retrieveApprovedKnowledge(query);
-      if (memMatch) {
-        return memMatch;
-      }
+
       
       const sr = await webAgent.searchWeb(query);
       
@@ -560,6 +565,11 @@ function isOrdinaryChatRequest(userMessage, userContext = {}) {
     return false;
   }
 
+  // Deep research / Mastery
+  if (/\b(deep\s+research|master\b.*\bfor\s+me|deeply\s+study)\b/i.test(msg) || /^master\s+/i.test(msg)) {
+    return false;
+  }
+
   // Explicit approval / task flows
   if (userContext.actionRequired || userContext.actionId || userContext.approvedRun) {
     return false;
@@ -620,6 +630,18 @@ async function think(userMessage, userContext = { safeUser: 'guest', isAdmin: fa
     const honestRefusal = `I don't have live data access for ${category} right now (live web search is not configured or unavailable). I won't guess or fabricate numbers. Please check a live service for current updates.`;
     saveMessage(username, 'assistant', honestRefusal);
     return { reply: honestRefusal, actions: [{ tool: 'live_data_boundary', reason: `Refused ${category} fabrication without live feed`, status: 'done' }] };
+  }
+
+  // Permanent Mastery Check (Pre-empts both Fast Path and Planner)
+  try {
+    const knowledgeService = require('./services/knowledgeService.js');
+    const memMatch = await knowledgeService.retrieveApprovedKnowledge(userMessage);
+    if (memMatch) {
+      saveMessage(username, 'assistant', memMatch);
+      return { reply: memMatch, actions: [{ tool: 'knowledge_recall', reason: 'Answered from permanent mastery memory', status: 'done' }] };
+    }
+  } catch(e) {
+    console.error('[Knowledge] Error checking mastery:', e.message);
   }
 
   // FAST PATH: Ordinary normal chat skips planner/orchestrator/subtask loops completely
