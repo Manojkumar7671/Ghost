@@ -176,6 +176,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const isLocalOrigin = ['localhost', '127.0.0.1'].includes(window.location.hostname);
     const chatLog = document.getElementById('chatLog');
     const userInput = document.getElementById('userInput');
+    userInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+    });
     const sendBtn = document.getElementById('sendBtn');
     const attachBtn = document.getElementById('attachBtn');
     const attachmentInput = document.getElementById('attachmentInput');
@@ -3268,20 +3272,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- CHAT MESSAGE UI RENDERING ---
     function appendMessage(sender, text) {
-        const card = document.createElement('div');
-        card.className = `message-card ${sender}`;
+        const placeholder = document.getElementById('emptyChatPlaceholder');
+        if (placeholder) placeholder.style.display = 'none';
 
-        const avatar = document.createElement('div');
-        avatar.className = 'avatar';
-        avatar.innerText = sender === 'user' ? 'U' : 'G';
+        const row = document.createElement('div');
+        row.className = `bubble-row ${sender === 'user' ? 'user' : 'ghost'}`;
 
         const bubble = document.createElement('div');
-        bubble.className = 'bubble';
+        bubble.className = `bubble ${sender === 'user' ? 'user' : 'ghost'}`;
         bubble.innerHTML = parseMarkdown(text);
+        
+        const time = document.createElement('div');
+        time.className = 'bubble-time';
+        time.innerText = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
-        card.appendChild(avatar);
-        card.appendChild(bubble);
-        chatLog.appendChild(card);
+        if (sender === 'user') {
+            bubble.appendChild(time);
+            row.appendChild(bubble);
+        } else {
+            row.appendChild(bubble);
+            bubble.appendChild(time);
+        }
+
+        chatLog.appendChild(row);
         chatLog.scrollTop = chatLog.scrollHeight;
     }
 
@@ -4991,3 +5004,12 @@ const response = await fetch(targetUrl, {
             skillsListContainer.appendChild(card);
         });
     }
+
+// Sidebar toggle logic injected
+const sBtn = document.getElementById('sidebarCollapseBtn');
+if(sBtn) {
+    sBtn.addEventListener('click', () => {
+        const sb = document.getElementById('sidebar');
+        if(sb) sb.classList.toggle('collapsed');
+    });
+}
