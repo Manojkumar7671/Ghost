@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS knowledge_items (
     confidence NUMERIC(4,2) DEFAULT 0.0,
     provenance JSONB,
     review_state TEXT DEFAULT 'candidate' CHECK (review_state IN ('candidate', 'approved', 'quarantined')),
+    is_mastered BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
