@@ -728,7 +728,14 @@ Factual Humility & Boundaries:
   // Retrieve short-term conversation history for pronoun resolution
   const history = getHistory(username, 40);
   
-  const actions = await plan(userMessage, userContext, memoryContext, cagContext, history);
+  let actions = [];
+  const msgLower = (userMessage || '').trim().toLowerCase();
+  if (/\b(deep\s+research|master\b.*\bfor\s+me|deeply\s+study)\b/i.test(msgLower) || /^master\s+/i.test(msgLower)) {
+    console.log('[Brain Route] Hard-routing deep research command.');
+    actions = [{ tool: 'deep_research', params: { topic: userMessage }, reason: 'Explicit deep research command' }];
+  } else {
+    actions = await plan(userMessage, userContext, memoryContext, cagContext, history);
+  }
   console.log('[Brain Debug] Planned actions:', JSON.stringify(actions));
 
   // Gentle check behavior for risky actions

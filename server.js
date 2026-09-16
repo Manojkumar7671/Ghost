@@ -2854,7 +2854,8 @@ ${evidence.join('\n')}`,
             const isBusinessMode = sessionModes.get(safeUser || 'guest') === 'business';
             const isPdfAttached = lowerMsg.includes('attached pdf') || (fileBase64 && fileBase64.includes('pdf')) || (finalMessage && finalMessage.includes('[ATTACHED PDF DOCUMENT:'));
             const isOrdinaryChat = brain.isOrdinaryChatRequest ? brain.isOrdinaryChatRequest(finalMessage, { safeUser, isAdmin }) : true;
-            const isComplex = !isPdfAttached && !isOrdinaryChat && (classifyComplexity(finalMessage) === 'complex' || isDeepResearch || isBusinessMode);
+            const explicitDeepResearch = /\b(deep\s+research|master\b.*\bfor\s+me|deeply\s+study)\b/i.test(lowerMsg) || /^master\s+/i.test(lowerMsg);
+            const isComplex = !explicitDeepResearch && !isPdfAttached && !isOrdinaryChat && (classifyComplexity(finalMessage) === 'complex' || isBusinessMode);
 
             if (isComplex && process.env.GHOST_PLANNER_ENABLED !== 'false') {
                 console.log('[Intent Planner] Complex goal detected, initializing intent planner pipeline...');
@@ -3245,7 +3246,8 @@ ${evidence.join('\n')}`,
                     success: true,
                     text: wrappedCapabilityText.trim(),
                     runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined,
-                    execution: capabilityExecution
+                    execution: capabilityExecution,
+                    conversationId
                 });
             }
 

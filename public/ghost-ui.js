@@ -662,6 +662,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function executeRepoInspect() {
+        if (chatLog) chatLog.style.display = 'flex';
+        const wsPanel = document.getElementById('workspacePanel');
+        if (wsPanel) wsPanel.style.display = 'none';
         const btn = navInspectRepoBtn || inspectRepoBtn;
         if (btn && btn.disabled) return;
         if (btn) btn.disabled = true;
@@ -4442,6 +4445,9 @@ const response = await fetch(targetUrl, {
     if (navChatBtn) {
         navChatBtn.addEventListener('click', () => {
             setActiveNav('navChatBtn');
+            if (chatLog) chatLog.style.display = 'flex';
+            const wsPanel = document.getElementById('workspacePanel');
+            if (wsPanel) wsPanel.style.display = 'none';
             renderWelcomeCard(masterUser);
             if (userInput) userInput.focus();
             if (window.innerWidth <= 768) closeMobileDrawer();
@@ -4980,3 +4986,112 @@ if(sBtn) {
         if(sb) sb.classList.toggle('collapsed');
     });
 }
+
+
+// --- CHAT HISTORY LOGIC ---
+async function loadConversationsSidebar() {
+    if (!isAdminMode) return;
+    try {
+        const res = await fetch('/api/conversations', { headers: { 'Authorization': 'Bearer ' + getAuthToken() } });
+        const data = await res.json();
+        if (data.success) {
+            const pinnedDiv = document.getElementById('pinnedChats');
+            const recentDiv = document.getElementById('recentChats');
+            if (!pinnedDiv || !recentDiv) return;
+            
+            pinnedDiv.innerHTML = '';
+            recentDiv.innerHTML = '';
+            
+            data.conversations.forEach(conv => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.style.padding = '8px 16px';
+                item.style.cursor = 'pointer';
+                item.style.fontSize = '13px';
+                item.style.color = 'var(--text-dim)';
+                item.style.display = 'flex';
+                item.style.justifyContent = 'space-between';
+                item.style.alignItems = 'center';
+                
+                const titleSpan = document.createElement('span');
+                titleSpan.textContent = conv.title || 'New Chat';
+                titleSpan.style.whiteSpace = 'nowrap';
+                titleSpan.style.overflow = 'hidden';
+                titleSpan.style.textOverflow = 'ellipsis';
+                titleSpan.style.flex = '1';
+                
+                const pinBtn = document.createElement('span');
+                pinBtn.innerHTML = conv.is_pinned ? '&#128204;' : '&#9825;';
+                pinBtn.style.marginLeft = '8px';
+                pinBtn.style.opacity = '0.5';
+                pinBtn.style.fontSize = '12px';
+                pinBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    await fetch('/api/conversations/' + conv.id + '/pin', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
+                        body: JSON.stringify({ is_pinned: !conv.is_pinned })
+                    });
+                    loadConversationsSidebar();
+                };
+                
+                item.appendChild(titleSpan);
+                item.appendChild(pinBtn);
+                
+                item.onmouseover = () => { item.style.background = 'rgba(255,255,255,0.04)'; item.style.color = 'var(--text-main)'; pinBtn.style.opacity = '1'; };
+                item.onmouseout = () => { item.style.background = 'transparent'; item.style.color = 'var(--text-dim)'; pinBtn.style.opacity = '0.5'; };
+                
+                item.onclick = () => loadConversationMessages(conv.id, conv.title);
+                
+                if (conv.id === currentConversationId) {
+                    item.style.background = 'rgba(255,255,255,0.08)';
+                    item.style.color = 'var(--accent-violet)';
+                }
+                
+                if (conv.is_pinned) {
+                    pinnedDiv.appendChild(item);
+                } else {
+                    recentDiv.appendChild(item);
+                }
+            });
+        }
+    } catch (e) {
+        console.error("Failed to load conversations:", e);
+    }
+}
+
+async function loadConversationMessages(id, title) {
+    if (!isAdminMode) return;
+    try {
+        const res = await fetch('/api/conversations/' + id + '/messages', { headers: { 'Authorization': 'Bearer ' + getAuthToken() } });
+        const data = await res.json();
+        if (data.success) {
+            currentConversationId = id;
+            if (chatLog) {
+                chatLog.innerHTML = '';
+                if (data.messages.length === 0) {
+                    renderWelcomeCard(masterUser);
+                } else {
+                    data.messages.forEach(msg => {
+                        appendMessage(msg.role === 'user' ? 'user' : 'assistant', msg.content);
+                    });
+                }
+            }
+            if (document.getElementById('mainTitle')) document.getElementById('mainTitle').textContent = title || 'Chat';
+            
+            // Switch to chat tab if not there
+            const navChatBtn = document.getElementById('navChatBtn');
+            if (navChatBtn) navChatBtn.click();
+            
+            loadConversationsSidebar(); // To highlight the active one
+        }
+    } catch (e) {
+        console.error("Failed to load messages:", e);
+    }
+}
+
+// Ensure loadConversationsSidebar runs when UI initializes
+const oldInit = `    initAuth();
+    setTimeout(loadConversationsSidebar, 1000);`;
+const newInit = `    initAuth();
+    setTimeout(loadConversationsSidebar, 1000);`;
