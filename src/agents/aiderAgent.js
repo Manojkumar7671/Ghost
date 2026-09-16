@@ -42,24 +42,28 @@ class AiderAgent {
         }
 
         let cloneError = '';
-        const cloneProcess = spawn('git', ['clone', `https://github.com/${repoName}.git`, '.'], {
-            cwd: workspaceDir,
-            env: { ...process.env, HOME: workspaceDir }
-        });
-
-        cloneProcess.stderr.on('data', data => {
-            cloneError += data.toString();
-        });
-
-        await new Promise((resolve, reject) => {
-            cloneProcess.on('close', (code) => {
-                if (code !== 0) reject(new Error(`Git clone failed with code ${code}. Error: ${cloneError}`));
-                else resolve();
+        if (repoName === 'local/scratch') {
+            console.log('[AiderAgent] Initializing isolated local scratch workspace instead of cloning.');
+            const initProcess = spawn('git', ['init'], { cwd: workspaceDir, env: { ...process.env, HOME: workspaceDir } });
+            await new Promise((resolve, reject) => {
+                initProcess.on('close', (code) => code !== 0 ? reject(new Error('Git init failed')) : resolve());
+                initProcess.on('error', reject);
             });
-            cloneProcess.on('error', reject);
-        });
-
-        console.log(`[AiderAgent] Cloned ${repoName} successfully. Spawning Aider...`);
+        } else {
+            const cloneProcess = spawn('git', ['clone', `https://github.com/${repoName}.git`, '.'], {
+                cwd: workspaceDir,
+                env: { ...process.env, HOME: workspaceDir }
+            });
+            cloneProcess.stderr.on('data', data => cloneError += data.toString());
+            await new Promise((resolve, reject) => {
+                cloneProcess.on('close', (code) => {
+                    if (code !== 0) reject(new Error(`Git clone failed with code ${code}. Error: ${cloneError}`));
+                    else resolve();
+                });
+                cloneProcess.on('error', reject);
+            });
+            console.log(`[AiderAgent] Cloned ${repoName} successfully. Spawning Aider...`);
+        }
 
         // 2. Determine best model and configure env for mini-swe-agent
         const env = { ...process.env };

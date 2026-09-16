@@ -192,9 +192,9 @@ const adaptedAiderAgent = {
     const params = await extractParams('aiderAgent', task, context, 
       `Return JSON with "owner" (GitHub repo owner/org), "repo" (GitHub repository name), and "prompt" (detailed instruction for Aider). Extract the owner and repo explicitly from the task or context.`
     );
-    if (!params || !params.owner || !params.repo) {
-      return "Missing owner or repo for Aider task. Task must specify a GitHub repository.";
-    }
+    if (!params) params = {};
+    if (!params.owner) params.owner = 'local';
+    if (!params.repo) params.repo = 'scratch';
     const res = await aiderAgent.run(params.prompt || task, context, params.owner, params.repo);
     return typeof res === 'string' ? res : JSON.stringify(res);
   }
