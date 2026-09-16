@@ -561,7 +561,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.post('/api/verify-auth', async (req, res) => {
-    const token = req.cookies.ghost_session;
+    const token = (req.cookies && req.cookies.ghost_session) || (req.headers.authorization && req.headers.authorization.split(" ")[1]);
     if (!token) return res.json({ success: false, isAdmin: false });
 
     try {
@@ -712,7 +712,7 @@ app.delete('/api/memory/:id', requireAdminToken, async (req, res) => {
 });
 
 function requireAuth(req, res, next) {
-    const token = req.cookies.ghost_session;
+    const token = (req.cookies && req.cookies.ghost_session) || (req.headers.authorization && req.headers.authorization.split(" ")[1]);
     if (!token) return res.status(401).json({ success: false, error: 'Missing token.' });
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
@@ -919,7 +919,7 @@ app.post('/api/logout', async (req, res) => {
 // ============================================================
 
 app.get('/api/auth/google/connect', (req, res) => {
-    const token = req.cookies.ghost_session;
+    const token = (req.cookies && req.cookies.ghost_session) || (req.headers.authorization && req.headers.authorization.split(" ")[1]);
     if (!token) {
         return res.status(401).send('<h1>Error: Unauthorized</h1><p>Please log into Ghost first to connect your Google account.</p>');
     }
@@ -1043,7 +1043,7 @@ app.post('/api/auth/google/disconnect', requireAdminToken, async (req, res) => {
 });
 
 function requireAdminToken(req, res, next) {
-    const token = req.cookies.ghost_session;
+    const token = (req.cookies && req.cookies.ghost_session) || (req.headers.authorization && req.headers.authorization.split(" ")[1]);
     if (!token) return res.status(401).json({ success: false, error: 'Missing token.' });
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
@@ -1607,6 +1607,48 @@ function sanitizeUserInput(rawText) {
     sanitized = sanitized.replace(/\b(grant superuser|grant admin|override system|escalate privilege|bypass security)\b/gi, '[neutralized request]');
     return sanitized.trim();
 }
+
+
+// --- CONVERSATION HISTORY ENDPOINTS ---
+app.get('/api/conversations', requireAuth, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        if (!userId) return res.status(400).json({ error: "No user id" });
+        const { rows } = await pool.query('SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 50', [userId]);
+        res.json({ conversations: rows });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const convId = req.params.id;
+        if (!userId) return res.status(400).json({ error: "No user id" });
+        const { rows: convs } = await pool.query('SELECT id FROM conversations WHERE id = $1 AND user_id = $2', [convId, userId]);
+        if (convs.length === 0) return res.status(403).json({ error: "Access denied" });
+        const { rows } = await pool.query('SELECT * FROM messages WHERE conversation_id = $1 ORDER BY created_at ASC', [convId]);
+        res.json({ messages: rows });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.put('/api/conversations/:id/pin', requireAuth, securityMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const convId = req.params.id;
+        const { is_pinned } = req.body;
+        if (!userId) return res.status(400).json({ error: "No user id" });
+        const { rows: convs } = await pool.query('SELECT id FROM conversations WHERE id = $1 AND user_id = $2', [convId, userId]);
+        if (convs.length === 0) return res.status(403).json({ error: "Access denied" });
+        await pool.query('UPDATE conversations SET is_pinned = $1 WHERE id = $2', [is_pinned, convId]);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
 
 app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
     if (true) { // ALWAYS validate token so req.user is set!
@@ -2863,7 +2905,7 @@ ${evidence.join('\n')}`,
                 console.log(`[Router] Routing directly to Deep Research Agent for topic: "${topic}"`);
                 try {
                     const { run: runDeepResearch } = require('./src/agents/deepResearchAgent.js');
-                    const drResult = await runDeepResearch(topic);
+                    const drResult = await runDeepResearch(topic, { isAdmin });
                     return res.json({ success: true, text: drResult });
                 } catch (e) {
                     return res.json({ success: false, text: "Deep research failed: " + e.message });
@@ -3654,7 +3696,7 @@ app.post('/api/runs/:runId/cancel', securityMiddleware, async (req, res) => {
 
 app.post('/api/runs/cancel-active', securityMiddleware, async (req, res) => {
     const isAdmin = checkIsAdmin(req);
-    const token = req.cookies.ghost_session;
+    const token = (req.cookies && req.cookies.ghost_session) || (req.headers.authorization && req.headers.authorization.split(" ")[1]);
     if (!token && process.env.GHOST_DEPLOYMENT_MODE !== 'public') {
         return res.status(401).json({ success: false, error: 'Unauthorized: Session missing or invalid.' });
     }
@@ -3689,7 +3731,7 @@ app.post('/api/execute-plan-step', securityMiddleware, async (req, res) => {
     if (!isPublicAdmin && (process.env.DEPLOYMENT_MODE || process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
         return res.status(403).json({ success: false, error: 'Tool disabled in public mode' });
     }
-    const token = req.cookies.ghost_session;
+    const token = (req.cookies && req.cookies.ghost_session) || (req.headers.authorization && req.headers.authorization.split(" ")[1]);
     if (!token && process.env.GHOST_DEPLOYMENT_MODE !== 'public') {
         return res.status(401).json({ success: false, error: 'Unauthorized: Session missing or invalid.' });
     }

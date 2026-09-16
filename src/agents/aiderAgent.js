@@ -33,6 +33,13 @@ class AiderAgent {
   }
 
   async _executeAiderTask(repoName, workspaceDir, task) {
+    // SECURITY NOTE: The workspace below is isolated at the *repository* level only.
+    // It prevents coding tasks from accidentally touching real GitHub repos (local/scratch
+    // bypasses git clone entirely). It is NOT a kernel-level sandbox — the spawned
+    // mini-swe-agent process runs as the same OS user as the Ghost server and inherits
+    // the same filesystem permissions. This is an accepted known limitation because
+    // only Manoj (owner/admin) can trigger coding tasks. If multi-user or untrusted
+    // code execution is ever added, replace this with Docker/VM-based isolation.
     try {
         console.log(`[AiderAgent] Preparing workspace at ${workspaceDir}`);
         
@@ -131,6 +138,16 @@ class AiderAgent {
     } catch (err) {
         console.error(`[AiderAgent] Error processing task:`, err);
         saveMessage(this.requestContext.requestId, 'agent', `AiderAgent encountered an error working on ${repoName}:\n\`\`\`\n${err.message}\n\`\`\``);
+    } finally {
+        // Always clean up the temp workspace — success, failure, or crash.
+        try {
+            if (fs.existsSync(workspaceDir)) {
+                fs.rmSync(workspaceDir, { recursive: true, force: true });
+                console.log(`[AiderAgent] Cleaned up workspace: ${workspaceDir}`);
+            }
+        } catch (cleanupErr) {
+            console.warn(`[AiderAgent] Could not clean up workspace ${workspaceDir}:`, cleanupErr.message);
+        }
     }
   }
 }
