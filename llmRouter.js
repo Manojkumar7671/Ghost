@@ -22,6 +22,12 @@ export function getProviders() {
   const localSlash = freeLLMLocal.endsWith('/v1') ? '' : '/v1';
 
   const providers = [
+    {
+      name: 'Groq',
+      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+      model: 'openai/gpt-oss-120b',
+      apiKey: process.env.GROQ_API_KEY
+    },
     ...(freeLLMCloud ? [{
       name: 'FreeLLMAPI (Render Cloud)',
       endpoint: `${freeLLMCloud}${freeLLMCloud.endsWith('/v1') ? '' : '/v1'}/chat/completions`,
@@ -29,12 +35,6 @@ export function getProviders() {
       apiKey: process.env.FREELLMAPI_API_KEY || 'free',
       timeoutMs: process.env.FREELLMAPI_TIMEOUT_MS ? parseInt(process.env.FREELLMAPI_TIMEOUT_MS, 10) : 8000
     }] : []),
-    {
-      name: 'Groq',
-      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-      model: 'openai/gpt-oss-120b',
-      apiKey: process.env.GROQ_API_KEY
-    },
     ...(isLocal ? [{
       name: 'FreeLLMAPI (Local)',
       endpoint: `${freeLLMLocal}${localSlash}/chat/completions`,
@@ -135,7 +135,7 @@ export async function callLLM(messages = [], options = {}) {
   }
 
   
-  console.log("[Telemetry Debug] options:", JSON.stringify(options)); let localTraceId = options.traceId;
+  if (process.env.DEBUG_LLM) { console.log("[Telemetry Debug] options:", JSON.stringify(options)); } let localTraceId = options.traceId;
   let localUserId = options.userId || '00000000-0000-0000-0000-000000000000';
   try {
       const { createRequire } = await import('module');
@@ -251,7 +251,7 @@ const traceLocalStorage = require('./src/services/traceStore.js');
 
         const latencyMs = Date.now() - startProviderTime;
         console.log(`[LLM Router Timing] Served by ${provider.name} (${selectedModel}) in ${latencyMs}ms`);
-        console.log('[Telemetry] Final options:', options);
+        if (process.env.DEBUG_LLM) { console.log('[Telemetry] Final options:', options); } else { console.log(`[Telemetry] Model: ${selectedModel}, Latency: ${latencyMs}ms`); }
         console.log("[Telemetry] Executing model_runs insert, traceId:", localTraceId, "userId:", localUserId);
         if (localTraceId && localUserId && localUserId !== '00000000-0000-0000-0000-000000000000') {
             pool.query(

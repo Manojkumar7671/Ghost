@@ -27,7 +27,8 @@
     "desktop": "npx electron ./desktop-app/main.cjs",
     "desktop:build": "npx electron-builder --config.directories.output=dist",
     "package:mac": "node scratch/build_mac.js",
-    "runner:local": "node scripts/runner.js"
+    "runner:local": "node scripts/runner.js",
+    "test:smoke": "playwright test tests/smoke.spec.js"
   },
   "build": {
     "appId": "com.manojkumar.ghost",
@@ -74,6 +75,7 @@
     "ws": "^8.21.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "electron": "^43.1.1",
     "electron-builder": "^26.15.3"
   }

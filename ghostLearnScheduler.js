@@ -8,8 +8,12 @@ export function startAutoLearning(ghostLearnFn, pool) {
             console.log('[ghostLearn] auto-run starting...');
             if (!pool) return;
 
+            // Only pick usernames with genuine recent activity and exclude junk data
             const { rows } = await pool.query(
-                'SELECT * FROM user_memories ORDER BY updated_at DESC LIMIT 20'
+                `SELECT username FROM user_memories 
+                 WHERE username NOT IN ('Guest', 'test_user', 'testuser', 'human', 'fuck', 'ffbfdzbxc', 'knightfall', 'Knightfall', 'Admin', 'master manoj', 'master_manoj', 'potti', 'rony', 'nicky')
+                 AND updated_at >= NOW() - INTERVAL '7 days'
+                 ORDER BY updated_at DESC LIMIT 20`
             );
 
             if (!rows.length) {

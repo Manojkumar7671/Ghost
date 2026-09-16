@@ -59,7 +59,7 @@ ${rawText.substring(0, 3000)}`;
                 [topic, item.claim, item.claim_type, item.confidence, JSON.stringify([sourceId]), isMastered]
             );
         }
-        console.log(`[Knowledge] Extracted ${items.length} candidate claims for topic: ${topic}`);
+        console.log(`[Knowledge] Extracted ${items.length} candidate claims. RAW JSON: ${cleanJson}`);
     } catch (e) {
         console.error('[Knowledge] Extraction failed:', e.message);
     }

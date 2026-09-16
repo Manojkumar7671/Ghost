@@ -49,6 +49,30 @@ async function run(topic, userContext) {
             const scrapeRes = await webAgent.scrapeAndSummarize(r.url);
             
             if (!scrapeRes.error) {
+                const summaryLower = (scrapeRes.summary || '').toLowerCase();
+                const isError = summaryLower.includes('400 bad request') || 
+                                summaryLower.includes('unable to process') ||
+                                summaryLower.includes('invalid url') ||
+                                summaryLower.includes('unable to access') ||
+                                summaryLower.includes('link failure') ||
+                                summaryLower.includes('error page') ||
+                                summaryLower.includes('captcha') ||
+                                summaryLower.includes('bot detection') ||
+                                summaryLower.includes('access denied') ||
+                                summaryLower.includes('failed to scrape page content') ||
+                                summaryLower.includes('unable to extract meaningful text') ||
+                                summaryLower.includes('tls certificate') ||
+                                summaryLower.includes('cloudfront 403 error') ||
+                                summaryLower.includes('404 error') ||
+                                summaryLower.includes('could not be loaded') ||
+                                summaryLower.includes('could not be retrieved') ||
+                                summaryLower.trim().length < 50;
+
+                if (isError) {
+                    console.log(`[Deep Research] Skipping failed/blocked source: ${r.url} (Reason: Matched error filter)`);
+                    continue;
+                }
+
                 // Log source
                 const sid = await knowledgeService.logSource({ 
                     taskId: userContext.requestId || null, 
@@ -59,6 +83,7 @@ async function run(topic, userContext) {
                 });
                 
                 if (sid) {
+                    console.log(`[Debug] Scrape summary for ${r.url}: ${scrapeRes.summary.substring(0, 200)}...`);
                     // Extract candidates (passing isMastered = true)
                     await knowledgeService.extractKnowledgeCandidates(topic, scrapeRes.summary, sid, true);
                     extractedCount++;
@@ -71,6 +96,11 @@ async function run(topic, userContext) {
     }
 
     console.log(`[Deep Research] Successfully processed and extracted knowledge from ${extractedCount} sources.`);
+
+    // Hard guard: No synthesis if no sources were successfully processed
+    if (extractedCount === 0 || summaries.length === 0) {
+        return `**Deep research failed.** I was unable to successfully process any real sources for the topic "${topic}". The scraper was blocked or encountered errors for every candidate URL. No permanent mastery synthesis was generated to avoid hallucination.`;
+    }
 
     // 3. Synthesize the findings
     const synthesisPrompt = `You are an expert researcher. Synthesize a comprehensive, exhaustive, above-PhD-level report on the topic: "${topic}".

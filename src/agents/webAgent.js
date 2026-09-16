@@ -48,21 +48,40 @@ async function searchWeb(query) {
 async function scrapeAndSummarize(url) {
   try {
     const { safeFetch } = await import('../../services/urlSafety.js');
-    const res = await safeFetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-      },
-      signal: AbortSignal.timeout(10000)
-    });
-    const html = await res.text();
+    
+    // Attempt Jina Reader API first for JS rendering and Captcha bypass
+    let text = "";
+    try {
+        const jinaRes = await fetch('https://r.jina.ai/' + url, {
+            headers: { 
+                'Accept': 'text/plain'
+            },
+            signal: AbortSignal.timeout(12000)
+        });
+        if (jinaRes.ok) {
+            text = await jinaRes.text();
+        }
+    } catch (e) {
+        console.log('[webAgent] Jina reader failed, falling back to raw fetch:', e.message);
+    }
+    
+    if (!text || text.length < 50 || text.includes('Title: 400 Bad Request') || text.toLowerCase().includes('bot detection')) {
+        const res = await safeFetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+          },
+          signal: AbortSignal.timeout(10000)
+        });
+        const html = await res.text();
 
-    // Strip script and style blocks, then clean tags
-    let text = html
-      .replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, '')
-      .replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+        // Strip script and style blocks, then clean tags
+        text = html
+          .replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, '')
+          .replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+    }
 
     // Truncate text to avoid token limits
     text = text.substring(0, 5000);

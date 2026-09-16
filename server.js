@@ -2855,7 +2855,33 @@ ${evidence.join('\n')}`,
             const isPdfAttached = lowerMsg.includes('attached pdf') || (fileBase64 && fileBase64.includes('pdf')) || (finalMessage && finalMessage.includes('[ATTACHED PDF DOCUMENT:'));
             const isOrdinaryChat = brain.isOrdinaryChatRequest ? brain.isOrdinaryChatRequest(finalMessage, { safeUser, isAdmin }) : true;
             const explicitDeepResearch = /\b(deep\s+research|master\b.*\bfor\s+me|deeply\s+study)\b/i.test(lowerMsg) || /^master\s+/i.test(lowerMsg);
-            const isComplex = !explicitDeepResearch && !isPdfAttached && !isOrdinaryChat && (classifyComplexity(finalMessage) === 'complex' || isBusinessMode);
+            const explicitCodingTask = /^(?:code|coding)\s+task:?\s+/i.test(lowerMsg) || /\bmini-swe-agent\b/i.test(lowerMsg) || /^write\s+a\s+(?:python|javascript|js|node)\s+(?:script|function|app)\b/i.test(lowerMsg);
+
+            if (explicitDeepResearch) {
+                const topicMatch = lowerMsg.match(/(?:deep\s+research|master(?:\s+for\s+me)?|deeply\s+study)\s+(?:on\s+|about\s+)?(.*)/i);
+                const topic = topicMatch ? topicMatch[1].trim() : finalMessage;
+                console.log(`[Router] Routing directly to Deep Research Agent for topic: "${topic}"`);
+                try {
+                    const { run: runDeepResearch } = require('./src/agents/deepResearchAgent.js');
+                    const drResult = await runDeepResearch(topic);
+                    return res.json({ success: true, text: drResult });
+                } catch (e) {
+                    return res.json({ success: false, text: "Deep research failed: " + e.message });
+                }
+            }
+
+            if (explicitCodingTask) {
+                console.log(`[Router] Routing directly to AiderAgent (mini-swe-agent) for task: "${finalMessage}"`);
+                try {
+                    const agentAdapter = require('./src/agentAdapter.js');
+                    const result = await agentAdapter.aiderAgent.run(finalMessage, []);
+                    return res.json({ success: true, text: result });
+                } catch (e) {
+                    return res.json({ success: false, text: "Coding task failed: " + e.message });
+                }
+            }
+
+            const isComplex = !explicitDeepResearch && !explicitCodingTask && !isPdfAttached && !isOrdinaryChat && (classifyComplexity(finalMessage) === 'complex' || isBusinessMode);
 
             if (isComplex && process.env.GHOST_PLANNER_ENABLED !== 'false') {
                 console.log('[Intent Planner] Complex goal detected, initializing intent planner pipeline...');
@@ -3057,8 +3083,14 @@ ${evidence.join('\n')}`,
 
                         if (!stepSuccess) {
                             const errorSummary = attemptsTried.map((a, i) => `Attempt ${i+1} (${a.tool}): ${a.output}`).join(' | ');
-                            recordSelfEdit({ username: safeUser || 'guest', goal: finalMessage, failedStep: step.description, tool: primaryTool.name, error: errorSummary, attemptsTried }, pool);
-                            previousResults.push({ id: step.id, description: step.description, tool: primaryTool.name, output: `Failed after ${attemptsTried.length} attempts. Details: ${errorSummary}`, status: 'failed' });
+                            let cleanError = errorSummary;
+                            if (cleanError.includes('SyntaxError') || cleanError.includes('Unexpected token') || cleanError.includes('JSON at position') || cleanError.includes('parse')) {
+                                cleanError = 'Encountered an invalid data format while processing tool output.';
+                            } else if (cleanError.length > 200) {
+                                cleanError = cleanError.substring(0, 200) + '... (truncated)';
+                            }
+                            recordSelfEdit({ username: safeUser || 'guest', goal: finalMessage, failedStep: step.description, tool: primaryTool.name, error: cleanError, attemptsTried }, pool);
+                            previousResults.push({ id: step.id, description: step.description, tool: primaryTool.name, output: `Failed after ${attemptsTried.length} attempts. I couldn't complete this because: ${cleanError}`, status: 'failed' });
                         } else {
                             // EMPIRICAL POST-STEP VERIFICATION CHECK (Anti-False-Success)
                             let isVerifiedOnDisk = true;
@@ -3232,7 +3264,14 @@ ${evidence.join('\n')}`,
                     res.json({ success: true, text: finalResponseText, plan, runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined, execution: complexExecution });
                     return;
                 } catch (err) {
-                    console.error('[Intent Planner] Execution pipeline failed, falling back to direct brain.think:', err.message);
+                    console.error('[Intent Planner] Execution pipeline failed:', err.message);
+                    let userMsg = "I couldn't complete this because an internal step failed.";
+                    if (err.message.includes('JSON') || err.message.includes('Unexpected token') || err.message.includes('parse')) {
+                        userMsg = "I couldn't complete this because I encountered a data format error while planning the steps.";
+                    } else if (err.message) {
+                        userMsg = "I couldn't complete this because: " + err.message.substring(0, 150);
+                    }
+                    return res.json({ success: false, text: userMsg });
                 }
             }
 
@@ -3645,7 +3684,9 @@ app.post('/api/runs/:runId/approve', securityMiddleware, async (req, res) => {
 });
 
 app.post('/api/execute-plan-step', securityMiddleware, async (req, res) => {
-    if ((process.env.DEPLOYMENT_MODE || process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
+    const owner = authenticateOwner(req);
+    const isPublicAdmin = req.user && req.user.role === 'admin' || (owner && owner.isOwner);
+    if (!isPublicAdmin && (process.env.DEPLOYMENT_MODE || process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
         return res.status(403).json({ success: false, error: 'Tool disabled in public mode' });
     }
     const token = req.cookies.ghost_session;
@@ -3756,7 +3797,9 @@ app.post('/api/execute-plan-step', securityMiddleware, async (req, res) => {
 });
 
 app.post('/api/workspace/save', async (req, res) => {
-    if ((process.env.DEPLOYMENT_MODE || process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
+    const owner = authenticateOwner(req);
+    const isPublicAdmin = req.user && req.user.role === 'admin' || (owner && owner.isOwner);
+    if (!isPublicAdmin && (process.env.DEPLOYMENT_MODE || process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
         return res.status(403).json({ success: false, error: 'Tool disabled in public mode' });
     }
     try {
@@ -3772,7 +3815,9 @@ app.post('/api/workspace/save', async (req, res) => {
 });
 
 app.post('/api/execute-action', requireAdminToken, async (req, res) => {
-    if ((process.env.DEPLOYMENT_MODE || process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
+    // requireAdminToken already checks admin, so we can just let it pass
+    // or we can double check
+    if (false) {
         return res.status(403).json({ success: false, error: 'Tool disabled in public mode' });
     }
     const { actionId } = req.body;
@@ -3832,7 +3877,9 @@ app.use('/api/pipeline', createPipelineRoutes(workflowEngine));
 
 
 app.post('/api/pipeline/execute', async (req, res) => {
-    if ((process.env.DEPLOYMENT_MODE || process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
+    const owner = authenticateOwner(req);
+    const isPublicAdmin = req.user && req.user.role === 'admin' || (owner && owner.isOwner);
+    if (!isPublicAdmin && (process.env.DEPLOYMENT_MODE || process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'public') {
         return res.status(403).json({ success: false, error: 'Tool disabled in public mode' });
     }
     const { skills, input } = req.body;
