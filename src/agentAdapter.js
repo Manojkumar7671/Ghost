@@ -19,7 +19,8 @@ const CodeAgent = require('./agents/codeAgent');
 const { saveMessage } = require('./tools/memory');
 
 // Helper function to extract structured parameters from a natural language task
-async function extractParams(agentName, task, context, jsonSchemaInstruction) {
+// maxTokens defaults to 300 — callers that produce large prompts (e.g. aiderAgent) should pass a higher value.
+async function extractParams(agentName, task, context, jsonSchemaInstruction, maxTokens = 300) {
   const prompt = `You are a parameter extractor for the ${agentName}.
 Task: "${task}"
 Context: "${context}"
@@ -28,7 +29,7 @@ Instructions: ${jsonSchemaInstruction}
 
 Respond ONLY with a valid JSON object. No markdown, no explanation.`;
   
-  const res = await chat([{ role: 'user', content: prompt }], { maxTokens: 300 });
+  const res = await chat([{ role: 'user', content: prompt }], { maxTokens });
   try {
     return JSON.parse(res.replace(/```json|```/g, '').trim());
   } catch (e) {
@@ -189,9 +190,13 @@ const aiderAgent = new AiderAgent();
 
 const adaptedAiderAgent = {
   run: async (task, context) => {
-    const params = await extractParams('aiderAgent', task, context, 
-      `Return JSON with "owner" (GitHub repo owner/org), "repo" (GitHub repository name), and "prompt" (detailed instruction for Aider). Extract the owner and repo explicitly from the task or context.`
+    // Use 1024 tokens for aiderAgent param extraction — the "prompt" field can be long
+    // and 300 (the default) was truncating the JSON output mid-object.
+    const params = await extractParams('aiderAgent', task, context,
+      `Return JSON with "owner" (GitHub repo owner/org), "repo" (GitHub repository name), and "prompt" (detailed instruction for Aider). Extract the owner and repo explicitly from the task or context.`,
+      1024
     );
+
     if (!params) params = {};
     if (!params.owner) params.owner = 'local';
     if (!params.repo) params.repo = 'scratch';
