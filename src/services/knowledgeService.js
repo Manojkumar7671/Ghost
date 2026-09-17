@@ -76,7 +76,8 @@ async function retrieveApprovedKnowledge(query) {
     try {
         // Step 1: FTS Match
         const res = await pool.query(
-            `SELECT id, topic, claim, confidence, is_mastered 
+            `SELECT id, topic, claim, confidence, is_mastered,
+             ts_rank(to_tsvector('english', topic || ' ' || claim), to_tsquery('english', array_to_string(tsvector_to_array(to_tsvector('english', $1)), ' | '))) as fts_rank
              FROM knowledge_items 
              WHERE review_state = 'approved'
              AND to_tsvector('english', topic || ' ' || claim) @@ to_tsquery('english', array_to_string(tsvector_to_array(to_tsvector('english', $1)), ' | '))
@@ -88,32 +89,34 @@ async function retrieveApprovedKnowledge(query) {
         if (res.rows.length === 0) return null;
 
         // Step 2: LLM Verification (High Confidence Threshold)
-        const combinedClaims = res.rows.map((r, i) => `[${i+1}] Topic: ${r.topic} | Claim: ${r.claim}`).join('\n');
-        const verificationPrompt = `Does the following approved knowledge strictly and fully answer the user's question?
+        const combinedClaims = res.rows.map((r, i) => `[${i+1}] Topic: ${r.topic} | Claim: ${r.claim} (FTS Rank: ${r.fts_rank})`).join('\n');
+        const topRank = res.rows[0].fts_rank;
+        
+        const verificationPrompt = `Does the following approved knowledge strictly and fully answer the user's question, OR is it highly relevant background?
 User Question: "${query}"
 Knowledge:
 ${combinedClaims}
 
-If the knowledge strictly answers the question, respond with exactly "YES" followed by a newline and then a brief summary of the answer based ONLY on the knowledge. 
-If it does not fully answer the question, respond with exactly "NO".`;
+If the knowledge answers the question or is highly relevant, respond with exactly "YES" followed by a newline and then a brief summary of the answer based ONLY on the knowledge. 
+If it is entirely unrelated or useless for answering the question, respond with exactly "NO".`;
 
         const evalResponse = await chat([{ role: 'user', content: verificationPrompt }], { maxTokens: 300 });
         const evalClean = evalResponse.trim();
         
         if (evalClean.startsWith('YES')) {
             const answer = evalClean.replace(/^YES\s*/, '').trim();
-            console.log('[Knowledge] High-confidence memory match found. Bypassing live search.');
+            console.log(`[Knowledge] Memory match found (Max FTS Rank: ${topRank}). Bypassing live search.`);
             return `[Ghost Approved Memory]\n${answer}`;
         }
         
         const isMastered = res.rows.some(r => r.is_mastered);
         if (isMastered) {
              const topTopic = res.rows.find(r => r.is_mastered).topic;
-             console.log('[Knowledge] Question relates to a mastered topic, but stored knowledge lacks the answer. Bypassing live search by user directive.');
+             console.log(`[Knowledge] Question relates to a mastered topic, but stored knowledge lacks the answer (Max FTS Rank: ${topRank}). Bypassing live search by user directive.`);
              return `[Ghost Approved Memory]\nI have mastered the topic "${topTopic}", but my stored knowledge does not contain the specific answer to your question. I am answering from memory only and will not perform a live search.`;
         }
         
-        console.log('[Knowledge] Memories found via FTS, but rejected by LLM threshold. Proceeding to live search.');
+        console.log(`[Knowledge] Memories found via FTS (Max Rank: ${topRank}), but rejected by LLM threshold. Eval output: "${evalClean.substring(0, 100)}". Proceeding to live search.`);
         return null;
     } catch (e) {
         console.error('[Knowledge] Retrieval error:', e.message);

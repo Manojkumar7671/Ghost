@@ -2891,17 +2891,31 @@ ${evidence.join('\n')}`,
                 }
             }
         } else {
-            const isDeepResearch = lowerMsg.includes('research') || lowerMsg.includes('deep dive') || sessionModes.get(safeUser || 'guest') === 'deep_research';
+            // --- CONTEXT RESOLUTION ---
+            if (!extractedPdfText && !fileContent) {
+                const { resolveContextualReference } = require('./src/utils/contextResolver.js');
+                finalMessage = await resolveContextualReference(finalMessage, userHistory);
+            }
+            
+            const resolvedLowerMsg = finalMessage.toLowerCase().trim();
+
+            const isDeepResearch = resolvedLowerMsg.includes('research') || resolvedLowerMsg.includes('deep dive') || sessionModes.get(safeUser || 'guest') === 'deep_research';
             const isCodeAssistant = sessionModes.get(safeUser || 'guest') === 'code_assistant';
             const isBusinessMode = sessionModes.get(safeUser || 'guest') === 'business';
-            const isPdfAttached = lowerMsg.includes('attached pdf') || (fileBase64 && fileBase64.includes('pdf')) || (finalMessage && finalMessage.includes('[ATTACHED PDF DOCUMENT:'));
+            const isPdfAttached = resolvedLowerMsg.includes('attached pdf') || (fileBase64 && fileBase64.includes('pdf')) || (finalMessage && finalMessage.includes('[ATTACHED PDF DOCUMENT:'));
             const isOrdinaryChat = brain.isOrdinaryChatRequest ? brain.isOrdinaryChatRequest(finalMessage, { safeUser, isAdmin }) : true;
-            const explicitDeepResearch = /\b(deep\s+research|master\b.*\bfor\s+me|deeply\s+study)\b/i.test(lowerMsg) || /^master\s+/i.test(lowerMsg);
-            const explicitCodingTask = /^(?:code|coding)\s+task:?\s+/i.test(lowerMsg) || /\bmini-swe-agent\b/i.test(lowerMsg) || /^write\s+a\s+(?:python|javascript|js|node)\s+(?:script|function|app)\b/i.test(lowerMsg);
+            const explicitDeepResearch = /\b(deep\s+research|master\b.*\bfor\s+me|deeply\s+study)\b/i.test(resolvedLowerMsg) || /^master\s+/i.test(resolvedLowerMsg);
+            const explicitCodingTask = /^(?:code|coding)\s+task:?\s+/i.test(resolvedLowerMsg) || /\bmini-swe-agent\b/i.test(resolvedLowerMsg) || /^write\s+a\s+(?:python|javascript|js|node)\s+(?:script|function|app)\b/i.test(resolvedLowerMsg);
 
             if (explicitDeepResearch) {
-                const topicMatch = lowerMsg.match(/(?:deep\s+research|master(?:\s+for\s+me)?|deeply\s+study)\s+(?:on\s+|about\s+)?(.*)/i);
+                const topicMatch = finalMessage.match(/(?:deep\s+research|master(?:\s+for\s+me)?|deeply\s+study)\s+(?:on\s+|about\s+)?(.*)/i);
                 const topic = topicMatch ? topicMatch[1].trim() : finalMessage;
+                
+                const vagueWords = ['it', 'that', 'this', 'he', 'she', 'they', 'them', 'those', 'these', 'the bug', 'the error', 'the issue', 'something', 'anything', 'nothing', 'the topic', 'that topic'];
+                if (vagueWords.includes(topic.toLowerCase().replace(/[^\w\s]/g, '').trim())) {
+                    return res.json({ success: true, text: `I'm not sure what "${topic}" refers to. Could you please clarify what you'd like me to research?` });
+                }
+
                 console.log(`[Router] Routing directly to Deep Research Agent for topic: "${topic}"`);
                 try {
                     const { run: runDeepResearch } = require('./src/agents/deepResearchAgent.js');
