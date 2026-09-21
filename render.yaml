@@ -10,15 +10,3 @@ services:
         sync: false
       - key: GHOST_DEPLOYMENT_MODE
         value: public
-
-  - type: web
-    name: ghost-staging
-    env: node
-    plan: free
-    buildCommand: (python3 -m pip install --break-system-packages -r mini-swe-agent/requirements.txt -e ./mini-swe-agent || python3 -m pip install -r mini-swe-agent/requirements.txt -e ./mini-swe-agent || (curl -sS https://bootstrap.pypa.io/get-pip.py | python3 && python3 -m pip install --break-system-packages -r mini-swe-agent/requirements.txt -e ./mini-swe-agent)) && npm install && npm run test:smoke
-    startCommand: npm start
-    envVars:
-      - key: GROQ_API_KEY
-        sync: false
-      - key: GHOST_DEPLOYMENT_MODE
-        value: public
