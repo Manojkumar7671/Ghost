@@ -250,8 +250,19 @@ export async function saveMemory(entry, metadata = {}) {
  * @param {number} [topK=3] - Maximum number of relevant memories to return
  * @returns {Promise<Array<Object>>} Sorted list of top matching memory records with score
  */
-export async function queryMemory(query, topK = 3) {
-  if (!query || typeof query !== 'string' || !query.trim()) return [];
+export async function queryMemory(query, topK = 3, filters = {}) {
+  if (!query || typeof query !== 'string' || !query.trim()) {
+    const store = loadVectorStore();
+    if (filters && Object.keys(filters).length > 0) {
+      return store.filter(item => {
+        if (filters.memory_type && item.metadata?.memory_type !== filters.memory_type) return false;
+        if (filters.status && item.metadata?.status !== filters.status) return false;
+        if (filters.keyword && !item.text.toLowerCase().includes(filters.keyword.toLowerCase())) return false;
+        return true;
+      }).slice(0, topK || 10).map(item => ({ ...item, score: 1.0 }));
+    }
+    return [];
+  }
 
   const queryVector = await generateEmbedding(query);
   const store = loadVectorStore();
@@ -266,6 +277,12 @@ export async function queryMemory(query, topK = 3) {
       for (let i = 0; i < hits.ids.length; i++) {
         const docIdx = Number(hits.ids[i]) - 1;
         if (store[docIdx]) {
+          const item = store[docIdx];
+          let pass = true;
+          if (filters.memory_type && item.metadata?.memory_type !== filters.memory_type) pass = false;
+          if (filters.status && item.metadata?.status !== filters.status) pass = false;
+          if (filters.keyword && !item.text.toLowerCase().includes(filters.keyword.toLowerCase())) pass = false;
+          if (pass) {
           results.push({
             id: store[docIdx].id,
             text: store[docIdx].text,
@@ -275,13 +292,22 @@ export async function queryMemory(query, topK = 3) {
           });
         }
       }
+      }
       if (results.length > 0) return results;
     }
   } catch (err) {
     console.warn('[Memory] Turbovec query fallback to cosine Similarity:', err.message);
   }
 
-  const scored = store.map(item => ({
+  const filteredStore = store.filter(item => {
+    let pass = true;
+    if (filters.memory_type && item.metadata?.memory_type !== filters.memory_type) pass = false;
+    if (filters.status && item.metadata?.status !== filters.status) pass = false;
+    if (filters.keyword && !item.text.toLowerCase().includes(filters.keyword.toLowerCase())) pass = false;
+    return pass;
+  });
+  
+  const scored = filteredStore.map(item => ({
     id: item.id,
     text: item.text,
     metadata: item.metadata,
