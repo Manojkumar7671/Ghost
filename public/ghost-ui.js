@@ -3352,7 +3352,8 @@ document.addEventListener('DOMContentLoaded', () => {
             fileContent: uploadedFileText || null,
             fileBase64: uploadedFileBase64 || null,
             fileName: uploadedFileName || null,
-            ghostCodeMode: isGhostCodeActive
+            ghostCodeMode: isGhostCodeActive,
+            mode: document.getElementById('ghostModeSelect') ? document.getElementById('ghostModeSelect').value : 'thinking'
         };
 
         uploadedFileText = "";
@@ -4838,7 +4839,7 @@ const response = await fetch(targetUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ message })
+                body: JSON.stringify({ message, mode: document.getElementById('ghostModeSelect') ? document.getElementById('ghostModeSelect').value : 'thinking' })
             });
             return await response.json();
         } catch (_e) {
