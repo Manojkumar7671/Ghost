@@ -542,11 +542,12 @@ function isRealTimeFactualQuery(message) {
 }
 
 function isOrdinaryChatRequest(userMessage, userContext = {}) {
+  if (userContext.isLiveWeb) return false;
   const msg = (userMessage || '').trim().toLowerCase();
   if (!msg) return true;
 
   // Real-time factual queries (weather, live sports, stock prices, breaking news) must NOT take ordinary chat fast path
-  if (isRealTimeFactualQuery(userMessage)) {
+  if (isRealTimeFactualQuery(userMessage) || /\b(save\s+(?:this\s+)?(?:task|plan|memory)|what(?:'s|\s+is)\s+(?:pending|upcoming))\b/i.test(userMessage)) {
     return false;
   }
 
@@ -556,7 +557,7 @@ function isOrdinaryChatRequest(userMessage, userContext = {}) {
   }
 
   // Explicit task / action / execution commands should take planner/task execution path
-  if (/\b(inspect\s+(?:ghost\s+)?repo|run\s+(?:the\s+)?command|execute\s+command|run\s+script|bash\s+|sh\s+|git\s+(?:commit|push|checkout|clean)|deploy\b|terminal\b)\b/i.test(msg)) {
+  if (/\b(inspect\s+(?:ghost\s+)?repo|run\s+(?:the\s+)?command|execute\s+command|run\s+script|bash\s+|sh\s+|git\s+(?:commit|push|checkout|clean)|deploy\b|terminal\b|delete\s+|overwrite\s+)\b/i.test(msg)) {
     return false;
   }
 
