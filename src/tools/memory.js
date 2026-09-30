@@ -73,14 +73,29 @@ function getCostSummary() {
   return { total_tokens: c.total_tokens, total_cost_usd: c.total_cost_usd.toFixed(6), total_calls: c.calls.length, today: c.calls.filter(x => x.ts.startsWith(new Date().toISOString().slice(0, 10))).length };
 }
 
+
+function parseDueDate(dateStr) {
+    if (!dateStr) return null;
+    let d = new Date(Date.parse(dateStr));
+    if (isNaN(d.getTime())) {
+        if (dateStr.toLowerCase() === 'tomorrow') {
+            d = new Date(Date.now() + 86400000);
+        } else {
+            return null;
+        }
+    }
+    return d.toISOString().split('T')[0];
+}
+
 async function saveMemory(entry, metadata) {
   const mem = await import('../../memory.js');
+  if (metadata && metadata.due_date) metadata.due_date = parseDueDate(metadata.due_date);
   return mem.saveMemory(entry, metadata);
 }
 
-async function queryMemory(query, topK) {
+async function queryMemory(query, topK, filters) {
   const mem = await import('../../memory.js');
-  return mem.queryMemory(query, topK);
+  return mem.queryMemory(query, topK, filters);
 }
 
 module.exports = { saveMessage, getHistory, clearHistory, remember, recall, forgetKey, allMemory, trackCost, getCostSummary, saveMemory, queryMemory };
