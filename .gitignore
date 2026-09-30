@@ -60,3 +60,4 @@ plan.txt
 final_fix.js
 get_columns.cjs
 adapters/mini-swe/test-v2-adapter.js
+.env.bak
