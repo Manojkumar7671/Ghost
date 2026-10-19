@@ -43,18 +43,18 @@ function processNonCodeSegment(segment) {
     'For this ordinary-chat answer, Ghost did not access or change local files.'
   );
 
-  /// 3. Saved / updated / learned permanently in memory
+  // 3. Saved / updated / learned permanently in memory or Obsidian
   text = text.replace(
-    /\b(?:I|Ghost)\s+(?:just\s+)?(?:saved|stored|recorded|updated|committed|wrote)\s+(?:this|that|it|information)?\s*(?:to|in)\s+(?:permanent\s+memory|long-term\s+memory)\b[^\.\n]*[\.\!]?/gi,
-    'For this ordinary-chat answer, Ghost did not save permanent memory.'
+    /\b(?:I|Ghost)\s+(?:just\s+)?(?:saved|stored|recorded|updated|committed|wrote)\s+(?:this|that|it|information)?\s*(?:to|in)\s+(?:permanent\s+memory|long-term\s+memory|Obsidian(?:\s+vault)?)\b[^\.\n]*[\.\!]?/gi,
+    'For this ordinary-chat answer, Ghost did not save permanent memory or update Obsidian.'
   );
   text = text.replace(
-    /\b(?:I(?:'ve|\s+have)\s+(?:just\s+)?(?:saved|stored|recorded|updated|committed|written)\s+(?:this|that|it|information)?\s*(?:to|in)\s+(?:permanent\s+memory|long-term\s+memory))\b[^\.\n]*[\.\!]?/gi,
-    'For this ordinary-chat answer, Ghost did not save permanent memory.'
+    /\b(?:I(?:'ve|\s+have)\s+(?:just\s+)?(?:saved|stored|recorded|updated|committed|written)\s+(?:this|that|it|information)?\s*(?:to|in)\s+(?:permanent\s+memory|long-term\s+memory|Obsidian(?:\s+vault)?))\b[^\.\n]*[\.\!]?/gi,
+    'For this ordinary-chat answer, Ghost did not save permanent memory or update Obsidian.'
   );
   text = text.replace(
     /\b(?:I|Ghost)\s+(?:have\s+)?(?:permanently\s+)?learned\s+this\s+(?:in|to)\s+(?:my\s+)?(?:permanent\s+)?memory\b[^\.\n]*[\.\!]?/gi,
-    'For this ordinary-chat answer, Ghost did not save permanent memory.'
+    'For this ordinary-chat answer, Ghost did not save permanent memory or update Obsidian.'
   );
 
   // 4. Read full papers claims in ordinary chat

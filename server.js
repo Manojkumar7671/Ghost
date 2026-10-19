@@ -97,6 +97,10 @@ import {
     applyEvidenceWrapper
 } from './services/evidenceWrapper.js';
 import {
+    sanitizeResponseText,
+    sanitizeReasoningSteps
+} from './src/services/responseSanitizer.js';
+import {
     isCapabilityQuery,
     getCapabilitiesHelp
 } from './services/capabilityCatalog.js';
@@ -1867,7 +1871,9 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             const hasDirectAction = /\b(?:write|create|generate|build|implement|fix|refactor|run|execute)\s+(?:a\s+|the\s+)?(?:python\s+|js\s+|bash\s+|node\s+)?(?:script|code|program|file|function|test|benchmark)\b/i.test(cleanLowerMsg);
             const hasExecutionVerb = /\b(?:write|create|generate|build|implement|fix|refactor|run|execute|test|deploy|benchmark|solve|program)\b/i.test(cleanLowerMsg);
 
-            const isPevrEligible = isAdmin && !hasFileAttachment && !message.startsWith('/') && !message.match(/^prepare\s+plan/i) && !isFactualQuery && (!isVagueQuestion || hasDirectAction) && hasExecutionVerb;
+            const isInstant = req.body.mode === 'instant';
+            const isLiveWeb = req.body.mode === 'live';
+            const isPevrEligible = !isInstant && isAdmin && !hasFileAttachment && !message.startsWith('/') && !message.match(/^prepare\s+plan/i) && !isFactualQuery && (!isVagueQuestion || hasDirectAction) && hasExecutionVerb;
 
             if (isPevrEligible) {
                 let intentResult = 'CONVERSATION';
@@ -2851,6 +2857,7 @@ ${evidence.join('\n')}`,
         }
         let fullResponse = "";
         let reasoningSteps = [];
+        let brainResult = null;
 
         if (!approvedPersonalContext && (isAdmin || (req.user && req.user.role === 'admin'))) {
             try {
@@ -2904,11 +2911,11 @@ ${evidence.join('\n')}`,
             const isBusinessMode = sessionModes.get(safeUser || 'guest') === 'business';
             const isPdfAttached = resolvedLowerMsg.includes('attached pdf') || (fileBase64 && fileBase64.includes('pdf')) || (finalMessage && finalMessage.includes('[ATTACHED PDF DOCUMENT:'));
             const isOrdinaryChat = brain.isOrdinaryChatRequest ? brain.isOrdinaryChatRequest(finalMessage, { safeUser, isAdmin }) : true;
-            const explicitDeepResearch = /\b(deep\s+research|master\b.*\bfor\s+me|deeply\s+study)\b/i.test(resolvedLowerMsg) || /^master\s+/i.test(resolvedLowerMsg);
-            const explicitCodingTask = /^(?:code|coding)\s+task:?\s+/i.test(resolvedLowerMsg) || /\bmini-swe-agent\b/i.test(resolvedLowerMsg) || /^write\s+a\s+(?:python|javascript|js|node)\s+(?:script|function|app)\b/i.test(resolvedLowerMsg);
+            const explicitDeepResearch = /\b(deep\s+research|master\b.*\bfor\s+me|deeply\s+study|learn\s+everything\s+about|do\s+a\s+(?:deep\s+)?master\s+(?:on|about)?|comprehensive\s+research\s+on)\b/i.test(resolvedLowerMsg) || /^master\s+/i.test(resolvedLowerMsg);
+            const explicitCodingTask = /^(?:code|coding)\s+task:?\s+/i.test(resolvedLowerMsg) || /\bmini-swe-agent\b/i.test(resolvedLowerMsg);
 
             if (explicitDeepResearch) {
-                const topicMatch = finalMessage.match(/(?:deep\s+research|master(?:\s+for\s+me)?|deeply\s+study)\s+(?:on\s+|about\s+)?(.*)/i);
+                const topicMatch = finalMessage.match(/(?:deep\s+research|master(?:\s+for\s+me)?|deeply\s+study|learn\s+everything\s+about|do\s+a\s+(?:deep\s+)?master\s+(?:on|about)?|^master)\s+(?:on\s+|about\s+)?(.*)/i);
                 const topic = topicMatch ? topicMatch[1].trim() : finalMessage;
                 
                 const vagueWords = ['it', 'that', 'this', 'he', 'she', 'they', 'them', 'those', 'these', 'the bug', 'the error', 'the issue', 'something', 'anything', 'nothing', 'the topic', 'that topic'];
@@ -3359,18 +3366,21 @@ ${evidence.join('\n')}`,
                 });
             }
 
-            console.log('[Server] Routing plain-text request to brain.think()...');
+            brainResult = null;
             try {
                 let msgToThink = finalMessage;
                 if (isCodeAssistant) {
                     msgToThink = `[SESSION MODE: CODE ASSISTANT IS ACTIVE. You have broader workspace execution access.]\n${finalMessage}`;
                 } else if (isBusinessMode) {
                     msgToThink = `[SESSION MODE: BUSINESS IS ACTIVE. Handle routine tasks, queue approvals, and alert owner.]\n${finalMessage}`;
+                } else if (brain.isCodeGenerationRequest && brain.isCodeGenerationRequest(finalMessage)) {
+                    msgToThink = finalMessage;
                 } else if (isCodeAsTextRequest(finalMessage)) {
                     msgToThink = buildCodeAsTextMessage(finalMessage);
                 }
                 const startTime = Date.now();
-                const brainResult = await brain.think(msgToThink, {
+                brainResult = await brain.think(msgToThink, {
+                    isInstant, isLiveWeb,
                     safeUser,
                     isAdmin,
                     isBusinessMode,
@@ -3430,7 +3440,12 @@ ${evidence.join('\n')}`,
         let replyText = fullResponse || "System anomaly: Empty matrix response.";
 
         const finalRouteExecution = await getLatestExecutionStatus(req);
-        const hasVerifiedExecutionEvidence = finalRouteExecution.state === 'succeeded' && Array.isArray(finalRouteExecution.artifacts) && finalRouteExecution.artifacts.length > 0;
+        const isCodeAnswer = Boolean(brainResult && brainResult.isCodeAnswer);
+        if (isCodeAnswer) {
+            finalRouteExecution.state = 'succeeded';
+            finalRouteExecution.summary = 'Code generation verified';
+        }
+        const hasVerifiedExecutionEvidence = (finalRouteExecution.state === 'succeeded' && Array.isArray(finalRouteExecution.artifacts) && finalRouteExecution.artifacts.length > 0) || isCodeAnswer;
 
         if (!isAdmin) {
             const visitorBannedPatterns = [
@@ -3491,8 +3506,14 @@ ${evidence.join('\n')}`,
             }
         }
 
-        const ordinaryReceipt = createRouteReceipt('ordinary_no_action_evidence');
-        replyText = applyEvidenceWrapper(replyText, ordinaryReceipt);
+        if (!isCodeAnswer) {
+            const ordinaryReceipt = createRouteReceipt('ordinary_no_action_evidence');
+            replyText = applyEvidenceWrapper(replyText, ordinaryReceipt);
+        }
+
+        // Apply Response Sanitizer (Leak Fix - Move internal status/route labels to server logs only)
+        replyText = sanitizeResponseText(replyText);
+        reasoningSteps = sanitizeReasoningSteps(reasoningSteps);
 
         userHistory.push({ role: 'user', content: message }, { role: 'assistant', content: replyText.trim() });
         if (userHistory.length > maxMemory) userHistory = userHistory.slice(-maxMemory);

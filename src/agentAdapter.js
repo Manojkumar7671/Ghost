@@ -197,9 +197,9 @@ const adaptedAiderAgent = {
       1024
     );
 
-    if (!params) params = {};
-    if (!params.owner) params.owner = 'local';
-    if (!params.repo) params.repo = 'scratch';
+    if (!params || !params.owner || !params.repo) {
+      return "Missing owner or repo for Aider task. Task must specify a GitHub repository.";
+    }
     const res = await aiderAgent.run(params.prompt || task, context, params.owner, params.repo);
     return typeof res === 'string' ? res : JSON.stringify(res);
   }

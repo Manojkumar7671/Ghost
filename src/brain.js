@@ -576,8 +576,159 @@ function isOrdinaryChatRequest(userMessage, userContext = {}) {
     return false;
   }
 
+  if (isCodeGenerationRequest(userMessage)) {
+    return false;
+  }
+
   // Greetings, questions, discussions, explanations, or code-as-text requests
   return true;
+}
+
+function isCodeGenerationRequest(userMessage) {
+  if (!userMessage || typeof userMessage !== 'string') return false;
+  let cleanMsg = userMessage;
+  const userReqMatch = userMessage.match(/\[USER REQUEST\]:\s*([\s\S]*)/i);
+  if (userReqMatch) {
+    cleanMsg = userReqMatch[1];
+  }
+  const msg = cleanMsg.trim().toLowerCase();
+  if (!msg) return false;
+
+  if (/^coding\s+task:?/i.test(msg)) return false;
+
+  const hasVerb = /\b(write|build|script|function|fix|refactor|create|generate|implement|code)\b/i.test(msg);
+  const hasLangOrCode = /\b(python|py|javascript|js|node(?:js)?|typescript|ts|bash|sh|shell|sql|html|css|pydantic|code)\b/i.test(msg);
+  const hasLineConstraintScript = /\b\d+-line\s+(?:[a-zA-Z0-9_\-]+\s+)*(?:script|code|program|function|scraper)\b/i.test(msg);
+
+  if (hasLineConstraintScript) return true;
+
+  if (hasVerb && hasLangOrCode) {
+    if (/^(?:what\s+is|explain|why\s+does|how\s+does|tell\s+me\s+about)\b/i.test(msg) && !/\b(write|build|create|give\s+me)\b/i.test(msg)) {
+      return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+async function codeAnswer(userMessage, userContext = { safeUser: 'guest', isAdmin: false }) {
+  const username = userContext.safeUser || 'guest';
+  const codeVerifier = require('./services/codeVerifier');
+
+  let cleanPrompt = userMessage;
+  const userReqMatch = userMessage.match(/\[USER REQUEST\]:\s*([\s\S]*)/i);
+  if (userReqMatch) {
+    cleanPrompt = userReqMatch[1].trim();
+  }
+
+  const history = getHistory(username, 40);
+  const historyMsgs = history && history.length > 0
+    ? history.map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content }))
+    : [];
+
+  const systemPrompt = `You are Ghost, an expert coding assistant specializing in production-ready, verified code.
+Strictly adhere to the following rules:
+1. REQUIREMENTS: Satisfy every single requirement stated by the user (including libraries such as pydantic, APIs, data schemas, line limits, and logic).
+2. NO PLACEHOLDERS: Do NOT use placeholder URLs (like example.com) or dummy selectors unless explicitly asked. Use real public practice targets when a demo or web scraping target is needed (e.g. https://quotes.toscrape.com with selector "div.quote span.text" or https://books.toscrape.com with selector "article.product_pod"). When scraping HTML pages, parse with BeautifulSoup (bs4) or html.parser.
+3. ASSUMPTIONS NOTE: Include a single concise one-line assumptions note (e.g. "Assumptions: Target page is https://quotes.toscrape.com and OPENAI_API_KEY is available in the environment.").
+4. NO FILLER: Do not include introductory conversational filler, pleasantries, or verbose walkthroughs. Focus directly on concise, idiomatic, runnable code.
+5. CODE FORMAT: Return the complete implementation in a fenced markdown code block with the appropriate language identifier (e.g. \`\`\`python ... \`\`\`). Keep non-blank, non-comment lines strictly within any requested line limits.`;
+
+  const messages = [
+    ...historyMsgs,
+    { role: 'user', content: cleanPrompt }
+  ];
+
+  let reply = '';
+  try {
+    reply = await chat(messages, {
+      traceId: userContext.traceId,
+      userId: userContext.userId,
+      systemPrompt,
+      maxTokens: 1500,
+      timeoutMs: 45000
+    });
+  } catch (err) {
+    console.warn('[Code Routing] Code generation error:', err.message);
+    reply = "Ghost could not generate code in time. Please try again.";
+  }
+
+  function extractCodeBlock(rawText) {
+    if (!rawText || typeof rawText !== 'string') return { code: '', language: 'python' };
+    const match = rawText.match(/```([a-zA-Z0-9_\-\+]*)\s*\n([\s\S]*?)```/);
+    if (match) {
+      const lang = (match[1] || 'python').trim().toLowerCase();
+      const code = match[2].trim();
+      return { code, language: lang || 'python' };
+    }
+    return { code: rawText.trim(), language: 'python' };
+  }
+
+  let extracted = extractCodeBlock(reply);
+  let verifyResult = codeVerifier.verifyCode({
+    prompt: cleanPrompt,
+    code: extracted.code,
+    language: extracted.language
+  });
+
+  // Step 5: If any constraint or check fails, regenerate ONCE feeding back the exact failures
+  if (!verifyResult.passed) {
+    console.log('[Code Routing] Initial code failed verification. Regenerating once with feedback:', verifyResult.failures);
+    const feedbackMsg = `Your previous code generation failed verification with the following issues:\n- ${verifyResult.failures.join('\n- ')}\n\nPlease regenerate the complete solution fixing all the issues above. Keep non-blank, non-comment lines strictly within any requested line limits. Provide the one-line assumptions note and the fenced code block only.`;
+
+    try {
+      const regenMessages = [
+        ...messages,
+        { role: 'assistant', content: reply },
+        { role: 'user', content: feedbackMsg }
+      ];
+
+      const secondReply = await chat(regenMessages, {
+        traceId: userContext.traceId,
+        userId: userContext.userId,
+        systemPrompt,
+        maxTokens: 1500,
+        timeoutMs: 45000
+      });
+
+      const secondExtracted = extractCodeBlock(secondReply);
+      const secondVerifyResult = codeVerifier.verifyCode({
+        prompt: cleanPrompt,
+        code: secondExtracted.code,
+        language: secondExtracted.language
+      });
+
+      if (secondVerifyResult.passed) {
+        reply = secondReply;
+        verifyResult = secondVerifyResult;
+      } else {
+        // If still failing, pick best version and report honestly
+        if (secondVerifyResult.failures.length <= verifyResult.failures.length) {
+          reply = secondReply;
+          verifyResult = secondVerifyResult;
+        }
+      }
+    } catch (regenErr) {
+      console.warn('[Code Routing] Regeneration error:', regenErr.message);
+    }
+  }
+
+  // Remove any manual Verification block from reply before appending measured one
+  let cleanReply = reply.replace(/#{1,4}\s*Verification[\s\S]*$/i, '').trim();
+  const verificationBlock = codeVerifier.generateVerificationBlock(verifyResult.metrics);
+  const finalReply = `${cleanReply}\n\n${verificationBlock}`;
+
+  saveMessage(username, 'assistant', finalReply);
+  return {
+    reply: finalReply,
+    isCodeAnswer: true,
+    actions: [{
+      tool: 'code_verifier',
+      reason: 'Verified code generation',
+      status: verifyResult.passed ? 'done' : 'failed'
+    }]
+  };
 }
 
 async function think(userMessage, userContext = { safeUser: 'guest', isAdmin: false }) {
@@ -643,6 +794,12 @@ async function think(userMessage, userContext = { safeUser: 'guest', isAdmin: fa
     }
   } catch(e) {
     console.error('[Knowledge] Error checking mastery:', e.message);
+  }
+
+  // CODE ROUTING: Detect code-generation requests and route to codeAnswer with verification
+  if (isCodeGenerationRequest(userMessage)) {
+    console.log(`[Code Routing] Routing code-generation request to codeAnswer: "${userMessage.substring(0, 50)}..."`);
+    return await codeAnswer(userMessage, userContext);
   }
 
   // FAST PATH: Ordinary normal chat skips planner/orchestrator/subtask loops completely
@@ -809,4 +966,4 @@ Factual Humility & Boundaries:
   return { reply, actions: actions.map((a,i) => ({ tool: a.tool, reason: a.reason, status: results[i]?.status })) };
 }
 
-module.exports = { think, execute, extractJSON, summarize, isOrdinaryChatRequest, isRealTimeFactualQuery };
+module.exports = { think, execute, extractJSON, summarize, isOrdinaryChatRequest, isRealTimeFactualQuery, isCodeGenerationRequest, codeAnswer };

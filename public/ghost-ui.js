@@ -3838,10 +3838,21 @@ const response = await fetch(targetUrl, {
     function handleGhostResponse(fullText, execution = null, meta = null) {
         let reasoningPrefix = '';
         if (meta && meta.reasoning && meta.reasoning.length > 0) {
-            reasoningPrefix = meta.reasoning.map(r => `*${r.reason || r.tool}...* `).join('\n') + '\n\n';
+            const safeReasoning = meta.reasoning.filter(r => {
+                const text = (r.reason || r.tool || '').toLowerCase();
+                return !text.includes('direct fast') && !text.includes('[brain') && !text.includes('completion');
+            });
+            if (safeReasoning.length > 0) {
+                reasoningPrefix = safeReasoning.map(r => `*${r.reason || r.tool}...* `).join('\n') + '\n\n';
+            }
         }
 
         fullText = typeof fullText === 'string' ? fullText : '';
+        fullText = fullText
+            .replace(/Direct fast(?:\s+normal\s+chat\s+completion)?/gi, '')
+            .replace(/\[Brain\s+Route\]/gi, '')
+            .replace(/\[Brain\s+Fast\s+Path\]/gi, '')
+            .replace(/\bcompletion\.\.\./gi, '');
         const isTaskExecutionResponse = Boolean(execution && (execution.taskId || execution.state === 'completed' || execution.state === 'running' || execution.evidence));
         const hasApprovalFlowEvidence = Boolean(meta && ((Array.isArray(meta.plan) && meta.plan.length > 0) || meta.actionRequired === true));
         const hasVerifiedExecutionEvidence = Boolean(isTaskExecutionResponse || (hasApprovalFlowEvidence && execution && execution.state === 'succeeded' && Array.isArray(execution.artifacts) && execution.artifacts.length > 0));
