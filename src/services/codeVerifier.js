@@ -417,42 +417,53 @@ SAMPLE_QUOTES_HTML = """<!DOCTYPE html><html><body>
 <div class="quote">
     <span class="text">Life is what happens when you are busy making other plans.</span>
     <small class="author">John Lennon</small>
+    <a class="tag">life</a>
+    <a class="tag">inspirational</a>
 </div>
 <div class="quote">
     <span class="text">The journey of a thousand miles begins with one step.</span>
     <small class="author">Lao Tzu</small>
+    <a class="tag">wisdom</a>
 </div>
 </body></html>"""
 
 SAMPLE_QUOTE_DATA = {
+    "quotes": [
+        {
+            "quote": "Life is what happens when you are busy making other plans.",
+            "text": "Life is what happens when you are busy making other plans.",
+            "author": "John Lennon",
+            "tags": ["life", "inspirational"]
+        },
+        {
+            "quote": "The journey of a thousand miles begins with one step.",
+            "text": "The journey of a thousand miles begins with one step.",
+            "author": "Lao Tzu",
+            "tags": ["wisdom"]
+        }
+    ],
     "quote": "Life is what happens when you are busy making other plans.",
     "text": "Life is what happens when you are busy making other plans.",
     "author": "John Lennon",
+    "tags": ["life", "inspirational"],
     "completion": "Life is what happens when you are busy making other plans. - John Lennon"
 }
 
 SAMPLE_QUOTE_JSON = json.dumps(SAMPLE_QUOTE_DATA)
 
-LLM_PAYLOAD = {
-    'id': 'chatcmpl-mock',
-    'object': 'chat.completion',
-    'text': "Life is what happens when you are busy making other plans.",
-    'author': "John Lennon",
-    'quote': "Life is what happens when you are busy making other plans.",
-    'choices': [
-        {
-            'text': SAMPLE_QUOTE_JSON,
-            'message': {'role': 'assistant', 'content': SAMPLE_QUOTE_JSON}
-        }
-    ]
-}
-
 class MockHTTPResponse:
-    def __init__(self, text, json_data=None, status_code=200):
-        self.text = text
-        self._json_data = json_data if json_data is not None else {}
+    def __init__(self, data_dict_or_text, status_code=200):
+        if isinstance(data_dict_or_text, dict):
+            self._json_data = data_dict_or_text
+            self.text = json.dumps(data_dict_or_text)
+        else:
+            self.text = str(data_dict_or_text)
+            try:
+                self._json_data = json.loads(self.text)
+            except:
+                self._json_data = {}
         self.status_code = status_code
-        self.content = text.encode('utf-8')
+        self.content = self.text.encode('utf-8')
     def json(self):
         return self._json_data
     def raise_for_status(self):
@@ -460,7 +471,7 @@ class MockHTTPResponse:
             raise Exception(f"HTTP {self.status_code} Error")
 
 def mock_get(url, *args, **kwargs):
-    return MockHTTPResponse(SAMPLE_QUOTES_HTML, [SAMPLE_QUOTE_DATA])
+    return MockHTTPResponse(SAMPLE_QUOTES_HTML)
 
 def mock_post(url, *args, **kwargs):
     headers = kwargs.get('headers') or {}
@@ -472,7 +483,66 @@ def mock_post(url, *args, **kwargs):
             raise ValueError("OpenAI API requires 'Authorization: Bearer <token>' header, not HTTP Basic Auth (auth=...)")
         if auth_header and not auth_header.startswith('Bearer '):
             raise ValueError(f"OpenAI API requires Bearer authentication, got: {auth_header[:15]}")
-    return MockHTTPResponse(json.dumps(LLM_PAYLOAD), LLM_PAYLOAD)
+
+    json_payload = kwargs.get('json') or {}
+    if not json_payload and kwargs.get('data'):
+        try:
+            json_payload = json.loads(kwargs.get('data'))
+        except:
+            pass
+
+    model_name = str(json_payload.get('model') or '')
+    url_str = str(url)
+
+    # Respond by endpoint path in real OpenAI formats only (no top-level text/author/quote fields)
+    if '/v1/chat/completions' in url_str:
+        return MockHTTPResponse({
+            'id': 'chatcmpl-mock',
+            'object': 'chat.completion',
+            'created': 1700000000,
+            'model': model_name or 'gpt-4o-mini',
+            'choices': [
+                {
+                    'index': 0,
+                    'message': {
+                        'role': 'assistant',
+                        'content': SAMPLE_QUOTE_JSON
+                    },
+                    'finish_reason': 'stop'
+                }
+            ],
+            'usage': {'prompt_tokens': 10, 'completion_tokens': 15, 'total_tokens': 25}
+        })
+    elif '/v1/completions' in url_str:
+        # Check if caller used a chat-only model with legacy completions
+        chat_models = ['gpt-4', 'gpt-3.5-turbo', 'o1', 'o3']
+        if any(cm in model_name.lower() for cm in chat_models) and 'instruct' not in model_name.lower():
+            raise ValueError(f"OpenAI API Error: The model '{model_name}' is not supported by /v1/completions. This is a chat model; use /v1/chat/completions instead.")
+        return MockHTTPResponse({
+            'id': 'cmpl-mock',
+            'object': 'text_completion',
+            'created': 1700000000,
+            'model': model_name or 'gpt-3.5-turbo-instruct',
+            'choices': [
+                {
+                    'index': 0,
+                    'text': SAMPLE_QUOTE_JSON,
+                    'finish_reason': 'stop'
+                }
+            ],
+            'usage': {'prompt_tokens': 10, 'completion_tokens': 15, 'total_tokens': 25}
+        })
+    else:
+        # Generic OpenAI-compatible default
+        return MockHTTPResponse({
+            'id': 'mock-completion',
+            'choices': [
+                {
+                    'message': {'role': 'assistant', 'content': SAMPLE_QUOTE_JSON},
+                    'text': SAMPLE_QUOTE_JSON
+                }
+            ]
+        })
 
 try:
     import requests
@@ -493,8 +563,22 @@ try:
 
     def mock_urlopen(url_or_req, *a, **kw):
         url = url_or_req.get_full_url() if hasattr(url_or_req, 'get_full_url') else str(url_or_req)
-        if 'openai' in url or 'completions' in url:
-            return MockUrllibResponse(json.dumps(LLM_PAYLOAD).encode('utf-8'))
+        if '/v1/chat/completions' in url:
+            resp_data = {
+                'id': 'chatcmpl-mock',
+                'object': 'chat.completion',
+                'created': 1700000000,
+                'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': SAMPLE_QUOTE_JSON}, 'finish_reason': 'stop'}]
+            }
+            return MockUrllibResponse(json.dumps(resp_data).encode('utf-8'))
+        elif '/v1/completions' in url:
+            resp_data = {
+                'id': 'cmpl-mock',
+                'object': 'text_completion',
+                'created': 1700000000,
+                'choices': [{'index': 0, 'text': SAMPLE_QUOTE_JSON, 'finish_reason': 'stop'}]
+            }
+            return MockUrllibResponse(json.dumps(resp_data).encode('utf-8'))
         return MockUrllibResponse(SAMPLE_QUOTES_HTML.encode('utf-8'))
 
     urllib.request.urlopen = mock_urlopen
@@ -534,12 +618,13 @@ exec(compile(script_content, target_script, 'exec'), globs)
   } catch (err) {
     const stdout = err.stdout ? err.stdout.toString().trim().slice(0, 300) : '';
     const stderr = err.stderr ? err.stderr.toString().trim().slice(0, 300) : err.message;
+    const cleanStderr = stderr.split('\n').map(l => l.trim()).filter(Boolean).pop() || stderr;
     return {
       executed: true,
       mode: needsNetwork || needsKeys ? 'mocked_network' : 'local_scratch',
       exitCode: typeof err.status === 'number' ? err.status : 1,
       stdout,
-      stderr: stderr.split('\n').pop() || stderr,
+      stderr: cleanStderr,
       passed: false
     };
   } finally {
@@ -626,21 +711,63 @@ function verifyCode({ prompt, code, language = null, scratchDir = null }) {
     }
   }
 
-  // 6. Pydantic validation of LLM output check (if requested)
+  // 6. Endpoint / model compatibility check & real format parsing check
+  let endpointModelValid = true;
+  let responseParsingValid = true;
+  const callsApi = /\b(?:https?:\/\/api\.openai\.com|completions)\b/i.test(code);
+  if (callsApi) {
+    const callsLegacyCompletions = /\/v1\/completions\b(?!\/chat)/.test(code);
+    const callsChatCompletions = /\/v1\/chat\/completions\b/.test(code);
+    const usesChatOnlyModel = /\b(gpt-4o|gpt-4o-mini|gpt-4-turbo|gpt-4(?!-instruct)|gpt-3\.5-turbo(?!-instruct)|o1|o3)\b/i.test(code);
+
+    if (callsLegacyCompletions && !callsChatCompletions && usesChatOnlyModel) {
+      endpointModelValid = false;
+      checksTotal++;
+      failures.push("Endpoint/model mismatch: /v1/completions does not support chat models (e.g. gpt-4o/gpt-4o-mini). Use /v1/chat/completions instead.");
+    }
+
+    if (callsChatCompletions) {
+      checksTotal++;
+      const parsesChatMessageContent = /choices.*?message.*?content/i.test(code);
+      if (!parsesChatMessageContent) {
+        responseParsingValid = false;
+        failures.push("Response parsing mismatch: /v1/chat/completions response must be parsed via ['choices'][0]['message']['content'] before Pydantic validation.");
+      } else {
+        checksPassed++;
+      }
+    } else if (callsLegacyCompletions) {
+      checksTotal++;
+      const parsesLegacyText = /choices.*?text/i.test(code);
+      if (!parsesLegacyText) {
+        responseParsingValid = false;
+        failures.push("Response parsing mismatch: /v1/completions response must be parsed via ['choices'][0]['text'] before Pydantic validation.");
+      } else {
+        checksPassed++;
+      }
+    }
+  }
+
+  // 7. Pydantic validation of LLM output check (if requested)
   let pydanticValidationPassed = true;
   if (constraints.requiredLibraries.includes('pydantic') && /\b(?:llm|api|completion|validated\s+json)\b/i.test(prompt)) {
     checksTotal++;
     const hasValidationMethod = /\b(?:model_validate_json|model_validate|parse_raw|parse_obj)\b/.test(code) ||
-      /\b[A-Z]\w*\s*\(\s*(?:(?:\*\*)?(?:res|data|resp|completion|item|quote|json\.loads)|(?:text|completion|content)\s*=)/.test(code);
-    if (hasValidationMethod) {
+      /\b[A-Z]\w*\s*\(\s*(?:(?:\*\*)?(?:json\.loads)|(?:text|completion|content)\s*=)/.test(code);
+    const passesRawResponseDict = /\b[A-Z]\w*\s*\(\s*\*\*(?:response|res|resp|r)\s*(?:\.json\(\))?\s*\)/.test(code);
+
+    if (hasValidationMethod && !passesRawResponseDict && responseParsingValid) {
       checksPassed++;
     } else {
       pydanticValidationPassed = false;
-      failures.push("LLM output is not validated into a Pydantic model (e.g. Model.model_validate_json(...) or Model(**json.loads(...)))");
+      if (passesRawResponseDict) {
+        failures.push("Invalid Pydantic validation: Passed raw HTTP response dictionary directly to Pydantic model. Must parse choices[0].message.content into Model.model_validate_json(...) or Model(**json.loads(...)).");
+      } else {
+        failures.push("LLM output is not validated into a Pydantic model (e.g. Model.model_validate_json(completion_text) or Model(**json.loads(completion_text)))");
+      }
     }
   }
 
-  // 7. Execution check (mocked network or local scratch)
+  // 8. Execution check (mocked network or local scratch)
   const execution = checkExecution(code, lang, scratchDir);
   if (execution.executed) {
     checksTotal++;
@@ -664,6 +791,8 @@ function verifyCode({ prompt, code, language = null, scratchDir = null }) {
       language: lang,
       imports,
       requiredLibraries: constraints.requiredLibraries,
+      endpointModelValid,
+      responseParsingValid,
       pydanticValidationPassed,
       syntax,
       linter,
@@ -710,9 +839,15 @@ function generateVerificationBlock(metrics) {
       lines.push(`  - Required libraries: Missing ${missing.join(', ')} [FAILED]`);
     }
   }
+  if (metrics.endpointModelValid === false) {
+    lines.push(`  - Endpoint / model compatibility: FAILED (legacy /v1/completions used with chat model)`);
+  }
+  if (metrics.responseParsingValid === false) {
+    lines.push(`  - Response payload parsing: FAILED (did not extract choices[0].message.content for chat completion)`);
+  }
   if (metrics.pydanticValidationPassed !== undefined && metrics.requiredLibraries && metrics.requiredLibraries.includes('pydantic')) {
     const pydStatus = metrics.pydanticValidationPassed ? 'PASSED' : 'FAILED: LLM output not validated into Pydantic model';
-    lines.push(`  - Pydantic schema validation of LLM output: ${pydStatus}`);
+    lines.push(`  - Pydantic schema validation of LLM output (validated against mock): ${pydStatus}`);
   }
 
   // Execution check

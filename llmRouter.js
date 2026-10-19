@@ -15,6 +15,11 @@ const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, ssl: { re
 import { redactSecrets } from './services/secretRedactor.js';
 import { logUsage } from './services/usageTracker.js';
 
+export let lastServedMeta = { model: null, provider: null, latencyMs: null };
+export function getLastServedMeta() {
+  return lastServedMeta;
+}
+
 export function getProviders() {
   const isLocal = (process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'local';
   const freeLLMCloud = (process.env.FREELLMAPI_RENDER_URL || (isLocal ? process.env.FREELLMAPI_BASE_URL : 'https://freellmapi-e17x.onrender.com') || '').replace(/\/+$/, '');
@@ -37,7 +42,7 @@ export function getProviders() {
     {
       name: 'NVIDIA NIM',
       endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions',
-      model: 'meta/llama-3.2-11b-vision-instruct',
+      model: 'google/diffusiongemma-26b-a4b-it',
       apiKey: process.env.NVIDIA_API_KEY
     },
     {
@@ -178,19 +183,20 @@ const traceLocalStorage = require('./src/services/traceStore.js');
           selectedModel = customModel.replace(/^google\//, '');
         }
       } else if (provider.name === 'NVIDIA NIM') {
-        if (customModel.includes('llama-3.1-8b') || customModel.includes('llama-3.2-11b')) {
-          selectedModel = 'meta/llama-3.2-11b-vision-instruct';
-        } else if (customModel.includes('llama-3.3-70b') || customModel.includes('llama-3.2-90b')) {
-          selectedModel = 'meta/llama-3.2-90b-vision-instruct';
-        }
+        selectedModel = 'google/diffusiongemma-26b-a4b-it';
       } else if (provider.name === 'Groq') {
-        if (customModel.includes('llama-3.3-70b')) {
-          selectedModel = 'openai/gpt-oss-120b';
-        }
+        selectedModel = 'openai/gpt-oss-120b';
       } else if (provider.name === 'Kimi K2') {
         selectedModel = customModel.includes('kimi') ? customModel : 'kimi-k2-0905';
       }
     }
+
+    // Policy rule: NEVER use llama-3.2-11b-vision for chat or code
+    if (selectedModel && selectedModel.includes('llama-3.2-11b-vision')) {
+      console.warn(`[LLM Router Policy] Blocked ${selectedModel} for chat/code. Falling back to google/diffusiongemma-26b-a4b-it.`);
+      selectedModel = 'google/diffusiongemma-26b-a4b-it';
+    }
+
     let attempts = 0;
     const maxAttempts = 3;
     let success = false;
@@ -250,7 +256,9 @@ const traceLocalStorage = require('./src/services/traceStore.js');
         }
 
         const latencyMs = Date.now() - startProviderTime;
+        lastServedMeta = { model: selectedModel, provider: provider.name, latencyMs };
         console.log(`[LLM Router Timing] Served by ${provider.name} (${selectedModel}) in ${latencyMs}ms`);
+        console.log(`[Server Log] Reply served | Model: ${selectedModel} | Provider: ${provider.name} | Latency: ${latencyMs}ms`);
         if (process.env.DEBUG_LLM) { console.log('[Telemetry] Final options:', options); } else { console.log(`[Telemetry] Model: ${selectedModel}, Latency: ${latencyMs}ms`); }
         console.log("[Telemetry] Executing model_runs insert, traceId:", localTraceId, "userId:", localUserId);
         if (localTraceId && localUserId && localUserId !== '00000000-0000-0000-0000-000000000000') {
