@@ -39,9 +39,13 @@ async function runPhase8aTests() {
   console.log(`[TEST 1 Syntax Check] ${syntax1.tool} passed: ${syntax1.passed}`);
   assert.strictEqual(syntax1.passed, true, `py_compile must pass on generated code: ${syntax1.error || ''}`);
 
-  // Verification block presence and no leak check
+  // Verification block presence, static-only disclaimer, pyflakes, mocked execution, and no leak check
   assert(res1.reply.includes('### Verification'), 'Test 1 reply must end with a ### Verification block');
   assert(res1.reply.includes(`Line count: ${lineCount1} lines`), 'Verification block must report exact measured line count');
+  assert(res1.reply.includes('Static checks only:'), 'Verification block must explicitly state "Static checks only"');
+  assert(res1.reply.includes('pyflakes'), 'Verification block must verify pyflakes');
+  assert(res1.reply.includes('Mocked-network run'), 'Verification block must report mocked-network run');
+  assert(res1.reply.includes('Live external endpoints: NOT INVOKED'), 'Verification block must confirm live endpoints were not invoked');
   assert.strictEqual(hasInternalLeak(res1.reply), false, 'Test 1 reply must contain no internal status/route leaks');
 
   console.log('\n--- FULL RAW REPLY TEXT FROM TEST 1 ---');
@@ -63,6 +67,7 @@ async function runPhase8aTests() {
   assert(res2.reply.includes('### Verification'), 'Test 2 reply must end with a ### Verification block');
 
   // Check that it honestly reports that it could not meet the 10-line constraint
+  console.log('[TEST 2 DEBUG REPLY]:', JSON.stringify(res2.reply));
   const codeMatch2 = res2.reply.match(/```(?:python)?\s*\n([\s\S]*?)```/i);
   assert(codeMatch2, 'Test 2 reply must contain a code block');
   const lineCount2 = codeVerifier.countCodeLines(codeMatch2[1], 'python');

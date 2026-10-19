@@ -631,9 +631,14 @@ async function codeAnswer(userMessage, userContext = { safeUser: 'guest', isAdmi
 Strictly adhere to the following rules:
 1. REQUIREMENTS: Satisfy every single requirement stated by the user (including libraries such as pydantic, APIs, data schemas, line limits, and logic).
 2. NO PLACEHOLDERS: Do NOT use placeholder URLs (like example.com) or dummy selectors unless explicitly asked. Use real public practice targets when a demo or web scraping target is needed (e.g. https://quotes.toscrape.com with selector "div.quote span.text" or https://books.toscrape.com with selector "article.product_pod"). When scraping HTML pages, parse with BeautifulSoup (bs4) or html.parser.
-3. ASSUMPTIONS NOTE: Include a single concise one-line assumptions note (e.g. "Assumptions: Target page is https://quotes.toscrape.com and OPENAI_API_KEY is available in the environment.").
-4. NO FILLER: Do not include introductory conversational filler, pleasantries, or verbose walkthroughs. Focus directly on concise, idiomatic, runnable code.
-5. CODE FORMAT: Return the complete implementation in a fenced markdown code block with the appropriate language identifier (e.g. \`\`\`python ... \`\`\`). Keep non-blank, non-comment lines strictly within any requested line limits.`;
+3. LLM API CALLS & PYDANTIC VALIDATION:
+   - When calling OpenAI / LLM endpoints via HTTP requests, use Bearer authentication header: {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}. Never use basic auth.
+   - Always include the "model" parameter in the JSON payload (e.g. "model": "gpt-4o-mini").
+   - Parse and validate the LLM's response JSON into a Pydantic model using Model.model_validate_json(completion_text) or Model(**json.loads(completion_text)).
+4. NO UNUSED CODE: Do NOT define unused function parameters or unused variables. If a parameter is declared in a helper function, use it directly. Do not import unused modules.
+5. ASSUMPTIONS NOTE: Include a single concise one-line assumptions note before the code block (e.g. "Assumptions: Target page is https://quotes.toscrape.com and OPENAI_API_KEY is available in the environment.").
+6. NO FILLER: Absolutely NO conversational commentary, pleasantries, introductory text, explanations, or post-code summary paragraphs. Return ONLY the one-line assumptions note and the fenced code block.
+7. CODE FORMAT: Return the complete implementation in a fenced markdown code block with the appropriate language identifier (e.g. \`\`\`python\n...\n\`\`\`). Every statement, import, class, and function must be on its own separate line following standard formatting (PEP 8 for Python). NEVER compress multiple statements onto a single line, and NEVER concatenate lines or omit newlines to game line limits. If a requested line limit cannot be met because the problem requires more lines, write properly-formatted code — the verifier will measure the exact line count and report it honestly.`;
 
   const messages = [
     ...historyMsgs,
@@ -650,19 +655,49 @@ Strictly adhere to the following rules:
       timeoutMs: 45000
     });
   } catch (err) {
-    console.warn('[Code Routing] Code generation error:', err.message);
-    reply = "Ghost could not generate code in time. Please try again.";
+    console.warn('[Code Routing] Code generation initial attempt error:', err.message, 'Retrying once...');
+    try {
+      reply = await chat(messages, {
+        traceId: userContext.traceId,
+        userId: userContext.userId,
+        systemPrompt,
+        maxTokens: 1500,
+        timeoutMs: 45000
+      });
+    } catch (retryErr) {
+      console.warn('[Code Routing] Code generation retry error:', retryErr.message);
+      reply = '';
+    }
   }
 
   function extractCodeBlock(rawText) {
     if (!rawText || typeof rawText !== 'string') return { code: '', language: 'python' };
-    const match = rawText.match(/```([a-zA-Z0-9_\-\+]*)\s*\n([\s\S]*?)```/);
-    if (match) {
-      const lang = (match[1] || 'python').trim().toLowerCase();
-      const code = match[2].trim();
-      return { code, language: lang || 'python' };
+    
+    // Find all fenced code blocks in rawText
+    const fenceRegex = /```([a-zA-Z0-9_\-\+]*)\s*\n([\s\S]*?)(?:```|$)/g;
+    let m;
+    const candidates = [];
+    while ((m = fenceRegex.exec(rawText)) !== null) {
+      const lang = (m[1] || 'python').trim().toLowerCase();
+      const code = m[2].trim();
+      if (code) {
+        candidates.push({ code, language: lang || 'python' });
+      }
     }
-    return { code: rawText.trim(), language: 'python' };
+
+    if (candidates.length > 0) {
+      // Pick the candidate with the most lines / substantive code
+      candidates.sort((a, b) => b.code.split('\n').length - a.code.split('\n').length);
+      return candidates[0];
+    }
+
+    // Fallback: match any ```...``` block
+    const fallbackMatch = rawText.match(/```([a-zA-Z0-9_\-\+]*)\s*?\n?([\s\S]*?)```/);
+    if (fallbackMatch && fallbackMatch[2].trim()) {
+      return { code: fallbackMatch[2].trim(), language: (fallbackMatch[1] || 'python').trim().toLowerCase() || 'python' };
+    }
+
+    return { code: rawText.replace(/```[a-zA-Z0-9_\-\+]*\s*|\s*```/g, '').trim(), language: 'python' };
   }
 
   let extracted = extractCodeBlock(reply);
@@ -675,14 +710,19 @@ Strictly adhere to the following rules:
   // Step 5: If any constraint or check fails, regenerate ONCE feeding back the exact failures
   if (!verifyResult.passed) {
     console.log('[Code Routing] Initial code failed verification. Regenerating once with feedback:', verifyResult.failures);
-    const feedbackMsg = `Your previous code generation failed verification with the following issues:\n- ${verifyResult.failures.join('\n- ')}\n\nPlease regenerate the complete solution fixing all the issues above. Keep non-blank, non-comment lines strictly within any requested line limits. Provide the one-line assumptions note and the fenced code block only.`;
+    const feedbackMsg = `Your previous code generation failed verification with the following issues:
+- ${verifyResult.failures.join('\n- ')}
+
+Please regenerate the complete solution fixing all the issues above.
+IMPORTANT: Maintain valid PEP 8 formatting with each statement and import on its own separate line. Do NOT combine statements onto a single line or game line limits. If a requested line limit is technically impossible to achieve while fulfilling all requirements, provide the cleanest properly-formatted code possible so the verifier can measure and report the actual line count honestly.
+Provide the one-line assumptions note and the fenced code block only.`;
 
     try {
-      const regenMessages = [
+      const regenMessages = reply && reply.includes('```') ? [
         ...messages,
         { role: 'assistant', content: reply },
         { role: 'user', content: feedbackMsg }
-      ];
+      ] : messages;
 
       const secondReply = await chat(regenMessages, {
         traceId: userContext.traceId,
@@ -699,13 +739,18 @@ Strictly adhere to the following rules:
         language: secondExtracted.language
       });
 
-      if (secondVerifyResult.passed) {
+      const secondHasCodeBlock = secondExtracted && secondExtracted.code && secondExtracted.code.length > 0;
+      const secondLineCount = secondVerifyResult && secondVerifyResult.metrics ? secondVerifyResult.metrics.lineCount : 0;
+      if (secondVerifyResult.passed && secondHasCodeBlock && secondLineCount > 0) {
         reply = secondReply;
+        extracted = secondExtracted;
         verifyResult = secondVerifyResult;
-      } else {
-        // If still failing, pick best version and report honestly
-        if (secondVerifyResult.failures.length <= verifyResult.failures.length) {
+      } else if (secondHasCodeBlock && secondLineCount > 0) {
+        const firstHadSyntaxError = verifyResult.failures.some(f => f.includes('Syntax check failed'));
+        const secondHasSyntaxError = secondVerifyResult.failures.some(f => f.includes('Syntax check failed'));
+        if ((firstHadSyntaxError && !secondHasSyntaxError) || secondVerifyResult.failures.length < verifyResult.failures.length) {
           reply = secondReply;
+          extracted = secondExtracted;
           verifyResult = secondVerifyResult;
         }
       }
@@ -716,6 +761,18 @@ Strictly adhere to the following rules:
 
   // Remove any manual Verification block from reply before appending measured one
   let cleanReply = reply.replace(/#{1,4}\s*Verification[\s\S]*$/i, '').trim();
+
+  // Extract one-line assumptions note (bounded to avoid matching entire blocks if newline was missing)
+  const assumptionsMatch = reply.match(/(?:#\s*)?Assumptions:[^\n]{1,250}/i);
+  const assumptions = assumptionsMatch ? `${assumptionsMatch[0].replace(/^#\s*/, '').trim()}\n\n` : '';
+
+  // Extract clean code without duplicate assumptions comment at the top
+  let finalCode = (extracted && extracted.code) ? extracted.code.trim() : cleanReply.replace(/```[a-zA-Z0-9_\-\+]*\s*|\s*```/g, '').trim();
+  finalCode = finalCode.replace(/^(?:#\s*)?Assumptions:[^\n]*\n?/i, '').trim();
+
+  const lang = (verifyResult && verifyResult.metrics && verifyResult.metrics.language) || (extracted && extracted.language) || 'python';
+  cleanReply = `${assumptions}\`\`\`${lang}\n${finalCode}\n\`\`\``;
+
   const verificationBlock = codeVerifier.generateVerificationBlock(verifyResult.metrics);
   const finalReply = `${cleanReply}\n\n${verificationBlock}`;
 

@@ -22,25 +22,18 @@ export function getProviders() {
   const localSlash = freeLLMLocal.endsWith('/v1') ? '' : '/v1';
 
   const providers = [
-    {
-      name: 'Groq',
-      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-      model: 'openai/gpt-oss-120b',
-      apiKey: process.env.GROQ_API_KEY
-    },
-    ...(freeLLMCloud ? [{
-      name: 'FreeLLMAPI (Render Cloud)',
-      endpoint: `${freeLLMCloud}${freeLLMCloud.endsWith('/v1') ? '' : '/v1'}/chat/completions`,
-      model: 'auto',
-      apiKey: process.env.FREELLMAPI_API_KEY || 'free',
-      timeoutMs: process.env.FREELLMAPI_TIMEOUT_MS ? parseInt(process.env.FREELLMAPI_TIMEOUT_MS, 10) : 8000
-    }] : []),
     ...(isLocal ? [{
       name: 'FreeLLMAPI (Local)',
       endpoint: `${freeLLMLocal}${localSlash}/chat/completions`,
       model: 'auto',
       apiKey: process.env.FREELLMAPI_API_KEY || 'free'
     }] : []),
+    {
+      name: 'Groq',
+      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+      model: 'openai/gpt-oss-120b',
+      apiKey: process.env.GROQ_API_KEY
+    },
     {
       name: 'NVIDIA NIM',
       endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions',
@@ -64,7 +57,14 @@ export function getProviders() {
       endpoint: 'https://api.minimax.io/v1/chat/completions',
       model: 'MiniMax-M3',
       apiKey: process.env.MINIMAX_API_KEY
-    }
+    },
+    ...(freeLLMCloud ? [{
+      name: 'FreeLLMAPI (Render Cloud)',
+      endpoint: `${freeLLMCloud}${freeLLMCloud.endsWith('/v1') ? '' : '/v1'}/chat/completions`,
+      model: 'auto',
+      apiKey: process.env.FREELLMAPI_API_KEY || 'free',
+      timeoutMs: process.env.FREELLMAPI_TIMEOUT_MS ? parseInt(process.env.FREELLMAPI_TIMEOUT_MS, 10) : 8000
+    }] : [])
   ];
 
   if (isLocal) {
