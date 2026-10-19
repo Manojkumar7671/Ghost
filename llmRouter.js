@@ -7,6 +7,8 @@
  * 3. DeepSeek / OpenRouter / Kimi (if keys configured)
  * 4. NVIDIA NIM (Last Resort) (google/diffusiongemma-26b-a4b-it)
  */
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import crypto from 'crypto';
 import pkg from 'pg';
 const { Pool } = pkg;
@@ -52,7 +54,7 @@ export function getProviders(isFastChat = false) {
     endpoint: 'https://api.groq.com/openai/v1/chat/completions',
     model: isFastChat ? 'openai/gpt-oss-20b' : 'openai/gpt-oss-120b',
     apiKey: process.env.GROQ_API_KEY,
-    timeoutMs: 6000
+    timeoutMs: isFastChat ? 6000 : 35000
   });
 
   // Local FreeLLMAPI if in local deployment mode
@@ -134,20 +136,15 @@ export function getProviders(isFastChat = false) {
 export function isValidKey(key) {
   if (!key || typeof key !== 'string') return false;
   const lower = key.trim().toLowerCase();
-  if (lower === '' || lower.startsWith('your_') || lower.startsWith('dummy') || lower.includes('invalid')) {
-    return false;
-  }
-  // Exclude known dead keys to prevent latency overhead
-  const keyHash = crypto.createHash('md5').update(key).digest('hex');
-  if (keyHash === 'b23ae22d91912ece3d633446484ff97b' || keyHash === 'a5c049e911a8def0f7417c849e7b525a') {
+  if (lower === '' || lower.startsWith('your_') || lower.startsWith('dummy') || lower.includes('invalid') || lower === 'unset') {
     return false;
   }
   return true;
 }
 
-// Startup warning for top-priority provider
+// Startup warning for top-priority provider (fires only when key check actually fails)
 if (!isValidKey(process.env.GROQ_API_KEY)) {
-  console.warn('[Startup Warning] Top-priority provider (Groq) key is invalid or revoked. Chat and code will failover to backup providers.');
+  console.warn('[Startup Warning] Top-priority provider (Groq) key is invalid or unset. Chat and code will failover to backup providers.');
 }
 
 export async function callLLM(messages = [], options = {}) {
@@ -252,14 +249,15 @@ export async function callLLM(messages = [], options = {}) {
       selectedModel = 'google/diffusiongemma-26b-a4b-it';
     }
 
-    let effectiveTimeout = provider.timeoutMs || (isNormalChat ? 6000 : (options.timeoutMs || 25000));
-    if (options.timeoutMs && options.timeoutMs < effectiveTimeout) {
-      effectiveTimeout = options.timeoutMs;
-    }
+    let effectiveTimeout = options.timeoutMs || provider.timeoutMs || (isNormalChat ? 6000 : 25000);
 
     let attempt = 0;
     const maxAttempts = 2; // 1 initial attempt + 1 retry on timeout
     let providerSucceeded = false;
+
+    const effectiveMaxTokens = (selectedModel && selectedModel.includes('120b'))
+      ? Math.max(maxTokens, 3500)
+      : maxTokens;
 
     while (attempt < maxAttempts && !providerSucceeded) {
       attempt++;
@@ -278,7 +276,7 @@ export async function callLLM(messages = [], options = {}) {
             model: selectedModel,
             messages: formattedMessages,
             temperature,
-            max_tokens: maxTokens
+            max_tokens: effectiveMaxTokens
           }),
           signal: controller.signal
         });
@@ -311,7 +309,7 @@ export async function callLLM(messages = [], options = {}) {
         }
 
         const content = data.choices?.[0]?.message?.content;
-        if (content === undefined || content === null) {
+        if (content === undefined || content === null || content.trim() === '') {
           fallbacksTried++;
           errors.push(`${provider.name}: Empty content in response payload`);
           break;

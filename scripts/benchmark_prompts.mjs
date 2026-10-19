@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-dotenv.config();
+dotenv.config({ override: true });
 
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);

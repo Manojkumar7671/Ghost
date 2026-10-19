@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import { spawn, spawnSync } from 'child_process';
 import http from 'http';
 

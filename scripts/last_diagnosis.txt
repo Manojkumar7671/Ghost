@@ -3,19 +3,19 @@ LLM PROVIDER DIAGNOSIS & HEALTH AUDIT
 ================================================================
 
 --- PROVIDER PING RESULTS ---
-[Groq] Status: HTTP 401 - Invalid API Key | Model: openai/gpt-oss-120b | Latency: 128ms
-[FreeLLMAPI (Render Cloud)] Status: 200 OK | Model: auto | Latency: 1028ms
-[NVIDIA NIM (Last Resort)] Status: TIMEOUT/ERROR (The operation was aborted due to timeout) | Model: google/diffusiongemma-26b-a4b-it | Latency: 6003ms
+[Groq] Status: 200 OK | Model: openai/gpt-oss-120b | Latency: 1604ms
+[FreeLLMAPI (Render Cloud)] Status: TIMEOUT/ERROR (The operation was aborted due to timeout) | Model: auto | Latency: 6005ms
+[NVIDIA NIM (Last Resort)] Status: 200 OK | Model: google/diffusiongemma-26b-a4b-it | Latency: 753ms
 
 --- GROQ DIAGNOSIS REPORT ---
 - Configured Model: openai/gpt-oss-120b
 - API Key Present: true (gsk_...[MASKED] (length: 56))
-- Key MD5 Hash: b23ae22d91912ece3d633446484ff97b
-- Known Revoked Key Hash: YES (matches b23ae22d91912ece3d633446484ff97b)
-- Serving Status: NOT SERVING
+- Key MD5 Hash: 0343fd2efc19ee5637632560f7eb1b7d
+- Known Revoked Key Hash: NO (new valid key active)
+- Serving Status: SERVING (200 OK, latency: 1604ms)
 - Root Cause Analysis:
-  1. When called directly, Groq endpoint https://api.groq.com/openai/v1/chat/completions returns HTTP 401 Unauthorized: "Invalid API Key".
-  2. In llmRouter.js, this specific dead key's MD5 hash is explicitly blocked by isValidKey() to prevent an unneeded 140ms network failure on every request.
-  3. Model routing policy: When Groq has a valid, active API key, Groq is the first priority provider and serves gpt-oss-120b. When Groq is unhealthy/revoked, fast failover immediately routes to FreeLLMAPI auto without network delay.
+  1. Dotenv load order: server.js loaded .env using dotenv.config({ override: true }), picking up the newly configured GROQ_API_KEY from disk. In contrast, test and benchmark scripts did not specify override: true, leaving stale or revoked environment variables from the parent shell active.
+  2. Revoked-hash check: llmRouter.js had a hardcoded hash check for the previous revoked key. Now that the key has been replaced and dotenv loads with override: true across all entry points, Groq returns 200 OK.
+  3. Model routing policy: Groq openai/gpt-oss-120b is now the healthy top-priority provider and serves reasoning, chat, and code with low latency.
 ================================================================
 

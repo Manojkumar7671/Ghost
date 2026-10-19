@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import assert from 'assert';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);

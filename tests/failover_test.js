@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import assert from 'assert';
 import { callLLM, cooldownMap, isProviderCoolingDown } from '../llmRouter.js';
 

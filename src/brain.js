@@ -654,7 +654,7 @@ Strictly adhere to the following rules:
       traceId: userContext.traceId,
       userId: userContext.userId,
       systemPrompt,
-      maxTokens: 1500,
+      maxTokens: 3500,
       timeoutMs: 45000
     });
   } catch (err) {
@@ -664,7 +664,7 @@ Strictly adhere to the following rules:
         traceId: userContext.traceId,
         userId: userContext.userId,
         systemPrompt,
-        maxTokens: 1500,
+        maxTokens: 3500,
         timeoutMs: 45000
       });
     } catch (retryErr) {
@@ -747,7 +747,7 @@ Provide the one-line assumptions note and the fenced code block only.`;
         traceId: userContext.traceId,
         userId: userContext.userId,
         systemPrompt,
-        maxTokens: 1500,
+        maxTokens: 3500,
         timeoutMs: 45000
       });
 

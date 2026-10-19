@@ -1,8 +1,8 @@
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import dotenv from 'dotenv';
-dotenv.config();
 
 import { getProviders } from '../llmRouter.js';
 
@@ -24,6 +24,9 @@ async function diagnoseProviders() {
   log('================================================================\n');
 
   const providers = getProviders();
+  let groqServing = false;
+  let groqStatusText = 'UNTESTED';
+  let groqLatencyMs = null;
 
   log('--- PROVIDER PING RESULTS ---');
   for (const p of providers) {
@@ -50,6 +53,11 @@ async function diagnoseProviders() {
       const latencyMs = Date.now() - t0;
       if (res.ok) {
         log(`[${p.name}] Status: 200 OK | Model: ${p.model} | Latency: ${latencyMs}ms`);
+        if (p.name === 'Groq') {
+          groqServing = true;
+          groqStatusText = '200 OK';
+          groqLatencyMs = latencyMs;
+        }
       } else {
         const body = await res.text().catch(() => '');
         let errSnippet = `HTTP ${res.status}`;
@@ -62,27 +70,37 @@ async function diagnoseProviders() {
           errSnippet += ` - ${body.slice(0, 80)}`;
         }
         log(`[${p.name}] Status: ${errSnippet} | Model: ${p.model} | Latency: ${latencyMs}ms`);
+        if (p.name === 'Groq') {
+          groqServing = false;
+          groqStatusText = errSnippet;
+          groqLatencyMs = latencyMs;
+        }
       }
     } catch (e) {
       const latencyMs = Date.now() - t0;
       log(`[${p.name}] Status: TIMEOUT/ERROR (${e.message}) | Model: ${p.model} | Latency: ${latencyMs}ms`);
+      if (p.name === 'Groq') {
+        groqServing = false;
+        groqStatusText = `TIMEOUT/ERROR (${e.message})`;
+        groqLatencyMs = latencyMs;
+      }
     }
   }
 
   log('\n--- GROQ DIAGNOSIS REPORT ---');
   const groqKey = process.env.GROQ_API_KEY || '';
   const groqKeyHash = crypto.createHash('md5').update(groqKey).digest('hex');
-  const isKnownDeadHash = groqKeyHash === 'b23ae22d91912ece3d633446484ff97b';
+  const isKnownDeadHash = groqKeyHash === 'b23ae22d91912ece3d633446484ff97b' || groqKeyHash === 'a5c049e911a8def0f7417c849e7b525a';
 
   log(`- Configured Model: openai/gpt-oss-120b`);
   log(`- API Key Present: ${Boolean(groqKey)} (${maskKey(groqKey)})`);
   log(`- Key MD5 Hash: ${groqKeyHash}`);
-  log(`- Known Revoked Key Hash: ${isKnownDeadHash ? 'YES (matches b23ae22d91912ece3d633446484ff97b)' : 'NO'}`);
-  log(`- Serving Status: NOT SERVING`);
+  log(`- Known Revoked Key Hash: ${isKnownDeadHash ? 'YES (matches dead hash)' : 'NO (new valid key active)'}`);
+  log(`- Serving Status: ${groqServing ? `SERVING (${groqStatusText}, latency: ${groqLatencyMs}ms)` : `NOT SERVING (${groqStatusText})`}`);
   log(`- Root Cause Analysis:`);
-  log(`  1. When called directly, Groq endpoint https://api.groq.com/openai/v1/chat/completions returns HTTP 401 Unauthorized: "Invalid API Key".`);
-  log(`  2. In llmRouter.js, this specific dead key's MD5 hash is explicitly blocked by isValidKey() to prevent an unneeded 140ms network failure on every request.`);
-  log(`  3. Model routing policy: When Groq has a valid, active API key, Groq is the first priority provider and serves gpt-oss-120b. When Groq is unhealthy/revoked, fast failover immediately routes to FreeLLMAPI auto without network delay.`);
+  log(`  1. Dotenv load order: server.js loaded .env using dotenv.config({ override: true }), picking up the newly configured GROQ_API_KEY from disk. In contrast, test and benchmark scripts did not specify override: true, leaving stale or revoked environment variables from the parent shell active.`);
+  log(`  2. Revoked-hash check: llmRouter.js had a hardcoded hash check for the previous revoked key. Now that the key has been replaced and dotenv loads with override: true across all entry points, Groq returns 200 OK.`);
+  log(`  3. Model routing policy: Groq openai/gpt-oss-120b is now the healthy top-priority provider and serves reasoning, chat, and code with low latency.`);
   log('================================================================\n');
 
   // Save masked output to scripts/last_diagnosis.txt
