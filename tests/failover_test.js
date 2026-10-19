@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 dotenv.config({ override: true });
 import assert from 'assert';
-import { callLLM, cooldownMap, isProviderCoolingDown } from '../llmRouter.js';
+import { callLLM, cooldownMap, isProviderCoolingDown, parseRetryDurationMs } from '../llmRouter.js';
 
 async function runFailoverTests() {
   console.log('================================================================');
@@ -328,6 +328,76 @@ async function runFailoverTests() {
     assert.strictEqual(retryAttemptCount, 2, 'Provider must have been retried once upon timeout');
     assert.strictEqual(isProviderCoolingDown('ProviderRetry'), false, 'Provider must NOT be in cooldown after successful retry');
     console.log('✅ TEST 5 PASSED: Timeout retried once and succeeded without cooldown.\n');
+
+    // -------------------------------------------------------------------------
+    // TEST 6: 429 Retry-After parsing and dynamic cooldown duration
+    // -------------------------------------------------------------------------
+    console.log('[TEST 6] Testing 429 Retry-After parsing and dynamic cooldown duration...');
+
+    // Unit assertion for header parsing
+    const mockHeaders = new Headers({ 'retry-after': '12' });
+    const parsedHeaderMs = parseRetryDurationMs({ headers: mockHeaders }, '');
+    assert.strictEqual(parsedHeaderMs, 12000, 'Header "retry-after: 12" must yield 12000ms');
+
+    // Unit assertion for body parsing
+    const mockBodyText = 'Rate limit reached for model in org. Please try again in 14.5s.';
+    const parsedBodyMs = parseRetryDurationMs(null, mockBodyText);
+    assert.strictEqual(parsedBodyMs, 14500, 'Body "try again in 14.5s" must yield 14500ms');
+
+    // End-to-end provider fallback on 429 with Retry-After header
+    globalThis.fetch = async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes('mock-provider-429-retry')) {
+        return {
+          ok: false,
+          status: 429,
+          statusText: 'Too Many Requests',
+          headers: new Headers({ 'retry-after': '8' }),
+          text: async () => 'Rate limit exceeded: Please try again in 8s'
+        };
+      }
+      if (urlStr.includes('mock-provider-backup')) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => ({
+            choices: [{ message: { role: 'assistant', content: 'Backup provider served response' } }]
+          })
+        };
+      }
+      return originalFetch(url);
+    };
+
+    const retryAfterProviders = [
+      {
+        name: 'Provider429Retry',
+        endpoint: 'https://mock-provider-429-retry.internal/v1/chat/completions',
+        model: 'mock-429-model',
+        apiKey: 'test-key-429',
+        timeoutMs: 100
+      },
+      {
+        name: 'ProviderBackup',
+        endpoint: 'https://mock-provider-backup.internal/v1/chat/completions',
+        model: 'mock-backup-model',
+        apiKey: 'test-key-backup',
+        timeoutMs: 100
+      }
+    ];
+
+    const reply429 = await callLLM([{ role: 'user', content: 'test 429 cooldown' }], {
+      providers: retryAfterProviders,
+      isFastChat: true
+    });
+
+    assert.strictEqual(reply429, 'Backup provider served response');
+    const cd429Until = cooldownMap.get('Provider429Retry');
+    assert(cd429Until, 'Provider429Retry must be marked cooling down');
+    const duration = cd429Until - Date.now();
+    assert(duration >= 7000 && duration <= 8500, `Cooldown duration (${duration}ms) must match Retry-After ~8000ms`);
+    console.log(`[TEST 6] Measured cooldown duration: ${duration}ms (matches Retry-After ~8000ms)`);
+    console.log('✅ TEST 6 PASSED: 429 Retry-After correctly parsed and cooled down.\n');
 
     console.log('================================================================');
     console.log('🎉 ALL FAILOVER AND COOLDOWN TESTS PASSED!');

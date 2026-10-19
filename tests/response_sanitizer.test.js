@@ -98,6 +98,47 @@ function runTests() {
   assert.strictEqual(hasInternalLeak(fpMsg4), false, 'Combined sentence with orchestrator, workspace, dossier must not trigger leak detector');
   assert.strictEqual(sanitizeResponseText(fpMsg4), fpMsg4, 'Combined sentence must pass unchanged');
 
+  // Test 11: Preservation of newlines, numbered list, Markdown table, heading, and code fences
+  const formattedContent = `# System Architecture
+
+Here is the breakdown of components:
+
+1. Ingestion Pipeline
+   - Raw data parser
+   - Event normalizer
+2. Execution Engine
+   - Worker pool
+   - Distributed scheduler
+3. Telemetry Store
+   - Metrics aggregator
+
+| Component | Status | Latency |
+| :--- | :--- | :--- |
+| Gateway | Healthy | 12ms |
+| Brain Engine | Active | 45ms |
+| Vector Cache | Online | 8ms |
+
+\`\`\`python
+def execute_task(task_id: str) -> bool:
+    # Run task and report status
+    return True
+\`\`\``;
+
+  const sanitizedFormatted = sanitizeResponseText(formattedContent);
+  assert.strictEqual(
+    sanitizedFormatted,
+    formattedContent,
+    'Sanitizer must preserve exact line breaks, headings, numbered lists, tables, and code fences without collapsing whitespace'
+  );
+
+  // Assert line counts and exact line breaks
+  const originalLines = formattedContent.split('\n');
+  const sanitizedLines = sanitizedFormatted.split('\n');
+  assert.strictEqual(sanitizedLines.length, originalLines.length, 'Line count must be identical');
+  for (let i = 0; i < originalLines.length; i++) {
+    assert.strictEqual(sanitizedLines[i], originalLines[i], `Line ${i + 1} must match exactly`);
+  }
+
   console.log('✅ ALL RESPONSE SANITIZER TESTS PASSED.');
 }
 

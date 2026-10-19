@@ -629,24 +629,28 @@ async function codeAnswer(userMessage, userContext = { safeUser: 'guest', isAdmi
 
   const systemPrompt = `You are Ghost, an expert coding assistant specializing in production-ready, verified code.
 Strictly adhere to the following rules:
-1. REQUIREMENTS: Satisfy every single requirement stated by the user (including libraries such as pydantic, APIs, data schemas, line limits, and logic). Keep code clean, modular, and concise so it comfortably fits within any specified line limits (e.g. write 35-42 lines when a 50-line limit is requested).
-2. NO PLACEHOLDERS: Do NOT use placeholder URLs (like example.com) or dummy selectors unless explicitly asked. Use real public practice targets when a demo or web scraping target is needed (e.g. https://quotes.toscrape.com with selector "div.quote span.text" or https://books.toscrape.com with selector "article.product_pod"). When scraping HTML pages, parse with BeautifulSoup (bs4) or html.parser.
-3. LLM API CALLS & PYDANTIC VALIDATION:
+1. REQUIREMENTS & EXECUTABLE CODE: You MUST ALWAYS output a fenced Python code block with real, valid, executable Python code implementing the requested features (e.g. scraping, web server, ML model, LLM API call, Pydantic validation). NEVER output an empty code block, NEVER refuse the request, and NEVER output only assumptions text. Keep code clean, modular, and concise so it comfortably fits within any specified line limits (e.g. write 35-42 lines when a 50-line limit is requested).
+2. IMPOSSIBLE LINE LIMITS: If a requested line limit (such as 10 lines) is impossible to achieve while fulfilling all requirements, DO NOT REFUSE AND DO NOT GIVE UP — write the full, properly-formatted PEP 8 implementation anyway (e.g. 35-45 lines). Never compress multiple statements onto a single line. The automated verifier will measure the exact line count and report the limit violation honestly.
+3. NO PLACEHOLDERS: Do NOT use placeholder URLs (like example.com) or dummy selectors unless explicitly asked. Use real public practice targets when a demo or web scraping target is needed (e.g. https://quotes.toscrape.com with selector "div.quote span.text" or https://books.toscrape.com with selector "article.product_pod"). When scraping HTML pages, parse with BeautifulSoup (bs4) or html.parser.
+4. LLM API CALLS & PYDANTIC VALIDATION:
    - Call the chat completions endpoint: https://api.openai.com/v1/chat/completions (do NOT use legacy /v1/completions with chat models like gpt-4o/gpt-4o-mini).
    - Use Bearer authentication header: {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}. Never use basic auth.
    - Always include the "model" parameter (e.g. "model": "gpt-4o-mini") and "messages" array (e.g. [{"role": "user", "content": prompt}]) in the JSON payload.
    - Parse the chat completion message content: completion_text = response.json()['choices'][0]['message']['content'].
    - Validate and parse completion_text into the Pydantic model: Model.model_validate_json(completion_text) or Model(**json.loads(completion_text)). Never pass the raw API response dictionary directly into the Pydantic model.
    - For quotes or page scraping tasks, define a concise model with string fields (e.g. class QuoteModel(BaseModel): quote: str, author: str) and prompt the LLM to return JSON with matching keys.
-4. NO UNUSED CODE: Do NOT define unused function parameters or unused variables. If a parameter is declared in a helper function, use it directly. Do not import unused modules.
-5. ASSUMPTIONS NOTE: Include a single concise one-line assumptions note before the code block (e.g. "Assumptions: Target page is https://quotes.toscrape.com and OPENAI_API_KEY is available in the environment.").
-6. NO FILLER: Absolutely NO conversational commentary, pleasantries, introductory text, explanations, or post-code summary paragraphs. Return ONLY the one-line assumptions note and the fenced code block.
-7. CODE FORMAT: Return the complete implementation in a fenced markdown code block with the appropriate language identifier (e.g. \`\`\`python\n...\n\`\`\`). Always output real, valid, executable code — NEVER refuse the request, and NEVER put conversational refusal text or explanations inside code blocks. Every statement, import, class, and function must be on its own separate line following standard formatting (PEP 8 for Python). NEVER compress multiple statements onto a single line, and NEVER concatenate lines or omit newlines to game line limits. If a requested line limit cannot be met because the problem requires more lines, write properly-formatted code anyway — the verifier will measure the exact line count and report it honestly.`;
+5. NO UNUSED CODE: Do NOT define unused function parameters or unused variables. If a parameter is declared in a helper function, use it directly. Do not import unused modules.
+6. ASSUMPTIONS NOTE: Include a single concise one-line assumptions note before the code block (e.g. "Assumptions: Target page is https://quotes.toscrape.com and OPENAI_API_KEY is available in the environment.").
+7. NO FILLER: Absolutely NO conversational commentary, pleasantries, introductory text, explanations, or post-code summary paragraphs. Return ONLY the one-line assumptions note and the fenced code block.
+8. CODE FORMAT: Return the complete implementation in a fenced markdown code block with the appropriate language identifier (e.g. \`\`\`python\n...\n\`\`\`). Every statement, import, class, and function must be on its own separate line following standard formatting (PEP 8 for Python). NEVER compress multiple statements onto a single line, and NEVER concatenate lines or omit newlines to game line limits.`;
 
   const messages = [
     ...historyMsgs,
     { role: 'user', content: cleanPrompt }
   ];
+
+  const codeTurnStart = Date.now();
+  const CODE_TURN_DEADLINE_MS = 20000;
 
   let reply = '';
   try {
@@ -654,21 +658,28 @@ Strictly adhere to the following rules:
       traceId: userContext.traceId,
       userId: userContext.userId,
       systemPrompt,
-      maxTokens: 3500,
-      timeoutMs: 45000
+      maxTokens: 1400,
+      timeoutMs: 10000,
+      isCode: true
     });
   } catch (err) {
     console.warn('[Code Routing] Code generation initial attempt error:', err.message, 'Retrying once...');
-    try {
-      reply = await chat(messages, {
-        traceId: userContext.traceId,
-        userId: userContext.userId,
-        systemPrompt,
-        maxTokens: 3500,
-        timeoutMs: 45000
-      });
-    } catch (retryErr) {
-      console.warn('[Code Routing] Code generation retry error:', retryErr.message);
+    const remainingForRetry = CODE_TURN_DEADLINE_MS - (Date.now() - codeTurnStart);
+    if (remainingForRetry > 3000) {
+      try {
+        reply = await chat(messages, {
+          traceId: userContext.traceId,
+          userId: userContext.userId,
+          systemPrompt,
+          maxTokens: 1400,
+          timeoutMs: Math.min(10000, remainingForRetry),
+          isCode: true
+        });
+      } catch (retryErr) {
+        console.warn('[Code Routing] Code generation retry error:', retryErr.message);
+        reply = '';
+      }
+    } else {
       reply = '';
     }
   }
@@ -694,13 +705,13 @@ Strictly adhere to the following rules:
       return candidates[0];
     }
 
-    // Fallback: match any ```...``` block
+    // Fallback: match any ```...``` block with non-empty content
     const fallbackMatch = rawText.match(/```([a-zA-Z0-9_\-\+]*)\s*?\n?([\s\S]*?)```/);
     if (fallbackMatch && fallbackMatch[2].trim()) {
       return { code: fallbackMatch[2].trim(), language: (fallbackMatch[1] || 'python').trim().toLowerCase() || 'python' };
     }
 
-    return { code: rawText.replace(/```[a-zA-Z0-9_\-\+]*\s*|\s*```/g, '').trim(), language: 'python' };
+    return { code: '', language: 'python' };
   }
 
   let extracted = extractCodeBlock(reply);
@@ -715,7 +726,7 @@ Strictly adhere to the following rules:
     console.log('[Code Routing] Initial code failed verification. Regenerating once with feedback:', verifyResult.failures);
     const parsedConstraints = codeVerifier.parseConstraints(cleanPrompt);
     const lineGuidance = parsedConstraints.maxLines
-      ? `\n- REMINDER: Strict line count limit is ${parsedConstraints.maxLines} lines. Ensure your solution is concise and strictly under ${parsedConstraints.maxLines} lines (aim for ${Math.floor(parsedConstraints.maxLines * 0.8)} lines).`
+      ? `\n- STRICT LINE COUNT: Your previous code had ${verifyResult.metrics?.lineCount || 'too many'} lines and exceeded the strict ${parsedConstraints.maxLines}-line limit. You MUST write concise code strictly under ${parsedConstraints.maxLines} lines (aim for ${Math.floor(parsedConstraints.maxLines * 0.8)} lines) by eliminating unnecessary helper functions and keeping logic direct.`
       : '';
     let syntaxNote = '';
     if (verifyResult.metrics?.syntax && !verifyResult.metrics.syntax.passed) {
@@ -737,41 +748,56 @@ IMPORTANT: You MUST write real, valid, executable Python code. Do NOT output a r
 Provide the one-line assumptions note and the fenced code block only.`;
 
     try {
-      const regenMessages = reply && reply.includes('```') ? [
-        ...messages,
-        { role: 'assistant', content: reply },
-        { role: 'user', content: feedbackMsg }
-      ] : messages;
+      const remainingForRegen = CODE_TURN_DEADLINE_MS - (Date.now() - codeTurnStart);
+      if (remainingForRegen > 3000) {
+        const regenMessages = reply && reply.includes('```') ? [
+          ...messages,
+          { role: 'assistant', content: reply },
+          { role: 'user', content: feedbackMsg }
+        ] : messages;
 
-      const secondReply = await chat(regenMessages, {
-        traceId: userContext.traceId,
-        userId: userContext.userId,
-        systemPrompt,
-        maxTokens: 3500,
-        timeoutMs: 45000
-      });
+        const secondReply = await chat(regenMessages, {
+          traceId: userContext.traceId,
+          userId: userContext.userId,
+          systemPrompt,
+          maxTokens: 1400,
+          timeoutMs: Math.min(10000, remainingForRegen),
+          isCode: true
+        });
 
-      const secondExtracted = extractCodeBlock(secondReply);
-      const secondVerifyResult = codeVerifier.verifyCode({
-        prompt: cleanPrompt,
-        code: secondExtracted.code,
-        language: secondExtracted.language
-      });
+        const secondExtracted = extractCodeBlock(secondReply);
+        const secondVerifyResult = codeVerifier.verifyCode({
+          prompt: cleanPrompt,
+          code: secondExtracted.code,
+          language: secondExtracted.language
+        });
 
-      const secondHasCodeBlock = secondExtracted && secondExtracted.code && secondExtracted.code.length > 0;
-      const secondLineCount = secondVerifyResult && secondVerifyResult.metrics ? secondVerifyResult.metrics.lineCount : 0;
-      if (secondVerifyResult.passed && secondHasCodeBlock && secondLineCount > 0) {
-        reply = secondReply;
-        extracted = secondExtracted;
-        verifyResult = secondVerifyResult;
-      } else if (secondHasCodeBlock && secondLineCount > 0) {
-        const firstHadSyntaxError = verifyResult.failures.some(f => f.includes('Syntax check failed'));
-        const secondHasSyntaxError = secondVerifyResult.failures.some(f => f.includes('Syntax check failed'));
-        if ((firstHadSyntaxError && !secondHasSyntaxError) || secondVerifyResult.failures.length < verifyResult.failures.length) {
+        const secondHasCodeBlock = secondExtracted && secondExtracted.code && secondExtracted.code.length > 0;
+        const secondLineCount = secondVerifyResult && secondVerifyResult.metrics ? secondVerifyResult.metrics.lineCount : 0;
+        console.log(`[Code Routing] First attempt failures (${verifyResult.failures.length}):`, verifyResult.failures);
+        console.log(`[Code Routing] Second attempt failures (${secondVerifyResult.failures.length}), lineCount: ${secondLineCount}:`, secondVerifyResult.failures);
+        if (secondVerifyResult.passed && secondHasCodeBlock && secondLineCount > 0) {
           reply = secondReply;
           extracted = secondExtracted;
           verifyResult = secondVerifyResult;
+        } else if (secondHasCodeBlock && secondLineCount > 0) {
+          const firstHadSyntaxError = verifyResult.failures.some(f => f.includes('Syntax check failed'));
+          const secondHasSyntaxError = secondVerifyResult.failures.some(f => f.includes('Syntax check failed'));
+          const firstExceededLineLimit = !verifyResult.metrics?.lineCountPassed;
+          const secondPassedLineLimit = secondVerifyResult.metrics?.lineCountPassed;
+
+          if (
+            (secondPassedLineLimit && firstExceededLineLimit && !secondHasSyntaxError) ||
+            (firstHadSyntaxError && !secondHasSyntaxError) ||
+            secondVerifyResult.failures.length <= verifyResult.failures.length
+          ) {
+            reply = secondReply;
+            extracted = secondExtracted;
+            verifyResult = secondVerifyResult;
+          }
         }
+      } else {
+        console.log('[Code Routing] Insufficient time left before 20s turn deadline for regeneration. Returning best measured attempt.');
       }
     } catch (regenErr) {
       console.warn('[Code Routing] Regeneration error:', regenErr.message);
@@ -905,12 +931,18 @@ Factual Humility & Boundaries:
 
     let reply = '';
     try {
+      const isReasoning = /\b(reasoning|step-by-step|calculate|puzzle|math|logic|solve)\b/i.test(userMessage);
       reply = await chat(
         messages,
         {
-          traceId: userContext.traceId, userId: userContext.userId, systemPrompt,
+          traceId: userContext.traceId,
+          userId: userContext.userId,
+          systemPrompt,
           maxTokens: 1024,
-          timeoutMs: 45000
+          isReasoning,
+          isFastChat: !isReasoning,
+          reasoning_effort: isReasoning ? 'medium' : 'low',
+          timeoutMs: 15000
         }
       );
     } catch (err) {

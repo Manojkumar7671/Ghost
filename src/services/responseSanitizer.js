@@ -51,14 +51,7 @@ function hasInternalLeak(text) {
   });
 }
 
-/**
- * Removes internal status/route labels from user-facing text, logging any found leaks.
- * @param {string} text
- * @returns {string}
- */
-function sanitizeResponseText(text) {
-  if (!text || typeof text !== 'string') return typeof text === 'string' ? text : '';
-
+function sanitizeTextSegment(text) {
   let sanitized = text;
   for (const pattern of INTERNAL_LEAK_PATTERNS) {
     pattern.lastIndex = 0;
@@ -73,11 +66,42 @@ function sanitizeResponseText(text) {
   }
 
   // Clean up empty parentheses, brackets, or notes left behind by stripped terms
-  sanitized = sanitized.replace(/\(\s*(?:note:?\s*)?\)/gi, '');
-  sanitized = sanitized.replace(/\[\s*\]/g, '');
-  sanitized = sanitized.replace(/\*+\s*\.{0,3}\s*\*+\s*/g, '');
-  sanitized = sanitized.replace(/[ \t]{2,}/g, ' ').trim();
-  return sanitized;
+  // Note: Only clean up horizontal whitespace, never cross newlines (\n) or destroy bold markers
+  sanitized = sanitized.replace(/\([ \t]*(?:note:?[ \t]*)?\)/gi, '');
+  sanitized = sanitized.replace(/\[[ \t]*\]/g, '');
+  sanitized = sanitized.replace(/\*[ \t]*\.{1,3}[ \t]*\*/g, '');
+
+  // Normalize multiple horizontal spaces between words while preserving list indentation and markdown tables
+  const lines = sanitized.split('\n');
+  const cleanedLines = lines.map(line => {
+    if (/^\s*\|/.test(line)) return line; // preserve markdown table line formatting
+    return line.replace(/([^\s\t\r\n])[ \t]{2,}/g, '$1 ');
+  });
+
+  return cleanedLines.join('\n');
+}
+
+/**
+ * Removes internal status/route labels from user-facing text, logging any found leaks.
+ * Preserves newlines, lists, tables, and code fences.
+ * @param {string} text
+ * @returns {string}
+ */
+function sanitizeResponseText(text) {
+  if (!text || typeof text !== 'string') return typeof text === 'string' ? text : '';
+
+  // Split by markdown fenced code blocks (```...```) to preserve code block content verbatim
+  const codeBlockRegex = /(```[\s\S]*?```)/g;
+  const parts = text.split(codeBlockRegex);
+
+  const processed = parts.map(part => {
+    if (part.startsWith('```') && part.endsWith('```')) {
+      return part; // Return code fence verbatim
+    }
+    return sanitizeTextSegment(part);
+  }).join('');
+
+  return processed.trim();
 }
 
 /**

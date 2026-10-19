@@ -3,16 +3,16 @@ LLM PROVIDER DIAGNOSIS & HEALTH AUDIT
 ================================================================
 
 --- PROVIDER PING RESULTS ---
-[Groq] Status: 200 OK | Model: openai/gpt-oss-120b | Latency: 1604ms
-[FreeLLMAPI (Render Cloud)] Status: TIMEOUT/ERROR (The operation was aborted due to timeout) | Model: auto | Latency: 6005ms
-[NVIDIA NIM (Last Resort)] Status: 200 OK | Model: google/diffusiongemma-26b-a4b-it | Latency: 753ms
+[Groq] Status: 200 OK | Model: openai/gpt-oss-120b | Latency: 574ms
+[FreeLLMAPI (Render Cloud)] Status: TIMEOUT/ERROR (The operation was aborted due to timeout) | Model: auto | Latency: 6002ms
+[NVIDIA NIM (Last Resort)] Status: TIMEOUT/ERROR (The operation was aborted due to timeout) | Model: google/diffusiongemma-26b-a4b-it | Latency: 6003ms
 
 --- GROQ DIAGNOSIS REPORT ---
 - Configured Model: openai/gpt-oss-120b
 - API Key Present: true (gsk_...[MASKED] (length: 56))
 - Key MD5 Hash: 0343fd2efc19ee5637632560f7eb1b7d
 - Known Revoked Key Hash: NO (new valid key active)
-- Serving Status: SERVING (200 OK, latency: 1604ms)
+- Serving Status: SERVING (200 OK, latency: 574ms)
 - Root Cause Analysis:
   1. Dotenv load order: server.js loaded .env using dotenv.config({ override: true }), picking up the newly configured GROQ_API_KEY from disk. In contrast, test and benchmark scripts did not specify override: true, leaving stale or revoked environment variables from the parent shell active.
   2. Revoked-hash check: llmRouter.js had a hardcoded hash check for the previous revoked key. Now that the key has been replaced and dotenv loads with override: true across all entry points, Groq returns 200 OK.

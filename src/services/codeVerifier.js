@@ -510,12 +510,14 @@ quote_item_1 = {
     "quote": "Life is what happens when you are busy making other plans.",
     "text": "Life is what happens when you are busy making other plans.",
     "author": "John Lennon",
+    "summary": "Life is what happens when you are busy making other plans.",
     "tags": ["life", "inspirational"]
 }
 quote_item_2 = {
     "quote": "The journey of a thousand miles begins with one step.",
     "text": "The journey of a thousand miles begins with one step.",
     "author": "Lao Tzu",
+    "summary": "The journey of a thousand miles begins with one step.",
     "tags": ["wisdom"]
 }
 
@@ -528,6 +530,7 @@ SAMPLE_QUOTE_DATA = {
     "quote": "Life is what happens when you are busy making other plans.",
     "text": "Life is what happens when you are busy making other plans.",
     "author": "John Lennon",
+    "summary": "Life is what happens when you are busy making other plans.",
     "tags": ["life", "inspirational"],
     "tag": "life",
     "total": 2,
@@ -582,6 +585,11 @@ def mock_post(url, *args, **kwargs):
 
     # Respond by endpoint path in real OpenAI formats only (no top-level text/author/quote fields)
     if '/v1/chat/completions' in url_str:
+        payload_text = str(json_payload).lower()
+        if 'json array' in payload_text or 'list' in payload_text or 'array' in payload_text:
+            mock_content = json.dumps([quote_item_1, quote_item_2])
+        else:
+            mock_content = SAMPLE_QUOTE_JSON
         return MockHTTPResponse({
             'id': 'chatcmpl-mock',
             'object': 'chat.completion',
@@ -592,7 +600,7 @@ def mock_post(url, *args, **kwargs):
                     'index': 0,
                     'message': {
                         'role': 'assistant',
-                        'content': SAMPLE_QUOTE_JSON
+                        'content': mock_content
                     },
                     'finish_reason': 'stop'
                 }
@@ -748,15 +756,19 @@ function verifyCode({ prompt, code, language = null, scratchDir = null }) {
   let lineCountPassed = true;
   if (constraints.maxLines !== null) {
     checksTotal++;
-    if (lineCount <= constraints.maxLines) {
+    if (lineCount > 0 && lineCount <= constraints.maxLines) {
       checksPassed++;
     } else {
       lineCountPassed = false;
-      failures.push(`Measured line count is ${lineCount} lines (exceeds ${constraints.maxLines}-line limit)`);
+      if (lineCount === 0) {
+        failures.push(`No code generated (0 lines; required <= ${constraints.maxLines} lines)`);
+      } else {
+        failures.push(`Measured line count is ${lineCount} lines (exceeds ${constraints.maxLines}-line limit)`);
+      }
     }
   } else if (constraints.exactLines !== null) {
     checksTotal++;
-    if (lineCount === constraints.exactLines) {
+    if (lineCount > 0 && lineCount === constraints.exactLines) {
       checksPassed++;
     } else {
       lineCountPassed = false;
@@ -985,10 +997,20 @@ function generateVerificationBlock(metrics) {
 
   // Line count
   if (metrics.maxLines !== null) {
-    const status = metrics.lineCountPassed ? 'PASSED' : `FAILED: exceeded ${metrics.maxLines}-line limit`;
+    let status;
+    if (metrics.lineCount === 0) {
+      status = 'FAILED: no code generated';
+    } else {
+      status = metrics.lineCountPassed ? 'PASSED' : `FAILED: exceeded ${metrics.maxLines}-line limit`;
+    }
     lines.push(`- Line count: ${metrics.lineCount} lines (non-blank, non-comment) [Limit: <= ${metrics.maxLines} lines — ${status}]`);
   } else if (metrics.exactLines !== null) {
-    const status = metrics.lineCountPassed ? 'PASSED' : `FAILED: expected exactly ${metrics.exactLines} lines`;
+    let status;
+    if (metrics.lineCount === 0) {
+      status = 'FAILED: no code generated';
+    } else {
+      status = metrics.lineCountPassed ? 'PASSED' : `FAILED: expected exactly ${metrics.exactLines} lines`;
+    }
     lines.push(`- Line count: ${metrics.lineCount} lines (non-blank, non-comment) [Exact: ${metrics.exactLines} lines — ${status}]`);
   } else {
     lines.push(`- Line count: ${metrics.lineCount} lines (non-blank, non-comment)`);

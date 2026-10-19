@@ -39,6 +39,38 @@ export function isProviderCoolingDown(providerName) {
   return false;
 }
 
+export function parseRetryDurationMs(res, bodyText) {
+  try {
+    if (res && res.headers && typeof res.headers.get === 'function') {
+      const headerVal = res.headers.get('retry-after') || res.headers.get('retry-after-ms');
+      if (headerVal) {
+        const parsed = parseFloat(headerVal);
+        if (!isNaN(parsed) && parsed > 0) {
+          if (res.headers.get('retry-after-ms')) return Math.min(Math.max(parsed, 1000), 120000);
+          return Math.min(Math.max(parsed * 1000, 1000), 120000);
+        }
+        const parsedDate = Date.parse(headerVal);
+        if (!isNaN(parsedDate)) {
+          const diff = parsedDate - Date.now();
+          if (diff > 0) return Math.min(Math.max(diff, 1000), 120000);
+        }
+      }
+    }
+  } catch {}
+
+  const bodyStr = typeof bodyText === 'string' ? bodyText : JSON.stringify(bodyText || '');
+  const m = bodyStr.match(/try again in\s+(\d+(?:\.\d+)?)\s*(s|ms|m|min)?/i);
+  if (m) {
+    const num = parseFloat(m[1]);
+    const unit = (m[2] || 's').toLowerCase();
+    let ms = num * 1000;
+    if (unit === 'ms') ms = num;
+    else if (unit === 'm' || unit === 'min') ms = num * 60 * 1000;
+    return Math.min(Math.max(ms, 1000), 120000);
+  }
+  return 60000;
+}
+
 export function getProviders(isFastChat = false) {
   const isLocal = (process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'local';
   const freeLLMCloud = (process.env.FREELLMAPI_RENDER_URL || (isLocal ? process.env.FREELLMAPI_BASE_URL : 'https://freellmapi-e17x.onrender.com') || '').replace(/\/+$/, '');
@@ -202,7 +234,11 @@ export async function callLLM(messages = [], options = {}) {
 
   console.log(`[LLM Router] [${new Date().toISOString()}] Starting provider fallback loop for model: "${customModel || 'default'}"`);
 
-  const candidateProviders = providers.filter(p => isValidKey(p.apiKey));
+  let candidateProviders = providers.filter(p => isValidKey(p.apiKey));
+  if (options.isCode) {
+    // NVIDIA diffusiongemma never used for code (chat-only last resort)
+    candidateProviders = candidateProviders.filter(p => !p.name.includes('NVIDIA NIM'));
+  }
 
   for (let i = 0; i < candidateProviders.length; i++) {
     const provider = candidateProviders[i];
@@ -230,14 +266,15 @@ export async function callLLM(messages = [], options = {}) {
 
     console.log(`[LLM Router] [${new Date().toISOString()}] Attempting provider: ${provider.name}`);
 
+    const isCodeOrReasoning = Boolean(options.isCode || options.isReasoning || (customModel && customModel.includes('120b')));
     let selectedModel = provider.model;
-    if (customModel) {
+    if (provider.name === 'Groq') {
+      selectedModel = isCodeOrReasoning ? 'openai/gpt-oss-120b' : 'openai/gpt-oss-20b';
+    } else if (customModel) {
       if (provider.name === 'OpenRouter') {
         selectedModel = customModel;
       } else if (provider.name.includes('NVIDIA NIM')) {
         selectedModel = 'google/diffusiongemma-26b-a4b-it';
-      } else if (provider.name === 'Groq') {
-        selectedModel = isFastChat ? 'openai/gpt-oss-20b' : 'openai/gpt-oss-120b';
       } else if (provider.name === 'Kimi K2') {
         selectedModel = customModel.includes('kimi') ? customModel : 'kimi-k2-0905';
       }
@@ -249,14 +286,23 @@ export async function callLLM(messages = [], options = {}) {
       selectedModel = 'google/diffusiongemma-26b-a4b-it';
     }
 
+    // Policy rule: NVIDIA diffusiongemma never used for code (chat-only last resort)
+    if (options.isCode && (provider.name.includes('NVIDIA') || (selectedModel && selectedModel.includes('diffusiongemma')))) {
+      console.warn(`[LLM Router Policy] Blocked ${provider.name} (${selectedModel}) for code.`);
+      continue;
+    }
+
     let effectiveTimeout = options.timeoutMs || provider.timeoutMs || (isNormalChat ? 6000 : 25000);
+    if (options.isCode) {
+      effectiveTimeout = Math.min(effectiveTimeout, 10000); // 10s per-provider timeout for code
+    }
 
     let attempt = 0;
     const maxAttempts = 2; // 1 initial attempt + 1 retry on timeout
     let providerSucceeded = false;
 
     const effectiveMaxTokens = (selectedModel && selectedModel.includes('120b'))
-      ? Math.max(maxTokens, 3500)
+      ? Math.min(Math.max(maxTokens, 1200), 1600)
       : maxTokens;
 
     while (attempt < maxAttempts && !providerSucceeded) {
@@ -266,18 +312,24 @@ export async function callLLM(messages = [], options = {}) {
       const startAttemptTime = Date.now();
 
       try {
+        const requestPayload = {
+          model: selectedModel,
+          messages: formattedMessages,
+          temperature,
+          max_tokens: effectiveMaxTokens
+        };
+
+        if (provider.name === 'Groq') {
+          requestPayload.reasoning_effort = options.reasoning_effort || 'low';
+        }
+
         const res = await fetch(provider.endpoint, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${provider.apiKey}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            model: selectedModel,
-            messages: formattedMessages,
-            temperature,
-            max_tokens: effectiveMaxTokens
-          }),
+          body: JSON.stringify(requestPayload),
           signal: controller.signal
         });
 
@@ -288,7 +340,8 @@ export async function callLLM(messages = [], options = {}) {
 
           // Cooldown only on 429/5xx, and never cool down the last healthy provider
           if (is429or5xx && !isLastHealthy) {
-            markProviderCooldown(provider.name, 60000);
+            const cooldownMs = res.status === 429 ? parseRetryDurationMs(res, errorText) : 60000;
+            markProviderCooldown(provider.name, cooldownMs);
           }
           fallbacksTried++;
           errors.push(`${provider.name}: ${errorMsg}`);
@@ -301,7 +354,8 @@ export async function callLLM(messages = [], options = {}) {
           const errMsg = redactSecrets(data.error.message || JSON.stringify(data.error));
           const is429or5xx = data.error.code === 429 || data.error.status === 429 || /429|rate\s*limit|quota|5\d\d/i.test(errMsg);
           if (is429or5xx && !isLastHealthy) {
-            markProviderCooldown(provider.name, 60000);
+            const cooldownMs = /429|rate\s*limit|quota/i.test(errMsg) ? parseRetryDurationMs(res, errMsg) : 60000;
+            markProviderCooldown(provider.name, cooldownMs);
           }
           fallbacksTried++;
           errors.push(`${provider.name}: ${errMsg}`);
@@ -311,7 +365,9 @@ export async function callLLM(messages = [], options = {}) {
         const content = data.choices?.[0]?.message?.content;
         if (content === undefined || content === null || content.trim() === '') {
           fallbacksTried++;
-          errors.push(`${provider.name}: Empty content in response payload`);
+          const finishReason = data.choices?.[0]?.finish_reason || 'unknown';
+          errors.push(`${provider.name}: Empty content in response payload (finish_reason: ${finishReason})`);
+          console.warn(`[LLM Router Timing] Provider ${provider.name} returned empty content (finish_reason: ${finishReason}). Fast failover to next provider...`);
           break;
         }
 
