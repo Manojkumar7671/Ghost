@@ -1,12 +1,11 @@
 /**
- * llmRouter.js - Multi-Provider LLM Router with Automatic Failover for Ghost
+ * llmRouter.js - Multi-Provider LLM Router with Fast Automatic Failover for Ghost
  *
  * Implements fallback across OpenAI-compatible providers:
- * 1. NVIDIA NIM (https://integrate.api.nvidia.com/v1)
- * 2. FreeLLMAPI (http://localhost:3001/v1 or custom FREELLMAPI_BASE_URL)
- * 3. Groq (https://api.groq.com/openai/v1)
- * 4. OpenRouter (https://openrouter.ai/api/v1)
- * 5. Google AI Studio / Gemini (https://generativelanguage.googleapis.com/v1beta/openai)
+ * 1. Groq (openai/gpt-oss-120b for reasoning/code, openai/gpt-oss-20b for fast chat)
+ * 2. FreeLLMAPI (Render Cloud / Local)
+ * 3. DeepSeek / OpenRouter / Kimi (if keys configured)
+ * 4. NVIDIA NIM (Last Resort) (google/diffusiongemma-26b-a4b-it)
  */
 import crypto from 'crypto';
 import pkg from 'pg';
@@ -14,118 +13,152 @@ const { Pool } = pkg;
 const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
 import { redactSecrets } from './services/secretRedactor.js';
 import { logUsage } from './services/usageTracker.js';
+import GHOST_PERSONA from './src/agents/persona.js';
 
-export let lastServedMeta = { model: null, provider: null, latencyMs: null };
+export let lastServedMeta = { model: null, provider: null, latencyMs: null, fallbacksTried: 0 };
 export function getLastServedMeta() {
   return lastServedMeta;
 }
 
-export function getProviders() {
+export const cooldownMap = new Map();
+
+export function markProviderCooldown(providerName, durationMs = 60000) {
+  cooldownMap.set(providerName, Date.now() + durationMs);
+  console.log(`[LLM Router Cooldown] Marked provider "${providerName}" cooling down for ${durationMs / 1000}s`);
+}
+
+export function isProviderCoolingDown(providerName) {
+  if (!cooldownMap.has(providerName)) return false;
+  const expiry = cooldownMap.get(providerName);
+  if (Date.now() < expiry) {
+    return true;
+  }
+  cooldownMap.delete(providerName);
+  return false;
+}
+
+export function getProviders(isFastChat = false) {
   const isLocal = (process.env.GHOST_DEPLOYMENT_MODE || 'public') === 'local';
   const freeLLMCloud = (process.env.FREELLMAPI_RENDER_URL || (isLocal ? process.env.FREELLMAPI_BASE_URL : 'https://freellmapi-e17x.onrender.com') || '').replace(/\/+$/, '');
   const freeLLMLocal = (process.env.FREELLMAPI_LOCAL_URL || 'http://localhost:3001/v1').replace(/\/+$/, '');
   const localSlash = freeLLMLocal.endsWith('/v1') ? '' : '/v1';
 
-  const providers = [
-    ...(isLocal ? [{
+  const providers = [];
+
+  // 1. Groq: Top priority
+  // gpt-oss-120b for reasoning/code, gpt-oss-20b for fast chat
+  providers.push({
+    name: 'Groq',
+    endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+    model: isFastChat ? 'openai/gpt-oss-20b' : 'openai/gpt-oss-120b',
+    apiKey: process.env.GROQ_API_KEY,
+    timeoutMs: 6000
+  });
+
+  // Local FreeLLMAPI if in local deployment mode
+  if (isLocal) {
+    providers.push({
       name: 'FreeLLMAPI (Local)',
       endpoint: `${freeLLMLocal}${localSlash}/chat/completions`,
       model: 'auto',
-      apiKey: process.env.FREELLMAPI_API_KEY || 'free'
-    }] : []),
-    {
-      name: 'Groq',
-      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-      model: 'openai/gpt-oss-120b',
-      apiKey: process.env.GROQ_API_KEY
-    },
-    {
-      name: 'NVIDIA NIM',
-      endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions',
-      model: 'google/diffusiongemma-26b-a4b-it',
-      apiKey: process.env.NVIDIA_API_KEY
-    },
-    {
-      name: 'DeepSeek',
-      endpoint: 'https://api.deepseek.com/chat/completions',
-      model: 'deepseek-chat',
-      apiKey: process.env.DEEPSEEK_API_KEY
-    },
-    {
-      name: 'Gemini',
-      endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-      model: 'gemini-2.5-flash',
-      apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
-    },
-    {
-      name: 'MiniMax',
-      endpoint: 'https://api.minimax.io/v1/chat/completions',
-      model: 'MiniMax-M3',
-      apiKey: process.env.MINIMAX_API_KEY
-    },
-    ...(freeLLMCloud ? [{
+      apiKey: process.env.FREELLMAPI_API_KEY || 'free',
+      timeoutMs: 6000
+    });
+  }
+
+  // 2. FreeLLMAPI (Render Cloud)
+  if (freeLLMCloud) {
+    providers.push({
       name: 'FreeLLMAPI (Render Cloud)',
       endpoint: `${freeLLMCloud}${freeLLMCloud.endsWith('/v1') ? '' : '/v1'}/chat/completions`,
       model: 'auto',
       apiKey: process.env.FREELLMAPI_API_KEY || 'free',
-      timeoutMs: process.env.FREELLMAPI_TIMEOUT_MS ? parseInt(process.env.FREELLMAPI_TIMEOUT_MS, 10) : 8000
-    }] : [])
-  ];
+      timeoutMs: 6000
+    });
+  }
+
+  // 3. Optional third-party providers (only if API keys provided and valid)
+  if (process.env.DEEPSEEK_API_KEY) {
+    providers.push({
+      name: 'DeepSeek',
+      endpoint: 'https://api.deepseek.com/chat/completions',
+      model: 'deepseek-chat',
+      apiKey: process.env.DEEPSEEK_API_KEY,
+      timeoutMs: 6000
+    });
+  }
+
+  if (process.env.OPENROUTER_API_KEY) {
+    providers.push({
+      name: 'OpenRouter',
+      endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+      model: isFastChat ? 'openai/gpt-oss-20b' : 'openai/gpt-oss-120b',
+      apiKey: process.env.OPENROUTER_API_KEY,
+      timeoutMs: 6000
+    });
+  }
+
+  if (process.env.KIMI_API_KEY) {
+    providers.push({
+      name: 'Kimi K2',
+      endpoint: process.env.KIMI_ENDPOINT || 'https://api.moonshot.ai/v1/chat/completions',
+      model: 'kimi-k2-0905',
+      apiKey: process.env.KIMI_API_KEY,
+      timeoutMs: 6000
+    });
+  }
 
   if (isLocal) {
     providers.push({
       name: 'Osaurus Local',
       endpoint: process.env.OSAURUS_ENDPOINT || 'http://localhost:1337/v1/chat/completions',
       model: process.env.OSAURUS_MODEL || 'foundation',
-      apiKey: 'osaurus_local_key'
+      apiKey: 'osaurus_local_key',
+      timeoutMs: 6000
     });
   }
 
+  // 4. Last resort fallback: NVIDIA NIM (google/diffusiongemma-26b-a4b-it)
+  // Kept ONLY as last-resort fallback behind all other providers
   providers.push({
-    name: 'Kimi K2',
-    endpoint: process.env.KIMI_ENDPOINT || 'https://api.moonshot.ai/v1/chat/completions',
-    model: 'kimi-k2-0905',
-    apiKey: process.env.KIMI_API_KEY
+    name: 'NVIDIA NIM (Last Resort)',
+    endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions',
+    model: 'google/diffusiongemma-26b-a4b-it',
+    apiKey: process.env.NVIDIA_API_KEY,
+    timeoutMs: 6000
   });
 
   return providers;
 }
 
-/**
- * Cleanly validates whether an API key is provided and non-placeholder.
- */
-function isValidKey(key) {
+export function isValidKey(key) {
   if (!key || typeof key !== 'string') return false;
   const lower = key.trim().toLowerCase();
   if (lower === '' || lower.startsWith('your_') || lower.startsWith('dummy') || lower.includes('invalid')) {
     return false;
   }
-  // Exclude the known dead Groq key to prevent latency overhead (compared via MD5 hash to bypass push protection)
+  // Exclude known dead keys to prevent latency overhead
   const keyHash = crypto.createHash('md5').update(key).digest('hex');
-  if (keyHash === 'b23ae22d91912ece3d633446484ff97b') {
+  if (keyHash === 'b23ae22d91912ece3d633446484ff97b' || keyHash === 'a5c049e911a8def0f7417c849e7b525a') {
     return false;
   }
   return true;
 }
 
-/**
- * Main entry point for making LLM chat completion requests.
- * Automatically tries available providers in priority order with timeout & error failover.
- *
- * @param {Array} messages - Array of message objects [{role, content}]
- * @param {Object} options - { systemPrompt, maxTokens, temperature, timeoutMs, model }
- * @returns {Promise<string>} LLM response content string
- */
-import GHOST_PERSONA from './src/agents/persona.js';
+// Startup warning for top-priority provider
+if (!isValidKey(process.env.GROQ_API_KEY)) {
+  console.warn('[Startup Warning] Top-priority provider (Groq) key is invalid or revoked. Chat and code will failover to backup providers.');
+}
 
 export async function callLLM(messages = [], options = {}) {
   const {
     systemPrompt = null,
     maxTokens = 1024,
     temperature = 0.2,
-    timeoutMs = 30000,
+    timeoutMs = 6000,
     model: customModel = null,
-    providerFilter = null
+    providerFilter = null,
+    isFastChat = false
   } = options;
 
   const finalSystemPrompt = systemPrompt
@@ -134,170 +167,190 @@ export async function callLLM(messages = [], options = {}) {
 
   const formattedMessages = [{ role: 'system', content: finalSystemPrompt }, ...messages];
 
-  let providers = getProviders();
+  let providers = getProviders(isFastChat);
   if (providerFilter) {
     providers = providers.filter(p => p.name.toLowerCase().includes(providerFilter.toLowerCase()));
   }
 
-  
-  if (process.env.DEBUG_LLM) { console.log("[Telemetry Debug] options:", JSON.stringify(options)); } let localTraceId = options.traceId;
+  let localTraceId = options.traceId;
   let localUserId = options.userId || '00000000-0000-0000-0000-000000000000';
   try {
-      const { createRequire } = await import('module');
-const require = createRequire(import.meta.url);
-const traceLocalStorage = require('./src/services/traceStore.js');
-      const store = traceLocalStorage.getStore(); console.log('[Store Debug]', store);
-      if (store && store.traceId) localTraceId = store.traceId;
-      if (store && store.userId) localUserId = store.userId;
-  } catch(e) { console.error('Store error:', e); }
-
-  const errors = [];
+    const { createRequire } = await import('module');
+    const require = createRequire(import.meta.url);
+    const traceLocalStorage = require('./src/services/traceStore.js');
+    const store = traceLocalStorage.getStore();
+    if (store && store.traceId) localTraceId = store.traceId;
+    if (store && store.userId) localUserId = store.userId;
+  } catch(e) {}
 
   if (process.env.MOCK_LLM === 'true') {
     const lastMsg = formattedMessages[formattedMessages.length - 1].content.toLowerCase();
     if (lastMsg.includes('mock_429_recover')) {
-        console.log('[Mock LLM] Simulating transient 429 error...');
-        await new Promise(r => setTimeout(r, 1000));
-        return "Recovered from 429 successfully.";
+      console.log('[Mock LLM] Simulating transient 429 error...');
+      return "Recovered from 429 successfully.";
     }
     if (lastMsg.includes('mock_429_permanent')) {
-        console.log('[Mock LLM] Simulating permanent 429 exhaustion...');
-        throw new Error('HTTP 429 Too Many Requests: Mock Exhaustion');
+      console.log('[Mock LLM] Simulating permanent 429 exhaustion...');
+      return "All model providers are unavailable right now, try again shortly";
     }
     return `Mock response to: ${lastMsg.slice(0, 50)}...`;
   }
 
+  const errors = [];
+  const turnStartTime = Date.now();
+  const isNormalChat = isFastChat || (!options.timeoutMs || options.timeoutMs <= 8000);
+  const MAX_TURN_BUDGET_MS = isNormalChat ? 8000 : (options.timeoutMs || 30000);
+  let fallbacksTried = 0;
+
   console.log(`[LLM Router] [${new Date().toISOString()}] Starting provider fallback loop for model: "${customModel || 'default'}"`);
-  for (const provider of providers) {
+
+  for (let i = 0; i < providers.length; i++) {
+    const provider = providers[i];
+
+    // Skip providers with no key, known-revoked keys, or in cooldown without making a network call
     if (!isValidKey(provider.apiKey)) {
       continue;
     }
+    if (isProviderCoolingDown(provider.name)) {
+      console.log(`[LLM Router Cooldown] Skipping "${provider.name}" (active cooldown)`);
+      continue;
+    }
+
+    // Check if turn budget has been exceeded before trying non-last-resort providers
+    const elapsedSoFar = Date.now() - turnStartTime;
+    if (elapsedSoFar >= MAX_TURN_BUDGET_MS && !provider.name.includes('Last Resort')) {
+      console.warn(`[LLM Router Budget] Turn budget exceeded (${elapsedSoFar}ms >= ${MAX_TURN_BUDGET_MS}ms). Skipping to final fallback.`);
+      continue;
+    }
+
     console.log(`[LLM Router] [${new Date().toISOString()}] Attempting provider: ${provider.name}`);
 
     let selectedModel = provider.model;
     if (customModel) {
       if (provider.name === 'OpenRouter') {
         selectedModel = customModel;
-      } else if (provider.name === 'Gemini') {
-        if (customModel.includes('gemini')) {
-          selectedModel = customModel.replace(/^google\//, '');
-        }
-      } else if (provider.name === 'NVIDIA NIM') {
+      } else if (provider.name.includes('NVIDIA NIM')) {
         selectedModel = 'google/diffusiongemma-26b-a4b-it';
       } else if (provider.name === 'Groq') {
-        selectedModel = 'openai/gpt-oss-120b';
+        selectedModel = isFastChat ? 'openai/gpt-oss-20b' : 'openai/gpt-oss-120b';
       } else if (provider.name === 'Kimi K2') {
         selectedModel = customModel.includes('kimi') ? customModel : 'kimi-k2-0905';
       }
     }
 
-    // Policy rule: NEVER use llama-3.2-11b-vision for chat or code
-    if (selectedModel && selectedModel.includes('llama-3.2-11b-vision')) {
-      console.warn(`[LLM Router Policy] Blocked ${selectedModel} for chat/code. Falling back to google/diffusiongemma-26b-a4b-it.`);
+    // Policy rule: NEVER use vision models for chat or code
+    if (selectedModel && (selectedModel.includes('vision') || selectedModel.includes('llama-3.2-11b') || selectedModel.includes('llama-3.2-90b'))) {
+      console.warn(`[LLM Router Policy] Blocked vision model ${selectedModel} for chat/code.`);
       selectedModel = 'google/diffusiongemma-26b-a4b-it';
     }
 
-    let attempts = 0;
-    const maxAttempts = 3;
-    let success = false;
+    const effectiveTimeout = isNormalChat ? Math.min(provider.timeoutMs || 6000, 6000) : (options.timeoutMs || 25000);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
+    const startProviderTime = Date.now();
 
-    while (attempts < maxAttempts && !success) {
-      attempts++;
-      const effectiveTimeout = provider.timeoutMs || timeoutMs;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
+    try {
+      const res = await fetch(provider.endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${provider.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: formattedMessages,
+          temperature,
+          max_tokens: maxTokens
+        }),
+        signal: controller.signal
+      });
 
-      const startProviderTime = Date.now();
-      try {
-        const res = await fetch(provider.endpoint, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${provider.apiKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: selectedModel,
-            messages: formattedMessages,
-            temperature,
-            max_tokens: maxTokens
-          }),
-          signal: controller.signal
-        });
+      clearTimeout(timeoutId);
 
-        clearTimeout(timeoutId);
-
-        if (!res.ok) {
-          const errorText = await res.text().catch(() => '');
-          const errorMsg = `HTTP ${res.status} ${res.statusText}: ${redactSecrets(errorText.slice(0, 150))}`;
-          if (res.status === 429 || res.status >= 500) {
-              if (attempts < maxAttempts) {
-                  let backoffTime = Math.pow(2, attempts) * 1000;
-                  const retryAfter = res.headers.get('Retry-After');
-                  if (retryAfter) {
-                      const parsedRetry = parseInt(retryAfter, 10);
-                      if (!isNaN(parsedRetry)) backoffTime = parsedRetry * 1000;
-                  }
-                  console.warn(`[LLM Router] Provider ${provider.name} rate limited/failed. Retrying in ${backoffTime}ms (Attempt ${attempts}/${maxAttempts})`);
-                  await new Promise(r => setTimeout(r, backoffTime));
-                  continue; // Retry same provider
-              }
-          }
-          throw new Error(errorMsg);
-        }
-
-        const data = await res.json();
-        if (data.error) {
-          throw new Error(redactSecrets(data.error.message || JSON.stringify(data.error)));
-        }
-
-        const content = data.choices?.[0]?.message?.content;
-        if (content === undefined || content === null) {
-          throw new Error('Empty response payload structure');
-        }
-
-        const latencyMs = Date.now() - startProviderTime;
-        lastServedMeta = { model: selectedModel, provider: provider.name, latencyMs };
-        console.log(`[LLM Router Timing] Served by ${provider.name} (${selectedModel}) in ${latencyMs}ms`);
-        console.log(`[Server Log] Reply served | Model: ${selectedModel} | Provider: ${provider.name} | Latency: ${latencyMs}ms`);
-        if (process.env.DEBUG_LLM) { console.log('[Telemetry] Final options:', options); } else { console.log(`[Telemetry] Model: ${selectedModel}, Latency: ${latencyMs}ms`); }
-        console.log("[Telemetry] Executing model_runs insert, traceId:", localTraceId, "userId:", localUserId);
-        if (localTraceId && localUserId && localUserId !== '00000000-0000-0000-0000-000000000000') {
-            pool.query(
-                "INSERT INTO model_runs (id, trace_id, user_id, model, prompt_version, latency_ms, created_at) VALUES ($1, $2, $3, $4, 'v1', $5, NOW()) ON CONFLICT DO NOTHING",
-                [crypto.randomUUID(), localTraceId, localUserId, selectedModel, latencyMs]
-            ).catch(err => console.error("[Telemetry] DB Insert failed:", err.message));
-        }
-
-
-        let tokenUsageCost = 0.001;
-        if (data.usage && data.usage.total_tokens) {
-          tokenUsageCost = (data.usage.total_tokens / 1000) * 0.002;
-        }
-        logUsage(provider.name, tokenUsageCost).catch(() => {});
-
-        return content;
-      } catch (err) {
-        clearTimeout(timeoutId);
-        const isAbort = err.name === 'AbortError';
-        const errMsg = redactSecrets(isAbort ? `Timeout after ${effectiveTimeout}ms` : err.message);
-
-        // If abort/timeout, or if we reached max attempts, break out of retry loop
-        if (isAbort || attempts >= maxAttempts) {
-            const latencyMs = Date.now() - startProviderTime;
-            console.warn(`[LLM Router Timing] Provider ${provider.name} failed in ${latencyMs}ms (${errMsg}). Trying next provider...`);
-            errors.push(`${provider.name}: ${errMsg}`);
-            break;
-        }
-
-        // General network error backoff
-        const backoffTime = Math.pow(2, attempts) * 1000;
-        console.warn(`[LLM Router] Provider ${provider.name} connection error. Retrying in ${backoffTime}ms (Attempt ${attempts}/${maxAttempts})`);
-        await new Promise(r => setTimeout(r, backoffTime));
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => '');
+        const errorMsg = `HTTP ${res.status} ${res.statusText}: ${redactSecrets(errorText.slice(0, 150))}`;
+        // On 429, 5xx, or network error: mark cooling down for 60s and move to next provider immediately (no sleep/backoff)
+        markProviderCooldown(provider.name, 60000);
+        fallbacksTried++;
+        errors.push(`${provider.name}: ${errorMsg}`);
+        console.warn(`[LLM Router Timing] Provider ${provider.name} failed with ${errorMsg}. Fast failover to next provider...`);
+        continue;
       }
+
+      const data = await res.json();
+      if (data.error) {
+        markProviderCooldown(provider.name, 60000);
+        fallbacksTried++;
+        const errMsg = redactSecrets(data.error.message || JSON.stringify(data.error));
+        errors.push(`${provider.name}: ${errMsg}`);
+        continue;
+      }
+
+      const content = data.choices?.[0]?.message?.content;
+      if (content === undefined || content === null) {
+        markProviderCooldown(provider.name, 60000);
+        fallbacksTried++;
+        errors.push(`${provider.name}: Empty content in response payload`);
+        continue;
+      }
+
+      const latencyMs = Date.now() - startProviderTime;
+
+      // Real model extraction
+      let actualModel = selectedModel;
+      if (provider.name.includes('FreeLLMAPI')) {
+        if (data.model && data.model !== 'auto') {
+          actualModel = `${data.model} (via FreeLLMAPI auto)`;
+        } else {
+          actualModel = 'auto (underlying model unreported)';
+        }
+      } else if (data.model) {
+        actualModel = data.model;
+      }
+
+      lastServedMeta = {
+        provider: provider.name,
+        model: actualModel,
+        latencyMs,
+        fallbacksTried
+      };
+
+      // Server log line format: [Server Log] Reply served | Provider: X | Model: Y | Latency: Nms | Fallbacks tried: N
+      console.log(`[Server Log] Reply served | Provider: ${provider.name} | Model: ${actualModel} | Latency: ${latencyMs}ms | Fallbacks tried: ${fallbacksTried}`);
+
+      if (localTraceId && localUserId && localUserId !== '00000000-0000-0000-0000-000000000000') {
+        pool.query(
+          "INSERT INTO model_runs (id, trace_id, user_id, model, prompt_version, latency_ms, created_at) VALUES ($1, $2, $3, $4, 'v1', $5, NOW()) ON CONFLICT DO NOTHING",
+          [crypto.randomUUID(), localTraceId, localUserId, actualModel, latencyMs]
+        ).catch(err => console.error("[Telemetry] DB Insert failed:", err.message));
+      }
+
+      let tokenUsageCost = 0.001;
+      if (data.usage && data.usage.total_tokens) {
+        tokenUsageCost = (data.usage.total_tokens / 1000) * 0.002;
+      }
+      logUsage(provider.name, tokenUsageCost).catch(() => {});
+
+      return content;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      const isAbort = err.name === 'AbortError';
+      const errMsg = redactSecrets(isAbort ? `Timeout after ${effectiveTimeout}ms` : err.message);
+      markProviderCooldown(provider.name, 60000);
+      fallbacksTried++;
+      errors.push(`${provider.name}: ${errMsg}`);
+      const latencyMs = Date.now() - startProviderTime;
+      console.warn(`[LLM Router Timing] Provider ${provider.name} failed in ${latencyMs}ms (${errMsg}). Fast failover to next provider...`);
+      // Immediately proceed to next provider (no sleep/backoff)
+      continue;
     }
   }
 
-  throw new Error(redactSecrets(`All LLM providers failed in fallback chain:\n- ${errors.join('\n- ')}`));
+  // All providers failed: return clean user-facing message, never raw errors
+  console.error('[LLM Router Error] All LLM providers failed:\n' + errors.join('\n'));
+  return "All model providers are unavailable right now, try again shortly";
 }
 
-export default { callLLM, getProviders };
+export const chat = callLLM;
+export default { callLLM, chat, getProviders, isValidKey, getLastServedMeta, markProviderCooldown, isProviderCoolingDown };

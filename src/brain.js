@@ -637,6 +637,7 @@ Strictly adhere to the following rules:
    - Always include the "model" parameter (e.g. "model": "gpt-4o-mini") and "messages" array (e.g. [{"role": "user", "content": prompt}]) in the JSON payload.
    - Parse the chat completion message content: completion_text = response.json()['choices'][0]['message']['content'].
    - Validate and parse completion_text into the Pydantic model: Model.model_validate_json(completion_text) or Model(**json.loads(completion_text)). Never pass the raw API response dictionary directly into the Pydantic model.
+   - For quotes or page scraping tasks, define a concise model with string fields (e.g. class QuoteModel(BaseModel): quote: str, author: str) and prompt the LLM to return JSON with matching keys.
 4. NO UNUSED CODE: Do NOT define unused function parameters or unused variables. If a parameter is declared in a helper function, use it directly. Do not import unused modules.
 5. ASSUMPTIONS NOTE: Include a single concise one-line assumptions note before the code block (e.g. "Assumptions: Target page is https://quotes.toscrape.com and OPENAI_API_KEY is available in the environment.").
 6. NO FILLER: Absolutely NO conversational commentary, pleasantries, introductory text, explanations, or post-code summary paragraphs. Return ONLY the one-line assumptions note and the fenced code block.
@@ -716,8 +717,13 @@ Strictly adhere to the following rules:
     const lineGuidance = parsedConstraints.maxLines
       ? `\n- REMINDER: Strict line count limit is ${parsedConstraints.maxLines} lines. Ensure your solution is concise and strictly under ${parsedConstraints.maxLines} lines (aim for ${Math.floor(parsedConstraints.maxLines * 0.8)} lines).`
       : '';
+    let syntaxNote = '';
+    if (verifyResult.metrics?.syntax && !verifyResult.metrics.syntax.passed) {
+      const syn = verifyResult.metrics.syntax;
+      syntaxNote = `\n- CRITICAL COMPILER ERROR: Your previous code failed py_compile${syn.line ? ` on line ${syn.line}` : ''}:\n${syn.error}\nYou MUST fix this exact syntax error so that python3 -m py_compile passes.`;
+    }
     const feedbackMsg = `Your previous code generation failed verification with the following issues:
-- ${verifyResult.failures.join('\n- ')}${lineGuidance}
+- ${verifyResult.failures.join('\n- ')}${lineGuidance}${syntaxNote}
 
 Please regenerate the complete solution fixing all the issues above.
 IMPORTANT: You MUST write real, valid, executable Python code. Do NOT output a refusal or explanation message inside the code block. Maintain valid PEP 8 formatting with each statement and import on its own separate line. Do NOT combine statements onto a single line or game line limits. If a requested line limit is technically impossible to achieve while fulfilling all requirements, provide the cleanest properly-formatted code possible so the verifier can measure and report the actual line count honestly.

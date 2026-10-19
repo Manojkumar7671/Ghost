@@ -1,0 +1,21 @@
+================================================================
+LLM PROVIDER DIAGNOSIS & HEALTH AUDIT
+================================================================
+
+--- PROVIDER PING RESULTS ---
+[Groq] Status: HTTP 401 - Invalid API Key | Model: openai/gpt-oss-120b | Latency: 128ms
+[FreeLLMAPI (Render Cloud)] Status: 200 OK | Model: auto | Latency: 1028ms
+[NVIDIA NIM (Last Resort)] Status: TIMEOUT/ERROR (The operation was aborted due to timeout) | Model: google/diffusiongemma-26b-a4b-it | Latency: 6003ms
+
+--- GROQ DIAGNOSIS REPORT ---
+- Configured Model: openai/gpt-oss-120b
+- API Key Present: true (gsk_...[MASKED] (length: 56))
+- Key MD5 Hash: b23ae22d91912ece3d633446484ff97b
+- Known Revoked Key Hash: YES (matches b23ae22d91912ece3d633446484ff97b)
+- Serving Status: NOT SERVING
+- Root Cause Analysis:
+  1. When called directly, Groq endpoint https://api.groq.com/openai/v1/chat/completions returns HTTP 401 Unauthorized: "Invalid API Key".
+  2. In llmRouter.js, this specific dead key's MD5 hash is explicitly blocked by isValidKey() to prevent an unneeded 140ms network failure on every request.
+  3. Model routing policy: When Groq has a valid, active API key, Groq is the first priority provider and serves gpt-oss-120b. When Groq is unhealthy/revoked, fast failover immediately routes to FreeLLMAPI auto without network delay.
+================================================================
+

@@ -49,7 +49,9 @@ async function runBenchmark() {
       const modelUsed = meta.model ? `${meta.model} (${meta.provider})` : (result.model || 'Unknown');
 
       console.log(`MODEL: ${modelUsed}`);
-      console.log(`LATENCY: ${latencyMs}ms (Provider call: ${meta.latencyMs}ms)`);
+      console.log(`PROVIDER LATENCY: ${meta.latencyMs}ms`);
+      console.log(`TOTAL TURN LATENCY: ${latencyMs}ms`);
+      console.log(`FALLBACKS TRIED: ${meta.fallbacksTried}`);
       console.log(`IS CODE ANSWER: ${Boolean(result.isCodeAnswer)}`);
       console.log(`--- RAW REPLY START ---`);
       console.log(result.reply);

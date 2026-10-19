@@ -247,11 +247,15 @@ function checkSyntax(code, language = 'python', scratchDir = null) {
       return { passed: true, tool: 'node --check' };
     }
   } catch (err) {
-    const stderr = err.stderr ? err.stderr.toString().trim() : (err.message || 'Syntax error');
+    const rawStderr = err.stderr ? err.stderr.toString().trim() : (err.message || 'Syntax error');
+    const cleanedStderr = rawStderr.split(tempFile).join('script.py').trim();
+    const lineMatch = cleanedStderr.match(/line\s+(\d+)/i);
+    const lineNum = lineMatch ? parseInt(lineMatch[1], 10) : null;
     return {
       passed: false,
       tool: language === 'python' ? 'py_compile' : 'node --check',
-      error: stderr.split('\n').pop() || stderr
+      line: lineNum,
+      error: cleanedStderr || 'Syntax error'
     };
   } finally {
     try {
@@ -427,25 +431,32 @@ SAMPLE_QUOTES_HTML = """<!DOCTYPE html><html><body>
 </div>
 </body></html>"""
 
+quote_item_1 = {
+    "quote": "Life is what happens when you are busy making other plans.",
+    "text": "Life is what happens when you are busy making other plans.",
+    "author": "John Lennon",
+    "tags": ["life", "inspirational"]
+}
+quote_item_2 = {
+    "quote": "The journey of a thousand miles begins with one step.",
+    "text": "The journey of a thousand miles begins with one step.",
+    "author": "Lao Tzu",
+    "tags": ["wisdom"]
+}
+
 SAMPLE_QUOTE_DATA = {
-    "quotes": [
-        {
-            "quote": "Life is what happens when you are busy making other plans.",
-            "text": "Life is what happens when you are busy making other plans.",
-            "author": "John Lennon",
-            "tags": ["life", "inspirational"]
-        },
-        {
-            "quote": "The journey of a thousand miles begins with one step.",
-            "text": "The journey of a thousand miles begins with one step.",
-            "author": "Lao Tzu",
-            "tags": ["wisdom"]
-        }
-    ],
+    "quotes": [quote_item_1, quote_item_2],
+    "items": [quote_item_1, quote_item_2],
+    "data": [quote_item_1, quote_item_2],
+    "results": [quote_item_1, quote_item_2],
+    "top_quote": quote_item_1,
     "quote": "Life is what happens when you are busy making other plans.",
     "text": "Life is what happens when you are busy making other plans.",
     "author": "John Lennon",
     "tags": ["life", "inspirational"],
+    "tag": "life",
+    "total": 2,
+    "count": 2,
     "completion": "Life is what happens when you are busy making other plans. - John Lennon"
 }
 
@@ -616,15 +627,26 @@ exec(compile(script_content, target_script, 'exec'), globs)
       };
     }
   } catch (err) {
-    const stdout = err.stdout ? err.stdout.toString().trim().slice(0, 300) : '';
-    const stderr = err.stderr ? err.stderr.toString().trim().slice(0, 300) : err.message;
-    const cleanStderr = stderr.split('\n').map(l => l.trim()).filter(Boolean).pop() || stderr;
+    const rawStderr = err.stderr ? err.stderr.toString().trim() : (err.message || '');
+    const lines = rawStderr.split('\n').map(l => l.trim()).filter(Boolean);
+    const meaningfulLines = lines.filter(l =>
+      !l.startsWith('For further information visit') &&
+      !l.startsWith('warnings.warn') &&
+      !l.startsWith('sys:1:')
+    );
+    const excIndex = meaningfulLines.findIndex(l => /^[A-Z][a-zA-Z0-9_]*Error:|^pydantic[._]/.test(l));
+    let cleanStderr = '';
+    if (excIndex !== -1) {
+      cleanStderr = meaningfulLines.slice(excIndex, excIndex + 3).join(' ');
+    } else {
+      cleanStderr = meaningfulLines.slice(-2).join(' ') || rawStderr;
+    }
     return {
       executed: true,
       mode: needsNetwork || needsKeys ? 'mocked_network' : 'local_scratch',
       exitCode: typeof err.status === 'number' ? err.status : 1,
-      stdout,
-      stderr: cleanStderr,
+      stdout: err.stdout ? err.stdout.toString().trim().slice(0, 300) : '',
+      stderr: cleanStderr.slice(0, 300),
       passed: false
     };
   } finally {
@@ -697,7 +719,8 @@ function verifyCode({ prompt, code, language = null, scratchDir = null }) {
   if (syntax.passed) {
     checksPassed++;
   } else {
-    failures.push(`Syntax check failed (${syntax.tool}): ${syntax.error}`);
+    const lineInfo = syntax.line ? ` (line ${syntax.line})` : '';
+    failures.push(`Syntax check failed (${syntax.tool}${lineInfo}):\n${syntax.error}`);
   }
 
   // 5. Linter check (static pyflakes + AST unused parameters)
@@ -747,34 +770,62 @@ function verifyCode({ prompt, code, language = null, scratchDir = null }) {
     }
   }
 
-  // 7. Pydantic validation of LLM output check (if requested)
-  let pydanticValidationPassed = true;
-  if (constraints.requiredLibraries.includes('pydantic') && /\b(?:llm|api|completion|validated\s+json)\b/i.test(prompt)) {
-    checksTotal++;
+  // 7. Execution check (mocked network or local scratch)
+  let execution = { executed: false, mode: 'none', reason: 'Not executed' };
+  if (syntax.passed) {
+    execution = checkExecution(code, lang, scratchDir);
+    if (execution.executed) {
+      checksTotal++;
+      if (execution.passed) {
+        checksPassed++;
+      } else {
+        failures.push(`Execution failed (${execution.mode}): ${execution.stderr || 'Non-zero exit'}`);
+      }
+    }
+  } else {
+    execution = {
+      executed: false,
+      mode: 'none',
+      reason: 'Syntax check failed; execution skipped'
+    };
+  }
+
+  // 8. Pydantic validation of LLM output check (if requested)
+  let pydanticValidationPassed = false;
+  let pydanticMockStatus = null;
+  const hasPydanticMockCheck = constraints.requiredLibraries.includes('pydantic') && /\b(?:llm|api|completion|validated\s+json)\b/i.test(prompt);
+
+  if (hasPydanticMockCheck) {
     const hasValidationMethod = /\b(?:model_validate_json|model_validate|parse_raw|parse_obj)\b/.test(code) ||
       /\b[A-Z]\w*\s*\(\s*(?:(?:\*\*)?(?:json\.loads)|(?:text|completion|content)\s*=)/.test(code);
     const passesRawResponseDict = /\b[A-Z]\w*\s*\(\s*\*\*(?:response|res|resp|r)\s*(?:\.json\(\))?\s*\)/.test(code);
+    const staticPydanticValid = hasValidationMethod && !passesRawResponseDict && responseParsingValid;
 
-    if (hasValidationMethod && !passesRawResponseDict && responseParsingValid) {
-      checksPassed++;
-    } else {
+    // Dependency check: if py_compile fails OR the mock run fails/crashes/times out,
+    // the Pydantic mock check must show "N/A (execution did not complete)", never PASSED,
+    // and must not count toward "Checks passed".
+    if (!syntax.passed || !execution.executed || !execution.passed) {
+      pydanticMockStatus = 'N/A (execution did not complete)';
       pydanticValidationPassed = false;
-      if (passesRawResponseDict) {
-        failures.push("Invalid Pydantic validation: Passed raw HTTP response dictionary directly to Pydantic model. Must parse choices[0].message.content into Model.model_validate_json(...) or Model(**json.loads(...)).");
-      } else {
-        failures.push("LLM output is not validated into a Pydantic model (e.g. Model.model_validate_json(completion_text) or Model(**json.loads(completion_text)))");
+      if (!staticPydanticValid) {
+        failures.push("LLM output is not validated into a Pydantic model (e.g. Model.model_validate_json(completion_text))");
       }
-    }
-  }
-
-  // 8. Execution check (mocked network or local scratch)
-  const execution = checkExecution(code, lang, scratchDir);
-  if (execution.executed) {
-    checksTotal++;
-    if (execution.passed) {
-      checksPassed++;
     } else {
-      failures.push(`Execution failed (${execution.mode}): ${execution.stderr || 'Non-zero exit'}`);
+      // Both syntax and execution completed successfully!
+      checksTotal++;
+      if (staticPydanticValid) {
+        checksPassed++;
+        pydanticValidationPassed = true;
+        pydanticMockStatus = 'PASSED';
+      } else {
+        pydanticValidationPassed = false;
+        pydanticMockStatus = 'FAILED: LLM output not validated into Pydantic model';
+        if (passesRawResponseDict) {
+          failures.push("Invalid Pydantic validation: Passed raw HTTP response dictionary directly to Pydantic model. Must parse choices[0].message.content into Model.model_validate_json(...) or Model(**json.loads(...)).");
+        } else {
+          failures.push("LLM output is not validated into a Pydantic model (e.g. Model.model_validate_json(completion_text))");
+        }
+      }
     }
   }
 
@@ -793,6 +844,8 @@ function verifyCode({ prompt, code, language = null, scratchDir = null }) {
       requiredLibraries: constraints.requiredLibraries,
       endpointModelValid,
       responseParsingValid,
+      hasPydanticMockCheck,
+      pydanticMockStatus,
       pydanticValidationPassed,
       syntax,
       linter,
@@ -845,9 +898,14 @@ function generateVerificationBlock(metrics) {
   if (metrics.responseParsingValid === false) {
     lines.push(`  - Response payload parsing: FAILED (did not extract choices[0].message.content for chat completion)`);
   }
-  if (metrics.pydanticValidationPassed !== undefined && metrics.requiredLibraries && metrics.requiredLibraries.includes('pydantic')) {
-    const pydStatus = metrics.pydanticValidationPassed ? 'PASSED' : 'FAILED: LLM output not validated into Pydantic model';
-    lines.push(`  - Pydantic schema validation of LLM output (validated against mock): ${pydStatus}`);
+  if (metrics.hasPydanticMockCheck) {
+    if (metrics.pydanticMockStatus === 'N/A (execution did not complete)') {
+      lines.push(`  - Pydantic schema validation of LLM output (validated against mock): N/A (execution did not complete)`);
+    } else if (metrics.pydanticMockStatus === 'PASSED') {
+      lines.push(`  - Pydantic schema validation of LLM output (validated against mock): PASSED`);
+    } else {
+      lines.push(`  - Pydantic schema validation of LLM output (validated against mock): ${metrics.pydanticMockStatus || 'FAILED: LLM output not validated into Pydantic model'}`);
+    }
   }
 
   // Execution check
