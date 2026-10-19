@@ -45,6 +45,7 @@ async function runPhase8aTests() {
   assert(res1.reply.includes('Static checks only:'), 'Verification block must explicitly state "Static checks only"');
   assert(res1.reply.includes('pyflakes'), 'Verification block must verify pyflakes');
   assert(res1.reply.includes('Pydantic schema validation of LLM output (validated against mock): PASSED'), 'Verification block must report Pydantic schema validation validated against mock');
+  assert(res1.reply.includes('Requirements covered: 3/3'), 'Verification block must report Requirements covered: 3/3');
   assert(res1.reply.includes('Mocked-network run'), 'Verification block must report mocked-network run');
   assert(res1.reply.includes('Live external endpoints: NOT INVOKED'), 'Verification block must confirm live endpoints were not invoked');
   assert.strictEqual(hasInternalLeak(res1.reply), false, 'Test 1 reply must contain no internal status/route leaks');
@@ -66,6 +67,7 @@ async function runPhase8aTests() {
   assert(res2 && res2.reply, 'Test 2 must return a reply');
   assert.strictEqual(res2.isCodeAnswer, true, 'Test 2 must be processed via codeAnswer path');
   assert(res2.reply.includes('### Verification'), 'Test 2 reply must end with a ### Verification block');
+  assert(res2.reply.includes('Requirements covered:'), 'Test 2 reply must include Requirements covered line');
 
   console.log('\n--- FULL RAW REPLY TEXT FROM TEST 2 ---');
   console.log(res2.reply);

@@ -18,13 +18,24 @@ const INTERNAL_LEAK_PATTERNS = [
   /\[Brain\]/gi,
   /\[LLM\s+Router\]/gi,
   /\[LLM\s+Router\s+Timing\]/gi,
+  /\[LLM\s+Router\s+Cooldown\]/gi,
+  /\[LLM\s+Router\s+Budget\]/gi,
   /\[Memory\s+Router\]/gi,
   /\[RAG\s+Path\]/gi,
   /\[Real-Time\s+Factual\s+Boundary\]/gi,
   /\[Live\s+Query\s+Search\s+Error\]/gi,
+  /\[Live\s+Web\s+Search\s+via\s+Serper\]/gi,
+  /\[Server\s+Log\]/gi,
+  /\[Startup\s+Warning\]/gi,
+  /\[Code\s+Routing\]/gi,
+  /\[?(?:NOVA|ECHO|ROUTER|ORCHESTRATOR|ADVISOR|ENGINEER|chat\s*➔\s*llm)\]?:?/gi,
   /\*Direct fast[^*]*\*/gi,
   /\*.*completion\.\.\.\*/gi,
-  /\bcompletion\.\.\./gi
+  /\bcompletion\.\.\./gi,
+  // Internal capability names
+  /(?:please\s+use\s+(?:the\s+)?)?scholarly[-_]dossier(?:\s+capability)?/gi,
+  // Internal tool names
+  /\b(?:workspace_run_command|workspace_edit_file|workspace_view_file|orchestrator_run|stock_quote|knowledge_recall|python_sandbox|browser_automation|deep_research|web_search|web_scrape|email_draft|email_send|notion_search|notion_create|goal_run|self_analyze|memory_save|memory_get|live_data_boundary)\b/gi
 ];
 
 /**
@@ -61,8 +72,11 @@ function sanitizeResponseText(text) {
     }
   }
 
-  // Clean up any remaining leading/trailing whitespace, orphan asterisks or empty italic markers like *...*
-  sanitized = sanitized.replace(/\*+\s*\.{0,3}\s*\*+\s*/g, '').trim();
+  // Clean up empty parentheses, brackets, or notes left behind by stripped terms
+  sanitized = sanitized.replace(/\(\s*(?:note:?\s*)?\)/gi, '');
+  sanitized = sanitized.replace(/\[\s*\]/g, '');
+  sanitized = sanitized.replace(/\*+\s*\.{0,3}\s*\*+\s*/g, '');
+  sanitized = sanitized.replace(/[ \t]{2,}/g, ' ').trim();
   return sanitized;
 }
 

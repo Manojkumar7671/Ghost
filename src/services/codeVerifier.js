@@ -91,14 +91,89 @@ function parseConstraints(prompt) {
   // 5. Network constraint
   const noNetwork = /\b(no\s+network|offline|without\s+internet|no\s+external\s+calls)\b/i.test(lower);
 
+  const explicitRequirements = parseExplicitRequirements(prompt);
+
   return {
     maxLines,
     exactLines,
     language,
     requiredLibraries,
     forbiddenLibraries,
-    noNetwork
+    noNetwork,
+    explicitRequirements
   };
+}
+
+/**
+ * Parses explicit architectural / functional requirements stated in the prompt.
+ * E.g., "web server", "train a model", "scrapes", "sends text to an LLM", "returns Pydantic-validated JSON"
+ */
+function parseExplicitRequirements(prompt) {
+  if (!prompt || typeof prompt !== 'string') return [];
+  const lower = prompt.toLowerCase();
+  const reqs = [];
+
+  // 1. Web scraping
+  if (/\b(?:scrapes?(?:\s+(?:a\s+)?(?:page|website|url|site))?|web\s+scraping)\b/i.test(lower)) {
+    reqs.push({
+      id: 'scraping',
+      name: 'Web scraping',
+      description: 'Scrapes web content using HTTP/HTML parsing',
+      test: (code) => /\b(?:requests\.(?:get|post)|urllib\.request|BeautifulSoup|bs4|html\.parser|select_one|find_all|find\(|select\(|html\b)/i.test(code)
+    });
+  }
+
+  // 2. Web server
+  if (/\b(?:runs?\s+(?:a\s+)?(?:full\s+)?web\s+server|web\s+server|http\s+server|api\s+server|fastapi|flask|express)\b/i.test(lower)) {
+    reqs.push({
+      id: 'web_server',
+      name: 'Web server',
+      description: 'Defines/starts a web server application',
+      test: (code) => /\b(?:FastAPI|Flask|HTTPServer|http\.server|uvicorn|@app\.|app\s*=\s*(?:FastAPI|Flask)|serve_forever|run_server)\b/i.test(code)
+    });
+  }
+
+  // 3. Machine learning model training
+  if (/\b(?:trains?\s+(?:a\s+)?(?:machine\s+learning\s+)?model|train\s+a\s+model|training\s+a\s+model|machine\s+learning\s+model)\b/i.test(lower)) {
+    reqs.push({
+      id: 'ml_training',
+      name: 'ML model training',
+      description: 'Trains an ML model via .fit() or model training constructs',
+      test: (code) => /\b(?:\.fit\s*\(|sklearn|torch|LinearRegression|train\s*\(|model\.train|fit_transform|SGDClassifier)\b/i.test(code)
+    });
+  }
+
+  // 4. LLM API integration
+  if (/\b(?:sends?\s+text\s+to\s+(?:an?\s+)?llm(?:\s+api)?|llm\s+api|calls?\s+(?:an?\s+)?llm|chat\s+completion)\b/i.test(lower)) {
+    reqs.push({
+      id: 'llm_api',
+      name: 'LLM API integration',
+      description: 'Calls an LLM API endpoint',
+      test: (code) => /\b(?:https?:\/\/api\.openai\.com|\/v1\/chat\/completions|\/v1\/completions|client\.chat\.completions|openai|payload.*?messages)\b/i.test(code)
+    });
+  }
+
+  // 5. Pydantic validation
+  if (/\b(?:pydantic(?:-validated)?(?:\s+json)?|validated\s+json|schema\s+validation)\b/i.test(lower)) {
+    reqs.push({
+      id: 'pydantic_validation',
+      name: 'Pydantic validation',
+      description: 'Validates data into a Pydantic model',
+      test: (code) => /\b(?:BaseModel|model_validate_json|model_validate|parse_raw|parse_obj)\b/i.test(code)
+    });
+  }
+
+  // 6. Sorting exclusion (e.g. without using sorted() or sort())
+  if (/\bwithout\s+using\s+(?:sorted\(\)\s+or\s+sort\(\)|sort|sorted)\b/i.test(lower)) {
+    reqs.push({
+      id: 'no_sort_builtin',
+      name: 'No sorted()/sort()',
+      description: 'Does not use built-in sort() or sorted()',
+      test: (code) => !/\b(?:sorted\s*\(|\.sort\s*\()/i.test(code)
+    });
+  }
+
+  return reqs;
 }
 
 /**
@@ -829,6 +904,40 @@ function verifyCode({ prompt, code, language = null, scratchDir = null }) {
     }
   }
 
+  // 9. Requirement coverage
+  const explicitRequirements = constraints.explicitRequirements || parseExplicitRequirements(prompt);
+  const requirementResults = [];
+  const missingRequirements = [];
+  for (const req of explicitRequirements) {
+    const covered = req.test(code);
+    requirementResults.push({ name: req.name, covered });
+    if (!covered) {
+      missingRequirements.push(req.name);
+    }
+  }
+  const requirementsTotal = explicitRequirements.length;
+  const requirementsCovered = requirementResults.filter(r => r.covered).length;
+
+  let lineLimitConflict = null;
+  if (constraints.maxLines !== null && requirementsTotal > 0) {
+    const estMinLines = requirementsTotal * 3 + 2;
+    if (constraints.maxLines < estMinLines || (lineCount > constraints.maxLines && missingRequirements.length > 0)) {
+      if (missingRequirements.length > 0) {
+        lineLimitConflict = `cannot fit all ${requirementsTotal} requirements within ${constraints.maxLines} lines; ${missingRequirements.join(', ')} could not fit`;
+      } else {
+        lineLimitConflict = `exceeded ${constraints.maxLines}-line limit to accommodate all ${requirementsTotal} requirements`;
+      }
+    }
+  }
+
+  if (missingRequirements.length > 0) {
+    if (lineLimitConflict) {
+      failures.push(`Missing explicit requirement(s): ${missingRequirements.join(', ')} [Line limit conflict: ${lineLimitConflict}]`);
+    } else {
+      failures.push(`Missing explicit requirement(s): ${missingRequirements.join(', ')}`);
+    }
+  }
+
   const passed = failures.length === 0;
 
   return {
@@ -847,6 +956,11 @@ function verifyCode({ prompt, code, language = null, scratchDir = null }) {
       hasPydanticMockCheck,
       pydanticMockStatus,
       pydanticValidationPassed,
+      requirementsTotal,
+      requirementsCovered,
+      missingRequirements,
+      requirementResults,
+      lineLimitConflict,
       syntax,
       linter,
       execution,
@@ -872,6 +986,16 @@ function generateVerificationBlock(metrics) {
     lines.push(`- Line count: ${metrics.lineCount} lines (non-blank, non-comment) [Exact: ${metrics.exactLines} lines — ${status}]`);
   } else {
     lines.push(`- Line count: ${metrics.lineCount} lines (non-blank, non-comment)`);
+  }
+
+  // Requirement coverage
+  if (metrics.requirementsTotal > 0) {
+    if (metrics.missingRequirements && metrics.missingRequirements.length > 0) {
+      const conflictMsg = metrics.lineLimitConflict ? ` [Line limit conflict: ${metrics.lineLimitConflict}]` : '';
+      lines.push(`- Requirements covered: ${metrics.requirementsCovered}/${metrics.requirementsTotal} (Missing: ${metrics.missingRequirements.join(', ')}${conflictMsg})`);
+    } else {
+      lines.push(`- Requirements covered: ${metrics.requirementsCovered}/${metrics.requirementsTotal}`);
+    }
   }
 
   // Static checks only
@@ -937,6 +1061,7 @@ function generateVerificationBlock(metrics) {
 
 module.exports = {
   parseConstraints,
+  parseExplicitRequirements,
   countCodeLines,
   extractImports,
   checkSyntax,

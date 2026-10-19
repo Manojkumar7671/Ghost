@@ -55,6 +55,30 @@ function runTests() {
   assert.strictEqual(hasInternalLeak(cleanMsg), false, 'Clean message should not trigger leak detector');
   assert.strictEqual(sanitizeResponseText(cleanMsg), cleanMsg, 'Clean message should not be altered');
 
+  // Test 7: Internal capability names leak (scholarly-dossier)
+  const leaked7 = 'If verified academic citations are required, please use the scholarly-dossier capability for sources.';
+  assert.strictEqual(hasInternalLeak(leaked7), true, 'Should detect scholarly-dossier capability leak');
+  const clean7 = sanitizeResponseText(leaked7);
+  assert.strictEqual(hasInternalLeak(clean7), false, 'Sanitized text should have no scholarly-dossier leak');
+  assert.strictEqual(clean7.includes('scholarly-dossier'), false, 'Clean text must not contain scholarly-dossier');
+
+  // Test 8: Internal tool names leak (workspace_run_command, orchestrator_run, stock_quote)
+  const leaked8 = 'I will execute workspace_run_command to check the repository, and orchestrator_run for subtasks.';
+  assert.strictEqual(hasInternalLeak(leaked8), true, 'Should detect internal tool names leak');
+  const clean8 = sanitizeResponseText(leaked8);
+  assert.strictEqual(hasInternalLeak(clean8), false, 'Sanitized text should have no tool name leaks');
+  assert.strictEqual(clean8.includes('workspace_run_command'), false, 'Clean text must not contain workspace_run_command');
+  assert.strictEqual(clean8.includes('orchestrator_run'), false, 'Clean text must not contain orchestrator_run');
+
+  // Test 9: Route labels and internal status markers ([Server Log], [Startup Warning], [Code Routing])
+  const leaked9 = '[Server Log] Reply served | Provider: Groq\n[Startup Warning] Key invalid\n[Code Routing] Routed code';
+  assert.strictEqual(hasInternalLeak(leaked9), true, 'Should detect route labels leak');
+  const clean9 = sanitizeResponseText(leaked9);
+  assert.strictEqual(hasInternalLeak(clean9), false, 'Sanitized text should have no route labels leak');
+  assert.strictEqual(clean9.includes('[Server Log]'), false, 'Clean text must not contain [Server Log]');
+  assert.strictEqual(clean9.includes('[Startup Warning]'), false, 'Clean text must not contain [Startup Warning]');
+  assert.strictEqual(clean9.includes('[Code Routing]'), false, 'Clean text must not contain [Code Routing]');
+
   console.log('✅ ALL RESPONSE SANITIZER TESTS PASSED.');
 }
 

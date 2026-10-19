@@ -722,8 +722,15 @@ Strictly adhere to the following rules:
       const syn = verifyResult.metrics.syntax;
       syntaxNote = `\n- CRITICAL COMPILER ERROR: Your previous code failed py_compile${syn.line ? ` on line ${syn.line}` : ''}:\n${syn.error}\nYou MUST fix this exact syntax error so that python3 -m py_compile passes.`;
     }
+    let reqNote = '';
+    if (verifyResult.metrics?.missingRequirements && verifyResult.metrics.missingRequirements.length > 0) {
+      reqNote = `\n- MISSING REQUIREMENTS: The previous code missed the following required features: ${verifyResult.metrics.missingRequirements.join(', ')}. You MUST implement constructs for each.`;
+      if (verifyResult.metrics.lineLimitConflict) {
+        reqNote += `\n- LINE LIMIT CONFLICT: The requested line limit (${parsedConstraints.maxLines} lines) conflicts with implementing all features. If all features cannot fit within ${parsedConstraints.maxLines} lines while following PEP 8 formatting (one statement per line), state in your one-line assumptions note which requirements cannot fit within the limit, and implement properly-formatted code.`;
+      }
+    }
     const feedbackMsg = `Your previous code generation failed verification with the following issues:
-- ${verifyResult.failures.join('\n- ')}${lineGuidance}${syntaxNote}
+- ${verifyResult.failures.join('\n- ')}${lineGuidance}${syntaxNote}${reqNote}
 
 Please regenerate the complete solution fixing all the issues above.
 IMPORTANT: You MUST write real, valid, executable Python code. Do NOT output a refusal or explanation message inside the code block. Maintain valid PEP 8 formatting with each statement and import on its own separate line. Do NOT combine statements onto a single line or game line limits. If a requested line limit is technically impossible to achieve while fulfilling all requirements, provide the cleanest properly-formatted code possible so the verifier can measure and report the actual line count honestly.
@@ -890,7 +897,7 @@ async function think(userMessage, userContext = { safeUser: 'guest', isAdmin: fa
 Factual Humility & Boundaries:
 - Do not present uncertain, disputed, speculative, or unverified claims as established fact. When knowledge is uncertain or context-dependent, use concise uncertainty language rather than fabricating certainty.
 - Do not state or imply that AI systems are self-aware, conscious, independently motivated, or possess human-like agency as fact.
-- Clearly distinguish ordinary conversational explanations from verified or cited research. If reliable sourcing materially matters, state that this response is an unverified conversational explanation and suggest using the existing bounded current-news ("What is the latest <topic> news?") or scholarly-dossier ("Give me scholarly sources on <topic>") capabilities without automatically invoking them.
+- Clearly distinguish ordinary conversational explanations from verified or cited research. If reliable sourcing materially matters, state that this response is an unverified conversational explanation and suggest asking for recent news ("What is the latest news on <topic>?") or academic research sources without citing internal capability names or tool names.
 - If the user asks for code, provide high-quality code in markdown text code blocks without claiming it was saved, executed, or tested in this chat.`;
     if (userContext && userContext.personalContext) {
       systemPrompt += `\n\n[APPROVED PERSONAL CORE CONTEXT (OWNER ONLY)]:\n${userContext.personalContext}\nUse this approved owner context to inform your answer truthfully. Do not invent or assume context beyond what is explicitly provided.`;
@@ -932,6 +939,14 @@ Factual Humility & Boundaries:
       reply = applyGeneralFactualQuality(reply);
     } catch (e) {
       console.warn('[Brain Fast Path] Factual quality policy import error:', e.message);
+    }
+
+    // Apply response sanitizer to strip any internal capability names, tool names, or route labels
+    try {
+      const { sanitizeResponseText } = require('./services/responseSanitizer.js');
+      reply = sanitizeResponseText(reply);
+    } catch (e) {
+      console.warn('[Brain Fast Path] Response sanitizer error:', e.message);
     }
 
     saveMessage(username, 'assistant', reply);

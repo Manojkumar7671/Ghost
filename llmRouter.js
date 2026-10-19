@@ -158,7 +158,8 @@ export async function callLLM(messages = [], options = {}) {
     timeoutMs = 6000,
     model: customModel = null,
     providerFilter = null,
-    isFastChat = false
+    isFastChat = false,
+    providers: customProviders = null
   } = options;
 
   const finalSystemPrompt = systemPrompt
@@ -167,7 +168,7 @@ export async function callLLM(messages = [], options = {}) {
 
   const formattedMessages = [{ role: 'system', content: finalSystemPrompt }, ...messages];
 
-  let providers = getProviders(isFastChat);
+  let providers = customProviders ? [...customProviders] : getProviders(isFastChat);
   if (providerFilter) {
     providers = providers.filter(p => p.name.toLowerCase().includes(providerFilter.toLowerCase()));
   }
