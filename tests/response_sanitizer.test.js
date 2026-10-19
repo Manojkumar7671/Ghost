@@ -79,6 +79,23 @@ function runTests() {
   assert.strictEqual(clean9.includes('[Startup Warning]'), false, 'Clean text must not contain [Startup Warning]');
   assert.strictEqual(clean9.includes('[Code Routing]'), false, 'Clean text must not contain [Code Routing]');
 
+  // Test 10: False-positive tests for normal answers using "orchestrator", "dossier", "workspace"
+  const fpMsg1 = 'The orchestrator pattern coordinates multiple worker agents in a distributed architecture.';
+  assert.strictEqual(hasInternalLeak(fpMsg1), false, 'Normal answer with "orchestrator" must not trigger leak detector');
+  assert.strictEqual(sanitizeResponseText(fpMsg1), fpMsg1, 'Normal answer with "orchestrator" must pass unchanged');
+
+  const fpMsg2 = 'Please make sure your workspace directory is clean before building the project.';
+  assert.strictEqual(hasInternalLeak(fpMsg2), false, 'Normal answer with "workspace" must not trigger leak detector');
+  assert.strictEqual(sanitizeResponseText(fpMsg2), fpMsg2, 'Normal answer with "workspace" must pass unchanged');
+
+  const fpMsg3 = 'The investigative dossier contains comprehensive background research for the analysis.';
+  assert.strictEqual(hasInternalLeak(fpMsg3), false, 'Normal answer with "dossier" must not trigger leak detector');
+  assert.strictEqual(sanitizeResponseText(fpMsg3), fpMsg3, 'Normal answer with "dossier" must pass unchanged');
+
+  const fpMsg4 = 'The workflow orchestrator organizes files in your workspace and prepares a detailed research dossier.';
+  assert.strictEqual(hasInternalLeak(fpMsg4), false, 'Combined sentence with orchestrator, workspace, dossier must not trigger leak detector');
+  assert.strictEqual(sanitizeResponseText(fpMsg4), fpMsg4, 'Combined sentence must pass unchanged');
+
   console.log('✅ ALL RESPONSE SANITIZER TESTS PASSED.');
 }
 

@@ -119,7 +119,7 @@ async function runFailoverTests() {
 
     // Assert network calls occurred for A, B, and C
     assert.strictEqual(networkCalls.A, 1, 'Provider A should have been called once');
-    assert.strictEqual(networkCalls.B, 1, 'Provider B should have been called once');
+    assert.strictEqual(networkCalls.B, 2, 'Provider B should have been called twice (retried once on timeout before cooldown)');
     assert.strictEqual(networkCalls.C, 1, 'Provider C should have been called once');
 
     console.log('✅ TEST 1 PASSED: Provider C served, cooldowns set for A and B, total time < budget.\n');
@@ -148,7 +148,7 @@ async function runFailoverTests() {
     );
     assert.strictEqual(
       networkCalls.B,
-      1,
+      2,
       'Provider B must NOT receive any network call while in active cooldown'
     );
     assert.strictEqual(
@@ -160,9 +160,9 @@ async function runFailoverTests() {
     console.log('✅ TEST 2 PASSED: Providers A and B were skipped with zero network calls during cooldown.\n');
 
     // -------------------------------------------------------------------------
-    // TEST 3: All-fail case returns clean user message
+    // TEST 3: All-fail case returns clean user message & never cools down last healthy provider
     // -------------------------------------------------------------------------
-    console.log('[TEST 3] Testing all-fail case: returns clean user message...');
+    console.log('[TEST 3] Testing all-fail case: returns clean user message & protects last healthy provider...');
 
     globalThis.fetch = async (url) => {
       const urlStr = String(url);
@@ -206,7 +206,126 @@ async function runFailoverTests() {
       'All-fail case must return clean user-facing message, never raw errors'
     );
 
-    console.log('✅ TEST 3 PASSED: All-fail case returned clean user-facing message.\n');
+    // ProviderFail1 failed (500) and was not the last provider -> cooled down
+    assert.strictEqual(isProviderCoolingDown('ProviderFail1'), true, 'ProviderFail1 must be marked cooling down on 500');
+    // ProviderFail2 failed (503) but was the last healthy provider -> NEVER cooled down
+    assert.strictEqual(isProviderCoolingDown('ProviderFail2'), false, 'Last healthy provider (ProviderFail2) must NEVER be cooled down');
+
+    console.log('✅ TEST 3 PASSED: All-fail case returned clean message and protected last healthy provider.\n');
+
+    // -------------------------------------------------------------------------
+    // TEST 4: Hard timeout aborts hanging mock provider at <= limit + 200ms
+    // -------------------------------------------------------------------------
+    console.log('[TEST 4] Testing hard timeout: Hanging mock provider is aborted at <= limit + 200ms...');
+
+    const hangingLimitMs = 300;
+    const hangingAttemptStarts = [];
+    const hangingAttemptAborts = [];
+
+    globalThis.fetch = async (url, options = {}) => {
+      const urlStr = String(url);
+      if (urlStr.includes('mock-hanging-provider')) {
+        hangingAttemptStarts.push(Date.now());
+
+        return new Promise((resolve, reject) => {
+          if (options.signal) {
+            options.signal.addEventListener('abort', () => {
+              hangingAttemptAborts.push(Date.now());
+              const abortErr = new Error('The operation was aborted due to timeout');
+              abortErr.name = 'AbortError';
+              reject(abortErr);
+            });
+          }
+        });
+      }
+      return { ok: false, status: 500, statusText: 'Error', text: async () => 'Fail' };
+    };
+
+    const hangingProviders = [
+      {
+        name: 'ProviderHanging',
+        endpoint: 'https://mock-hanging-provider.internal/v1/chat/completions',
+        model: 'mock-hanging-model',
+        apiKey: 'test-valid-key-hanging',
+        timeoutMs: hangingLimitMs
+      }
+    ];
+
+    const hangStart = Date.now();
+    await callLLM([{ role: 'user', content: 'Testing hanging provider' }], {
+      providers: hangingProviders,
+      isFastChat: true
+    });
+    const hangTotalElapsed = Date.now() - hangStart;
+
+    console.log(`[TEST 4] Hanging attempts: ${hangingAttemptStarts.length}, Total elapsed: ${hangTotalElapsed}ms`);
+    assert(hangingAttemptStarts.length >= 1, 'Hanging provider must have been attempted');
+    for (let i = 0; i < hangingAttemptStarts.length; i++) {
+      const attemptDuration = hangingAttemptAborts[i] - hangingAttemptStarts[i];
+      console.log(`[TEST 4] Attempt ${i + 1} abort duration: ${attemptDuration}ms (Limit: ${hangingLimitMs}ms)`);
+      assert(
+        attemptDuration <= hangingLimitMs + 200,
+        `Attempt ${i + 1} duration (${attemptDuration}ms) must be <= limit + 200ms (${hangingLimitMs + 200}ms)`
+      );
+      assert(
+        attemptDuration >= hangingLimitMs - 50,
+        `Attempt ${i + 1} duration (${attemptDuration}ms) must not abort prematurely before limit (${hangingLimitMs}ms)`
+      );
+    }
+    // Hanging provider was the sole/last healthy provider, so it must not be in cooldown
+    assert.strictEqual(isProviderCoolingDown('ProviderHanging'), false, 'Last healthy provider must never be cooled down');
+
+    console.log('✅ TEST 4 PASSED: Hanging mock provider aborted within <= limit + 200ms.\n');
+
+    // -------------------------------------------------------------------------
+    // TEST 5: Timeout retry once before cooldown (attempt 1 times out, attempt 2 succeeds)
+    // -------------------------------------------------------------------------
+    console.log('[TEST 5] Testing timeout retry: Attempt 1 times out, attempt 2 succeeds...');
+    let retryAttemptCount = 0;
+    globalThis.fetch = async (url, options = {}) => {
+      const urlStr = String(url);
+      if (urlStr.includes('mock-retry-provider')) {
+        retryAttemptCount++;
+        if (retryAttemptCount === 1) {
+          const abortErr = new Error('The operation was aborted due to timeout');
+          abortErr.name = 'AbortError';
+          throw abortErr;
+        }
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => ({
+            id: 'mock-retry-ok',
+            model: 'mock-retry-model',
+            choices: [{ message: { role: 'assistant', content: 'Success on retry!' } }],
+            usage: { total_tokens: 15 }
+          })
+        };
+      }
+      return originalFetch(url, options);
+    };
+
+    const retryProviders = [
+      {
+        name: 'ProviderRetry',
+        endpoint: 'https://mock-retry-provider.internal/v1/chat/completions',
+        model: 'mock-retry-model',
+        apiKey: 'test-valid-key-retry',
+        timeoutMs: 100
+      }
+    ];
+
+    const retryReply = await callLLM([{ role: 'user', content: 'Test retry' }], {
+      providers: retryProviders,
+      isFastChat: true
+    });
+
+    console.log(`[TEST 5] Reply: "${retryReply}", total attempts: ${retryAttemptCount}`);
+    assert.strictEqual(retryReply, 'Success on retry!');
+    assert.strictEqual(retryAttemptCount, 2, 'Provider must have been retried once upon timeout');
+    assert.strictEqual(isProviderCoolingDown('ProviderRetry'), false, 'Provider must NOT be in cooldown after successful retry');
+    console.log('✅ TEST 5 PASSED: Timeout retried once and succeeded without cooldown.\n');
 
     console.log('================================================================');
     console.log('🎉 ALL FAILOVER AND COOLDOWN TESTS PASSED!');

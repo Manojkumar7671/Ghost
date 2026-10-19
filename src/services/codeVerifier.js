@@ -908,18 +908,24 @@ function verifyCode({ prompt, code, language = null, scratchDir = null }) {
   const explicitRequirements = constraints.explicitRequirements || parseExplicitRequirements(prompt);
   const requirementResults = [];
   const missingRequirements = [];
+  const isCodeBroken = !syntax.passed || (execution.executed && !execution.passed);
+
   for (const req of explicitRequirements) {
-    const covered = req.test(code);
-    requirementResults.push({ name: req.name, covered });
-    if (!covered) {
-      missingRequirements.push(req.name);
+    if (isCodeBroken) {
+      requirementResults.push({ name: req.name, covered: 'N/A' });
+    } else {
+      const covered = req.test(code);
+      requirementResults.push({ name: req.name, covered });
+      if (!covered) {
+        missingRequirements.push(req.name);
+      }
     }
   }
   const requirementsTotal = explicitRequirements.length;
-  const requirementsCovered = requirementResults.filter(r => r.covered).length;
+  const requirementsCovered = isCodeBroken ? 'N/A' : requirementResults.filter(r => r.covered === true).length;
 
   let lineLimitConflict = null;
-  if (constraints.maxLines !== null && requirementsTotal > 0) {
+  if (!isCodeBroken && constraints.maxLines !== null && requirementsTotal > 0) {
     const estMinLines = requirementsTotal * 3 + 2;
     if (constraints.maxLines < estMinLines || (lineCount > constraints.maxLines && missingRequirements.length > 0)) {
       if (missingRequirements.length > 0) {
@@ -930,7 +936,7 @@ function verifyCode({ prompt, code, language = null, scratchDir = null }) {
     }
   }
 
-  if (missingRequirements.length > 0) {
+  if (!isCodeBroken && missingRequirements.length > 0) {
     if (lineLimitConflict) {
       failures.push(`Missing explicit requirement(s): ${missingRequirements.join(', ')} [Line limit conflict: ${lineLimitConflict}]`);
     } else {
@@ -990,7 +996,13 @@ function generateVerificationBlock(metrics) {
 
   // Requirement coverage
   if (metrics.requirementsTotal > 0) {
-    if (metrics.missingRequirements && metrics.missingRequirements.length > 0) {
+    const isCodeBroken = (metrics.syntax && !metrics.syntax.passed) ||
+      (metrics.execution && metrics.execution.executed && !metrics.execution.passed) ||
+      metrics.requirementsCovered === 'N/A';
+
+    if (isCodeBroken) {
+      lines.push('- Requirements covered: N/A (execution did not complete)');
+    } else if (metrics.missingRequirements && metrics.missingRequirements.length > 0) {
       const conflictMsg = metrics.lineLimitConflict ? ` [Line limit conflict: ${metrics.lineLimitConflict}]` : '';
       lines.push(`- Requirements covered: ${metrics.requirementsCovered}/${metrics.requirementsTotal} (Missing: ${metrics.missingRequirements.join(', ')}${conflictMsg})`);
     } else {

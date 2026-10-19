@@ -205,16 +205,23 @@ export async function callLLM(messages = [], options = {}) {
 
   console.log(`[LLM Router] [${new Date().toISOString()}] Starting provider fallback loop for model: "${customModel || 'default'}"`);
 
-  for (let i = 0; i < providers.length; i++) {
-    const provider = providers[i];
+  const candidateProviders = providers.filter(p => isValidKey(p.apiKey));
 
-    // Skip providers with no key, known-revoked keys, or in cooldown without making a network call
-    if (!isValidKey(provider.apiKey)) {
-      continue;
-    }
+  for (let i = 0; i < candidateProviders.length; i++) {
+    const provider = candidateProviders[i];
+
+    // Determine if this is the last healthy provider (no subsequent healthy candidates)
+    const subsequentHealthy = candidateProviders.slice(i + 1).filter(p => !isProviderCoolingDown(p.name));
+    const isLastHealthy = subsequentHealthy.length === 0;
+
+    // Cooldown check: skip cooling down providers, unless it is the last candidate (try it anyway after others fail)
     if (isProviderCoolingDown(provider.name)) {
-      console.log(`[LLM Router Cooldown] Skipping "${provider.name}" (active cooldown)`);
-      continue;
+      const hasRemainingCandidates = i < candidateProviders.length - 1;
+      if (hasRemainingCandidates) {
+        console.log(`[LLM Router Cooldown] Skipping "${provider.name}" (active cooldown)`);
+        continue;
+      }
+      console.warn(`[LLM Router Cooldown] Provider "${provider.name}" is in cooldown, but is the last candidate. Trying anyway after others fail...`);
     }
 
     // Check if turn budget has been exceeded before trying non-last-resort providers
@@ -245,106 +252,135 @@ export async function callLLM(messages = [], options = {}) {
       selectedModel = 'google/diffusiongemma-26b-a4b-it';
     }
 
-    const effectiveTimeout = isNormalChat ? Math.min(provider.timeoutMs || 6000, 6000) : (options.timeoutMs || 25000);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
-    const startProviderTime = Date.now();
+    let effectiveTimeout = provider.timeoutMs || (isNormalChat ? 6000 : (options.timeoutMs || 25000));
+    if (options.timeoutMs && options.timeoutMs < effectiveTimeout) {
+      effectiveTimeout = options.timeoutMs;
+    }
 
-    try {
-      const res = await fetch(provider.endpoint, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${provider.apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: formattedMessages,
-          temperature,
-          max_tokens: maxTokens
-        }),
-        signal: controller.signal
-      });
+    let attempt = 0;
+    const maxAttempts = 2; // 1 initial attempt + 1 retry on timeout
+    let providerSucceeded = false;
 
-      clearTimeout(timeoutId);
+    while (attempt < maxAttempts && !providerSucceeded) {
+      attempt++;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
+      const startAttemptTime = Date.now();
 
-      if (!res.ok) {
-        const errorText = await res.text().catch(() => '');
-        const errorMsg = `HTTP ${res.status} ${res.statusText}: ${redactSecrets(errorText.slice(0, 150))}`;
-        // On 429, 5xx, or network error: mark cooling down for 60s and move to next provider immediately (no sleep/backoff)
-        markProviderCooldown(provider.name, 60000);
-        fallbacksTried++;
-        errors.push(`${provider.name}: ${errorMsg}`);
-        console.warn(`[LLM Router Timing] Provider ${provider.name} failed with ${errorMsg}. Fast failover to next provider...`);
-        continue;
-      }
+      try {
+        const res = await fetch(provider.endpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${provider.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: selectedModel,
+            messages: formattedMessages,
+            temperature,
+            max_tokens: maxTokens
+          }),
+          signal: controller.signal
+        });
 
-      const data = await res.json();
-      if (data.error) {
-        markProviderCooldown(provider.name, 60000);
-        fallbacksTried++;
-        const errMsg = redactSecrets(data.error.message || JSON.stringify(data.error));
-        errors.push(`${provider.name}: ${errMsg}`);
-        continue;
-      }
+        if (!res.ok) {
+          const errorText = await res.text().catch(() => '');
+          const errorMsg = `HTTP ${res.status} ${res.statusText}: ${redactSecrets(errorText.slice(0, 150))}`;
+          const is429or5xx = res.status === 429 || (res.status >= 500 && res.status < 600);
 
-      const content = data.choices?.[0]?.message?.content;
-      if (content === undefined || content === null) {
-        markProviderCooldown(provider.name, 60000);
-        fallbacksTried++;
-        errors.push(`${provider.name}: Empty content in response payload`);
-        continue;
-      }
-
-      const latencyMs = Date.now() - startProviderTime;
-
-      // Real model extraction
-      let actualModel = selectedModel;
-      if (provider.name.includes('FreeLLMAPI')) {
-        if (data.model && data.model !== 'auto') {
-          actualModel = `${data.model} (via FreeLLMAPI auto)`;
-        } else {
-          actualModel = 'auto (underlying model unreported)';
+          // Cooldown only on 429/5xx, and never cool down the last healthy provider
+          if (is429or5xx && !isLastHealthy) {
+            markProviderCooldown(provider.name, 60000);
+          }
+          fallbacksTried++;
+          errors.push(`${provider.name}: ${errorMsg}`);
+          console.warn(`[LLM Router Timing] Provider ${provider.name} failed with ${errorMsg}. Fast failover to next provider...`);
+          break; // Do not retry on HTTP status errors (only retry on timeout)
         }
-      } else if (data.model) {
-        actualModel = data.model;
+
+        const data = await res.json();
+        if (data.error) {
+          const errMsg = redactSecrets(data.error.message || JSON.stringify(data.error));
+          const is429or5xx = data.error.code === 429 || data.error.status === 429 || /429|rate\s*limit|quota|5\d\d/i.test(errMsg);
+          if (is429or5xx && !isLastHealthy) {
+            markProviderCooldown(provider.name, 60000);
+          }
+          fallbacksTried++;
+          errors.push(`${provider.name}: ${errMsg}`);
+          break;
+        }
+
+        const content = data.choices?.[0]?.message?.content;
+        if (content === undefined || content === null) {
+          fallbacksTried++;
+          errors.push(`${provider.name}: Empty content in response payload`);
+          break;
+        }
+
+        providerSucceeded = true;
+        cooldownMap.delete(provider.name);
+
+        const latencyMs = Date.now() - startAttemptTime;
+
+        // Real model extraction
+        let actualModel = selectedModel;
+        if (provider.name.includes('FreeLLMAPI')) {
+          if (data.model && data.model !== 'auto') {
+            actualModel = `${data.model} (via FreeLLMAPI auto)`;
+          } else {
+            actualModel = 'auto (underlying model unreported)';
+          }
+        } else if (data.model) {
+          actualModel = data.model;
+        }
+
+        lastServedMeta = {
+          provider: provider.name,
+          model: actualModel,
+          latencyMs,
+          fallbacksTried
+        };
+
+        // Server log line format: [Server Log] Reply served | Provider: X | Model: Y | Latency: Nms | Fallbacks tried: N
+        console.log(`[Server Log] Reply served | Provider: ${provider.name} | Model: ${actualModel} | Latency: ${latencyMs}ms | Fallbacks tried: ${fallbacksTried}`);
+
+        if (localTraceId && localUserId && localUserId !== '00000000-0000-0000-0000-000000000000') {
+          pool.query(
+            "INSERT INTO model_runs (id, trace_id, user_id, model, prompt_version, latency_ms, created_at) VALUES ($1, $2, $3, $4, 'v1', $5, NOW()) ON CONFLICT DO NOTHING",
+            [crypto.randomUUID(), localTraceId, localUserId, actualModel, latencyMs]
+          ).catch(err => console.error("[Telemetry] DB Insert failed:", err.message));
+        }
+
+        let tokenUsageCost = 0.001;
+        if (data.usage && data.usage.total_tokens) {
+          tokenUsageCost = (data.usage.total_tokens / 1000) * 0.002;
+        }
+        logUsage(provider.name, tokenUsageCost).catch(() => {});
+
+        return content;
+      } catch (err) {
+        const isAbort = err.name === 'AbortError' || /abort|timeout/i.test(err.message);
+        const attemptLatency = Date.now() - startAttemptTime;
+        const errMsg = redactSecrets(isAbort ? `Timeout after ${effectiveTimeout}ms` : err.message);
+
+        if (isAbort && attempt < maxAttempts) {
+          console.warn(`[LLM Router Timing] Provider ${provider.name} timed out after ${attemptLatency}ms on attempt ${attempt}. Retrying once before cooldown...`);
+          continue; // Retry once on timeout
+        }
+
+        // Exhausted retries or non-abort error
+        fallbacksTried++;
+        errors.push(`${provider.name}: ${errMsg}`);
+        console.warn(`[LLM Router Timing] Provider ${provider.name} failed in ${attemptLatency}ms (${errMsg}). Fast failover to next provider...`);
+
+        // Cooldown on timeout after retry: only if isAbort, and never on last healthy provider
+        if (isAbort && !isLastHealthy) {
+          markProviderCooldown(provider.name, 60000);
+        }
+        break;
+      } finally {
+        clearTimeout(timeoutId);
       }
-
-      lastServedMeta = {
-        provider: provider.name,
-        model: actualModel,
-        latencyMs,
-        fallbacksTried
-      };
-
-      // Server log line format: [Server Log] Reply served | Provider: X | Model: Y | Latency: Nms | Fallbacks tried: N
-      console.log(`[Server Log] Reply served | Provider: ${provider.name} | Model: ${actualModel} | Latency: ${latencyMs}ms | Fallbacks tried: ${fallbacksTried}`);
-
-      if (localTraceId && localUserId && localUserId !== '00000000-0000-0000-0000-000000000000') {
-        pool.query(
-          "INSERT INTO model_runs (id, trace_id, user_id, model, prompt_version, latency_ms, created_at) VALUES ($1, $2, $3, $4, 'v1', $5, NOW()) ON CONFLICT DO NOTHING",
-          [crypto.randomUUID(), localTraceId, localUserId, actualModel, latencyMs]
-        ).catch(err => console.error("[Telemetry] DB Insert failed:", err.message));
-      }
-
-      let tokenUsageCost = 0.001;
-      if (data.usage && data.usage.total_tokens) {
-        tokenUsageCost = (data.usage.total_tokens / 1000) * 0.002;
-      }
-      logUsage(provider.name, tokenUsageCost).catch(() => {});
-
-      return content;
-    } catch (err) {
-      clearTimeout(timeoutId);
-      const isAbort = err.name === 'AbortError';
-      const errMsg = redactSecrets(isAbort ? `Timeout after ${effectiveTimeout}ms` : err.message);
-      markProviderCooldown(provider.name, 60000);
-      fallbacksTried++;
-      errors.push(`${provider.name}: ${errMsg}`);
-      const latencyMs = Date.now() - startProviderTime;
-      console.warn(`[LLM Router Timing] Provider ${provider.name} failed in ${latencyMs}ms (${errMsg}). Fast failover to next provider...`);
-      // Immediately proceed to next provider (no sleep/backoff)
-      continue;
     }
   }
 

@@ -30,7 +30,10 @@ class Data(BaseModel):
     'Verification block must state N/A for Pydantic mock when syntax fails');
   assert(!block1.includes('Pydantic schema validation of LLM output (validated against mock): PASSED'),
     'Verification block must NEVER state PASSED when syntax check fails');
-  console.log('✅ Unit Test (i) PASSED: Syntax error code reports N/A for Pydantic mock validation.\n');
+  assert.strictEqual(res1.metrics.requirementsCovered, 'N/A', 'Requirement coverage must be N/A when syntax fails');
+  assert(block1.includes('- Requirements covered: N/A (execution did not complete)'), 'Verification block must report Requirements covered: N/A on syntax failure');
+  assert(!block1.match(/- Requirements covered:\s*\d+\/\d+/), 'Verification block must NEVER show X/Y covered on broken code');
+  console.log('✅ Unit Test (i) PASSED: Syntax error code reports N/A for Pydantic mock validation and requirement coverage.\n');
 
   // ---------------------------------------------------------------------------
   // (ii) Valid Code + Failed Mock Run -> Pydantic check must be N/A
@@ -61,7 +64,10 @@ if __name__ == "__main__":
     'Verification block must state N/A for Pydantic mock when execution fails');
   assert(!block2.includes('Pydantic schema validation of LLM output (validated against mock): PASSED'),
     'Verification block must NEVER state PASSED when execution fails');
-  console.log('✅ Unit Test (ii) PASSED: Valid code with failed mock run reports N/A for Pydantic mock validation.\n');
+  assert.strictEqual(res2.metrics.requirementsCovered, 'N/A', 'Requirement coverage must be N/A when execution fails');
+  assert(block2.includes('- Requirements covered: N/A (execution did not complete)'), 'Verification block must report Requirements covered: N/A on execution failure');
+  assert(!block2.match(/- Requirements covered:\s*\d+\/\d+/), 'Verification block must NEVER show X/Y covered on broken code');
+  console.log('✅ Unit Test (ii) PASSED: Valid code with failed mock run reports N/A for Pydantic mock validation and requirement coverage.\n');
 
   // ---------------------------------------------------------------------------
   // (iii) Valid Code + Passed Mock Run -> Pydantic check must be PASSED
@@ -122,6 +128,8 @@ if __name__ == "__main__":
   assert.strictEqual(res3.metrics.pydanticMockStatus, 'PASSED', 'Pydantic mock status must be PASSED');
   assert(block3.includes('Pydantic schema validation of LLM output (validated against mock): PASSED'),
     'Verification block must state PASSED for Pydantic mock when execution succeeds');
+  assert.strictEqual(res3.metrics.requirementsCovered, 3, 'Requirement coverage must be 3 when all requirements are met');
+  assert(block3.includes('- Requirements covered: 3/3'), 'Verification block must report Requirements covered: 3/3');
   assert.strictEqual(res3.metrics.checksPassed, res3.metrics.checksTotal, 'All executed checks must pass');
   console.log('✅ Unit Test (iii) PASSED: Valid code with passed mock run reports PASSED (validated against mock).\n');
 

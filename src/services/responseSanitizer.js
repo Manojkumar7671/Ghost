@@ -28,12 +28,12 @@ const INTERNAL_LEAK_PATTERNS = [
   /\[Server\s+Log\]/gi,
   /\[Startup\s+Warning\]/gi,
   /\[Code\s+Routing\]/gi,
-  /\[?(?:NOVA|ECHO|ROUTER|ORCHESTRATOR|ADVISOR|ENGINEER|chat\s*➔\s*llm)\]?:?/gi,
+  /\[(?:NOVA|ECHO|ROUTER|ORCHESTRATOR|ADVISOR|ENGINEER|chat\s*➔\s*llm)\]:?/gi,
   /\*Direct fast[^*]*\*/gi,
   /\*.*completion\.\.\.\*/gi,
   /\bcompletion\.\.\./gi,
   // Internal capability names
-  /(?:please\s+use\s+(?:the\s+)?)?scholarly[-_]dossier(?:\s+capability)?/gi,
+  /(?:please\s+use\s+(?:the\s+)?)?\bscholarly[-_]dossier\b(?:\s+capability)?/gi,
   // Internal tool names
   /\b(?:workspace_run_command|workspace_edit_file|workspace_view_file|orchestrator_run|stock_quote|knowledge_recall|python_sandbox|browser_automation|deep_research|web_search|web_scrape|email_draft|email_send|notion_search|notion_create|goal_run|self_analyze|memory_save|memory_get|live_data_boundary)\b/gi
 ];
