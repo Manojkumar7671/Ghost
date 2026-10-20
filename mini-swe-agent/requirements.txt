@@ -13,3 +13,4 @@ prompt_toolkit
 datasets
 openai!=1.100.0,!=1.100.1
 croniter>=6.2.4
+pyflakes>=3.0.0

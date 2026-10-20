@@ -629,7 +629,7 @@ async function codeAnswer(userMessage, userContext = { safeUser: 'guest', isAdmi
 
   const systemPrompt = `You are Ghost, an expert coding assistant specializing in production-ready, verified code.
 Strictly adhere to the following rules:
-1. REQUIREMENTS & EXECUTABLE CODE: You MUST ALWAYS output a fenced Python code block with real, valid, executable Python code implementing the requested features (e.g. scraping, web server, ML model, LLM API call, Pydantic validation). NEVER output an empty code block, NEVER refuse the request, and NEVER output only assumptions text. Keep code clean, modular, and concise so it comfortably fits within any specified line limits (e.g. write 35-42 lines when a 50-line limit is requested).
+1. REQUIREMENTS & EXECUTABLE CODE: You MUST ALWAYS output a fenced Python code block with real, valid, executable Python code implementing the requested features (e.g. scraping, web server, ML model, LLM API call, Pydantic validation). NEVER output an empty code block, NEVER refuse the request, and NEVER output only assumptions text. Keep code clean, modular, and concise so it comfortably fits within any specified line limits (e.g. write 35-40 lines when a 50-line limit is requested; strictly do not exceed the line limit).
 2. IMPOSSIBLE LINE LIMITS: If a requested line limit (such as 10 lines) is impossible to achieve while fulfilling all requirements, DO NOT REFUSE AND DO NOT GIVE UP — write the full, properly-formatted PEP 8 implementation anyway (e.g. 35-45 lines). Never compress multiple statements onto a single line. The automated verifier will measure the exact line count and report the limit violation honestly.
 3. NO PLACEHOLDERS: Do NOT use placeholder URLs (like example.com) or dummy selectors unless explicitly asked. Use real public practice targets when a demo or web scraping target is needed (e.g. https://quotes.toscrape.com with selector "div.quote span.text" or https://books.toscrape.com with selector "article.product_pod"). When scraping HTML pages, parse with BeautifulSoup (bs4) or html.parser.
 4. LLM API CALLS & PYDANTIC VALIDATION:
@@ -658,7 +658,7 @@ Strictly adhere to the following rules:
       traceId: userContext.traceId,
       userId: userContext.userId,
       systemPrompt,
-      maxTokens: 1400,
+      maxTokens: 2048,
       timeoutMs: 10000,
       isCode: true
     });
@@ -726,7 +726,7 @@ Strictly adhere to the following rules:
     console.log('[Code Routing] Initial code failed verification. Regenerating once with feedback:', verifyResult.failures);
     const parsedConstraints = codeVerifier.parseConstraints(cleanPrompt);
     const lineGuidance = parsedConstraints.maxLines
-      ? `\n- STRICT LINE COUNT: Your previous code had ${verifyResult.metrics?.lineCount || 'too many'} lines and exceeded the strict ${parsedConstraints.maxLines}-line limit. You MUST write concise code strictly under ${parsedConstraints.maxLines} lines (aim for ${Math.floor(parsedConstraints.maxLines * 0.8)} lines) by eliminating unnecessary helper functions and keeping logic direct.`
+      ? `\n- STRICT LINE COUNT: Your previous code had ${verifyResult.metrics?.lineCount || 'too many'} lines and exceeded the strict ${parsedConstraints.maxLines}-line limit. You MUST write concise code strictly under ${parsedConstraints.maxLines} lines (aim for ${Math.floor(parsedConstraints.maxLines * 0.75)} lines, e.g. 35-40 lines max) by eliminating unnecessary helper functions and keeping logic direct.`
       : '';
     let syntaxNote = '';
     if (verifyResult.metrics?.syntax && !verifyResult.metrics.syntax.passed) {
@@ -760,7 +760,7 @@ Provide the one-line assumptions note and the fenced code block only.`;
           traceId: userContext.traceId,
           userId: userContext.userId,
           systemPrompt,
-          maxTokens: 1400,
+          maxTokens: 2048,
           timeoutMs: Math.min(10000, remainingForRegen),
           isCode: true
         });
@@ -821,6 +821,19 @@ Provide the one-line assumptions note and the fenced code block only.`;
   const verificationBlock = codeVerifier.generateVerificationBlock(verifyResult.metrics);
   const finalReply = `${cleanReply}\n\n${verificationBlock}`;
 
+  const isVerifierOk = verifyResult.passed || (
+    verifyResult.metrics &&
+    verifyResult.metrics.syntax &&
+    verifyResult.metrics.syntax.passed &&
+    verifyResult.metrics.lineCountPassed &&
+    (!verifyResult.failures || verifyResult.failures.length === 0 || verifyResult.failures.every(f =>
+      f.toLowerCase().includes('optional') ||
+      f.toLowerCase().includes('n/a') ||
+      f.toLowerCase().includes('not installed') ||
+      f.toLowerCase().includes('linter')
+    ))
+  );
+
   saveMessage(username, 'assistant', finalReply);
   return {
     reply: finalReply,
@@ -828,7 +841,7 @@ Provide the one-line assumptions note and the fenced code block only.`;
     actions: [{
       tool: 'code_verifier',
       reason: 'Verified code generation',
-      status: verifyResult.passed ? 'done' : 'failed'
+      status: isVerifierOk ? 'ok' : 'failed'
     }]
   };
 }

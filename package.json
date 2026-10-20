@@ -20,7 +20,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "postinstall": "python3 -m pip install --break-system-packages -r mini-swe-agent/requirements.txt -e ./mini-swe-agent || python3 -m pip install -r mini-swe-agent/requirements.txt -e ./mini-swe-agent || true",
+    "postinstall": "python3 -m pip install --break-system-packages -r mini-swe-agent/requirements.txt pyflakes -e ./mini-swe-agent || python3 -m pip install -r mini-swe-agent/requirements.txt pyflakes -e ./mini-swe-agent || true",
     "start": "node server.js",
     "test": "node scripts/test-runner.js",
     "test:agent-store": "node tests/agent_execution_contract_test.js && node tests/agent_task_store_test.js",

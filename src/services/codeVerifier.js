@@ -363,6 +363,7 @@ import ast, sys, subprocess, json
 
 def run_checks(code_file):
     issues = []
+    pyflakes_available = True
     # 1. pyflakes check for undefined names, unused imports, and unused local variables
     try:
         proc = subprocess.run(
@@ -372,12 +373,18 @@ def run_checks(code_file):
             timeout=5
         )
         combined = (proc.stdout or "") + (proc.stderr or "")
-        for line in combined.strip().splitlines():
-            clean = line.replace(code_file, "script.py").strip()
-            if clean:
-                issues.append(clean)
+        if "No module named pyflakes" in combined:
+            pyflakes_available = False
+        else:
+            for line in combined.strip().splitlines():
+                clean = line.replace(code_file, "script.py").strip()
+                if clean and not clean.startswith("Traceback"):
+                    issues.append(clean)
     except Exception as e:
-        issues.append(f"pyflakes execution error: {str(e)}")
+        if "No module named pyflakes" in str(e):
+            pyflakes_available = False
+        else:
+            issues.append(f"pyflakes execution error: {str(e)}")
 
     # 2. AST unused function parameter check
     try:
@@ -395,7 +402,7 @@ def run_checks(code_file):
     except Exception as e:
         issues.append(f"AST check error: {str(e)}")
 
-    print(json.dumps({"passed": len(issues) == 0, "issues": issues}))
+    print(json.dumps({"passed": len(issues) == 0, "available": pyflakes_available, "issues": issues}))
 
 run_checks(sys.argv[1])
 `;
@@ -406,19 +413,40 @@ run_checks(sys.argv[1])
     }).toString().trim();
 
     const parsed = JSON.parse(outJson);
+    if (parsed.available === false) {
+      return {
+        passed: true,
+        tool: 'pyflakes & AST linter',
+        available: false,
+        issues: [],
+        error: null
+      };
+    }
     return {
       passed: parsed.passed,
       tool: 'pyflakes & AST linter',
+      available: true,
       issues: parsed.issues || [],
       error: (parsed.issues && parsed.issues[0]) || null
     };
   } catch (err) {
     const errMsg = err.stderr ? err.stderr.toString().trim() : err.message;
+    if (errMsg.includes('No module named pyflakes')) {
+      return {
+        passed: true,
+        tool: 'pyflakes & AST linter',
+        available: false,
+        issues: [],
+        error: null
+      };
+    }
+    const cleanErr = errMsg.replace(/\/[\w\-\.\/]+/g, 'script.py').replace(/Traceback[\s\S]*/, '').trim();
     return {
       passed: false,
       tool: 'pyflakes & AST linter',
-      issues: [errMsg],
-      error: errMsg
+      available: false,
+      issues: [cleanErr],
+      error: cleanErr
     };
   } finally {
     try {
@@ -742,7 +770,7 @@ exec(compile(script_content, target_script, 'exec'), globs)
 /**
  * Verifies code against prompt constraints.
  */
-function verifyCode({ prompt, code, language = null, scratchDir = null }) {
+function verifyCode({ prompt, code, language = null, scratchDir = null, _linterCheck = null }) {
   const constraints = parseConstraints(prompt);
   const lang = language || constraints.language;
   const lineCount = countCodeLines(code, lang);
@@ -811,13 +839,19 @@ function verifyCode({ prompt, code, language = null, scratchDir = null }) {
   }
 
   // 5. Linter check (static pyflakes + AST unused parameters)
-  checksTotal++;
-  const linter = checkLinter(code, lang, scratchDir);
-  if (linter.passed) {
-    checksPassed++;
-  } else {
-    for (const issue of (linter.issues || [])) {
-      failures.push(`Static linter issue: ${issue}`);
+  const linter = _linterCheck ? _linterCheck(code, lang, scratchDir) : checkLinter(code, lang, scratchDir);
+  if (linter.available !== false) {
+    checksTotal++;
+    if (linter.passed) {
+      checksPassed++;
+    } else {
+      for (const issue of (linter.issues || [])) {
+        const cleanIssue = issue
+          .replace(/\/[\w\-\.\/]+/g, 'script.py')
+          .replace(/Traceback[\s\S]*/, '')
+          .trim();
+        failures.push(`Static linter issue: ${cleanIssue}`);
+      }
     }
   }
 
@@ -1039,8 +1073,16 @@ function generateVerificationBlock(metrics) {
     lines.push(`  - Syntax check (${metrics.syntax.tool}): ${synStatus}`);
   }
   if (metrics.linter) {
-    const lintStatus = metrics.linter.passed ? 'PASSED' : `FAILED (${metrics.linter.error || 'Issues found'})`;
-    lines.push(`  - Linter (pyflakes & AST unused variables/parameters): ${lintStatus}`);
+    if (metrics.linter.available === false) {
+      lines.push('  - Linter: N/A (not installed)');
+    } else {
+      const cleanError = (metrics.linter.error || 'Issues found')
+        .replace(/\/[\w\-\.\/]+/g, 'script.py')
+        .replace(/Traceback[\s\S]*/, '')
+        .trim();
+      const lintStatus = metrics.linter.passed ? 'PASSED' : `FAILED (${cleanError})`;
+      lines.push(`  - Linter (pyflakes & AST unused variables/parameters): ${lintStatus}`);
+    }
   }
   if (metrics.requiredLibraries && metrics.requiredLibraries.length > 0) {
     const missing = metrics.requiredLibraries.filter(lib => !metrics.imports.includes(lib));

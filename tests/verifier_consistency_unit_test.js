@@ -135,6 +135,41 @@ if __name__ == "__main__":
   assert.strictEqual(res3.metrics.checksPassed, res3.metrics.checksTotal, 'All executed checks must pass');
   console.log('✅ Unit Test (iii) PASSED: Valid code with passed mock run reports PASSED (validated against mock).\n');
 
+  // ---------------------------------------------------------------------------
+  // (iv) Unavailable Linter Runtime Check -> Linter: N/A (not installed)
+  // ---------------------------------------------------------------------------
+  console.log('[UNIT TEST (iv)] Testing unavailable linter runtime check...');
+  const res4 = codeVerifier.verifyCode({
+    prompt,
+    code: passedMockRunCode,
+    language: 'python',
+    _linterCheck: () => ({
+      passed: true,
+      tool: 'pyflakes & AST linter',
+      available: false,
+      issues: [],
+      error: null
+    })
+  });
+  const block4 = codeVerifier.generateVerificationBlock(res4.metrics);
+
+  console.log('[UNIT TEST (iv) Output Block]:\n' + block4 + '\n');
+  assert.strictEqual(res4.metrics.linter.available, false, 'Linter metric must show available: false');
+  assert(block4.includes('  - Linter: N/A (not installed)'),
+    'Verification block must report "Linter: N/A (not installed)" when linter module is missing');
+  assert(!block4.includes('pyflakes'),
+    'Verification block must not output pyflakes when linter is unavailable');
+  assert(!block4.includes('/opt/render') && !block4.includes('Traceback'),
+    'Verification block must never print system paths or stack traces in replies');
+  // Linter must be excluded from checksTotal count
+  assert.strictEqual(res4.metrics.checksTotal, res3.metrics.checksTotal - 1,
+    'Linter check must be excluded from checksTotal count when unavailable');
+  assert.strictEqual(res4.metrics.checksPassed, res4.metrics.checksTotal,
+    'Checks passed should match checksTotal without counting linter');
+  assert.strictEqual(res4.passed, true,
+    'verifyCode must pass when only linter is unavailable');
+  console.log('✅ Unit Test (iv) PASSED: Unavailable linter reports "Linter: N/A (not installed)", excluded from checks count with zero leaked paths.\n');
+
   console.log('================================================================');
   console.log('🎉 ALL VERIFIER CONSISTENCY UNIT TESTS PASSED!');
   console.log('================================================================');
