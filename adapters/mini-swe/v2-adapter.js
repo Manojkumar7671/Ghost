@@ -70,7 +70,18 @@ class MiniSweAdapter {
             if (scheduleId) args.push('--schedule_id', scheduleId.toString());
             if (workspace) args.push('--workspace', workspace);
 
-            const childEnv = { ...process.env, PATH: process.env.PATH, PYTHONUNBUFFERED: '1', ...env };
+            const childEnv = {
+                ...process.env,
+                PATH: process.env.PATH,
+                PYTHONUNBUFFERED: '1',
+                PYTHONPATH: [
+                    process.env.PYTHONPATH,
+                    path.join(import.meta.dirname, '..', '..', 'mini-swe-agent', 'src'),
+                    path.join(process.env.HOME || '/opt/render', '.local/lib/python3.11/site-packages'),
+                    path.join(process.env.HOME || '/opt/render', '.local/lib/python3.10/site-packages')
+                ].filter(Boolean).join(':'),
+                ...env
+            };
             delete childEnv.VIRTUAL_ENV;
 
             let pythonBin = 'python3';

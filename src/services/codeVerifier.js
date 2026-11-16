@@ -1080,7 +1080,19 @@ function generateVerificationBlock(metrics) {
     lines.push(`  - Syntax check (${metrics.syntax.tool}): ${synStatus}`);
   }
   if (metrics.linter) {
-    if (metrics.linter.available === false) {
+    // Only show linter result for languages where we actually ran a linter.
+    // For bash: we only run bash -n (syntax check above); no pyflakes.
+    // For python: pyflakes + AST.
+    // For anything else: only report if the check was actually run.
+    const detectedLang = (metrics.language || 'python').toLowerCase();
+    if (detectedLang === 'bash' || detectedLang === 'sh') {
+      // bash: shellcheck if available
+      if (metrics.linter.tool && metrics.linter.tool.toLowerCase().includes('shellcheck')) {
+        const lintStatus = metrics.linter.passed ? 'PASSED' : `FAILED (${metrics.linter.error || 'Issues found'})`;
+        lines.push(`  - Linter (shellcheck): ${lintStatus}`);
+      }
+      // Otherwise silently skip — bash -n already reported above in syntax check
+    } else if (metrics.linter.available === false) {
       lines.push('  - Linter: N/A (not installed)');
     } else {
       const cleanError = (metrics.linter.error || 'Issues found')

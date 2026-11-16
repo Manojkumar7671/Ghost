@@ -572,7 +572,8 @@ app.post('/api/auth/login', async (req, res) => {
             sameSite: 'lax',
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
-        return res.json({ ...result, user: chosenUser });
+        // Do NOT return the token in the body — it lives only in the httpOnly cookie.
+        return res.json({ success: true, role: result.role, user: chosenUser });
     } catch (err) {
         return res.status(500).json({ success: false, error: err.message });
     }
@@ -1875,9 +1876,13 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             // Clean stray leading/trailing quotes and trim message
             const cleanMsg = (message || '').trim().replace(/^["']+|["']+$/g, '');
 
-            // Vague input interceptor: promptly ask a clarifying question
+            // Vague input interceptor: only ask for clarification when
+            // (a) there is no prior conversation history AND
+            // (b) the message contains no concrete task noun/verb.
+            // Inside an ongoing chat, "fix it" / "make it better" go straight
+            // to the LLM with full history — never intercepted.
             const routerModule = await import('./llmRouter.js');
-            if (routerModule.isVagueInput && routerModule.isVagueInput(cleanMsg)) {
+            if (routerModule.isVagueInput && routerModule.isVagueInput(cleanMsg, userHistory)) {
                 return res.json({
                     success: true,
                     text: "I'd be happy to help! Could you please clarify what specific task, project, or topic you're referring to?",
@@ -2001,8 +2006,23 @@ Respond with ONLY one word: CONVERSATION or TASK.`
                                 FREELLMAPI_API_KEY: process.env.FREELLMAPI_API_KEY,
                                 GHOST_AUTO_APPROVE: "1"
                             }
+                        }).then(res => {
+                            try {
+                                const status = res.result?.status || (res.result?.success ? 'SUCCESS' : 'FAILED');
+                                const end = Date.now() / 1000;
+                                runAgentSqlite(`UPDATE tasks SET status = '${status}', end_time = ${end} WHERE task_id = '${taskId}'`);
+                            } catch(e) {}
+                            return res;
                         }).catch(err => {
                             console.error('[PEVR Subprocess Error]', err.message);
+                            try {
+                                const end = Date.now() / 1000;
+                                const safeErr = (err.message || 'Task execution failed').replace(/'/g, "''");
+                                runAgentSqlite(`UPDATE tasks SET status = 'FAILED', end_time = ${end} WHERE task_id = '${taskId}'`);
+                                runAgentSqlite(`INSERT INTO events (task_id, step_id, event_type, tier, details, timestamp) VALUES ('${taskId}', 'NONE', 'STEP_FAIL', 'system', '{"error": "${safeErr}"}', ${end})`);
+                            } catch(dbErr) {
+                                console.error('[PEVR Status Update Error]', dbErr.message);
+                            }
                             return { error: err.message };
                         }).finally(() => {
                             activeCodingTasks = Math.max(0, activeCodingTasks - 1);

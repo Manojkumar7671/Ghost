@@ -58,23 +58,50 @@ export function isProviderCoolingDown(providerName) {
   return false;
 }
 
-export function isVagueInput(text) {
+/**
+ * isVagueInput — context-aware vague-message detector.
+ *
+ * Rules:
+ * 1. Only intercept when history is empty (no prior turns) AND the message
+ *    has no concrete task noun/verb (no code keywords, no subject matter).
+ * 2. Inside an ongoing conversation "fix it", "make it better", etc. go
+ *    straight to the LLM with history — never intercepted here.
+ * 3. The exact-phrase allowlist is gone; detection is structural:
+ *    very short (<= 6 words), no concrete keyword, first message only.
+ *
+ * @param {string} text  - the user message
+ * @param {Array}  history - prior conversation turns (default [])
+ * @returns {boolean}
+ */
+export function isVagueInput(text, history = []) {
   if (!text || typeof text !== 'string') return false;
-  const t = text.trim().toLowerCase().replace(/[.?!,;:"']+/g, '').replace(/\s+/g, ' ');
-  const vagueExactPatterns = [
-    /^help(?:\s+me)?\s+do\s+the\s+thing(?:\s+with\s+the\s+thing)?$/,
-    /^do\s+the\s+thing(?:\s+with\s+the\s+thing)?$/,
-    /^help(?:\s+me)?\s+with\s+the\s+thing$/,
-    /^can\s+you\s+(?:help(?:\s+me)?\s+)?do\s+the\s+thing(?:\s+with\s+the\s+thing)?$/,
-    /^help\s+me\s+do\s+that\s+thing$/,
-    /^do\s+that\s+thing$/,
-    /^can\s+you\s+do\s+it$/,
-    /^help\s+me\s+with\s+it$/,
-    /^do\s+(?:the\s+)?stuff$/,
-    /^make\s+it\s+better$/,
-    /^(?:idk\s+)?fix\s+it$/
-  ];
-  return vagueExactPatterns.some(rx => rx.test(t));
+
+  // Rule 1: Never intercept if there is already an ongoing conversation.
+  // The LLM has the full context/history to resolve "fix it", "make it better", etc.
+  if (Array.isArray(history) && history.length > 0) return false;
+
+  const clean = text.trim().toLowerCase().replace(/[.?!,;:"']+/g, '').replace(/\s+/g, ' ');
+  const words = clean.split(' ').filter(Boolean);
+  if (words.length === 0 || words.length > 8) return false;
+
+  // Specific domains/subjects or programming languages indicate a concrete query
+  const hasConcreteDomain = /\b(?:python|javascript|js|bash|shell|sql|html|css|docker|react|node|api|error|exception|capital|france|tokyo|itinerary|weather|email|math|prime|fibonacci|test|database|git)\b/i.test(clean);
+  if (hasConcreteDomain) return false;
+
+  // Check for vague/anaphoric characteristics when no history exists:
+  // 1. Standalone plea for help without context ("help", "help me", "can you help")
+  const isGenericHelp = /^(?:can\s+you\s+)?help(?:\s+me)?(?:\s+please)?$/i.test(clean);
+
+  // 2. Anaphoric actions with pronouns having no antecedent in turn 1:
+  // e.g. "fix it", "make it better", "can you do that", "do it"
+  const hasUnboundPronounAction = /\b(?:do|fix|make|change|try|handle)\s+(?:it|that|this)(?:\s+better)?\b/i.test(clean) ||
+                                  /^can\s+you\s+do\s+(?:that|this|it)$/i.test(clean);
+
+  // 3. Dummy placeholder nouns: "the thing", "the stuff", "something about...", "stuff"
+  const hasPlaceholderTarget = /\b(?:the\s+thing|the\s+stuff|that\s+thing|something\s+about|anything\s+about|some\s+stuff)\b/i.test(clean) ||
+                               /^(?:do\s+)?(?:the\s+)?stuff$/i.test(clean);
+
+  return isGenericHelp || hasUnboundPronounAction || hasPlaceholderTarget;
 }
 
 export function parseRetryDurationMs(res, bodyText) {
@@ -352,7 +379,7 @@ export async function callLLM(messages = [], options = {}) {
     }
 
     let attempt = 0;
-    const maxAttempts = isNormalChat ? 1 : 2; // For normal chat, fail over immediately to next provider
+    const maxAttempts = 2; // Allow up to 1 retry on timeout before cooling down and falling over
     let providerSucceeded = false;
 
     const effectiveMaxTokens = (selectedModel && selectedModel.includes('120b'))
