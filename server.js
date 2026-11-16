@@ -1431,13 +1431,14 @@ function getAgentTaskDetails(targetTaskId) {
         let rawTask = "";
         if (targetTaskId) {
             const cleanId = String(targetTaskId).replace(/[^a-zA-Z0-9_-]/g, '');
-            rawTask = runAgentSqlite(`SELECT task_id, goal, plan, status, start_time, end_time FROM tasks WHERE task_id = '${cleanId}'`).trim();
+            rawTask = runAgentSqlite(`SELECT task_id, status, start_time, end_time, goal, plan FROM tasks WHERE task_id = '${cleanId}'`).trim();
         } else {
-            rawTask = runAgentSqlite(`SELECT task_id, goal, plan, status, start_time, end_time FROM tasks ORDER BY start_time DESC LIMIT 1`).trim();
+            rawTask = runAgentSqlite(`SELECT task_id, status, start_time, end_time, goal, plan FROM tasks ORDER BY start_time DESC LIMIT 1`).trim();
         }
 
         if (!rawTask) return null;
-        const [id, goal, planJson, status, start, end] = rawTask.split('|');
+        const [id, status, start, end, goal, ...planParts] = rawTask.split('|');
+        const planJson = planParts.join('|');
         const startTime = Number(start) || Date.now() / 1000;
         const endTime = end ? Number(end) : null;
         const elapsedSeconds = Math.max(0, Math.round((endTime || (Date.now() / 1000)) - startTime));
@@ -1501,10 +1502,11 @@ function getAgentTaskDetails(targetTaskId) {
 function listAgentTasks(limit = 20) {
     initAgentDatabase();
     try {
-        const raw = runAgentSqlite(`SELECT task_id, goal, status, start_time, end_time FROM tasks ORDER BY start_time DESC LIMIT ${limit}`).trim();
+        const raw = runAgentSqlite(`SELECT task_id, status, start_time, end_time, goal FROM tasks ORDER BY start_time DESC LIMIT ${limit}`).trim();
         if (!raw) return [];
         return raw.split('\n').filter(Boolean).map(line => {
-            const [taskId, goal, status, start, end] = line.split('|');
+            const [taskId, status, start, end, ...goalParts] = line.split('|');
+            const goal = goalParts.join('|');
             const startTime = Number(start) || Date.now() / 1000;
             const endTime = end ? Number(end) : null;
             const elapsedSeconds = Math.max(0, Math.round((endTime || (Date.now() / 1000)) - startTime));
