@@ -302,7 +302,7 @@ function checkSyntax(code, language = 'python', scratchDir = null) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  const ext = language === 'python' ? '.py' : '.js';
+  const ext = language === 'python' ? '.py' : (language === 'bash' ? '.sh' : '.js');
   const tempFile = path.join(dir, `_syntax_check_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
 
   try {
@@ -314,6 +314,12 @@ function checkSyntax(code, language = 'python', scratchDir = null) {
         stdio: ['ignore', 'pipe', 'pipe']
       });
       return { passed: true, tool: 'py_compile' };
+    } else if (language === 'bash') {
+      execSync(`bash -n "${tempFile}"`, {
+        timeout: 5000,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+      return { passed: true, tool: 'bash -n' };
     } else {
       execSync(`node --check "${tempFile}"`, {
         timeout: 5000,
@@ -323,12 +329,12 @@ function checkSyntax(code, language = 'python', scratchDir = null) {
     }
   } catch (err) {
     const rawStderr = err.stderr ? err.stderr.toString().trim() : (err.message || 'Syntax error');
-    const cleanedStderr = rawStderr.split(tempFile).join('script.py').trim();
+    const cleanedStderr = rawStderr.split(tempFile).join(`script${ext}`).trim();
     const lineMatch = cleanedStderr.match(/line\s+(\d+)/i);
     const lineNum = lineMatch ? parseInt(lineMatch[1], 10) : null;
     return {
       passed: false,
-      tool: language === 'python' ? 'py_compile' : 'node --check',
+      tool: language === 'python' ? 'py_compile' : (language === 'bash' ? 'bash -n' : 'node --check'),
       line: lineNum,
       error: cleanedStderr || 'Syntax error'
     };
@@ -467,12 +473,13 @@ function checkExecution(code, language = 'python', scratchDir = null) {
   const needsNetwork = /\b(urllib\.request|requests\.|httpx\.|aiohttp\.|fetch\(|https?:\/\/|http\.client|socket\b)/i.test(code);
   const needsKeys = /\b(os\.environ|os\.getenv|process\.env|api[_-]?key|secret|auth_token)\b/i.test(code);
   const needsInput = /\b(input\(|stdin\.read|readline\()/i.test(code);
+  const hasInfiniteLoop = /\bwhile\s+(?:true|1)\b/i.test(code);
 
-  if (needsInput) {
+  if (needsInput || hasInfiniteLoop) {
     return {
       executed: false,
       mode: 'none',
-      reason: 'requires interactive stdin user input'
+      reason: needsInput ? 'requires interactive stdin user input' : 'contains intentional infinite loop'
     };
   }
 
@@ -481,7 +488,7 @@ function checkExecution(code, language = 'python', scratchDir = null) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  const ext = language === 'python' ? '.py' : '.js';
+  const ext = language === 'python' ? '.py' : (language === 'bash' ? '.sh' : '.js');
   const tempFile = path.join(dir, `_exec_run_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
 
   try {
@@ -489,7 +496,7 @@ function checkExecution(code, language = 'python', scratchDir = null) {
 
     if (!needsNetwork && !needsKeys) {
       // Pure local execution without network or API key dependencies
-      const cmd = language === 'python' ? `python3 "${tempFile}"` : `node "${tempFile}"`;
+      const cmd = language === 'python' ? `python3 "${tempFile}"` : (language === 'bash' ? `bash "${tempFile}"` : `node "${tempFile}"`);
       const stdout = execSync(cmd, {
         cwd: dir,
         timeout: 10000,
