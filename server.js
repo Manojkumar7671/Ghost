@@ -1951,14 +1951,6 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             const isPevrEligible = !isInstant && isAdmin && !hasFileAttachment && !message.startsWith('/') && !message.match(/^prepare\s+plan/i) && !isFactualQuery && (!isVagueQuestion || hasDirectAction) && hasExecutionVerb;
 
             if (isPevrEligible) {
-                if (activeCodingTasks >= 1) {
-                    return res.json({
-                        success: false,
-                        text: "Another coding task is currently running. Ghost caps execution to 1 coding task at a time to prevent server resource exhaustion. Please wait for it to finish.",
-                        execution: { state: "busy", taskId: null, summary: "Concurrent coding task limit reached (1 max)." }
-                    });
-                }
-
                 let intentResult = 'CONVERSATION';
                 const isExplicitSaveOrFile = /\b(?:save\s+(?:it\s+)?to|create\s+(?:a\s+)?file|write\s+(?:a\s+)?(?:script|function|code)\s+to|into\s+[a-zA-Z0-9_\-\.]+\.(?:py|js|sh|txt|json))\b/i.test(cleanLowerMsg);
                 if (isExplicitSaveOrFile) {
@@ -1989,6 +1981,14 @@ Respond with ONLY one word: CONVERSATION or TASK.`
                 }
 
                 if (intentResult === 'TASK') {
+                    if (activeCodingTasks >= 1) {
+                        return res.json({
+                            success: false,
+                            text: "Another coding task is currently running. Ghost caps execution to 1 coding task at a time to prevent server resource exhaustion. Please wait for it to finish.",
+                            error: "Another coding task is currently running. Ghost caps execution to 1 coding task at a time to prevent server resource exhaustion. Please wait for it to finish.",
+                            execution: { state: "busy", taskId: null, summary: "Concurrent coding task limit reached (1 max)." }
+                        });
+                    }
                     console.log("[Intent] Routing to PEVR (TASK):", message);
                     activeCodingTasks++;
                     const taskId = "task-" + Date.now();

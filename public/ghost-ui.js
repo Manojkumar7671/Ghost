@@ -3477,7 +3477,7 @@ const response = await fetch(targetUrl, {
                 }
                 activeRunId = null;
             } else {
-                appendMessage('ghost', data.error || "Matrix error: Backend disconnected.");
+                appendMessage('ghost', data.error || data.text || "Matrix error: Backend disconnected.");
                 activeRunId = null;
             }
         } catch (error) {
@@ -3799,8 +3799,8 @@ const response = await fetch(targetUrl, {
             <button id="approveBtn_${actionId}" class="send-btn" style="margin-right: 10px;">AUTHORIZE</button>
             <button id="rejectBtn_${actionId}" class="btn-icon" style="color: var(--accent-rose);">REJECT</button>
         `;
-        codeContent.appendChild(hitlDiv);
-        codeSidebar.classList.add('open');
+        if (codeContent) codeContent.appendChild(hitlDiv);
+        if (codeSidebar) codeSidebar.classList.add('open');
 
         document.getElementById(`approveBtn_${actionId}`).addEventListener('click', async () => {
             hitlDiv.innerHTML = `<span style="color: var(--accent-cyan);">Executing action...</span>`;
@@ -3905,7 +3905,7 @@ const response = await fetch(targetUrl, {
         // Match backticks and language tag
         const codeRegex = /[\x60]{3}([a-zA-Z0-9_-]*)\n([\s\S]*?)[\x60]{3}/gi;
         let match, foundHtml = false, htmlContentToRender = "", spokenText = fullText;
-        codeContent.innerHTML = '';
+        if (codeContent) codeContent.innerHTML = '';
 
         while ((match = codeRegex.exec(fullText)) !== null) {
             let lang = match[1] || 'code';
@@ -3954,7 +3954,7 @@ const response = await fetch(targetUrl, {
             blockContainer.appendChild(header);
             blockContainer.appendChild(pre);
 
-            codeContent.appendChild(blockContainer);
+            if (codeContent) codeContent.appendChild(blockContainer);
 
             if (codeBlock.includes('<!DOCTYPE html>') || (codeBlock.includes('<html') && codeBlock.includes('</html>'))) {
                 foundHtml = true;
@@ -3963,8 +3963,8 @@ const response = await fetch(targetUrl, {
             spokenText = spokenText.replace(match[0], '');
         }
 
-        if (codeContent.innerHTML !== '') codeSidebar.classList.add('open');
-        if (foundHtml && htmlContentToRender) {
+        if (codeContent && codeSidebar && codeContent.innerHTML !== '') codeSidebar.classList.add('open');
+        if (foundHtml && htmlContentToRender && appIframe && appViewer) {
             appIframe.srcdoc = htmlContentToRender;
             appViewer.classList.add('open');
             if (spokenText.trim() === "") spokenText = "Interface rendered.";
