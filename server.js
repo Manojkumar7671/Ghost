@@ -1824,12 +1824,12 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             console.log(`[Chat Trace] Received input: "${message}" | user: "${safeUser}" | fileAttached: ${Boolean(fileContent || fileBase64)}`);
 
             // Prevent any cloud-side Mac commands or local app launches in /api/chat
-            const blockedKeywords = [
-                'open camera', 'open photo booth', 'open calculator', 'open terminal',
-                'open safari', 'open chrome', 'killall', 'open file', 'open -a', 'open youtube',
-                'photo booth', 'calculator', 'terminal', 'open doc', 'open pdf', 'open txt'
+            const blockedAppLaunches = [
+                /\b(?:open|launch|start)\s+(?:camera|photo\s*booth|calculator|terminal|safari|chrome|doc|pdf|txt|youtube)\b/i,
+                /\bkillall\b/i,
+                /\bopen\s+-a\b/i
             ];
-            const isLocalRequest = blockedKeywords.some(k => lowerMsg.includes(k)) || (lowerMsg.startsWith('open ') && !lowerMsg.includes('http'));
+            const isLocalRequest = !isCodeAsTextRequest(message) && (blockedAppLaunches.some(regex => regex.test(lowerMsg)) || (lowerMsg.startsWith('open ') && !lowerMsg.includes('http')));
 
             if (isLocalRequest) {
                 return res.json({
@@ -3000,7 +3000,8 @@ ${evidence.join('\n')}`,
                 }
             }
 
-            const isComplex = !explicitDeepResearch && !explicitCodingTask && !isPdfAttached && !isOrdinaryChat && (classifyComplexity(finalMessage) === 'complex' || isBusinessMode);
+            const isCodeReq = isCodeAsTextRequest(finalMessage) || (brain.isCodeGenerationRequest && brain.isCodeGenerationRequest(finalMessage));
+            const isComplex = !explicitDeepResearch && !explicitCodingTask && !isPdfAttached && !isCodeReq && !isOrdinaryChat && (classifyComplexity(finalMessage) === 'complex' || isBusinessMode);
 
             if (isComplex && process.env.GHOST_PLANNER_ENABLED !== 'false') {
                 console.log('[Intent Planner] Complex goal detected, initializing intent planner pipeline...');
@@ -3341,7 +3342,7 @@ ${evidence.join('\n')}`,
                             /\b(?:I\s+(?:have\s+)?(?:saved|remembered|stored|updated|persisted|recorded)\s+(?:that|this|it)\s+(?:in|to)\s+(?:my\s+)?(?:memory|database|profile|records?|context))\b/i,
                             /\b(?:I\s+will\s+remember\s+(?:that|this))\b/i,
                             /\b(?:saved\s+to\s+(?:your|my)\s+(?:memory|profile|records?))\b/i,
-                            /\b(?:operating\s+system|network\s+state|ip\s+address|macOS\s+version|local\s+network)\b/i,
+                            /\b(?:your|host|local)\s+(?:operating\s+system|network\s+state|ip\s+address|macOS\s+version|local\s+network)\s+is\b/i,
                             /Tool Execution Results/i,
                             /Execution Results/i,
                             /script was run successfully/i,
@@ -3505,10 +3506,11 @@ ${evidence.join('\n')}`,
 
         if (!isAdmin) {
             const visitorBannedPatterns = [
-                /\b(private project|private workspace|memory|memories|database|terminal|mcp tool|browser automation|companion|code execution|commit|email|account access|external action|AIQ|tool execution summary|Tool Execution Results Summary)\b/i,
-                /\b(executed|created a file|wrote to file|ran command|opened browser|scheduled|code ran|task was scheduled|external action occurred)\b/i,
-                /Error:|Traceback:|Exception:|failed with status|API key/i,
-                /tool execution result/i,
+                /\b(?:I|we)\s+(?:have\s+)?(?:ran|executed|created|written\s+to|saved\s+to|deleted|modified)\s+(?:a|the|this)?\s*(?:file|command|script|terminal|database|workspace|code)\b/i,
+                /\b(?:I|we)\s+(?:have\s+)?(?:opened\s+(?:the\s+)?browser|scheduled\s+(?:a|the)\s+task|performed\s+(?:an?\s+)?external\s+action)\b/i,
+                /\b(?:file|script|task|command)\s+(?:has\s+been|was)\s+(?:created|executed|run|saved|written)\s+(?:in|to)\s+(?:the\s+)?(?:workspace|system|disk)\b/i,
+                /\b(?:access(?:ed|ing)?\s+(?:your\s+)?(?:private\s+)?(?:workspace|project|database|account|memory|memories))\b/i,
+                /\b(?:Tool\s+Execution\s+Results?|tool\s+execution\s+summary|worker-verification)\b/i,
                 /http:\/\/localhost:\d+\/downloads/i,
                 /localhost:\d+\/downloads/i,
                 /\/downloads\//i
@@ -3523,7 +3525,7 @@ ${evidence.join('\n')}`,
                             /\b(?:I\s+(?:have\s+)?(?:saved|remembered|stored|updated|persisted|recorded)\s+(?:that|this|it)\s+(?:in|to)\s+(?:my\s+)?(?:memory|database|profile|records?|context))\b/i,
                             /\b(?:I\s+will\s+remember\s+(?:that|this))\b/i,
                             /\b(?:saved\s+to\s+(?:your|my)\s+(?:memory|profile|records?))\b/i,
-                            /\b(?:operating\s+system|network\s+state|ip\s+address|macOS\s+version|local\s+network)\b/i,
+                            /\b(?:your|host|local)\s+(?:operating\s+system|network\s+state|ip\s+address|macOS\s+version|local\s+network)\s+is\b/i,
                             /Tool Execution Results/i,
                             /Execution Results/i,
                             /script was run successfully/i,
