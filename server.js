@@ -2007,15 +2007,27 @@ Respond with ONLY one word: CONVERSATION or TASK.`
                             FREELLMAPI_API_KEY: process.env.FREELLMAPI_API_KEY,
                             GHOST_AUTO_APPROVE: "1"
                         }
+                    }).catch(err => {
+                        console.error('[PEVR Subprocess Error]', err.message);
+                        return { error: err.message };
                     }).finally(() => {
                         activeCodingTasks = Math.max(0, activeCodingTasks - 1);
                     });
 
                     // Wait up to 15s for the task to complete synchronously without polling loops
                     const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('TIMEOUT'), 15000));
-                    const raceResult = await Promise.race([pevrPromise, timeoutPromise]);
+                    let raceResult = null;
+                    try {
+                        raceResult = await Promise.race([pevrPromise, timeoutPromise]);
+                    } catch (raceErr) {
+                        console.error('[PEVR Race Error]', raceErr.message);
+                        raceResult = { error: raceErr.message };
+                    }
 
-                    if (raceResult !== 'TIMEOUT' && raceResult && raceResult.result) {
+                    if (raceResult && raceResult.error) {
+                        console.warn('[PEVR Error, falling through to conversational LLM]:', raceResult.error);
+                        // Do not return - fall through to normal LLM generation so the user still gets their code!
+                    } else if (raceResult !== 'TIMEOUT' && raceResult && raceResult.result) {
                         const { result } = raceResult;
                         const status = result.status || (result.success ? 'SUCCESS' : 'FAILED');
                         const evidence = result.evidence || [];
@@ -2024,13 +2036,13 @@ Respond with ONLY one word: CONVERSATION or TASK.`
                             text: `Task finished with status: ${status}.\nEvidence:\n${evidence.join('\n')}`,
                             execution: { state: "completed", taskId, summary: `Task ${status}`, evidence }
                         });
+                    } else {
+                        return res.json({
+                            success: true,
+                            text: `Task started in background (ID: ${taskId}).`,
+                            execution: { state: "running", taskId, summary: "Running in background." }
+                        });
                     }
-
-                    return res.json({
-                        success: true,
-                        text: `Task started in background (ID: ${taskId}).`,
-                        execution: { state: "running", taskId, summary: "Running in background." }
-                    });
                 }
             }
 

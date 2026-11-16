@@ -115,7 +115,6 @@ class MiniSweAdapter {
             });
 
             child.on('error', (err) => {
-                clearInterval(pollInterval);
                 MiniSweAdapter.activeTasks.delete(taskId);
                 reject(err);
             });
