@@ -5,7 +5,7 @@
  * 1. Groq (openai/gpt-oss-120b for reasoning/code, openai/gpt-oss-20b for fast chat)
  * 2. FreeLLMAPI (Render Cloud / Local)
  * 3. DeepSeek / OpenRouter / Kimi (if keys configured)
- * 4. NVIDIA NIM (Last Resort) (google/diffusiongemma-26b-a4b-it)
+ * 4. NVIDIA NIM (Last Resort) (nvidia/nemotron-3.5-lightning-30b-a3b)
  */
 import dotenv from 'dotenv';
 dotenv.config({ override: true });
@@ -22,21 +22,56 @@ export function getLastServedMeta() {
   return lastServedMeta;
 }
 
-export const cooldownMap = new Map();
+export const providerCooldownMap = new Map();
+export const providerFailureCounts = new Map();
+export const cooldownMap = providerCooldownMap; // Backwards compatibility alias
 
-export function markProviderCooldown(providerName, durationMs = 60000) {
-  cooldownMap.set(providerName, Date.now() + durationMs);
-  console.log(`[LLM Router Cooldown] Marked provider "${providerName}" cooling down for ${durationMs / 1000}s`);
+export function getProviderBackoffMs(providerName, defaultDurationMs = null) {
+  if (defaultDurationMs && defaultDurationMs > 0) return defaultDurationMs;
+  const count = (providerFailureCounts.get(providerName) || 0);
+  if (count <= 1) return 10000;  // 1st failure: 10s backoff
+  if (count === 2) return 20000; // 2nd failure: 20s backoff
+  if (count === 3) return 40000; // 3rd failure: 40s backoff
+  return 60000;                  // 4th+ failure: 60s backoff
+}
+
+export function markProviderCooldown(providerName, durationMs = null) {
+  const currentCount = providerFailureCounts.get(providerName) || 0;
+  providerFailureCounts.set(providerName, currentCount + 1);
+  const backoffMs = getProviderBackoffMs(providerName, durationMs);
+  providerCooldownMap.set(providerName, Date.now() + backoffMs);
+  console.log(`[LLM Router Cooldown] Marked provider "${providerName}" cooling down for ${backoffMs / 1000}s (consecutive failures: ${currentCount + 1})`);
+}
+
+export function resetProviderCooldown(providerName) {
+  providerCooldownMap.delete(providerName);
+  providerFailureCounts.delete(providerName);
 }
 
 export function isProviderCoolingDown(providerName) {
-  if (!cooldownMap.has(providerName)) return false;
-  const expiry = cooldownMap.get(providerName);
+  if (!providerCooldownMap.has(providerName)) return false;
+  const expiry = providerCooldownMap.get(providerName);
   if (Date.now() < expiry) {
     return true;
   }
-  cooldownMap.delete(providerName);
+  providerCooldownMap.delete(providerName);
   return false;
+}
+
+export function isVagueInput(text) {
+  if (!text || typeof text !== 'string') return false;
+  const t = text.trim().toLowerCase().replace(/[.?!,;:"']+/g, '').replace(/\s+/g, ' ');
+  const vagueExactPatterns = [
+    /^help(?:\s+me)?\s+do\s+the\s+thing(?:\s+with\s+the\s+thing)?$/,
+    /^do\s+the\s+thing(?:\s+with\s+the\s+thing)?$/,
+    /^help(?:\s+me)?\s+with\s+the\s+thing$/,
+    /^can\s+you\s+(?:help(?:\s+me)?\s+)?do\s+the\s+thing(?:\s+with\s+the\s+thing)?$/,
+    /^help\s+me\s+do\s+that\s+thing$/,
+    /^do\s+that\s+thing$/,
+    /^can\s+you\s+do\s+it$/,
+    /^help\s+me\s+with\s+it$/
+  ];
+  return vagueExactPatterns.some(rx => rx.test(t));
 }
 
 export function parseRetryDurationMs(res, bodyText) {
@@ -86,7 +121,7 @@ export function getProviders(isFastChat = false) {
     endpoint: 'https://api.groq.com/openai/v1/chat/completions',
     model: isFastChat ? 'openai/gpt-oss-20b' : 'openai/gpt-oss-120b',
     apiKey: process.env.GROQ_API_KEY,
-    timeoutMs: isFastChat ? 6000 : 35000
+    timeoutMs: isFastChat ? 6000 : 20000
   });
 
   // Local FreeLLMAPI if in local deployment mode
@@ -107,7 +142,7 @@ export function getProviders(isFastChat = false) {
       endpoint: `${freeLLMCloud}${freeLLMCloud.endsWith('/v1') ? '' : '/v1'}/chat/completions`,
       model: 'auto',
       apiKey: process.env.FREELLMAPI_API_KEY || 'free',
-      timeoutMs: 6000
+      timeoutMs: isFastChat ? 8000 : 15000
     });
   }
 
@@ -152,14 +187,14 @@ export function getProviders(isFastChat = false) {
     });
   }
 
-  // 4. Last resort fallback: NVIDIA NIM (google/diffusiongemma-26b-a4b-it)
+  // 4. Last resort fallback: NVIDIA NIM (nvidia/nemotron-3.5-lightning-30b-a3b)
   // Kept ONLY as last-resort fallback behind all other providers
   providers.push({
     name: 'NVIDIA NIM (Last Resort)',
     endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions',
-    model: 'google/diffusiongemma-26b-a4b-it',
+    model: 'nvidia/nemotron-3.5-lightning-30b-a3b',
     apiKey: process.env.NVIDIA_API_KEY,
-    timeoutMs: 6000
+    timeoutMs: 12000
   });
 
   return providers;
@@ -194,6 +229,16 @@ export async function callLLM(messages = [], options = {}) {
   const finalSystemPrompt = systemPrompt
     ? `${GHOST_PERSONA}\n\n[CONTEXT/TASK OVERRIDE]\n${systemPrompt}`
     : GHOST_PERSONA;
+
+  // Intercept vague requests early with a helpful clarifying question
+  const lastUserMsg = Array.isArray(messages)
+    ? [...messages].reverse().find(m => m.role === 'user')?.content
+    : (typeof messages === 'string' ? messages : '');
+
+  if (isVagueInput(lastUserMsg)) {
+    console.log('[LLM Router] Vague input intercepted, returning clarification question.');
+    return "I'd be happy to help! Could you please clarify what specific task, project, or topic you're working on?";
+  }
 
   const formattedMessages = [{ role: 'system', content: finalSystemPrompt }, ...messages];
 
@@ -236,8 +281,14 @@ export async function callLLM(messages = [], options = {}) {
 
   let candidateProviders = providers.filter(p => isValidKey(p.apiKey));
   if (options.isCode) {
-    // NVIDIA diffusiongemma never used for code (chat-only last resort)
+    // NVIDIA NIM never used for code (chat-only last resort)
     candidateProviders = candidateProviders.filter(p => !p.name.includes('NVIDIA NIM'));
+  }
+
+  // If ALL candidate providers are in cooldown, bypass cooldown to avoid total lockout
+  const allCoolingDown = candidateProviders.length > 0 && candidateProviders.every(p => isProviderCoolingDown(p.name));
+  if (allCoolingDown) {
+    console.warn('[LLM Router Cooldown] All candidate providers in cooldown. Bypassing cooldown to avoid complete blackout.');
   }
 
   for (let i = 0; i < candidateProviders.length; i++) {
@@ -247,8 +298,8 @@ export async function callLLM(messages = [], options = {}) {
     const subsequentHealthy = candidateProviders.slice(i + 1).filter(p => !isProviderCoolingDown(p.name));
     const isLastHealthy = subsequentHealthy.length === 0;
 
-    // Cooldown check: skip cooling down providers, unless it is the last candidate (try it anyway after others fail)
-    if (isProviderCoolingDown(provider.name)) {
+    // Cooldown check: skip cooling down providers, unless it is the last candidate or all are cooling down
+    if (!allCoolingDown && isProviderCoolingDown(provider.name)) {
       const hasRemainingCandidates = i < candidateProviders.length - 1;
       if (hasRemainingCandidates) {
         console.log(`[LLM Router Cooldown] Skipping "${provider.name}" (active cooldown)`);
@@ -274,7 +325,7 @@ export async function callLLM(messages = [], options = {}) {
       if (provider.name === 'OpenRouter') {
         selectedModel = customModel;
       } else if (provider.name.includes('NVIDIA NIM')) {
-        selectedModel = 'google/diffusiongemma-26b-a4b-it';
+        selectedModel = 'nvidia/nemotron-3.5-lightning-30b-a3b';
       } else if (provider.name === 'Kimi K2') {
         selectedModel = customModel.includes('kimi') ? customModel : 'kimi-k2-0905';
       }
@@ -283,22 +334,22 @@ export async function callLLM(messages = [], options = {}) {
     // Policy rule: NEVER use vision models for chat or code
     if (selectedModel && (selectedModel.includes('vision') || selectedModel.includes('llama-3.2-11b') || selectedModel.includes('llama-3.2-90b'))) {
       console.warn(`[LLM Router Policy] Blocked vision model ${selectedModel} for chat/code.`);
-      selectedModel = 'google/diffusiongemma-26b-a4b-it';
+      selectedModel = 'nvidia/nemotron-3.5-lightning-30b-a3b';
     }
 
-    // Policy rule: NVIDIA diffusiongemma never used for code (chat-only last resort)
-    if (options.isCode && (provider.name.includes('NVIDIA') || (selectedModel && selectedModel.includes('diffusiongemma')))) {
+    // Policy rule: NVIDIA NIM never used for code (chat-only last resort)
+    if (options.isCode && (provider.name.includes('NVIDIA') || (selectedModel && selectedModel.includes('nemotron')))) {
       console.warn(`[LLM Router Policy] Blocked ${provider.name} (${selectedModel}) for code.`);
       continue;
     }
 
-    let effectiveTimeout = options.timeoutMs || provider.timeoutMs || (isNormalChat ? 6000 : 25000);
+    let effectiveTimeout = options.timeoutMs || provider.timeoutMs || (isNormalChat ? 8000 : 20000);
     if (options.isCode) {
       effectiveTimeout = Math.min(effectiveTimeout, 10000); // 10s per-provider timeout for code
     }
 
     let attempt = 0;
-    const maxAttempts = 2; // 1 initial attempt + 1 retry on timeout
+    const maxAttempts = isNormalChat ? 1 : 2; // For normal chat, fail over immediately to next provider
     let providerSucceeded = false;
 
     const effectiveMaxTokens = (selectedModel && selectedModel.includes('120b'))
@@ -338,9 +389,9 @@ export async function callLLM(messages = [], options = {}) {
           const errorMsg = `HTTP ${res.status} ${res.statusText}: ${redactSecrets(errorText.slice(0, 150))}`;
           const is429or5xx = res.status === 429 || (res.status >= 500 && res.status < 600);
 
-          // Cooldown only on 429/5xx, and never cool down the last healthy provider
+          // Cooldown only on 429/5xx, using isolated per-provider backoff
           if (is429or5xx && !isLastHealthy) {
-            const cooldownMs = res.status === 429 ? parseRetryDurationMs(res, errorText) : 60000;
+            const cooldownMs = res.status === 429 ? parseRetryDurationMs(res, errorText) : null;
             markProviderCooldown(provider.name, cooldownMs);
           }
           fallbacksTried++;
@@ -354,7 +405,7 @@ export async function callLLM(messages = [], options = {}) {
           const errMsg = redactSecrets(data.error.message || JSON.stringify(data.error));
           const is429or5xx = data.error.code === 429 || data.error.status === 429 || /429|rate\s*limit|quota|5\d\d/i.test(errMsg);
           if (is429or5xx && !isLastHealthy) {
-            const cooldownMs = /429|rate\s*limit|quota/i.test(errMsg) ? parseRetryDurationMs(res, errMsg) : 60000;
+            const cooldownMs = /429|rate\s*limit|quota/i.test(errMsg) ? parseRetryDurationMs(res, errMsg) : null;
             markProviderCooldown(provider.name, cooldownMs);
           }
           fallbacksTried++;
@@ -372,7 +423,7 @@ export async function callLLM(messages = [], options = {}) {
         }
 
         providerSucceeded = true;
-        cooldownMap.delete(provider.name);
+        resetProviderCooldown(provider.name);
 
         const latencyMs = Date.now() - startAttemptTime;
 
@@ -427,9 +478,9 @@ export async function callLLM(messages = [], options = {}) {
         errors.push(`${provider.name}: ${errMsg}`);
         console.warn(`[LLM Router Timing] Provider ${provider.name} failed in ${attemptLatency}ms (${errMsg}). Fast failover to next provider...`);
 
-        // Cooldown on timeout after retry: only if isAbort, and never on last healthy provider
-        if (isAbort && !isLastHealthy) {
-          markProviderCooldown(provider.name, 60000);
+        // Cooldown on error or timeout: never on last healthy provider
+        if (!isLastHealthy) {
+          markProviderCooldown(provider.name);
         }
         break;
       } finally {
@@ -444,4 +495,4 @@ export async function callLLM(messages = [], options = {}) {
 }
 
 export const chat = callLLM;
-export default { callLLM, chat, getProviders, isValidKey, getLastServedMeta, markProviderCooldown, isProviderCoolingDown };
+export default { callLLM, chat, getProviders, isValidKey, getLastServedMeta, markProviderCooldown, resetProviderCooldown, isProviderCoolingDown, isVagueInput };

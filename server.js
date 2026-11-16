@@ -1876,6 +1876,21 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             // Clean stray leading/trailing quotes and trim message
             const cleanMsg = (message || '').trim().replace(/^["']+|["']+$/g, '');
 
+            // Vague input interceptor: promptly ask a clarifying question
+            const routerModule = await import('./llmRouter.js');
+            if (routerModule.isVagueInput && routerModule.isVagueInput(cleanMsg)) {
+                return res.json({
+                    success: true,
+                    text: "I'd be happy to help! Could you please clarify what specific task, project, or topic you're referring to?",
+                    execution: {
+                        state: "not_started",
+                        taskId: null,
+                        summary: "Clarification requested for vague input.",
+                        artifacts: []
+                    }
+                });
+            }
+
             // TASK STATUS QUERY INTERCEPTOR (Fix for Bug 3)
             // Directly query and return evidence for specific task IDs or natural queries like "did you finish the task"
             const taskIdRegex = /\b(task-\d{10,16}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\b/i;
