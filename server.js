@@ -1982,66 +1982,62 @@ Respond with ONLY one word: CONVERSATION or TASK.`
 
                 if (intentResult === 'TASK') {
                     if (activeCodingTasks >= 1) {
-                        return res.json({
-                            success: false,
-                            text: "Another coding task is currently running. Ghost caps execution to 1 coding task at a time to prevent server resource exhaustion. Please wait for it to finish.",
-                            error: "Another coding task is currently running. Ghost caps execution to 1 coding task at a time to prevent server resource exhaustion. Please wait for it to finish.",
-                            execution: { state: "busy", taskId: null, summary: "Concurrent coding task limit reached (1 max)." }
-                        });
-                    }
-                    console.log("[Intent] Routing to PEVR (TASK):", message);
-                    activeCodingTasks++;
-                    const taskId = "task-" + Date.now();
-                    const safeGoal = message.replace(/'/g, "''");
-                    runAgentSqlite(`INSERT OR REPLACE INTO tasks (task_id, goal, plan, status, start_time) VALUES ('${taskId}', '${safeGoal}', '[]', 'RUNNING', ${Date.now() / 1000})`);
-
-                    const { default: MiniSweAdapter } = await import('./adapters/mini-swe/v2-adapter.js');
-                    const pevrPromise = MiniSweAdapter.runPevrTask(message, taskId, {
-                        env: {
-                            GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-                            GROQ_API_KEY: process.env.GROQ_API_KEY,
-                            NVIDIA_API_KEY: process.env.NVIDIA_API_KEY,
-                            OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
-                            FREELLMAPI_RENDER_URL: process.env.FREELLMAPI_RENDER_URL,
-                            FREELLMAPI_BASE_URL: process.env.FREELLMAPI_BASE_URL,
-                            FREELLMAPI_API_KEY: process.env.FREELLMAPI_API_KEY,
-                            GHOST_AUTO_APPROVE: "1"
-                        }
-                    }).catch(err => {
-                        console.error('[PEVR Subprocess Error]', err.message);
-                        return { error: err.message };
-                    }).finally(() => {
-                        activeCodingTasks = Math.max(0, activeCodingTasks - 1);
-                    });
-
-                    // Wait up to 15s for the task to complete synchronously without polling loops
-                    const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('TIMEOUT'), 15000));
-                    let raceResult = null;
-                    try {
-                        raceResult = await Promise.race([pevrPromise, timeoutPromise]);
-                    } catch (raceErr) {
-                        console.error('[PEVR Race Error]', raceErr.message);
-                        raceResult = { error: raceErr.message };
-                    }
-
-                    if (raceResult && raceResult.error) {
-                        console.warn('[PEVR Error, falling through to conversational LLM]:', raceResult.error);
-                        // Do not return - fall through to normal LLM generation so the user still gets their code!
-                    } else if (raceResult !== 'TIMEOUT' && raceResult && raceResult.result) {
-                        const { result } = raceResult;
-                        const status = result.status || (result.success ? 'SUCCESS' : 'FAILED');
-                        const evidence = result.evidence || [];
-                        return res.json({
-                            success: true,
-                            text: `Task finished with status: ${status}.\nEvidence:\n${evidence.join('\n')}`,
-                            execution: { state: "completed", taskId, summary: `Task ${status}`, evidence }
-                        });
+                        console.log("[Intent] Active coding task already running; falling through to direct LLM response to avoid container resource overload.");
                     } else {
-                        return res.json({
-                            success: true,
-                            text: `Task started in background (ID: ${taskId}).`,
-                            execution: { state: "running", taskId, summary: "Running in background." }
+                        console.log("[Intent] Routing to PEVR (TASK):", message);
+                        activeCodingTasks++;
+                        const taskId = "task-" + Date.now();
+                        const safeGoal = message.replace(/'/g, "''");
+                        runAgentSqlite(`INSERT OR REPLACE INTO tasks (task_id, goal, plan, status, start_time) VALUES ('${taskId}', '${safeGoal}', '[]', 'RUNNING', ${Date.now() / 1000})`);
+
+                        const { default: MiniSweAdapter } = await import('./adapters/mini-swe/v2-adapter.js');
+                        const pevrPromise = MiniSweAdapter.runPevrTask(message, taskId, {
+                            env: {
+                                GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+                                GROQ_API_KEY: process.env.GROQ_API_KEY,
+                                NVIDIA_API_KEY: process.env.NVIDIA_API_KEY,
+                                OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+                                FREELLMAPI_RENDER_URL: process.env.FREELLMAPI_RENDER_URL,
+                                FREELLMAPI_BASE_URL: process.env.FREELLMAPI_BASE_URL,
+                                FREELLMAPI_API_KEY: process.env.FREELLMAPI_API_KEY,
+                                GHOST_AUTO_APPROVE: "1"
+                            }
+                        }).catch(err => {
+                            console.error('[PEVR Subprocess Error]', err.message);
+                            return { error: err.message };
+                        }).finally(() => {
+                            activeCodingTasks = Math.max(0, activeCodingTasks - 1);
                         });
+
+                        // Wait up to 15s for the task to complete synchronously without polling loops
+                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('TIMEOUT'), 15000));
+                        let raceResult = null;
+                        try {
+                            raceResult = await Promise.race([pevrPromise, timeoutPromise]);
+                        } catch (raceErr) {
+                            console.error('[PEVR Race Error]', raceErr.message);
+                            raceResult = { error: raceErr.message };
+                        }
+
+                        if (raceResult && raceResult.error) {
+                            console.warn('[PEVR Error, falling through to conversational LLM]:', raceResult.error);
+                            // Do not return - fall through to normal LLM generation so the user still gets their code!
+                        } else if (raceResult !== 'TIMEOUT' && raceResult && raceResult.result) {
+                            const { result } = raceResult;
+                            const status = result.status || (result.success ? 'SUCCESS' : 'FAILED');
+                            const evidence = result.evidence || [];
+                            return res.json({
+                                success: true,
+                                text: `Task finished with status: ${status}.\nEvidence:\n${evidence.join('\n')}`,
+                                execution: { state: "completed", taskId, summary: `Task ${status}`, evidence }
+                            });
+                        } else {
+                            return res.json({
+                                success: true,
+                                text: `Task started in background (ID: ${taskId}).`,
+                                execution: { state: "running", taskId, summary: "Running in background." }
+                            });
+                        }
                     }
                 }
             }
