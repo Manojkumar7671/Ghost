@@ -94,45 +94,11 @@ class MiniSweAdapter {
             let stdout = '';
             let stderr = '';
             let trajectory = [];
-            
-            let lastEventId = 0;
-            const pollInterval = setInterval(() => {
-                try {
-                    const pythonScript = `
-import sqlite3, json, sys
-conn = sqlite3.connect(sys.argv[1])
-c = conn.cursor()
-c.execute("SELECT id, event_type, tier, details FROM events WHERE task_id = ? AND id > ? ORDER BY id ASC", (sys.argv[2], int(sys.argv[3])))
-for row in c.fetchall():
-    print(f"{row[0]}|{row[1]}|{row[2]}|{row[3]}")
-`;
-                    const out = execSync(`python3 -c '${pythonScript}' "${dbPath}" "${taskId}" "${lastEventId}"`, { encoding: 'utf-8' }).trim();
-                    if (out) {
-                        for (const line of out.split('\n')) {
-                            const parts = line.split('|');
-                            if (parts.length >= 4) {
-                                const id = parseInt(parts[0]);
-                                if (id > lastEventId) lastEventId = id;
-                                const etype = parts[1];
-                                const tier = parts[2];
-                                const details = parts.slice(3).join('|');
-                                
-                                const event = MiniSweAdapter.parseSqliteEvent(etype, tier, details);
-                                if (event) {
-                                    trajectory.push(event);
-                                    if (onEvent) onEvent(event);
-                                }
-                            }
-                        }
-                    }
-                } catch(e) {}
-            }, 500);
 
             child.stdout.on('data', (data) => stdout += data.toString());
             child.stderr.on('data', (data) => stderr += data.toString());
 
             child.on('close', (code) => {
-                clearInterval(pollInterval);
                 MiniSweAdapter.activeTasks.delete(taskId);
 
                 if (code !== 0 && !stdout.trim()) {

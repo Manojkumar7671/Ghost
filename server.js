@@ -133,6 +133,8 @@ const { clearHistory } = require('./src/tools/memory.js');
 const { callLLM: routerCallLLM } = require('./llmRouter.js');
 const authService = require('./src/services/authService.js');
 
+let activeCodingTasks = 0;
+
 startWatchdog();
 
 const REQUIRED_ENV_VARS = ['ADMIN_PASSPHRASE', 'JWT_SECRET'];
@@ -1932,13 +1934,25 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             const isPevrEligible = !isInstant && isAdmin && !hasFileAttachment && !message.startsWith('/') && !message.match(/^prepare\s+plan/i) && !isFactualQuery && (!isVagueQuestion || hasDirectAction) && hasExecutionVerb;
 
             if (isPevrEligible) {
+                if (activeCodingTasks >= 1) {
+                    return res.json({
+                        success: false,
+                        text: "Another coding task is currently running. Ghost caps execution to 1 coding task at a time to prevent server resource exhaustion. Please wait for it to finish.",
+                        execution: { state: "busy", taskId: null, summary: "Concurrent coding task limit reached (1 max)." }
+                    });
+                }
+
                 let intentResult = 'CONVERSATION';
-                try {
-                    const { callLLM } = await import('./src/tools/llm.js');
-                    const intentRes = await callLLM([
-                        { 
-                            role: 'system', 
-                            content: `You are an intent classifier for an autonomous coding agent.
+                const isExplicitSaveOrFile = /\b(?:save\s+(?:it\s+)?to|create\s+(?:a\s+)?file|write\s+(?:a\s+)?(?:script|function|code)\s+to|into\s+[a-zA-Z0-9_\-\.]+\.(?:py|js|sh|txt|json))\b/i.test(cleanLowerMsg);
+                if (isExplicitSaveOrFile) {
+                    intentResult = 'TASK';
+                } else {
+                    try {
+                        const { callLLM } = await import('./src/tools/llm.js');
+                        const intentRes = await callLLM([
+                            { 
+                                role: 'system', 
+                                content: `You are an intent classifier for an autonomous coding agent.
 Classify the user message as either CONVERSATION or TASK.
 
 Rules:
@@ -1946,25 +1960,26 @@ Rules:
 - CONVERSATION: Everything else, including questions (e.g. "where can i find this file", "how does this work"), explanations, chit-chat, advice, or discussions.
 
 Respond with ONLY one word: CONVERSATION or TASK.`
-                        },
-                        { role: 'user', content: cleanMsg }
-                    ], { maxTokens: 10, traceId: requestContext.traceId, userId: requestContext.userId });
-                    if (intentRes && intentRes.toLowerCase().includes('task')) {
-                        intentResult = 'TASK';
+                            },
+                            { role: 'user', content: cleanMsg }
+                        ], { maxTokens: 25, traceId: requestContext.traceId, userId: requestContext.userId });
+                        if (intentRes && intentRes.toLowerCase().includes('task')) {
+                            intentResult = 'TASK';
+                        }
+                    } catch(e) {
+                        console.error("Intent classification failed:", e.message);
                     }
-                } catch(e) {
-                    console.error("Intent classification failed:", e.message);
                 }
 
                 if (intentResult === 'TASK') {
                     console.log("[Intent] Routing to PEVR (TASK):", message);
+                    activeCodingTasks++;
                     const taskId = "task-" + Date.now();
                     const safeGoal = message.replace(/'/g, "''");
                     runAgentSqlite(`INSERT OR REPLACE INTO tasks (task_id, goal, plan, status, start_time) VALUES ('${taskId}', '${safeGoal}', '[]', 'RUNNING', ${Date.now() / 1000})`);
 
-                    
                     const { default: MiniSweAdapter } = await import('./adapters/mini-swe/v2-adapter.js');
-                    MiniSweAdapter.runPevrTask(message, taskId, {
+                    const pevrPromise = MiniSweAdapter.runPevrTask(message, taskId, {
                         env: {
                             GEMINI_API_KEY: process.env.GEMINI_API_KEY,
                             GROQ_API_KEY: process.env.GROQ_API_KEY,
@@ -1975,69 +1990,25 @@ Respond with ONLY one word: CONVERSATION or TASK.`
                             FREELLMAPI_API_KEY: process.env.FREELLMAPI_API_KEY,
                             GHOST_AUTO_APPROVE: "1"
                         }
-                    }).catch(console.error);
-                    
-                    let foundStatus = null;
-                    let evidence = [];
-                    let pendingApproval = null;
+                    }).finally(() => {
+                        activeCodingTasks = Math.max(0, activeCodingTasks - 1);
+                    });
 
-                    for (let i = 0; i < 20; i++) {
-                        await new Promise(r => setTimeout(r, 500));
-                        try {
-                            const statusOut = runAgentSqlite(`SELECT status FROM tasks WHERE task_id = '${taskId}'`).trim();
-                            if (statusOut === 'SUCCESS' || statusOut === 'FAILED') {
-                                foundStatus = statusOut;
-                                const evOut = runAgentSqlite(`SELECT event_type, details FROM events WHERE task_id = '${taskId}'`).trim();
-                                for (const line of evOut.split('\n')) {
-                                    const parts = line.split('|');
-                                    if (parts.length >= 2) {
-                                        const etype = parts[0];
-                                        const edetails = parts.slice(1).join('|');
-                                        if (etype === 'TOOL_SUCCESS') {
-                                            try {
-                                                const d = JSON.parse(edetails);
-                                                if (d.tool) evidence.push("Used " + d.tool.tool_name + ": " + JSON.stringify(d.tool.args));
-                                            } catch(e){}
-                                        } else if (etype === 'PATH_CHECK' && edetails.includes('false')) {
-                                            evidence.push("Blocked path escape.");
-                                        } else if (etype === 'DENIED') {
-                                            evidence.push("User denied action.");
-                                        }
-                                    }
-                                }
-                                break;
-                            }
-                            
-                            const apprOut = runAgentSqlite(`SELECT approval_id, tool_name FROM pending_approvals WHERE task_id = '${taskId}' AND status = 'PENDING'`).trim();
-                            if (apprOut) {
-                                const parts = apprOut.split('|');
-                                pendingApproval = { approval_id: parts[0], tool_name: parts[1] };
-                                break;
-                            }
-                        } catch (err) {
-                            console.error("DB check failed:", err.message);
-                        }
-                    }
-                    
-                    if (pendingApproval) {
+                    // Wait up to 15s for the task to complete synchronously without polling loops
+                    const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('TIMEOUT'), 15000));
+                    const raceResult = await Promise.race([pevrPromise, timeoutPromise]);
+
+                    if (raceResult !== 'TIMEOUT' && raceResult && raceResult.result) {
+                        const { result } = raceResult;
+                        const status = result.status || (result.success ? 'SUCCESS' : 'FAILED');
+                        const evidence = result.evidence || [];
                         return res.json({
                             success: true,
-                            text: `An approval is pending for ${pendingApproval.tool_name} (ID: ${pendingApproval.approval_id}).
-Please approve or deny using /api/agent/approvals/${pendingApproval.approval_id}/approve`,
-                            execution: { state: "pending", taskId, summary: "Approval pending." }
+                            text: `Task finished with status: ${status}.\nEvidence:\n${evidence.join('\n')}`,
+                            execution: { state: "completed", taskId, summary: `Task ${status}`, evidence }
                         });
                     }
-                    
-                    if (foundStatus) {
-                        return res.json({
-                            success: true,
-                            text: `Task finished with status: ${foundStatus}.
-Evidence:
-${evidence.join('\n')}`,
-                            execution: { state: "completed", taskId, summary: `Task ${foundStatus}`, evidence }
-                        });
-                    }
-                    
+
                     return res.json({
                         success: true,
                         text: `Task started in background (ID: ${taskId}).`,
