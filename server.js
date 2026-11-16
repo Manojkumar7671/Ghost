@@ -457,8 +457,7 @@ function extractToolCommand(text) {
 // ============================================================
 
 const authLimiter = (process.env.BYPASS_LIMITS === 'true' || process.env.NODE_ENV === 'test') ? (req, res, next) => next() : rateLimit({
-    windowMs: 15 * 60 * 1000, max: 200,
-    skip: (req) => req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1',
+    windowMs: 15 * 60 * 1000, max: 5,
     message: { success: false, error: "Too many login attempts. IP blocked for 15 minutes." },
     standardHeaders: true, legacyHeaders: false,
 });

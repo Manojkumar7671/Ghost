@@ -69,7 +69,10 @@ export function isVagueInput(text) {
     /^help\s+me\s+do\s+that\s+thing$/,
     /^do\s+that\s+thing$/,
     /^can\s+you\s+do\s+it$/,
-    /^help\s+me\s+with\s+it$/
+    /^help\s+me\s+with\s+it$/,
+    /^do\s+(?:the\s+)?stuff$/,
+    /^make\s+it\s+better$/,
+    /^(?:idk\s+)?fix\s+it$/
   ];
   return vagueExactPatterns.some(rx => rx.test(t));
 }
