@@ -410,7 +410,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const name = visitorNameInput ? visitorNameInput.value.trim().replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 40) : '';
         masterUser = capitalizeName(name) || 'Guest';
         try {
-            await fetch('/api/auth', {
+            await fetch(apiUrl('/api/auth'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -3086,11 +3086,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (authInput) authInput.disabled = true;
 
         try {
-            const authRes = await fetch(apiUrl('/api/auth'), {
+            const authRes = await fetch(apiUrl('/api/auth/login'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ authString: inputVal })
+                body: JSON.stringify({ password: inputVal })
             });
             const authData = await authRes.json();
 

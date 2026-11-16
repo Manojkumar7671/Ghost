@@ -17,6 +17,18 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANO
   }
 });
 
+const tokenCache = new Map();
+
+function isTokenCachedValid(token) {
+  if (!token) return null;
+  const cleanToken = token.startsWith('Bearer ') ? token.slice(7) : token;
+  const cached = tokenCache.get(cleanToken);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.user;
+  }
+  return null;
+}
+
 async function loginUser(username, password) {
   if (!password) {
     return { success: false, error: 'Password required.' };
@@ -35,11 +47,18 @@ async function loginUser(username, password) {
     return { success: false, error: 'Invalid login credentials.' };
   }
 
+  const user = { id: data.user.id, email: data.user.email, role: 'admin' };
+  tokenCache.set(data.session.access_token, {
+    user,
+    expiresAt: Date.now() + 15 * 60 * 1000
+  });
+
   return { 
     success: true, 
     token: data.session.access_token, 
     user_id: data.user.id, 
-    role: 'admin' 
+    role: 'admin',
+    user: username || 'Manoj'
   };
 }
 
@@ -48,19 +67,31 @@ async function validateToken(token) {
 
   try {
     const cleanToken = token.startsWith('Bearer ') ? token.slice(7) : token;
+    const cachedUser = isTokenCachedValid(cleanToken);
+    if (cachedUser) {
+      return { valid: true, user: cachedUser };
+    }
+
     const { data, error } = await supabase.auth.getUser(cleanToken);
     
     if (error || !data.user) {
+      tokenCache.delete(cleanToken);
       return { valid: false, reason: 'Invalid or expired Supabase token' };
     }
     
+    const user = { id: data.user.id, email: data.user.email, role: 'admin' };
+    tokenCache.set(cleanToken, {
+      user,
+      expiresAt: Date.now() + 15 * 60 * 1000
+    });
+
     return { 
       valid: true, 
-      user: { id: data.user.id, email: data.user.email, role: 'admin' } 
+      user 
     };
   } catch (err) {
     return { valid: false, reason: 'Error validating token' };
   }
 }
 
-module.exports = { loginUser, validateToken };
+module.exports = { loginUser, validateToken, isTokenCachedValid };

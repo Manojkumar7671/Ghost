@@ -131,6 +131,7 @@ const brain = require('./src/brain.js');
 const workspaceTools = require('./src/tools/workspaceTools.js');
 const { clearHistory } = require('./src/tools/memory.js');
 const { callLLM: routerCallLLM } = require('./llmRouter.js');
+const authService = require('./src/services/authService.js');
 
 startWatchdog();
 
@@ -473,48 +474,64 @@ app.use('/api/admin', (req, res, next) => {
 });
 
 app.post('/api/auth', authLimiter, async (req, res) => {
-    const { authString, user } = req.body;
+    const { authString, user, password } = req.body;
     const ip = req.ip;
     const userAgent = req.headers['user-agent'] || 'Unknown';
     let success = false;
+    let token = null;
 
     // Check if there is an existing valid admin session
     const sessionToken = req.cookies.ghost_session;
     let isAdminSession = false;
     if (sessionToken) {
         try {
-            const decoded = jwt.verify(sessionToken, JWT_SECRET);
-            if (decoded && decoded.role === 'admin') {
+            const validation = await authService.validateToken(sessionToken);
+            if (validation && validation.valid) {
                 isAdminSession = true;
+                token = sessionToken;
             }
         } catch (e) {}
+        if (!isAdminSession) {
+            try {
+                const decoded = jwt.verify(sessionToken, JWT_SECRET);
+                if (decoded && decoded.role === 'admin') {
+                    isAdminSession = true;
+                    token = sessionToken;
+                }
+            } catch (e) {}
+        }
     }
 
-    const suppliedHash = crypto.createHash('sha256').update(String(authString || '')).digest();
-    const expectedHash = crypto.createHash('sha256').update(ADMIN_PASSPHRASE).digest();
-    if (authString && crypto.timingSafeEqual(suppliedHash, expectedHash)) {
-        success = true;
-    } else if (isAdminSession) {
-        success = true;
-    }
+    const secretAttempt = password || authString;
     const chosenName = (user && user !== 'Unknown' && user !== 'Guest' && user !== 'Admin') ? user.trim() : '';
     if (user !== undefined && chosenName === '') {
         return res.status(400).json({ success: false, error: 'Name cannot be empty' });
     }
+
+    if (secretAttempt) {
+        // Authenticate via Supabase Auth end-to-end
+        const loginRes = await authService.loginUser(chosenName || 'Admin', secretAttempt);
+        if (loginRes.success) {
+            success = true;
+            token = loginRes.token;
+        }
+    } else if (isAdminSession) {
+        success = true;
+    }
+
     const isProd = process.env.RENDER === 'true' || process.env.NODE_ENV === 'production';
-    if (success) {
-        const token = jwt.sign({ role: 'admin', user: chosenName }, JWT_SECRET, { expiresIn: '24h' });
-        res.cookie('ghost_session', token, { httpOnly: true, secure: isProd, sameSite: 'lax', maxAge: 24 * 60 * 60 * 1000 });
+    if (success && token) {
+        res.cookie('ghost_session', token, { httpOnly: true, secure: isProd, sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000 });
         if (pool) {
             pool.query('INSERT INTO activity_logs (username, status, ip_address, user_agent) VALUES ($1, $2, $3, $4)',
                 [chosenName || 'Admin', 'Login Success (Admin)', ip, userAgent]).catch(() => {});
         }
-        return res.json({ success: true, role: 'admin', user: chosenName });
+        return res.json({ success: true, role: 'admin', user: chosenName || 'Manoj', token });
     }
 
     // Guest onboarding / session setup
-    const token = jwt.sign({ role: 'guest', user: chosenName || 'Guest' }, JWT_SECRET, { expiresIn: '24h' });
-    res.cookie('ghost_session', token, { httpOnly: true, secure: isProd, sameSite: 'lax', maxAge: 24 * 60 * 60 * 1000 });
+    const guestToken = jwt.sign({ role: 'guest', user: chosenName || 'Guest' }, JWT_SECRET, { expiresIn: '24h' });
+    res.cookie('ghost_session', guestToken, { httpOnly: true, secure: isProd, sameSite: 'lax', maxAge: 24 * 60 * 60 * 1000 });
     if (pool) {
         pool.query('INSERT INTO activity_logs (username, status, ip_address, user_agent) VALUES ($1, $2, $3, $4)',
             [chosenName || 'Guest', 'Login Success (Guest)', ip, userAgent]).catch(() => {});
@@ -524,28 +541,23 @@ app.post('/api/auth', authLimiter, async (req, res) => {
 
 // Added for API testing/token retrieval as requested
 app.post('/api/login', async (req, res) => {
-    const { passphrase } = req.body;
-    if (!passphrase) return res.status(400).json({ error: 'Passphrase required' });
+    const { passphrase, password } = req.body || {};
+    const checkPass = passphrase || password;
+    if (!checkPass) return res.status(400).json({ error: 'Password required' });
 
-    const suppliedHash = crypto.createHash('sha256').update(String(passphrase)).digest();
-    const expectedHash = crypto.createHash('sha256').update(ADMIN_PASSPHRASE).digest();
-
-    if (crypto.timingSafeEqual(suppliedHash, expectedHash)) {
-        const token = jwt.sign({ role: 'admin', user: 'Admin' }, JWT_SECRET, { expiresIn: '24h' });
-        return res.json({ token });
+    const result = await authService.loginUser('Admin', checkPass);
+    if (result.success) {
+        return res.json({ token: result.token });
     }
-
-    return res.status(401).json({ error: 'Invalid passphrase' });
+    return res.status(401).json({ error: 'Invalid clearance key' });
 });
 
 app.post('/api/auth/login', async (req, res) => {
     const { passphrase, username, password } = req.body || {};
     try {
         const checkPass = passphrase || password;
-        const chosenUser = username || 'Admin';
+        const chosenUser = username || 'Manoj';
 
-
-        const authService = await import('./src/services/authService.js');
         const result = await authService.loginUser(chosenUser, checkPass);
         if (!result.success) {
             return res.status(401).json(result);
@@ -558,7 +570,7 @@ app.post('/api/auth/login', async (req, res) => {
             sameSite: 'lax',
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
-        return res.json(result);
+        return res.json({ ...result, user: chosenUser });
     } catch (err) {
         return res.status(500).json({ success: false, error: err.message });
     }
@@ -568,6 +580,17 @@ app.post('/api/verify-auth', async (req, res) => {
     const token = (req.cookies && req.cookies.ghost_session) || (req.headers.authorization && req.headers.authorization.split(" ")[1]);
     if (!token) return res.json({ success: false, isAdmin: false });
 
+    // Try Supabase Auth token validation first
+    try {
+        const validation = await authService.validateToken(token);
+        if (validation && validation.valid) {
+            return res.json({ success: true, isAdmin: true, user: 'Manoj' });
+        }
+    } catch (e) {
+        console.warn('[Auth] verify-auth Supabase error:', e.message);
+    }
+
+    // Fallback for guest session tokens
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         if (decoded && (decoded.role === 'admin' || decoded.role === 'guest')) {
@@ -715,7 +738,7 @@ app.delete('/api/memory/:id', requireAdminToken, async (req, res) => {
     }
 });
 
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
     const token = (req.cookies && req.cookies.ghost_session) || (req.headers.authorization && req.headers.authorization.split(" ")[1]);
     if (!token) return res.status(401).json({ success: false, error: 'Missing token.' });
     try {
@@ -726,6 +749,13 @@ function requireAuth(req, res, next) {
         }
         throw new Error('Invalid role.');
     } catch (err) {
+        try {
+            const validation = await authService.validateToken(token);
+            if (validation && validation.valid) {
+                req.user = { role: 'admin', user: 'Manoj', ...validation.user };
+                return next();
+            }
+        } catch (e) {}
         return res.status(401).json({ success: false, error: 'Token expired/invalid.' });
     }
 }
@@ -1046,7 +1076,7 @@ app.post('/api/auth/google/disconnect', requireAdminToken, async (req, res) => {
     }
 });
 
-function requireAdminToken(req, res, next) {
+async function requireAdminToken(req, res, next) {
     const token = (req.cookies && req.cookies.ghost_session) || (req.headers.authorization && req.headers.authorization.split(" ")[1]);
     if (!token) return res.status(401).json({ success: false, error: 'Missing token.' });
     try {
@@ -1056,7 +1086,16 @@ function requireAdminToken(req, res, next) {
             return next();
         }
         throw new Error('Invalid role.');
-    } catch (err) { return res.status(403).json({ success: false, error: 'Token expired/invalid.' }); }
+    } catch (err) {
+        try {
+            const validation = await authService.validateToken(token);
+            if (validation && validation.valid) {
+                req.user = { role: 'admin', user: 'Manoj', ...validation.user };
+                return next();
+            }
+        } catch (e) {}
+        return res.status(403).json({ success: false, error: 'Token expired/invalid.' });
+    }
 }
 
 function checkIsAdmin(req) {
@@ -1067,6 +1106,14 @@ function checkIsAdmin(req) {
         const decoded = jwt.verify(token, JWT_SECRET);
         return Boolean(decoded && decoded.role === 'admin');
     } catch (e) {
+        try {
+            if (authService.isTokenCachedValid(token)) return true;
+            const decoded = jwt.decode(token);
+            const ownerEmail = process.env.SUPABASE_AUTH_EMAIL || 'owner@ghost.local';
+            if (decoded && (decoded.email === ownerEmail || decoded.role === 'authenticated') && decoded.exp && decoded.exp * 1000 > Date.now()) {
+                return true;
+            }
+        } catch (err) {}
         return false;
     }
 }
@@ -1081,10 +1128,19 @@ function authenticateOwner(req) {
         if (decoded && decoded.role === 'admin') {
             return { ownerId: String(decoded.user || 'admin'), isOwner: true };
         }
-        return null;
-    } catch (e) {
-        return null;
-    }
+    } catch (e) {}
+    try {
+        const cachedUser = authService.isTokenCachedValid(token);
+        if (cachedUser) {
+            return { ownerId: String(cachedUser.email || 'admin'), isOwner: true };
+        }
+        const decoded = jwt.decode(token);
+        const ownerEmail = process.env.SUPABASE_AUTH_EMAIL || 'owner@ghost.local';
+        if (decoded && (decoded.email === ownerEmail || decoded.role === 'authenticated') && decoded.exp && decoded.exp * 1000 > Date.now()) {
+            return { ownerId: String(decoded.user_metadata?.name || decoded.email || 'admin'), isOwner: true };
+        }
+    } catch (e) {}
+    return null;
 }
 
 const chatLimiter = rateLimit({
