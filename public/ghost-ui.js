@@ -198,6 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isAdminMode = false;
     let isGhostCodeActive = true;
     let currentSelectedTestKey = null;
+    let currentConversationId = null;
 
     const ghostCodeStatus = document.getElementById('ghostCodeStatus');
 
@@ -350,6 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setOwnerHeader(masterUser);
                 appLayout.classList.add('active');
                 updateInitialGreeting(masterUser);
+                loadConversationsSidebar();
                 console.log('[Auth] Persistent session verified via HTTP-only cookie.');
             } else {
                 masterUser = "Guest";
@@ -441,10 +443,25 @@ document.addEventListener('DOMContentLoaded', () => {
         headerUnlockBtn.addEventListener('click', showOwnerAuthPrompt);
     }
     if (visitorModalUnlockBtn) {
-        visitorModalUnlockBtn.addEventListener('click', showOwnerAuthPrompt);
+        visitorModalUnlockBtn.addEventListener('click', () => {
+            if (visitorModal) visitorModal.style.display = 'none';
+            showOwnerAuthPrompt();
+        });
     }
     if (visitorModalCloseBtn) {
         visitorModalCloseBtn.addEventListener('click', () => {
+            if (visitorModal) visitorModal.style.display = 'none';
+        });
+    }
+    const visitorModalDismissBtn = document.getElementById('visitorModalDismissBtn');
+    if (visitorModalDismissBtn) {
+        visitorModalDismissBtn.addEventListener('click', () => {
+            if (visitorModal) visitorModal.style.display = 'none';
+        });
+    }
+    const visitorModalBackdrop = document.getElementById('visitorModalBackdrop');
+    if (visitorModalBackdrop) {
+        visitorModalBackdrop.addEventListener('click', () => {
             if (visitorModal) visitorModal.style.display = 'none';
         });
     }
@@ -3104,6 +3121,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 hideVisitorGate();
                 appLayout.classList.add('active');
                 updateInitialGreeting(masterUser);
+                loadConversationsSidebar();
                 loadProjects();
                 loadMemories();
                 loadTasks();
@@ -3153,6 +3171,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (ghostCodeBtn) {
         ghostCodeBtn.addEventListener('click', () => {
             if (typeof playClickSound === 'function') playClickSound(750, 'sine');
+            if (!isAdminMode) {
+                if (visitorModal) visitorModal.style.display = 'flex';
+                return;
+            }
             isGhostCodeActive = !isGhostCodeActive;
             if (isGhostCodeActive) {
                 ghostCodeBtn.classList.add('active');
@@ -4468,6 +4490,10 @@ const response = await fetch(targetUrl, {
 
     if (navPersonalCoreBtn) {
         navPersonalCoreBtn.addEventListener('click', () => {
+            if (!isAdminMode) {
+                if (visitorModal) visitorModal.style.display = 'flex';
+                return;
+            }
             setActiveNav('navPersonalCoreBtn');
             renderGuidedWorkspace();
             if (window.innerWidth <= 768) closeMobileDrawer();
@@ -4476,6 +4502,10 @@ const response = await fetch(targetUrl, {
 
     if (navInspectRepoBtn) {
         navInspectRepoBtn.addEventListener('click', () => {
+            if (!isAdminMode) {
+                if (visitorModal) visitorModal.style.display = 'flex';
+                return;
+            }
             setActiveNav('navInspectRepoBtn');
             executeRepoInspect();
             if (window.innerWidth <= 768) closeMobileDrawer();
@@ -4931,7 +4961,6 @@ const response = await fetch(targetUrl, {
             ccApprovalQueueData.innerText = 'Failed to load queue.';
         }
     }
-});
 
     async function loadSkillsV0() {
         if (!skillsListContainer) return;
@@ -5002,28 +5031,36 @@ if(sBtn) {
 
 // --- CHAT HISTORY LOGIC ---
 async function loadConversationsSidebar() {
-    if (!isAdminMode) return;
     try {
-        const res = await fetch('/api/conversations', { headers: { 'Authorization': 'Bearer ' + getAuthToken() } });
+        const res = await fetch(apiUrl('/api/conversations'), {
+            credentials: 'include'
+        });
         const data = await res.json();
-        if (data.success) {
+        if (data.success && Array.isArray(data.conversations)) {
             const pinnedDiv = document.getElementById('pinnedChats');
             const recentDiv = document.getElementById('recentChats');
-            if (!pinnedDiv || !recentDiv) return;
+            if (!recentDiv) return;
             
-            pinnedDiv.innerHTML = '';
+            if (pinnedDiv) pinnedDiv.innerHTML = '';
             recentDiv.innerHTML = '';
             
+            if (data.conversations.length === 0) {
+                recentDiv.innerHTML = '<div style="padding: 10px 16px; font-size: 12px; color: var(--text-dim, #666);">No previous conversations</div>';
+                return;
+            }
+
             data.conversations.forEach(conv => {
                 const item = document.createElement('div');
                 item.className = 'history-item';
                 item.style.padding = '8px 16px';
                 item.style.cursor = 'pointer';
                 item.style.fontSize = '13px';
-                item.style.color = 'var(--text-dim)';
+                item.style.color = 'var(--text-dim, #999)';
                 item.style.display = 'flex';
                 item.style.justifyContent = 'space-between';
                 item.style.alignItems = 'center';
+                item.style.borderRadius = '4px';
+                item.style.marginBottom = '2px';
                 
                 const titleSpan = document.createElement('span');
                 titleSpan.textContent = conv.title || 'New Chat';
@@ -5039,28 +5076,31 @@ async function loadConversationsSidebar() {
                 pinBtn.style.fontSize = '12px';
                 pinBtn.onclick = async (e) => {
                     e.stopPropagation();
-                    await fetch('/api/conversations/' + conv.id + '/pin', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
-                        body: JSON.stringify({ is_pinned: !conv.is_pinned })
-                    });
-                    loadConversationsSidebar();
+                    try {
+                        await fetch(apiUrl('/api/conversations/' + conv.id + '/pin'), {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ is_pinned: !conv.is_pinned })
+                        });
+                        loadConversationsSidebar();
+                    } catch (err) {}
                 };
                 
                 item.appendChild(titleSpan);
                 item.appendChild(pinBtn);
                 
-                item.onmouseover = () => { item.style.background = 'rgba(255,255,255,0.04)'; item.style.color = 'var(--text-main)'; pinBtn.style.opacity = '1'; };
-                item.onmouseout = () => { item.style.background = 'transparent'; item.style.color = 'var(--text-dim)'; pinBtn.style.opacity = '0.5'; };
+                item.onmouseover = () => { item.style.background = 'rgba(255,255,255,0.06)'; item.style.color = 'var(--text-main, #fff)'; pinBtn.style.opacity = '1'; };
+                item.onmouseout = () => { item.style.background = (conv.id === currentConversationId ? 'rgba(255,255,255,0.08)' : 'transparent'); item.style.color = (conv.id === currentConversationId ? 'var(--accent-violet, #8b5cf6)' : 'var(--text-dim, #999)'); pinBtn.style.opacity = '0.5'; };
                 
                 item.onclick = () => loadConversationMessages(conv.id, conv.title);
                 
                 if (conv.id === currentConversationId) {
                     item.style.background = 'rgba(255,255,255,0.08)';
-                    item.style.color = 'var(--accent-violet)';
+                    item.style.color = 'var(--accent-violet, #8b5cf6)';
                 }
                 
-                if (conv.is_pinned) {
+                if (conv.is_pinned && pinnedDiv) {
                     pinnedDiv.appendChild(item);
                 } else {
                     recentDiv.appendChild(item);
@@ -5073,11 +5113,12 @@ async function loadConversationsSidebar() {
 }
 
 async function loadConversationMessages(id, title) {
-    if (!isAdminMode) return;
     try {
-        const res = await fetch('/api/conversations/' + id + '/messages', { headers: { 'Authorization': 'Bearer ' + getAuthToken() } });
+        const res = await fetch(apiUrl('/api/conversations/' + id + '/messages'), {
+            credentials: 'include'
+        });
         const data = await res.json();
-        if (data.success) {
+        if (data.success && Array.isArray(data.messages)) {
             currentConversationId = id;
             if (chatLog) {
                 chatLog.innerHTML = '';
@@ -5091,19 +5132,16 @@ async function loadConversationMessages(id, title) {
             }
             if (document.getElementById('mainTitle')) document.getElementById('mainTitle').textContent = title || 'Chat';
             
-            // Switch to chat tab if not there
             const navChatBtn = document.getElementById('navChatBtn');
             if (navChatBtn) navChatBtn.click();
             
-            loadConversationsSidebar(); // To highlight the active one
+            loadConversationsSidebar();
         }
     } catch (e) {
         console.error("Failed to load messages:", e);
     }
 }
 
-// Ensure loadConversationsSidebar runs when UI initializes
-const oldInit = `    initAuth();
-    setTimeout(loadConversationsSidebar, 1000);`;
-const newInit = `    initAuth();
-    setTimeout(loadConversationsSidebar, 1000);`;
+// Automatically load conversations on startup
+setTimeout(loadConversationsSidebar, 500);
+});
