@@ -1952,126 +1952,124 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             const hasDirectAction = /\b(?:write|create|generate|build|implement|fix|refactor|run|execute)\s+(?:a\s+|the\s+)?(?:python\s+|js\s+|bash\s+|node\s+)?(?:script|code|program|file|function|test|benchmark)\b/i.test(cleanLowerMsg);
             const hasExecutionVerb = /\b(?:write|create|generate|build|implement|fix|refactor|run|execute|test|deploy|benchmark|solve|program)\b/i.test(cleanLowerMsg);
 
+function isAutonomousExecutionTask(message) {
+    if (!message || typeof message !== 'string') return false;
+    const msg = message.trim();
+
+    // 1. Saving or writing to a named file or disk target
+    const filePersistPattern = /\b(?:save\s+(?:it\s+)?to|write\s+(?:it\s+)?to\s+(?:a\s+)?file|create\s+(?:a\s+)?file(?:\s+called|\s+named|\s+with|\s+for)?|into\s+[a-zA-Z0-9_\-\.]+\.[a-zA-Z0-9]+)\b/i;
+    const saveToNamedFile = /\b(?:save|write)\b.*?\bto\s+[a-zA-Z0-9_\-\.]+\.[a-zA-Z0-9]+\b/i;
+    if (filePersistPattern.test(msg) || saveToNamedFile.test(msg)) return true;
+
+    // 2. Creating a project, workspace, repo, or scaffolding an application
+    const projectPattern = /\b(?:create|set\s*up|init|initialize|scaffold|clone)\s+(?:a\s+)?(?:new\s+)?(?:project|repo(?:sitory)?|workspace|application|app)\b/i;
+    if (projectPattern.test(msg)) return true;
+
+    // 3. Creating a script file specifically on system (e.g. "create a python script ...", "create script ...")
+    const createScriptPattern = /\bcreate\s+(?:a\s+)?(?:[a-zA-Z0-9_-]+\s+)?script\b/i;
+    if (createScriptPattern.test(msg)) return true;
+
+    // 4. Running or executing something on a machine/OS
+    const executePattern = /\b(?:run|execute)\s+(?:this|the|a)?\s*(?:script|file|command|code|program|test|benchmark|pipeline)\b/i;
+    const executeItPattern = /\b(?:execute\s+it|run\s+it|run\s+the\s+code)\b/i;
+    if (executePattern.test(msg) || executeItPattern.test(msg)) return true;
+
+    // 5. Explicit agent or autonomous task requests
+    const agentPattern = /\b(?:use\s+(?:the\s+)?agent|start\s+(?:a\s+)?task|run\s+(?:the\s+)?agent|autonomous\s+(?:agent|task|mode|coding))\b/i;
+    if (agentPattern.test(msg)) return true;
+
+    return false;
+}
+
             const isInstant = req.body.mode === 'instant';
             const isLiveWeb = req.body.mode === 'live';
             const isPevrEligible = !isInstant && isAdmin && !hasFileAttachment && !message.startsWith('/') && !message.match(/^prepare\s+plan/i) && !isFactualQuery && (!isVagueQuestion || hasDirectAction) && hasExecutionVerb;
 
-            if (isPevrEligible) {
-                let intentResult = 'CONVERSATION';
-                const isExplicitSaveOrFile = /\b(?:save\s+(?:it\s+)?to|create\s+(?:a\s+)?file|write\s+(?:a\s+)?(?:script|function|code)\s+to|into\s+[a-zA-Z0-9_\-\.]+\.(?:py|js|sh|txt|json))\b/i.test(cleanLowerMsg);
-                if (isExplicitSaveOrFile) {
-                    intentResult = 'TASK';
-                } else {
-                    try {
-                        const { callLLM } = await import('./src/tools/llm.js');
-                        const intentRes = await callLLM([
-                            { 
-                                role: 'system', 
-                                content: `You are an intent classifier for an autonomous coding agent.
-Classify the user message as either CONVERSATION or TASK.
-
-Rules:
-- TASK: ONLY when the user is explicitly commanding the agent to write code, create/modify files, run commands, or execute scripts (e.g. "write a script that...", "create test.py", "run the benchmark", "build the project", "fix the bug in...").
-- CONVERSATION: Everything else, including questions (e.g. "where can i find this file", "how does this work"), explanations, chit-chat, advice, or discussions.
-
-Respond with ONLY one word: CONVERSATION or TASK.`
-                            },
-                            { role: 'user', content: cleanMsg }
-                        ], { maxTokens: 25, traceId: requestContext.traceId, userId: requestContext.userId });
-                        if (intentRes && intentRes.toLowerCase().includes('task')) {
-                            intentResult = 'TASK';
+            if (isPevrEligible && isAutonomousExecutionTask(cleanMsg)) {
+                const isRender = process.env.RENDER === 'true' || Boolean(process.env.RENDER_EXTERNAL_URL) || Boolean(process.env.RENDER_SERVICE_ID);
+                if (isRender) {
+                    return res.json({
+                        success: true,
+                        text: "Autonomous coding runs locally only. Local execution with full shell, file, and Python tooling is available when running Ghost locally.",
+                        execution: {
+                            state: "not_supported",
+                            taskId: null,
+                            summary: "Autonomous coding runs locally only.",
+                            artifacts: []
                         }
-                    } catch(e) {
-                        console.error("Intent classification failed:", e.message);
-                    }
+                    });
                 }
+                if (activeCodingTasks >= 1) {
+                    console.log("[Intent] Active coding task already running; falling through to direct LLM response to avoid container resource overload.");
+                } else {
+                    console.log("[Intent] Routing to PEVR (TASK):", message);
+                    activeCodingTasks++;
+                    const taskId = "task-" + Date.now();
+                    const safeGoal = message.replace(/'/g, "''");
+                    runAgentSqlite(`INSERT OR REPLACE INTO tasks (task_id, goal, plan, status, start_time) VALUES ('${taskId}', '${safeGoal}', '[]', 'RUNNING', ${Date.now() / 1000})`);
 
-                if (intentResult === 'TASK') {
-                    const isRender = process.env.RENDER === 'true' || Boolean(process.env.RENDER_EXTERNAL_URL) || Boolean(process.env.RENDER_SERVICE_ID);
-                    if (isRender) {
+                    const { default: MiniSweAdapter } = await import('./adapters/mini-swe/v2-adapter.js');
+                    const pevrPromise = MiniSweAdapter.runPevrTask(message, taskId, {
+                        env: {
+                            GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+                            GROQ_API_KEY: process.env.GROQ_API_KEY,
+                            NVIDIA_API_KEY: process.env.NVIDIA_API_KEY,
+                            OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+                            FREELLMAPI_RENDER_URL: process.env.FREELLMAPI_RENDER_URL,
+                            FREELLMAPI_BASE_URL: process.env.FREELLMAPI_BASE_URL,
+                            FREELLMAPI_API_KEY: process.env.FREELLMAPI_API_KEY,
+                            GHOST_AUTO_APPROVE: "1"
+                        }
+                    }).then(res => {
+                        try {
+                            const status = res.result?.status || (res.result?.success ? 'SUCCESS' : 'FAILED');
+                            const end = Date.now() / 1000;
+                            runAgentSqlite(`UPDATE tasks SET status = '${status}', end_time = ${end} WHERE task_id = '${taskId}'`);
+                        } catch(e) {}
+                        return res;
+                    }).catch(err => {
+                        console.error('[PEVR Subprocess Error]', err.message);
+                        try {
+                            const end = Date.now() / 1000;
+                            const safeErr = (err.message || 'Task execution failed').replace(/'/g, "''");
+                            runAgentSqlite(`UPDATE tasks SET status = 'FAILED', end_time = ${end} WHERE task_id = '${taskId}'`);
+                            runAgentSqlite(`INSERT INTO events (task_id, step_id, event_type, tier, details, timestamp) VALUES ('${taskId}', 'NONE', 'STEP_FAIL', 'system', '{"error": "${safeErr}"}', ${end})`);
+                        } catch(dbErr) {
+                            console.error('[PEVR Status Update Error]', dbErr.message);
+                        }
+                        return { error: err.message };
+                    }).finally(() => {
+                        activeCodingTasks = Math.max(0, activeCodingTasks - 1);
+                    });
+
+                    // Wait up to 15s for the task to complete synchronously without polling loops
+                    const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('TIMEOUT'), 15000));
+                    let raceResult = null;
+                    try {
+                        raceResult = await Promise.race([pevrPromise, timeoutPromise]);
+                    } catch (raceErr) {
+                        console.error('[PEVR Race Error]', raceErr.message);
+                        raceResult = { error: raceErr.message };
+                    }
+
+                    if (raceResult && raceResult.error) {
+                        console.warn('[PEVR Error, falling through to conversational LLM]:', raceResult.error);
+                        // Do not return - fall through to normal LLM generation so the user still gets their code!
+                    } else if (raceResult !== 'TIMEOUT' && raceResult && raceResult.result) {
+                        const { result } = raceResult;
+                        const status = result.status || (result.success ? 'SUCCESS' : 'FAILED');
+                        const evidence = result.evidence || [];
                         return res.json({
                             success: true,
-                            text: "Autonomous coding runs locally only. Local execution with full shell, file, and Python tooling is available when running Ghost locally.",
-                            execution: {
-                                state: "not_supported",
-                                taskId: null,
-                                summary: "Autonomous coding runs locally only.",
-                                artifacts: []
-                            }
+                            text: `Task finished with status: ${status}.\nEvidence:\n${evidence.join('\n')}`,
+                            execution: { state: "completed", taskId, summary: `Task ${status}`, evidence }
                         });
-                    }
-                    if (activeCodingTasks >= 1) {
-                        console.log("[Intent] Active coding task already running; falling through to direct LLM response to avoid container resource overload.");
                     } else {
-                        console.log("[Intent] Routing to PEVR (TASK):", message);
-                        activeCodingTasks++;
-                        const taskId = "task-" + Date.now();
-                        const safeGoal = message.replace(/'/g, "''");
-                        runAgentSqlite(`INSERT OR REPLACE INTO tasks (task_id, goal, plan, status, start_time) VALUES ('${taskId}', '${safeGoal}', '[]', 'RUNNING', ${Date.now() / 1000})`);
-
-                        const { default: MiniSweAdapter } = await import('./adapters/mini-swe/v2-adapter.js');
-                        const pevrPromise = MiniSweAdapter.runPevrTask(message, taskId, {
-                            env: {
-                                GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-                                GROQ_API_KEY: process.env.GROQ_API_KEY,
-                                NVIDIA_API_KEY: process.env.NVIDIA_API_KEY,
-                                OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
-                                FREELLMAPI_RENDER_URL: process.env.FREELLMAPI_RENDER_URL,
-                                FREELLMAPI_BASE_URL: process.env.FREELLMAPI_BASE_URL,
-                                FREELLMAPI_API_KEY: process.env.FREELLMAPI_API_KEY,
-                                GHOST_AUTO_APPROVE: "1"
-                            }
-                        }).then(res => {
-                            try {
-                                const status = res.result?.status || (res.result?.success ? 'SUCCESS' : 'FAILED');
-                                const end = Date.now() / 1000;
-                                runAgentSqlite(`UPDATE tasks SET status = '${status}', end_time = ${end} WHERE task_id = '${taskId}'`);
-                            } catch(e) {}
-                            return res;
-                        }).catch(err => {
-                            console.error('[PEVR Subprocess Error]', err.message);
-                            try {
-                                const end = Date.now() / 1000;
-                                const safeErr = (err.message || 'Task execution failed').replace(/'/g, "''");
-                                runAgentSqlite(`UPDATE tasks SET status = 'FAILED', end_time = ${end} WHERE task_id = '${taskId}'`);
-                                runAgentSqlite(`INSERT INTO events (task_id, step_id, event_type, tier, details, timestamp) VALUES ('${taskId}', 'NONE', 'STEP_FAIL', 'system', '{"error": "${safeErr}"}', ${end})`);
-                            } catch(dbErr) {
-                                console.error('[PEVR Status Update Error]', dbErr.message);
-                            }
-                            return { error: err.message };
-                        }).finally(() => {
-                            activeCodingTasks = Math.max(0, activeCodingTasks - 1);
+                        return res.json({
+                            success: true,
+                            text: `Task started in background (ID: ${taskId}).`,
+                            execution: { state: "running", taskId, summary: "Running in background." }
                         });
-
-                        // Wait up to 15s for the task to complete synchronously without polling loops
-                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('TIMEOUT'), 15000));
-                        let raceResult = null;
-                        try {
-                            raceResult = await Promise.race([pevrPromise, timeoutPromise]);
-                        } catch (raceErr) {
-                            console.error('[PEVR Race Error]', raceErr.message);
-                            raceResult = { error: raceErr.message };
-                        }
-
-                        if (raceResult && raceResult.error) {
-                            console.warn('[PEVR Error, falling through to conversational LLM]:', raceResult.error);
-                            // Do not return - fall through to normal LLM generation so the user still gets their code!
-                        } else if (raceResult !== 'TIMEOUT' && raceResult && raceResult.result) {
-                            const { result } = raceResult;
-                            const status = result.status || (result.success ? 'SUCCESS' : 'FAILED');
-                            const evidence = result.evidence || [];
-                            return res.json({
-                                success: true,
-                                text: `Task finished with status: ${status}.\nEvidence:\n${evidence.join('\n')}`,
-                                execution: { state: "completed", taskId, summary: `Task ${status}`, evidence }
-                            });
-                        } else {
-                            return res.json({
-                                success: true,
-                                text: `Task started in background (ID: ${taskId}).`,
-                                execution: { state: "running", taskId, summary: "Running in background." }
-                            });
-                        }
                     }
                 }
             }
