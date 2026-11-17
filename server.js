@@ -1987,6 +1987,19 @@ Respond with ONLY one word: CONVERSATION or TASK.`
                 }
 
                 if (intentResult === 'TASK') {
+                    const isRender = process.env.RENDER === 'true' || Boolean(process.env.RENDER_EXTERNAL_URL) || Boolean(process.env.RENDER_SERVICE_ID);
+                    if (isRender) {
+                        return res.json({
+                            success: true,
+                            text: "Autonomous coding runs locally only. Local execution with full shell, file, and Python tooling is available when running Ghost locally.",
+                            execution: {
+                                state: "not_supported",
+                                taskId: null,
+                                summary: "Autonomous coding runs locally only.",
+                                artifacts: []
+                            }
+                        });
+                    }
                     if (activeCodingTasks >= 1) {
                         console.log("[Intent] Active coding task already running; falling through to direct LLM response to avoid container resource overload.");
                     } else {
@@ -3717,6 +3730,14 @@ app.post('/api/agent/run', chatLimiter, securityMiddleware, async (req, res) => 
         const goal = req.body.goal || '';
         if (!goal.trim()) {
             return res.status(400).json({ success: false, error: 'Empty goal.' });
+        }
+
+        const isRender = process.env.RENDER === 'true' || Boolean(process.env.RENDER_EXTERNAL_URL) || Boolean(process.env.RENDER_SERVICE_ID);
+        if (isRender) {
+            return res.status(400).json({
+                success: false,
+                error: "Autonomous coding runs locally only. Local execution with full shell, file, and Python tooling is available when running Ghost locally."
+            });
         }
 
         const { execSync, exec } = await import("child_process");
