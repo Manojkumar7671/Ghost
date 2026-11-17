@@ -1,4 +1,5 @@
-const { chat } = require('./tools/llm');
+const llm = require('./tools/llm');
+const chat = (...args) => llm.chat(...args);
 const { saveMessage, getHistory, remember, saveMemory, queryMemory } = require('./tools/memory');
 const { recordLearning, getRelevantLearnings } = require('./learningStore');
 const orchestrator = require('./agents/orchestrator');
@@ -715,6 +716,20 @@ Strictly adhere to the following rules:
   }
 
   let extracted = extractCodeBlock(reply);
+
+  // If providers failed, threw error, or returned no code block, fail honestly without wrapping in verification card
+  const isProviderError = !reply || reply.includes('All model providers are unavailable') || reply.includes('busy') || reply.includes('Service Unavailable');
+  if (isProviderError || !extracted.code) {
+    const friendlyError = "Ghost's model providers are busy, please retry in a moment";
+    saveMessage(username, 'assistant', friendlyError);
+    return {
+      reply: friendlyError,
+      isCodeAnswer: false,
+      execution: { state: "failed", summary: "Model providers busy or unavailable" },
+      actions: []
+    };
+  }
+
   let verifyResult = codeVerifier.verifyCode({
     prompt: cleanPrompt,
     code: extracted.code,

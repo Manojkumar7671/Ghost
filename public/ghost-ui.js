@@ -209,7 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const visibleMessages = chatLog.querySelectorAll('.bubble-row');
         if (visibleMessages.length === 0) {
-            appendMessage('assistant', `Hi ${welcomeUser}, I'm Ghost! I'm ready to help you with chat, executing coding tasks, running deep research pipelines, and learning new skills. What would you like to build today?`);
+            appendMessage('assistant', `Hi ${welcomeUser}, I'm Ghost! I'm ready to help you with chat, executing coding tasks, running deep research pipelines, and learning new skills. What would you like to build today?`, false);
         }
     }
 
@@ -231,6 +231,32 @@ document.addEventListener('DOMContentLoaded', () => {
             authInput.placeholder = "Enter your name...";
         }
         renderWelcomeCard('Guest');
+    }
+
+    function saveGuestChat(sender, text) {
+        if (isAdminMode) return;
+        try {
+            const raw = localStorage.getItem('ghost_guest_chat');
+            let msgs = raw ? JSON.parse(raw) : [];
+            msgs.push({ sender, text });
+            if (msgs.length > 50) msgs = msgs.slice(-50);
+            localStorage.setItem('ghost_guest_chat', JSON.stringify(msgs));
+        } catch (e) {}
+    }
+
+    function restoreGuestChat() {
+        try {
+            const raw = localStorage.getItem('ghost_guest_chat');
+            if (raw) {
+                const msgs = JSON.parse(raw);
+                if (Array.isArray(msgs) && msgs.length > 0) {
+                    if (chatLog) chatLog.innerHTML = '';
+                    msgs.forEach(m => appendMessage(m.sender, m.text, false));
+                    return true;
+                }
+            }
+        } catch (e) {}
+        return false;
     }
 
     function hideVisitorGate() {
@@ -354,29 +380,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadConversationsSidebar();
                 console.log('[Auth] Persistent session verified via HTTP-only cookie.');
             } else {
-                masterUser = "Guest";
                 isAdminMode = false;
                 hideLoginOverlay();
-                if (true) {
-                    if (visitorGateOverlay) visitorGateOverlay.style.display = '';
-                } else {
+                const savedVisitor = localStorage.getItem('ghost_visitor_name');
+                if (savedVisitor) {
+                    masterUser = savedVisitor;
                     hideVisitorGate();
+                    setVisitorHeader(masterUser);
                     appLayout.classList.add('active');
+                    const restored = restoreGuestChat();
+                    if (!restored) {
+                        renderWelcomeCard(masterUser);
+                    }
+                } else {
+                    masterUser = "Guest";
+                    if (visitorGateOverlay) visitorGateOverlay.style.display = '';
+                    setVisitorHeader();
                 }
-                setVisitorHeader();
             }
         } catch (e) {
             console.warn('[Auth] Persistent verification error:', e.message);
-            masterUser = "Guest";
             isAdminMode = false;
             hideLoginOverlay();
-            if (true) {
-                if (visitorGateOverlay) visitorGateOverlay.style.display = '';
-            } else {
+            const savedVisitor = localStorage.getItem('ghost_visitor_name');
+            if (savedVisitor) {
+                masterUser = savedVisitor;
                 hideVisitorGate();
+                setVisitorHeader(masterUser);
                 appLayout.classList.add('active');
+                const restored = restoreGuestChat();
+                if (!restored) {
+                    renderWelcomeCard(masterUser);
+                }
+            } else {
+                masterUser = "Guest";
+                if (visitorGateOverlay) visitorGateOverlay.style.display = '';
+                setVisitorHeader();
             }
-            setVisitorHeader();
         }
     }
     checkPersistentAuth();
@@ -411,6 +451,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function submitVisitorForm() {
         const name = visitorNameInput ? visitorNameInput.value.trim().replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 40) : '';
         masterUser = capitalizeName(name) || 'Guest';
+        try {
+            localStorage.setItem('ghost_visitor_name', masterUser);
+        } catch (e) {}
         try {
             await fetch(apiUrl('/api/auth'), {
                 method: 'POST',
@@ -3189,6 +3232,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (newChatBtn) {
         newChatBtn.addEventListener('click', () => {
+            currentConversationId = null;
+            if (chatLog) chatLog.innerHTML = '';
+            if (!isAdminMode) {
+                try { localStorage.removeItem('ghost_guest_chat'); } catch (e) {}
+            }
             renderWelcomeCard(masterUser);
             closeWorkspaceActions();
         });
@@ -3258,7 +3306,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- CHAT MESSAGE UI RENDERING ---
-    function appendMessage(sender, text) {
+    function appendMessage(sender, text, shouldSave = true) {
         const placeholder = document.getElementById('emptyChatPlaceholder');
         if (placeholder) placeholder.style.display = 'none';
 
@@ -3283,6 +3331,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         chatLog.appendChild(row);
         chatLog.scrollTop = chatLog.scrollHeight;
+
+        if (shouldSave) {
+            saveGuestChat(sender, text);
+        }
     }
 
 
@@ -5031,6 +5083,7 @@ if(sBtn) {
 
 // --- CHAT HISTORY LOGIC ---
 async function loadConversationsSidebar() {
+    if (!isAdminMode) return;
     try {
         const res = await fetch(apiUrl('/api/conversations'), {
             credentials: 'include'
@@ -5142,6 +5195,6 @@ async function loadConversationMessages(id, title) {
     }
 }
 
-// Automatically load conversations on startup
-setTimeout(loadConversationsSidebar, 500);
+// Automatically load conversations on startup (admin only)
+setTimeout(() => { if (isAdminMode) loadConversationsSidebar(); }, 500);
 });

@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ghost</title>
+    <meta name="description" content="Ghost - Your intelligent, context-aware AI assistant for coding, research, and workspace automation.">
+    <meta property="og:title" content="Ghost AI Assistant">
+    <meta property="og:description" content="Personal AI assistant built for work that must be explainable.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👻</text></svg>">
     <link rel="stylesheet" href="/style.css">
     <script src="/api-config.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -78,12 +82,15 @@
 </div>
 
 <div id="main">
-  <div id="topbar">
-    <button id="sidebarCollapseBtn">&#9776;</button>
-    <div>
-      <div class="title" id="mainTitle">Chat</div>
-      <div class="sub">Groq · gpt-oss-120b</div>
+  <div id="topbar" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <button id="sidebarCollapseBtn">&#9776;</button>
+      <div>
+        <div class="title" id="mainTitle">Chat</div>
+        <div class="sub">Groq · gpt-oss-120b</div>
+      </div>
     </div>
+    <button id="newChatBtn" class="btn-text" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text-main, #fff); font-size: 13px; cursor: pointer;">+ New Chat</button>
   </div>
 
   <div id="chat-area">
@@ -110,7 +117,6 @@
     <button style="display:none;" id="closeSidebar"></button>
     <div style="display:none;" id="app-viewer"><iframe id="app-iframe"></iframe></div>
     <button style="display:none;" id="closeAppViewer"></button>
-    <button style="display:none;" id="newChatBtn"></button>
     <button style="display:none;" id="showUnlockBtn"></button>
     <button style="display:none;" id="backToVisitorBtn"></button>
 

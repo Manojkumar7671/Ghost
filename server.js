@@ -206,6 +206,16 @@ app.get('/health', (req, res) => {
 });
 
 app.set('trust proxy', 1);
+
+// Security Headers Middleware
+app.use((req, res, next) => {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Content-Security-Policy-Report-Only', "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; connect-src 'self' https:;");
+    next();
+});
 app.use(express.json({ limit: '10mb' })); // Restricted standard payload sizes to prevent memory-limit DoS attacks
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(cookieParser());
@@ -456,11 +466,24 @@ function extractToolCommand(text) {
 // AUTH & RATE LIMITING
 // ============================================================
 
+const visitorLimiter = (process.env.BYPASS_LIMITS === 'true' || process.env.NODE_ENV === 'test') ? (req, res, next) => next() : rateLimit({
+    windowMs: 15 * 60 * 1000, max: 30,
+    message: { success: false, error: "Too many visitor onboarding attempts. Please wait 15 minutes." },
+    standardHeaders: true, legacyHeaders: false,
+});
+
 const authLimiter = (process.env.BYPASS_LIMITS === 'true' || process.env.NODE_ENV === 'test') ? (req, res, next) => next() : rateLimit({
-    windowMs: 15 * 60 * 1000, max: 5,
+    windowMs: 15 * 60 * 1000, max: 10,
     message: { success: false, error: "Too many login attempts. IP blocked for 15 minutes." },
     standardHeaders: true, legacyHeaders: false,
 });
+
+const authRouteLimiter = (req, res, next) => {
+    if (req.body && (req.body.password || req.body.authString)) {
+        return authLimiter(req, res, next);
+    }
+    return visitorLimiter(req, res, next);
+};
 
 const adminLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, max: 10,
@@ -475,7 +498,7 @@ app.use('/api/admin', (req, res, next) => {
     return res.status(404).json({ success: false, error: 'Not Found (Admin surface disabled for security)' });
 });
 
-app.post('/api/auth', authLimiter, async (req, res) => {
+app.post('/api/auth', authRouteLimiter, async (req, res) => {
     const { authString, user, password } = req.body;
     const ip = req.ip;
     const userAgent = req.headers['user-agent'] || 'Unknown';
@@ -542,7 +565,7 @@ app.post('/api/auth', authLimiter, async (req, res) => {
 });
 
 // Added for API testing/token retrieval as requested
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', authLimiter, async (req, res) => {
     const { passphrase, password } = req.body || {};
     const checkPass = passphrase || password;
     if (!checkPass) return res.status(400).json({ error: 'Password required' });
@@ -554,7 +577,7 @@ app.post('/api/login', async (req, res) => {
     return res.status(401).json({ error: 'Invalid clearance key' });
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLimiter, async (req, res) => {
     const { passphrase, username, password } = req.body || {};
     try {
         const checkPass = passphrase || password;
@@ -1525,13 +1548,13 @@ function listAgentTasks(limit = 20) {
     }
 }
 
-app.get('/api/agent/tasks', async (req, res) => {
+app.get('/api/agent/tasks', requireAdminToken, async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 20, 50);
     const tasks = listAgentTasks(limit);
     return res.json({ success: true, tasks });
 });
 
-app.get('/api/agent/tasks/:taskId/status', async (req, res) => {
+app.get('/api/agent/tasks/:taskId/status', requireAdminToken, async (req, res) => {
     const { taskId } = req.params;
     const task = getAgentTaskDetails(taskId);
     if (!task) {
@@ -1540,7 +1563,7 @@ app.get('/api/agent/tasks/:taskId/status', async (req, res) => {
     return res.json({ success: true, task });
 });
 
-app.get('/api/agent-tasks/:taskId/status', async (req, res) => {
+app.get('/api/agent-tasks/:taskId/status', requireAdminToken, async (req, res) => {
     const { taskId } = req.params;
     const task = getAgentTaskDetails(taskId);
     if (!task) {
@@ -1678,16 +1701,16 @@ function sanitizeUserInput(rawText) {
 app.get('/api/conversations', requireAuth, async (req, res) => {
     try {
         if (!pool) return res.json({ success: true, conversations: [] });
-        const userId = req.user.id || (req.user.role === 'admin' ? 'e8865b82-615e-45d8-9a77-8e6024fa6357' : null);
-        let rows = [];
-        if (userId) {
-            const result = await pool.query('SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 50', [userId]);
-            rows = result.rows;
-        } else {
-            const result = await pool.query('SELECT * FROM conversations ORDER BY updated_at DESC LIMIT 50');
-            rows = result.rows;
+        // Guests do not have persistent database conversations
+        if (req.user.role === 'guest') {
+            return res.json({ success: true, conversations: [] });
         }
-        res.json({ success: true, conversations: rows });
+        const userId = req.user.id || (req.user.role === 'admin' ? 'e8865b82-615e-45d8-9a77-8e6024fa6357' : null);
+        if (!userId) {
+            return res.json({ success: true, conversations: [] });
+        }
+        const result = await pool.query('SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 50', [userId]);
+        res.json({ success: true, conversations: result.rows });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
@@ -1695,8 +1718,22 @@ app.get('/api/conversations', requireAuth, async (req, res) => {
 
 app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
     try {
+        if (req.user.role === 'guest') {
+            return res.status(403).json({ success: false, error: 'Forbidden: guests cannot access conversation messages.' });
+        }
         if (!pool) return res.json({ success: true, messages: [] });
         const convId = req.params.id;
+        const userId = req.user.id || (req.user.role === 'admin' ? 'e8865b82-615e-45d8-9a77-8e6024fa6357' : null);
+        if (!userId) {
+            return res.status(403).json({ success: false, error: 'Forbidden.' });
+        }
+        const convRes = await pool.query('SELECT user_id FROM conversations WHERE id = $1', [convId]);
+        if (convRes.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Conversation not found.' });
+        }
+        if (convRes.rows[0].user_id !== userId) {
+            return res.status(403).json({ success: false, error: 'Forbidden: conversation does not belong to you.' });
+        }
         const { rows } = await pool.query('SELECT * FROM messages WHERE conversation_id = $1 ORDER BY created_at ASC', [convId]);
         res.json({ success: true, messages: rows });
     } catch (e) {
@@ -1706,8 +1743,22 @@ app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
 
 app.put('/api/conversations/:id/pin', requireAuth, securityMiddleware, async (req, res) => {
     try {
+        if (req.user.role === 'guest') {
+            return res.status(403).json({ success: false, error: 'Forbidden: guests cannot pin conversations.' });
+        }
         if (!pool) return res.json({ success: true });
         const convId = req.params.id;
+        const userId = req.user.id || (req.user.role === 'admin' ? 'e8865b82-615e-45d8-9a77-8e6024fa6357' : null);
+        if (!userId) {
+            return res.status(403).json({ success: false, error: 'Forbidden.' });
+        }
+        const convRes = await pool.query('SELECT user_id FROM conversations WHERE id = $1', [convId]);
+        if (convRes.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Conversation not found.' });
+        }
+        if (convRes.rows[0].user_id !== userId) {
+            return res.status(403).json({ success: false, error: 'Forbidden: conversation does not belong to you.' });
+        }
         const { is_pinned } = req.body;
         await pool.query('UPDATE conversations SET is_pinned = $1 WHERE id = $2', [Boolean(is_pinned), convId]);
         res.json({ success: true });
@@ -2248,42 +2299,45 @@ function isAutonomousExecutionTask(message) {
                 });
             }
 
-            // 2.5. On-Demand Cited Research V0 Intent (Owner-Gated Single-Shot Google News RSS)
+            // 2.5. On-Demand Cited Research V0 Intent
             const isResearchIntent = /^research(?:\s+|:\s*)(.*)$/i.test(message);
             if (isResearchIntent) {
-                const chatOwner = authenticateOwner(req);
-                if (chatOwner && chatOwner.isOwner) {
-                    const match = message.match(/^research(?:\s+|:\s*)(.*)$/i);
-                    const rawTopic = match && match[1] ? match[1].trim() : '';
-                    if (!rawTopic) {
-                        return res.json({
-                            success: true,
-                            text: "Please provide a topic to research (e.g. \"research quantum computing\")."
-                        });
-                    }
-
-                    const validation = validateResearchTopic(rawTopic);
-                    if (!validation.valid) {
-                        return res.json({
-                            success: true,
-                            text: "I can’t process that research topic safely. Please rephrase it."
-                        });
-                    }
-
-                    const researchResult = await fetchCitedResearch(rawTopic);
-                    const formattedText = formatCitedResearchMarkdown(researchResult);
-                    const receipt = createRouteReceipt('cited_research', {
-                        sourceKind: researchResult.success ? 'google_news_rss_metadata' : null,
-                        boundedRssMetadataFetched: Boolean(researchResult.success),
-                        itemCount: Array.isArray(researchResult.items) ? researchResult.items.length : 0,
-                        timestamp: researchResult.fetchedAt || ''
-                    });
-                    const wrappedText = applyEvidenceWrapper(formattedText, receipt);
+                const match = message.match(/^research(?:\s+|:\s*)(.*)$/i);
+                const rawTopic = match && match[1] ? match[1].trim() : '';
+                if (!rawTopic) {
                     return res.json({
                         success: true,
-                        text: wrappedText
+                        text: "Please provide a topic to research (e.g. \"research quantum computing\")."
                     });
                 }
+
+                const validation = validateResearchTopic(rawTopic);
+                if (!validation.valid) {
+                    return res.json({
+                        success: true,
+                        text: "I can’t process that research topic safely. Please rephrase it."
+                    });
+                }
+
+                const researchResult = await fetchCitedResearch(rawTopic);
+                if (!researchResult.success || !researchResult.items || researchResult.items.length === 0) {
+                    return res.json({
+                        success: true,
+                        text: "live search unavailable, answering from model knowledge, no sources"
+                    });
+                }
+                const formattedText = formatCitedResearchMarkdown(researchResult);
+                const receipt = createRouteReceipt('cited_research', {
+                    sourceKind: researchResult.success ? 'google_news_rss_metadata' : null,
+                    boundedRssMetadataFetched: Boolean(researchResult.success),
+                    itemCount: Array.isArray(researchResult.items) ? researchResult.items.length : 0,
+                    timestamp: researchResult.fetchedAt || ''
+                });
+                const wrappedText = applyEvidenceWrapper(formattedText, receipt);
+                return res.json({
+                    success: true,
+                    text: wrappedText
+                });
             }
 
             // 2.6. Academic Research Dossier Foundation V0 Intent (Owner-Gated Single-Shot OpenAlex Works)
@@ -2363,6 +2417,12 @@ function isAutonomousExecutionTask(message) {
                                 });
                             }
                             const researchResult = await fetchCitedResearch(plainIntent.topic);
+                            if (!researchResult.success || !researchResult.items || researchResult.items.length === 0) {
+                                return res.json({
+                                    success: true,
+                                    text: "live search unavailable, answering from model knowledge, no sources"
+                                });
+                            }
                             const formattedText = formatCitedResearchMarkdown(researchResult);
                             const receipt = createRouteReceipt('cited_research', {
                                 sourceKind: researchResult.success ? 'google_news_rss_metadata' : null,
@@ -3525,6 +3585,12 @@ function isAutonomousExecutionTask(message) {
         let replyText = fullResponse || "System anomaly: Empty matrix response.";
 
         const finalRouteExecution = await getLatestExecutionStatus(req);
+        if (brainResult && brainResult.execution) {
+            finalRouteExecution.state = brainResult.execution.state || finalRouteExecution.state;
+            if (brainResult.execution.summary) {
+                finalRouteExecution.summary = brainResult.execution.summary;
+            }
+        }
         const isCodeAnswer = Boolean(brainResult && brainResult.isCodeAnswer);
         if (isCodeAnswer) {
             finalRouteExecution.state = 'succeeded';
