@@ -764,6 +764,20 @@ app.delete('/api/memory/:id', requireAdminToken, async (req, res) => {
     }
 });
 
+// Temporary owner-only metrics endpoint for Render memory measurement
+app.get('/api/admin/metrics', requireAdminToken, (req, res) => {
+    const mem = process.memoryUsage();
+    return res.json({
+        success: true,
+        memory: {
+            rss: mem.rss,
+            rssMB: (mem.rss / (1024 * 1024)).toFixed(2),
+            heapTotalMB: (mem.heapTotal / (1024 * 1024)).toFixed(2),
+            heapUsedMB: (mem.heapUsed / (1024 * 1024)).toFixed(2)
+        }
+    });
+});
+
 async function requireAuth(req, res, next) {
     const token = (req.cookies && req.cookies.ghost_session) || (req.headers.authorization && req.headers.authorization.split(" ")[1]);
     if (!token) return res.status(401).json({ success: false, error: 'Missing token.' });
