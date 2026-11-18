@@ -779,7 +779,7 @@ async function requireAuth(req, res, next) {
         try {
             const validation = await authService.validateToken(token);
             if (validation && validation.valid) {
-                req.user = { role: 'admin', user: 'Manoj', ...validation.user };
+                req.user = validation.user;
                 return next();
             }
         } catch (e) {}
@@ -1117,7 +1117,7 @@ async function requireAdminToken(req, res, next) {
         try {
             const validation = await authService.validateToken(token);
             if (validation && validation.valid) {
-                req.user = { role: 'admin', user: 'Manoj', ...validation.user };
+                req.user = validation.user;
                 return next();
             }
         } catch (e) {}
@@ -1816,8 +1816,8 @@ app.post('/api/tasks', requireAuth, async (req, res) => {
             return res.status(403).json({ success: false, error: 'Forbidden.' });
         }
         const { goal } = req.body || {};
-        await pool.query('INSERT INTO tasks (id, user_id, conversation_id, status, goal) VALUES ($1, $2, $3, $4, $5)', [
-            taskId, userId, convId, 'CREATED', goal || 'New task'
+        await pool.query('INSERT INTO tasks (id, user_id, conversation_id, status, goal) VALUES ($1, $2, NULL, $3, $4)', [
+            taskId, userId, 'CREATED', goal || 'New task'
         ]);
         return res.json({ success: true, taskId, task: { id: taskId, user_id: userId, goal: goal || 'New task', status: 'CREATED' } });
     } catch (e) {

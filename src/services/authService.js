@@ -47,7 +47,11 @@ async function loginUser(username, password) {
     return { success: false, error: 'Invalid login credentials.' };
   }
 
-  const user = { id: data.user.id, email: data.user.email, role: 'admin' };
+  const ownerEmail = process.env.SUPABASE_AUTH_EMAIL || 'owner@ghost.local';
+  const ownerId = process.env.OWNER_USER_ID;
+  const isOwner = (ownerId && data.user.id === ownerId) || (ownerEmail && data.user.email === ownerEmail);
+  const role = isOwner ? 'admin' : (data.user.user_metadata?.role || 'user');
+  const user = { id: data.user.id, email: data.user.email, role };
   tokenCache.set(data.session.access_token, {
     user,
     expiresAt: Date.now() + 15 * 60 * 1000
@@ -57,8 +61,8 @@ async function loginUser(username, password) {
     success: true, 
     token: data.session.access_token, 
     user_id: data.user.id, 
-    role: 'admin',
-    user: username || 'Manoj'
+    role,
+    user: username || (isOwner ? 'Manoj' : data.user.email)
   };
 }
 
@@ -79,7 +83,11 @@ async function validateToken(token) {
       return { valid: false, reason: 'Invalid or expired Supabase token' };
     }
     
-    const user = { id: data.user.id, email: data.user.email, role: 'admin' };
+    const ownerEmail = process.env.SUPABASE_AUTH_EMAIL || 'owner@ghost.local';
+    const ownerId = process.env.OWNER_USER_ID;
+    const isOwner = (ownerId && data.user.id === ownerId) || (ownerEmail && data.user.email === ownerEmail);
+    const role = isOwner ? 'admin' : (data.user.user_metadata?.role || 'user');
+    const user = { id: data.user.id, email: data.user.email, role };
     tokenCache.set(cleanToken, {
       user,
       expiresAt: Date.now() + 15 * 60 * 1000
