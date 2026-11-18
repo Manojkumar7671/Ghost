@@ -3441,6 +3441,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const payload = {
             message: textCommand,
+            conversationId: currentConversationId || undefined,
             user: masterUser,
             image: uploadedImageBase64 || null,
             fileContent: uploadedFileText || null,
@@ -3530,6 +3531,7 @@ const response = await fetch(targetUrl, {
             thinkingIndicator.classList.remove('active');
 
             if (data.success) {
+                if (data.conversationId) currentConversationId = data.conversationId;
                 if (data.runId) activeRunId = data.runId;
                 if (data.execution && (data.execution.state === 'completed' || data.execution.state === 'failed') && data.execution.taskId) {
                     reportedTaskTerminalStates.add(data.execution.taskId);

@@ -770,7 +770,8 @@ async function requireAuth(req, res, next) {
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         if (decoded.role === 'admin' || decoded.role === 'guest') {
-            req.user = decoded;
+            const adminId = 'e8865b82-615e-45d8-9a77-8e6024fa6357';
+            req.user = { id: decoded.id || (decoded.role === 'admin' ? adminId : null), ...decoded };
             return next();
         }
         throw new Error('Invalid role.');
@@ -1777,6 +1778,56 @@ app.put('/api/conversations/:id/pin', requireAuth, securityMiddleware, async (re
     }
 });
 
+// --- TASK PERSISTENCE ENDPOINTS ---
+app.get('/api/tasks', requireAuth, async (req, res) => {
+    try {
+        if (!pool) return res.json({ success: true, tasks: [] });
+        if (req.user.role === 'guest') {
+            return res.status(403).json({ success: false, error: 'Forbidden: guests cannot access tasks.' });
+        }
+        const isAdmin = req.user.role === 'admin';
+        const userId = req.user.id || (isAdmin ? 'e8865b82-615e-45d8-9a77-8e6024fa6357' : null);
+        if (!userId && !isAdmin) {
+            return res.status(403).json({ success: false, error: 'Forbidden.' });
+        }
+        if (isAdmin) {
+            const result = await pool.query('SELECT * FROM tasks ORDER BY created_at DESC LIMIT 50');
+            return res.json({ success: true, tasks: result.rows });
+        } else {
+            const result = await pool.query('SELECT * FROM tasks WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50', [userId]);
+            return res.json({ success: true, tasks: result.rows });
+        }
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/tasks/:id', requireAuth, async (req, res) => {
+    try {
+        if (!pool) return res.status(500).json({ success: false, error: 'Database unavailable' });
+        if (req.user.role === 'guest') {
+            return res.status(403).json({ success: false, error: 'Forbidden: guests cannot access tasks.' });
+        }
+        const taskId = req.params.id;
+        const isAdmin = req.user.role === 'admin';
+        const userId = req.user.id || (isAdmin ? 'e8865b82-615e-45d8-9a77-8e6024fa6357' : null);
+        if (!userId && !isAdmin) {
+            return res.status(403).json({ success: false, error: 'Forbidden.' });
+        }
+        const query = isAdmin
+            ? 'SELECT * FROM tasks WHERE id = $1'
+            : 'SELECT * FROM tasks WHERE id = $1 AND user_id = $2';
+        const params = isAdmin ? [taskId] : [taskId, userId];
+        const { rows } = await pool.query(query, params);
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Task not found.' });
+        }
+        return res.json({ success: true, task: rows[0] });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
     if (true) { // ALWAYS validate token so req.user is set!
         const authHeader = req.headers.authorization;
@@ -1800,7 +1851,8 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                 try {
                     const decoded = jwt.verify(token, JWT_SECRET);
                     if (decoded && (decoded.role === 'admin' || decoded.role === 'guest')) {
-                        req.user = { username: decoded.user || 'Admin', role: decoded.role };
+                        const adminId = 'e8865b82-615e-45d8-9a77-8e6024fa6357';
+                        req.user = { id: decoded.id || (decoded.role === 'admin' ? adminId : null), username: decoded.user || 'Admin', role: decoded.role };
                     } else {
                         return res.status(401).json({ error: 'Unauthorized: invalid token' });
                     }
@@ -1826,9 +1878,10 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             let taskId = crypto.randomUUID();
             if (!conversationId) conversationId = crypto.randomUUID();
             const userMsgId = crypto.randomUUID();
+            const safeUserId = req.user ? (req.user.id || (req.user.role === 'admin' ? 'e8865b82-615e-45d8-9a77-8e6024fa6357' : null)) : null;
             if (pool) {
                 requestContext.traceId = taskId;
-                requestContext.userId = req.user?.id || null;
+                requestContext.userId = safeUserId;
             }
 
             // Audit log moved to after LLM call
@@ -3545,20 +3598,23 @@ function isAutonomousExecutionTask(message) {
                 });
                 const latencyMs = Date.now() - startTime;
 
-                // Deferred DB writes (Fix for Connection Pool Starvation)
-                if (pool && req.user && req.user.id) {
-                    const safeUserId = req.user.id;
-                    pool.query("INSERT INTO conversations (id, user_id, title) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", [
-                        conversationId, safeUserId, message.substring(0, 50) || 'New Chat'
-                    ]).catch(e => console.error("Conversation insert failed:", e.message));
+                // Deferred DB writes (Fix for Connection Pool Starvation & FK race condition)
+                if (pool && safeUserId) {
+                    try {
+                        await pool.query("INSERT INTO conversations (id, user_id, title) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET updated_at = NOW()", [
+                            conversationId, safeUserId, message.substring(0, 50) || 'New Chat'
+                        ]);
 
-                    pool.query("INSERT INTO messages (id, conversation_id, user_id, role, content) VALUES ($1, $2, $3, $4, $5)", [
-                        userMsgId, conversationId, safeUserId, 'user', message
-                    ]).catch(e => console.error("Message insert failed:", e.message));
+                        await pool.query("INSERT INTO messages (id, conversation_id, user_id, role, content) VALUES ($1, $2, $3, $4, $5)", [
+                            userMsgId, conversationId, safeUserId, 'user', message
+                        ]);
 
-                    pool.query("INSERT INTO tasks (id, conversation_id, user_id, status, goal) VALUES ($1, $2, $3, $4, $5)", [
-                        taskId, conversationId, safeUserId, 'CREATED', message
-                    ]).catch(e => console.error("Task insert failed:", e.message));
+                        await pool.query("INSERT INTO tasks (id, conversation_id, user_id, status, goal) VALUES ($1, $2, $3, $4, $5)", [
+                            taskId, conversationId, safeUserId, 'CREATED', message
+                        ]);
+                    } catch (dbErr) {
+                        console.error("[Chat DB Write Error]:", dbErr.message);
+                    }
                     
                     const auditUser = (req.user && req.user.username) || user || 'anonymous';
                     const auditIp = req.ip || 'unknown';
@@ -3679,7 +3735,27 @@ function isAutonomousExecutionTask(message) {
 
         userHistory.push({ role: 'user', content: message }, { role: 'assistant', content: replyText.trim() });
         if (userHistory.length > maxMemory) userHistory = userHistory.slice(-maxMemory);
-        res.json({ success: true, text: replyText.trim(), runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined, execution: finalRouteExecution , reasoning: reasoningSteps });
+
+        if (pool && safeUserId) {
+            try {
+                const asstMsgId = crypto.randomUUID();
+                await pool.query("INSERT INTO messages (id, conversation_id, user_id, role, content) VALUES ($1, $2, $3, $4, $5)", [
+                    asstMsgId, conversationId, safeUserId, 'assistant', replyText.trim()
+                ]);
+            } catch (asstErr) {
+                console.error("[Assistant Msg DB Write Error]:", asstErr.message);
+            }
+        }
+
+        res.json({
+            success: true,
+            text: replyText.trim(),
+            conversationId,
+            taskId,
+            runId: typeof currentRun !== 'undefined' && currentRun ? currentRun.runId : undefined,
+            execution: finalRouteExecution,
+            reasoning: reasoningSteps
+        });
     } catch (e) {
         console.error('[Chat Error Diagnostic]:', e);
         if (typeof currentRun !== 'undefined' && currentRun) runController.failRun(currentRun.runId, 'Internal error');
