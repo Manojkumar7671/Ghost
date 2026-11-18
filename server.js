@@ -1723,15 +1723,20 @@ app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
         }
         if (!pool) return res.json({ success: true, messages: [] });
         const convId = req.params.id;
-        const userId = req.user.id || (req.user.role === 'admin' ? 'e8865b82-615e-45d8-9a77-8e6024fa6357' : null);
-        if (!userId) {
+        const isAdmin = req.user.role === 'admin';
+        const userId = req.user.id || (isAdmin ? 'e8865b82-615e-45d8-9a77-8e6024fa6357' : null);
+        if (!userId && !isAdmin) {
             return res.status(403).json({ success: false, error: 'Forbidden.' });
         }
         const convRes = await pool.query('SELECT user_id FROM conversations WHERE id = $1', [convId]);
         if (convRes.rows.length === 0) {
             return res.status(404).json({ success: false, error: 'Conversation not found.' });
         }
-        if (convRes.rows[0].user_id !== userId) {
+        const convUserId = convRes.rows[0].user_id;
+        if (!convUserId && !isAdmin) {
+            return res.status(403).json({ success: false, error: 'Forbidden: conversation has no owner.' });
+        }
+        if (convUserId && !isAdmin && convUserId !== userId) {
             return res.status(403).json({ success: false, error: 'Forbidden: conversation does not belong to you.' });
         }
         const { rows } = await pool.query('SELECT * FROM messages WHERE conversation_id = $1 ORDER BY created_at ASC', [convId]);
@@ -1748,15 +1753,20 @@ app.put('/api/conversations/:id/pin', requireAuth, securityMiddleware, async (re
         }
         if (!pool) return res.json({ success: true });
         const convId = req.params.id;
-        const userId = req.user.id || (req.user.role === 'admin' ? 'e8865b82-615e-45d8-9a77-8e6024fa6357' : null);
-        if (!userId) {
+        const isAdmin = req.user.role === 'admin';
+        const userId = req.user.id || (isAdmin ? 'e8865b82-615e-45d8-9a77-8e6024fa6357' : null);
+        if (!userId && !isAdmin) {
             return res.status(403).json({ success: false, error: 'Forbidden.' });
         }
         const convRes = await pool.query('SELECT user_id FROM conversations WHERE id = $1', [convId]);
         if (convRes.rows.length === 0) {
             return res.status(404).json({ success: false, error: 'Conversation not found.' });
         }
-        if (convRes.rows[0].user_id !== userId) {
+        const convUserId = convRes.rows[0].user_id;
+        if (!convUserId && !isAdmin) {
+            return res.status(403).json({ success: false, error: 'Forbidden: conversation has no owner.' });
+        }
+        if (convUserId && !isAdmin && convUserId !== userId) {
             return res.status(403).json({ success: false, error: 'Forbidden: conversation does not belong to you.' });
         }
         const { is_pinned } = req.body;
@@ -5128,6 +5138,10 @@ app.get('/api/ai-news', async (req, res) => {
         console.error('[AINews] Fetch error:', err.message);
         return res.status(500).json({ success: false, error: 'Failed to fetch AI news.' });
     }
+});
+
+app.all('/api/*', (req, res) => {
+    res.status(404).json({ success: false, error: 'API endpoint not found.' });
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));

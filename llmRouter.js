@@ -17,6 +17,8 @@ import { redactSecrets } from './services/secretRedactor.js';
 import { logUsage } from './services/usageTracker.js';
 import GHOST_PERSONA from './src/agents/persona.js';
 
+export const LLM_FAILURE_SENTINEL = "All model providers are unavailable right now, try again shortly";
+
 export let lastServedMeta = { model: null, provider: null, latencyMs: null, fallbacksTried: 0 };
 export function getLastServedMeta() {
   return lastServedMeta;
@@ -521,7 +523,7 @@ export async function callLLM(messages = [], options = {}) {
 
   // All providers failed: return clean user-facing message, never raw errors
   console.error('[LLM Router Error] All LLM providers failed:\n' + errors.join('\n'));
-  return "All model providers are unavailable right now, try again shortly";
+  return LLM_FAILURE_SENTINEL;
 }
 
 export const chat = callLLM;

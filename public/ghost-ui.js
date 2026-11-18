@@ -385,6 +385,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const savedVisitor = localStorage.getItem('ghost_visitor_name');
                 if (savedVisitor) {
                     masterUser = savedVisitor;
+                    try {
+                        await fetch(apiUrl('/api/auth'), {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ name: masterUser, user: masterUser })
+                        });
+                    } catch (err) {
+                        console.warn('[Auth] Guest silent re-auth error:', err.message);
+                    }
                     hideVisitorGate();
                     setVisitorHeader(masterUser);
                     appLayout.classList.add('active');
@@ -405,6 +415,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const savedVisitor = localStorage.getItem('ghost_visitor_name');
             if (savedVisitor) {
                 masterUser = savedVisitor;
+                try {
+                    await fetch(apiUrl('/api/auth'), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ name: masterUser, user: masterUser })
+                    });
+                } catch (err) {
+                    console.warn('[Auth] Guest silent re-auth error:', err.message);
+                }
                 hideVisitorGate();
                 setVisitorHeader(masterUser);
                 appLayout.classList.add('active');

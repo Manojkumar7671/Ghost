@@ -717,15 +717,28 @@ Strictly adhere to the following rules:
 
   let extracted = extractCodeBlock(reply);
 
-  // If providers failed, threw error, or returned no code block, fail honestly without wrapping in verification card
-  const isProviderError = !reply || reply.includes('All model providers are unavailable') || reply.includes('busy') || reply.includes('Service Unavailable');
-  if (isProviderError || !extracted.code) {
+  // Structured check for provider failure using exact router failure sentinel
+  const LLM_FAILURE_SENTINEL = "All model providers are unavailable right now, try again shortly";
+  const isProviderError = !reply || reply === LLM_FAILURE_SENTINEL || (typeof reply === 'object' && reply.error);
+
+  if (isProviderError) {
     const friendlyError = "Ghost's model providers are busy, please retry in a moment";
     saveMessage(username, 'assistant', friendlyError);
     return {
       reply: friendlyError,
       isCodeAnswer: false,
       execution: { state: "failed", summary: "Model providers busy or unavailable" },
+      actions: []
+    };
+  }
+
+  // A reply with no code block is NOT an error. Return it as a normal text reply with no verifier card.
+  if (!extracted.code) {
+    saveMessage(username, 'assistant', reply);
+    return {
+      reply,
+      isCodeAnswer: false,
+      execution: { state: "succeeded", summary: "Completed response" },
       actions: []
     };
   }
