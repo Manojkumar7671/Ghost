@@ -770,8 +770,8 @@ async function requireAuth(req, res, next) {
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         if (decoded.role === 'admin' || decoded.role === 'guest') {
-            const adminId = 'e8865b82-615e-45d8-9a77-8e6024fa6357';
-            req.user = { id: decoded.id || (decoded.role === 'admin' ? adminId : null), ...decoded };
+            const adminId = decoded.id || process.env.OWNER_USER_ID || null;
+            req.user = { id: adminId, ...decoded };
             return next();
         }
         throw new Error('Invalid role.');
@@ -1706,7 +1706,7 @@ app.get('/api/conversations', requireAuth, async (req, res) => {
         if (req.user.role === 'guest') {
             return res.json({ success: true, conversations: [] });
         }
-        const userId = req.user.id || (req.user.role === 'admin' ? 'e8865b82-615e-45d8-9a77-8e6024fa6357' : null);
+        const userId = req.user.id || (req.user.role === 'admin' ? process.env.OWNER_USER_ID : null);
         if (!userId) {
             return res.json({ success: true, conversations: [] });
         }
@@ -1725,7 +1725,7 @@ app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
         if (!pool) return res.json({ success: true, messages: [] });
         const convId = req.params.id;
         const isAdmin = req.user.role === 'admin';
-        const userId = req.user.id || (isAdmin ? 'e8865b82-615e-45d8-9a77-8e6024fa6357' : null);
+        const userId = req.user.id || (isAdmin ? process.env.OWNER_USER_ID : null);
         if (!userId && !isAdmin) {
             return res.status(403).json({ success: false, error: 'Forbidden.' });
         }
@@ -1755,7 +1755,7 @@ app.put('/api/conversations/:id/pin', requireAuth, securityMiddleware, async (re
         if (!pool) return res.json({ success: true });
         const convId = req.params.id;
         const isAdmin = req.user.role === 'admin';
-        const userId = req.user.id || (isAdmin ? 'e8865b82-615e-45d8-9a77-8e6024fa6357' : null);
+        const userId = req.user.id || (isAdmin ? process.env.OWNER_USER_ID : null);
         if (!userId && !isAdmin) {
             return res.status(403).json({ success: false, error: 'Forbidden.' });
         }
@@ -1786,7 +1786,7 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
             return res.status(403).json({ success: false, error: 'Forbidden: guests cannot access tasks.' });
         }
         const isAdmin = req.user.role === 'admin';
-        const userId = req.user.id || (isAdmin ? 'e8865b82-615e-45d8-9a77-8e6024fa6357' : null);
+        const userId = req.user.id || (isAdmin ? process.env.OWNER_USER_ID : null);
         if (!userId && !isAdmin) {
             return res.status(403).json({ success: false, error: 'Forbidden.' });
         }
@@ -1802,6 +1802,29 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
     }
 });
 
+app.post('/api/tasks', requireAuth, async (req, res) => {
+    try {
+        if (!pool) return res.status(500).json({ success: false, error: 'Database unavailable' });
+        if (req.user.role === 'guest') {
+            return res.status(403).json({ success: false, error: 'Forbidden: guests cannot access tasks.' });
+        }
+        const taskId = crypto.randomUUID();
+        const convId = crypto.randomUUID();
+        const isAdmin = req.user.role === 'admin';
+        const userId = req.user.id || (isAdmin ? process.env.OWNER_USER_ID : null);
+        if (!userId) {
+            return res.status(403).json({ success: false, error: 'Forbidden.' });
+        }
+        const { goal } = req.body || {};
+        await pool.query('INSERT INTO tasks (id, user_id, conversation_id, status, goal) VALUES ($1, $2, $3, $4, $5)', [
+            taskId, userId, convId, 'CREATED', goal || 'New task'
+        ]);
+        return res.json({ success: true, taskId, task: { id: taskId, user_id: userId, goal: goal || 'New task', status: 'CREATED' } });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 app.get('/api/tasks/:id', requireAuth, async (req, res) => {
     try {
         if (!pool) return res.status(500).json({ success: false, error: 'Database unavailable' });
@@ -1810,7 +1833,7 @@ app.get('/api/tasks/:id', requireAuth, async (req, res) => {
         }
         const taskId = req.params.id;
         const isAdmin = req.user.role === 'admin';
-        const userId = req.user.id || (isAdmin ? 'e8865b82-615e-45d8-9a77-8e6024fa6357' : null);
+        const userId = req.user.id || (isAdmin ? process.env.OWNER_USER_ID : null);
         if (!userId && !isAdmin) {
             return res.status(403).json({ success: false, error: 'Forbidden.' });
         }
@@ -1851,8 +1874,8 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
                 try {
                     const decoded = jwt.verify(token, JWT_SECRET);
                     if (decoded && (decoded.role === 'admin' || decoded.role === 'guest')) {
-                        const adminId = 'e8865b82-615e-45d8-9a77-8e6024fa6357';
-                        req.user = { id: decoded.id || (decoded.role === 'admin' ? adminId : null), username: decoded.user || 'Admin', role: decoded.role };
+                        const adminId = decoded.id || process.env.OWNER_USER_ID || null;
+                        req.user = { id: adminId, username: decoded.user || 'Admin', role: decoded.role };
                     } else {
                         return res.status(401).json({ error: 'Unauthorized: invalid token' });
                     }
@@ -1878,7 +1901,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             let taskId = crypto.randomUUID();
             if (!conversationId) conversationId = crypto.randomUUID();
             const userMsgId = crypto.randomUUID();
-            const safeUserId = req.user ? (req.user.id || (req.user.role === 'admin' ? 'e8865b82-615e-45d8-9a77-8e6024fa6357' : null)) : null;
+            const safeUserId = req.user ? (req.user.id || (req.user.role === 'admin' ? process.env.OWNER_USER_ID : null)) : null;
             if (pool) {
                 requestContext.traceId = taskId;
                 requestContext.userId = safeUserId;
