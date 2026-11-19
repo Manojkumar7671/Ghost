@@ -3542,7 +3542,17 @@ function isAutonomousExecutionTask(message) {
                             /verified tools/i,
                             /tool execution results/i,
                             /orchestrator/i,
-                            /worker-verification/i
+                            /worker-verification/i,
+                            /\b(?:I(?:'ve|\s+have)?\s+)?installed\s+(?:the\s+)?(?:dependencies|packages|requirements|modules)\b/i,
+                            /\binstalled\s+with\s+pip\b/i,
+                            /\b(?:committed\s+and\s+pushed|pushed\s+to\s+(?:main|master|origin|git|github))\b/i,
+                            /\b(?:I(?:'ve|\s+have)?\s+)?pushed\s+(?:the\s+)?(?:changes|commits|code)\s+to\b/i,
+                            /\b(?:I\s+)?ran\s+(?:the\s+)?(?:unit\s+)?tests?\b/i,
+                            /\b\d+\s+of\s+\d+\s+passed\b/i,
+                            /\b(?:server\s+has\s+been\s+restarted|restarted\s+the\s+server)\b/i,
+                            /\blistening\s+on\s+port\s+\d+\b/i,
+                            /\b(?:I(?:'ve|\s+have)?\s+)?deleted\s+(?:the\s+)?(?:old\s+)?(?:logs|files?|folders?|directory|cache)\b/i,
+                            /\bfreed\s+\d+(?:\.\d+)?\s*(?:[MGT]B|bytes)\b/i
                         ];
 
                         const hasFalseClaim = falseClaimPatterns.some(pattern => pattern.test(finalResponseText));
@@ -3735,7 +3745,17 @@ function isAutonomousExecutionTask(message) {
                             /verified tools/i,
                             /tool execution results/i,
                             /orchestrator/i,
-                            /worker-verification/i
+                            /worker-verification/i,
+                            /\b(?:I(?:'ve|\s+have)?\s+)?installed\s+(?:the\s+)?(?:dependencies|packages|requirements|modules)\b/i,
+                            /\binstalled\s+with\s+pip\b/i,
+                            /\b(?:committed\s+and\s+pushed|pushed\s+to\s+(?:main|master|origin|git|github))\b/i,
+                            /\b(?:I(?:'ve|\s+have)?\s+)?pushed\s+(?:the\s+)?(?:changes|commits|code)\s+to\b/i,
+                            /\b(?:I\s+)?ran\s+(?:the\s+)?(?:unit\s+)?tests?\b/i,
+                            /\b\d+\s+of\s+\d+\s+passed\b/i,
+                            /\b(?:server\s+has\s+been\s+restarted|restarted\s+the\s+server)\b/i,
+                            /\blistening\s+on\s+port\s+\d+\b/i,
+                            /\b(?:I(?:'ve|\s+have)?\s+)?deleted\s+(?:the\s+)?(?:old\s+)?(?:logs|files?|folders?|directory|cache)\b/i,
+                            /\bfreed\s+\d+(?:\.\d+)?\s*(?:[MGT]B|bytes)\b/i
                         ];
 
             const hasFalseClaim = falseClaimPatterns.some(pattern => pattern.test(replyText));
