@@ -1136,12 +1136,6 @@ function checkIsAdmin(req) {
         try {
             const cachedUser = authService.isTokenCachedValid(token);
             if (cachedUser && cachedUser.role === 'admin') return true;
-            const decoded = jwt.decode(token);
-            const ownerEmail = process.env.SUPABASE_AUTH_EMAIL || 'owner@ghost.local';
-            const ownerId = process.env.OWNER_USER_ID;
-            if (decoded && ((ownerId && (decoded.sub === ownerId || decoded.id === ownerId)) || (ownerEmail && decoded.email === ownerEmail)) && decoded.exp && decoded.exp * 1000 > Date.now()) {
-                return true;
-            }
         } catch (err) {}
         return false;
     }
@@ -1160,13 +1154,8 @@ function authenticateOwner(req) {
     } catch (e) {}
     try {
         const cachedUser = authService.isTokenCachedValid(token);
-        if (cachedUser) {
+        if (cachedUser && cachedUser.role === 'admin') {
             return { ownerId: String(cachedUser.email || 'admin'), isOwner: true };
-        }
-        const decoded = jwt.decode(token);
-        const ownerEmail = process.env.SUPABASE_AUTH_EMAIL || 'owner@ghost.local';
-        if (decoded && (decoded.email === ownerEmail || decoded.role === 'authenticated') && decoded.exp && decoded.exp * 1000 > Date.now()) {
-            return { ownerId: String(decoded.user_metadata?.name || decoded.email || 'admin'), isOwner: true };
         }
     } catch (e) {}
     return null;

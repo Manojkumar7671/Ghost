@@ -119,14 +119,89 @@ Write the comprehensive report now:`;
 
     const report = await chat([{ role: 'user', content: synthesisPrompt }], { maxTokens: 4000 });
 
+    const sourcesAggregated = summaries.join('\n\n');
+    const groundingResult = validateAndFilterGrounding(report, sourcesAggregated);
+    if (!groundingResult.isValid) {
+        console.warn(`[Deep Research Grounding] Detected and stripped ${groundingResult.ungroundedEntities.length} ungrounded entities:`, groundingResult.ungroundedEntities);
+    }
+    const finalReport = groundingResult.filteredSynthesis;
+
     return `[DEEP RESEARCH COMPLETE]
 Topic: ${topic}
 Sources processed: ${extractedCount}
 Knowledge Candidates Extracted & Sent to Review Pipeline: Yes
 
 --- SYNTHESIS REPORT ---
-${report}
+${finalReport}
 `;
 }
 
-module.exports = { run };
+/**
+ * Programmatic grounding validator and stripper for Deep Research synthesis.
+ * Scans synthesis text for technical entities, chip names, consortia, and acronyms.
+ * If an entity is not mentioned anywhere in the source texts, it is detected as ungrounded and stripped/rejected.
+ */
+function validateAndFilterGrounding(synthesisText, sourcesText) {
+    if (!synthesisText || !sourcesText) {
+        return { isValid: false, ungroundedEntities: [], filteredSynthesis: synthesisText };
+    }
+
+    const sourcesLower = sourcesText.toLowerCase();
+
+    // Match technical chip/hardware names (e.g. Synapse-3D, QuantumMem-X, H100),
+    // organizations/consortia (e.g. NOA Consortium, XYZ Alliance),
+    // and acronyms of 3+ capital letters (e.g. NOA, TPU, BERT)
+    const entityRegexes = [
+        /\b[A-Z][a-zA-Z0-9]+-[A-Z0-9]+(?:\b|[a-zA-Z0-9]+)/g, // Hyphenated technical entities: Synapse-3D, QuantumMem-X
+        /\b[A-Z]{2,}(?:\s+[A-Z][a-z]+)*\s+(?:Consortium|Alliance|Foundation|Group|Labs?|Institute|Corporation|Inc|Corp|Project)\b/g, // Consortia/Orgs: NOA Consortium
+        /\b[A-Z]{3,}\b/g // Acronyms: NOA, ASIC
+    ];
+
+    const commonKnownAcronyms = new Set([
+        'THE', 'AND', 'FOR', 'NOT', 'ARE', 'BUT', 'ALL', 'CAN', 'WHY', 'HOW',
+        'NLP', 'MLP', 'RNN', 'CNN', 'LSTM', 'GPU', 'CPU', 'TPU', 'API', 'URL', 'URI', 'JSON', 'HTML', 'HTTP', 'HTTPS'
+    ]);
+
+    const lines = synthesisText.split('\n');
+    const ungroundedEntities = new Set();
+
+    // 1. Identify all ungrounded entities across non-heading lines
+    for (const line of lines) {
+        if (line.trim().startsWith('#')) continue;
+        for (const regex of entityRegexes) {
+            const matches = line.match(regex) || [];
+            for (const ent of matches) {
+                if (commonKnownAcronyms.has(ent.toUpperCase())) continue;
+                const entLower = ent.toLowerCase();
+                const isGrounded = sourcesLower.includes(entLower);
+                if (!isGrounded) {
+                    ungroundedEntities.add(ent);
+                }
+            }
+        }
+    }
+
+    // 2. Sort ungrounded entities by length descending
+    const ungroundedList = Array.from(ungroundedEntities).sort((a, b) => b.length - a.length);
+
+    // 3. Filter lines using non-colliding placeholder markers
+    const filteredLines = lines.map(line => {
+        if (line.trim().startsWith('#')) return line;
+        let cleanLine = line;
+        ungroundedList.forEach((ent, idx) => {
+            cleanLine = cleanLine.replace(new RegExp(`\\b${ent.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g'), `___UG_ENT_${idx}___`);
+        });
+        ungroundedList.forEach((ent, idx) => {
+            cleanLine = cleanLine.replace(new RegExp(`___UG_ENT_${idx}___`, 'g'), `[UNGROUNDED ENTITY REMOVED: ${ent}]`);
+        });
+        return cleanLine;
+    });
+
+    return {
+        isValid: ungroundedList.length === 0,
+        ungroundedEntities: ungroundedList,
+        filteredSynthesis: filteredLines.join('\n')
+    };
+}
+
+module.exports = { run, validateAndFilterGrounding };
