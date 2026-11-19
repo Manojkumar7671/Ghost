@@ -3530,6 +3530,7 @@ function isAutonomousExecutionTask(message) {
                     let finalResponseText = traceText;
                     if (!hasVerifiedExecutionEvidence) {
                         const falseClaimPatterns = [
+                            /\b(?:I|we)\s+(?:have\s+)?(?:ran|executed|created|written\s+to|saved\s+to|deleted|modified)\s+(?:a|the|this)?\s*(?:file|command|script|terminal|database|workspace|code)\b/i,
                             /\b(tony\s+stark|iron\s+man|stark\s+industries|jarvis|sam\s+altman|elon\s+musk)\b/i,
                             /\b(?:I\s+(?:have\s+)?(?:saved|remembered|stored|updated|persisted|recorded)\s+(?:that|this|it)\s+(?:in|to)\s+(?:my\s+)?(?:memory|database|profile|records?|context))\b/i,
                             /\b(?:I\s+will\s+remember\s+(?:that|this))\b/i,
@@ -3722,6 +3723,7 @@ function isAutonomousExecutionTask(message) {
             }
         } else if (!hasVerifiedExecutionEvidence) {
             const falseClaimPatterns = [
+                            /\b(?:I|we)\s+(?:have\s+)?(?:ran|executed|created|written\s+to|saved\s+to|deleted|modified)\s+(?:a|the|this)?\s*(?:file|command|script|terminal|database|workspace|code)\b/i,
                             /\b(tony\s+stark|iron\s+man|stark\s+industries|jarvis|sam\s+altman|elon\s+musk)\b/i,
                             /\b(?:I\s+(?:have\s+)?(?:saved|remembered|stored|updated|persisted|recorded)\s+(?:that|this|it)\s+(?:in|to)\s+(?:my\s+)?(?:memory|database|profile|records?|context))\b/i,
                             /\b(?:I\s+will\s+remember\s+(?:that|this))\b/i,
