@@ -1815,6 +1815,9 @@ app.post('/api/tasks', requireAuth, async (req, res) => {
         const { goal } = req.body || {};
         const taskId = crypto.randomUUID();
         const convId = crypto.randomUUID();
+        await pool.query("INSERT INTO conversations (id, user_id, title) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING", [
+            convId, userId, goal ? goal.substring(0, 50) : 'Task'
+        ]);
         await pool.query("INSERT INTO tasks (id, conversation_id, user_id, status, goal) VALUES ($1, $2, $3, $4, $5)", [
             taskId, convId, userId, 'CREATED', goal || 'Task for user'
         ]);
