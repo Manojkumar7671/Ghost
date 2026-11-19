@@ -1134,10 +1134,12 @@ function checkIsAdmin(req) {
         return Boolean(decoded && decoded.role === 'admin');
     } catch (e) {
         try {
-            if (authService.isTokenCachedValid(token)) return true;
+            const cachedUser = authService.isTokenCachedValid(token);
+            if (cachedUser && cachedUser.role === 'admin') return true;
             const decoded = jwt.decode(token);
             const ownerEmail = process.env.SUPABASE_AUTH_EMAIL || 'owner@ghost.local';
-            if (decoded && (decoded.email === ownerEmail || decoded.role === 'authenticated') && decoded.exp && decoded.exp * 1000 > Date.now()) {
+            const ownerId = process.env.OWNER_USER_ID;
+            if (decoded && ((ownerId && (decoded.sub === ownerId || decoded.id === ownerId)) || (ownerEmail && decoded.email === ownerEmail)) && decoded.exp && decoded.exp * 1000 > Date.now()) {
                 return true;
             }
         } catch (err) {}
@@ -3820,7 +3822,25 @@ function isAutonomousExecutionTask(message) {
 
 
 
-app.get('/api/skills', chatLimiter, securityMiddleware, (req, res) => {
+app.get('/api/knowledge_items', requireAuth, async (req, res) => {
+    if (!pool) return res.status(503).json({ success: false, error: 'Database unavailable' });
+    try {
+        const isAdmin = req.user.role === 'admin';
+        if (!isAdmin) {
+            return res.status(403).json({ success: false, error: 'Forbidden: admin access required.' });
+        }
+        const result = await pool.query('SELECT * FROM knowledge_items ORDER BY created_at DESC LIMIT 50');
+        return res.json({ success: true, items: result.rows });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get('/api/export-data', requireAdminToken, async (req, res) => {
+    return res.json({ success: true, message: 'Export data surface (admin only).' });
+});
+
+app.get('/api/skills', requireAuth, chatLimiter, securityMiddleware, (req, res) => {
     // Only return working, confirmed capabilities
     const skills = [
         {

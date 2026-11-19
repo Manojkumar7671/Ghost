@@ -108,6 +108,7 @@ Use the following summaries extracted from multiple sources to ground your repor
 
 Requirements:
 - Cover core concepts, mechanisms, edge cases, competing theories/debates, historical context, and current state of the art.
+- STRICT GROUNDING RULE: Every named entity, product, hardware chip name, consortium, organization, and benchmark cited in your synthesis MUST explicitly appear in the provided Sources text below. Do NOT invent, extrapolate, or hallucinate fictitious project/chip names (such as ungrounded 3D prototypes or consortia).
 - Synthesize the information elegantly, do not just list the sources.
 - This is a permanent mastery document.
 
