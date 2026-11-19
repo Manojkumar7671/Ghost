@@ -1854,7 +1854,7 @@ app.get('/api/tasks/:id', requireAuth, async (req, res) => {
 });
 
 // Temporary owner-only endpoint to measure RSS for diagnostic verification
-app.get('/api/admin/memory', requireAuth, (req, res) => {
+app.get('/api/owner/memory', requireAuth, (req, res) => {
     if (req.user.role !== 'admin') {
         return res.status(403).json({ error: 'Forbidden' });
     }
