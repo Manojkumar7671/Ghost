@@ -1853,21 +1853,6 @@ app.get('/api/tasks/:id', requireAuth, async (req, res) => {
     }
 });
 
-// Temporary owner-only endpoint to measure RSS for diagnostic verification
-app.get('/api/owner/memory', requireAuth, (req, res) => {
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ error: 'Forbidden' });
-    }
-    const mem = process.memoryUsage();
-    return res.json({
-        rss_bytes: mem.rss,
-        rss_mb: Math.round(mem.rss / 1024 / 1024 * 100) / 100,
-        heap_used_mb: Math.round(mem.heapUsed / 1024 / 1024 * 100) / 100,
-        heap_total_mb: Math.round(mem.heapTotal / 1024 / 1024 * 100) / 100,
-        external_mb: Math.round(mem.external / 1024 / 1024 * 100) / 100,
-        uptime_sec: process.uptime()
-    });
-});
 
 app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
     if (true) { // ALWAYS validate token so req.user is set!
