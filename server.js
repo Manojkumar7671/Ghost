@@ -764,28 +764,14 @@ app.delete('/api/memory/:id', requireAdminToken, async (req, res) => {
     }
 });
 
-// Temporary owner-only metrics endpoint for Render memory measurement
-app.get('/api/admin/metrics', requireAdminToken, (req, res) => {
-    const mem = process.memoryUsage();
-    return res.json({
-        success: true,
-        memory: {
-            rss: mem.rss,
-            rssMB: (mem.rss / (1024 * 1024)).toFixed(2),
-            heapTotalMB: (mem.heapTotal / (1024 * 1024)).toFixed(2),
-            heapUsedMB: (mem.heapUsed / (1024 * 1024)).toFixed(2)
-        }
-    });
-});
-
 async function requireAuth(req, res, next) {
     const token = (req.cookies && req.cookies.ghost_session) || (req.headers.authorization && req.headers.authorization.split(" ")[1]);
     if (!token) return res.status(401).json({ success: false, error: 'Missing token.' });
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        if (decoded.role === 'admin' || decoded.role === 'guest') {
-            const adminId = decoded.id || process.env.OWNER_USER_ID || null;
-            req.user = { id: adminId, ...decoded };
+        if (decoded.role === 'admin' || decoded.role === 'guest' || decoded.role === 'user') {
+            const adminId = process.env.OWNER_USER_ID || null;
+            req.user = { id: decoded.id || (decoded.role === 'admin' ? adminId : null), ...decoded };
             return next();
         }
         throw new Error('Invalid role.');
@@ -793,7 +779,7 @@ async function requireAuth(req, res, next) {
         try {
             const validation = await authService.validateToken(token);
             if (validation && validation.valid) {
-                req.user = validation.user;
+                req.user = { user: validation.user.role === 'admin' ? 'Manoj' : 'User', ...validation.user };
                 return next();
             }
         } catch (e) {}
@@ -1130,12 +1116,12 @@ async function requireAdminToken(req, res, next) {
     } catch (err) {
         try {
             const validation = await authService.validateToken(token);
-            if (validation && validation.valid) {
-                req.user = validation.user;
+            if (validation && validation.valid && validation.user.role === 'admin') {
+                req.user = { user: 'Manoj', ...validation.user };
                 return next();
             }
         } catch (e) {}
-        return res.status(403).json({ success: false, error: 'Token expired/invalid.' });
+        return res.status(403).json({ success: false, error: 'Token expired/invalid or insufficient permissions.' });
     }
 }
 
@@ -1720,7 +1706,7 @@ app.get('/api/conversations', requireAuth, async (req, res) => {
         if (req.user.role === 'guest') {
             return res.json({ success: true, conversations: [] });
         }
-        const userId = req.user.id || (req.user.role === 'admin' ? process.env.OWNER_USER_ID : null);
+        const userId = req.user.id || (req.user.role === 'admin' ? (process.env.OWNER_USER_ID || null) : null);
         if (!userId) {
             return res.json({ success: true, conversations: [] });
         }
@@ -1739,7 +1725,7 @@ app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
         if (!pool) return res.json({ success: true, messages: [] });
         const convId = req.params.id;
         const isAdmin = req.user.role === 'admin';
-        const userId = req.user.id || (isAdmin ? process.env.OWNER_USER_ID : null);
+        const userId = req.user.id || (isAdmin ? (process.env.OWNER_USER_ID || null) : null);
         if (!userId && !isAdmin) {
             return res.status(403).json({ success: false, error: 'Forbidden.' });
         }
@@ -1769,7 +1755,7 @@ app.put('/api/conversations/:id/pin', requireAuth, securityMiddleware, async (re
         if (!pool) return res.json({ success: true });
         const convId = req.params.id;
         const isAdmin = req.user.role === 'admin';
-        const userId = req.user.id || (isAdmin ? process.env.OWNER_USER_ID : null);
+        const userId = req.user.id || (isAdmin ? (process.env.OWNER_USER_ID || null) : null);
         if (!userId && !isAdmin) {
             return res.status(403).json({ success: false, error: 'Forbidden.' });
         }
@@ -1800,7 +1786,7 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
             return res.status(403).json({ success: false, error: 'Forbidden: guests cannot access tasks.' });
         }
         const isAdmin = req.user.role === 'admin';
-        const userId = req.user.id || (isAdmin ? process.env.OWNER_USER_ID : null);
+        const userId = req.user.id || (isAdmin ? (process.env.OWNER_USER_ID || null) : null);
         if (!userId && !isAdmin) {
             return res.status(403).json({ success: false, error: 'Forbidden.' });
         }
@@ -1822,18 +1808,17 @@ app.post('/api/tasks', requireAuth, async (req, res) => {
         if (req.user.role === 'guest') {
             return res.status(403).json({ success: false, error: 'Forbidden: guests cannot access tasks.' });
         }
-        const taskId = crypto.randomUUID();
-        const convId = crypto.randomUUID();
-        const isAdmin = req.user.role === 'admin';
-        const userId = req.user.id || (isAdmin ? process.env.OWNER_USER_ID : null);
+        const userId = req.user.id || (req.user.role === 'admin' ? (process.env.OWNER_USER_ID || null) : null);
         if (!userId) {
             return res.status(403).json({ success: false, error: 'Forbidden.' });
         }
         const { goal } = req.body || {};
-        await pool.query('INSERT INTO tasks (id, user_id, conversation_id, status, goal) VALUES ($1, $2, NULL, $3, $4)', [
-            taskId, userId, 'CREATED', goal || 'New task'
+        const taskId = crypto.randomUUID();
+        const convId = crypto.randomUUID();
+        await pool.query("INSERT INTO tasks (id, conversation_id, user_id, status, goal) VALUES ($1, $2, $3, $4, $5)", [
+            taskId, convId, userId, 'CREATED', goal || 'Task for user'
         ]);
-        return res.json({ success: true, taskId, task: { id: taskId, user_id: userId, goal: goal || 'New task', status: 'CREATED' } });
+        return res.status(201).json({ success: true, taskId, task: { id: taskId, user_id: userId, goal: goal || 'Task for user', status: 'CREATED' } });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
@@ -1847,7 +1832,7 @@ app.get('/api/tasks/:id', requireAuth, async (req, res) => {
         }
         const taskId = req.params.id;
         const isAdmin = req.user.role === 'admin';
-        const userId = req.user.id || (isAdmin ? process.env.OWNER_USER_ID : null);
+        const userId = req.user.id || (isAdmin ? (process.env.OWNER_USER_ID || null) : null);
         if (!userId && !isAdmin) {
             return res.status(403).json({ success: false, error: 'Forbidden.' });
         }
@@ -1863,6 +1848,22 @@ app.get('/api/tasks/:id', requireAuth, async (req, res) => {
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
+});
+
+// Temporary owner-only endpoint to measure RSS for diagnostic verification
+app.get('/api/admin/memory', requireAuth, (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden' });
+    }
+    const mem = process.memoryUsage();
+    return res.json({
+        rss_bytes: mem.rss,
+        rss_mb: Math.round(mem.rss / 1024 / 1024 * 100) / 100,
+        heap_used_mb: Math.round(mem.heapUsed / 1024 / 1024 * 100) / 100,
+        heap_total_mb: Math.round(mem.heapTotal / 1024 / 1024 * 100) / 100,
+        external_mb: Math.round(mem.external / 1024 / 1024 * 100) / 100,
+        uptime_sec: process.uptime()
+    });
 });
 
 app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
@@ -1887,9 +1888,9 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             if (!validation.valid) {
                 try {
                     const decoded = jwt.verify(token, JWT_SECRET);
-                    if (decoded && (decoded.role === 'admin' || decoded.role === 'guest')) {
-                        const adminId = decoded.id || process.env.OWNER_USER_ID || null;
-                        req.user = { id: adminId, username: decoded.user || 'Admin', role: decoded.role };
+                    if (decoded && (decoded.role === 'admin' || decoded.role === 'guest' || decoded.role === 'user')) {
+                        const adminId = process.env.OWNER_USER_ID || null;
+                        req.user = { id: decoded.id || (decoded.role === 'admin' ? adminId : null), username: decoded.user || 'User', role: decoded.role };
                     } else {
                         return res.status(401).json({ error: 'Unauthorized: invalid token' });
                     }
@@ -1915,7 +1916,7 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             let taskId = crypto.randomUUID();
             if (!conversationId) conversationId = crypto.randomUUID();
             const userMsgId = crypto.randomUUID();
-            const safeUserId = req.user ? (req.user.id || (req.user.role === 'admin' ? process.env.OWNER_USER_ID : null)) : null;
+            const safeUserId = req.user ? (req.user.id || (req.user.role === 'admin' ? (process.env.OWNER_USER_ID || null) : null)) : null;
             if (pool) {
                 requestContext.traceId = taskId;
                 requestContext.userId = safeUserId;

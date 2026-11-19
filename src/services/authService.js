@@ -48,9 +48,10 @@ async function loginUser(username, password) {
   }
 
   const ownerEmail = process.env.SUPABASE_AUTH_EMAIL || 'owner@ghost.local';
-  const ownerId = process.env.OWNER_USER_ID;
-  const isOwner = (ownerId && data.user.id === ownerId) || (ownerEmail && data.user.email === ownerEmail);
-  const role = isOwner ? 'admin' : (data.user.user_metadata?.role || 'user');
+  const isOwner = (process.env.OWNER_USER_ID && data.user.id === process.env.OWNER_USER_ID) || data.user.email === ownerEmail;
+  const metadataRole = (data.user.app_metadata && data.user.app_metadata.role) || (data.user.user_metadata && data.user.user_metadata.role);
+  const role = metadataRole || (isOwner ? 'admin' : 'user');
+
   const user = { id: data.user.id, email: data.user.email, role };
   tokenCache.set(data.session.access_token, {
     user,
@@ -62,7 +63,7 @@ async function loginUser(username, password) {
     token: data.session.access_token, 
     user_id: data.user.id, 
     role,
-    user: username || (isOwner ? 'Manoj' : data.user.email)
+    user: username || (isOwner ? 'Manoj' : (data.user.user_metadata?.name || 'User'))
   };
 }
 
@@ -84,9 +85,10 @@ async function validateToken(token) {
     }
     
     const ownerEmail = process.env.SUPABASE_AUTH_EMAIL || 'owner@ghost.local';
-    const ownerId = process.env.OWNER_USER_ID;
-    const isOwner = (ownerId && data.user.id === ownerId) || (ownerEmail && data.user.email === ownerEmail);
-    const role = isOwner ? 'admin' : (data.user.user_metadata?.role || 'user');
+    const isOwner = (process.env.OWNER_USER_ID && data.user.id === process.env.OWNER_USER_ID) || data.user.email === ownerEmail;
+    const metadataRole = (data.user.app_metadata && data.user.app_metadata.role) || (data.user.user_metadata && data.user.user_metadata.role);
+    const role = metadataRole || (isOwner ? 'admin' : 'user');
+
     const user = { id: data.user.id, email: data.user.email, role };
     tokenCache.set(cleanToken, {
       user,
