@@ -988,7 +988,7 @@ Factual Humility & Boundaries:
           traceId: userContext.traceId,
           userId: userContext.userId,
           systemPrompt,
-          maxTokens: 1024,
+          maxTokens: 3072,
           isReasoning,
           isFastChat: !isReasoning,
           reasoning_effort: isReasoning ? 'medium' : 'low',

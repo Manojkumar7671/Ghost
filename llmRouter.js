@@ -249,7 +249,7 @@ if (!isValidKey(process.env.GROQ_API_KEY)) {
 export async function callLLM(messages = [], options = {}) {
   const {
     systemPrompt = null,
-    maxTokens = 1024,
+    maxTokens = 3072,
     temperature = 0.2,
     timeoutMs = 6000,
     model: customModel = null,
@@ -384,9 +384,7 @@ export async function callLLM(messages = [], options = {}) {
     const maxAttempts = 2; // Allow up to 1 retry on timeout before cooling down and falling over
     let providerSucceeded = false;
 
-    const effectiveMaxTokens = (selectedModel && selectedModel.includes('120b'))
-      ? Math.min(Math.max(maxTokens, 1200), 1600)
-      : maxTokens;
+    const effectiveMaxTokens = Math.min(maxTokens || 3072, 4096);
 
     while (attempt < maxAttempts && !providerSucceeded) {
       attempt++;
@@ -471,15 +469,17 @@ export async function callLLM(messages = [], options = {}) {
           actualModel = data.model;
         }
 
+        const finishReason = data.choices?.[0]?.finish_reason || 'stop';
         lastServedMeta = {
           provider: provider.name,
           model: actualModel,
           latencyMs,
-          fallbacksTried
+          fallbacksTried,
+          finishReason
         };
 
         // Server log line format: [Server Log] Reply served | Provider: X | Model: Y | Latency: Nms | Fallbacks tried: N
-        console.log(`[Server Log] Reply served | Provider: ${provider.name} | Model: ${actualModel} | Latency: ${latencyMs}ms | Fallbacks tried: ${fallbacksTried}`);
+        console.log(`[Server Log] Reply served | Provider: ${provider.name} | Model: ${actualModel} | Latency: ${latencyMs}ms | Fallbacks tried: ${fallbacksTried} | finish_reason: ${finishReason}`);
 
         if (localTraceId && localUserId && localUserId !== '00000000-0000-0000-0000-000000000000') {
           pool.query(
