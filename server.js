@@ -2081,16 +2081,17 @@ app.post('/api/chat', chatLimiter, securityMiddleware, async (req, res) => {
             const cleanLowerMsg = cleanMsg.toLowerCase();
             const isVagueQuestion = /^(?:where|what|why|who|when|which|how|is\s+there|can\s+you\s+explain|tell\s+me\s+about)\b/i.test(cleanLowerMsg);
             const hasDirectAction = /\b(?:write|create|generate|build|implement|fix|refactor|run|execute)\s+(?:a\s+|the\s+)?(?:python\s+|js\s+|bash\s+|node\s+)?(?:script|code|program|file|function|test|benchmark)\b/i.test(cleanLowerMsg);
-            const hasExecutionVerb = /\b(?:write|create|generate|build|implement|fix|refactor|run|execute|test|deploy|benchmark|solve|program)\b/i.test(cleanLowerMsg);
+            const hasExecutionVerb = /\b(?:write|create|generate|build|implement|fix|refactor|run|execute|test|deploy|benchmark|solve|program|save|store|export)\b/i.test(cleanLowerMsg);
 
 function isAutonomousExecutionTask(message) {
     if (!message || typeof message !== 'string') return false;
     const msg = message.trim();
 
     // 1. Saving or writing to a named file or disk target
-    const filePersistPattern = /\b(?:save\s+(?:it\s+)?to|write\s+(?:it\s+)?to\s+(?:a\s+)?file|create\s+(?:a\s+)?file(?:\s+called|\s+named|\s+with|\s+for)?|into\s+[a-zA-Z0-9_\-\.]+\.[a-zA-Z0-9]+)\b/i;
-    const saveToNamedFile = /\b(?:save|write)\b.*?\bto\s+[a-zA-Z0-9_\-\.]+\.[a-zA-Z0-9]+\b/i;
-    if (filePersistPattern.test(msg) || saveToNamedFile.test(msg)) return true;
+    // Intent-based: (save|store|export|write) ... (to|into|as|in) ... a filename with an extension, or "to a file"
+    const filePersistPattern = /\b(?:save|store|export|write)\b[^.?!;\n]*?\b(?:to|into|as|in)\b\s+(?:(?:(?:a\s+|the\s+)?(?:new\s+)?file\b)|(?:['"`]?[a-zA-Z0-9_\-\.\/]+\.[a-zA-Z0-9]{1,10}['"`]?\b))/i;
+    const createFilePattern = /\bcreate\s+(?:a\s+)?file(?:\s+called|\s+named|\s+with|\s+for)?\b/i;
+    if (filePersistPattern.test(msg) || createFilePattern.test(msg)) return true;
 
     // 2. Creating a project, workspace, repo, or scaffolding an application
     const projectPattern = /\b(?:create|set\s*up|init|initialize|scaffold|clone)\s+(?:a\s+)?(?:new\s+)?(?:project|repo(?:sitory)?|workspace|application|app)\b/i;
@@ -2114,9 +2115,10 @@ function isAutonomousExecutionTask(message) {
 
             const isInstant = req.body.mode === 'instant';
             const isLiveWeb = req.body.mode === 'live';
-            const isPevrEligible = !isInstant && isAdmin && !hasFileAttachment && !message.startsWith('/') && !message.match(/^prepare\s+plan/i) && !isFactualQuery && (!isVagueQuestion || hasDirectAction) && hasExecutionVerb;
+            const isAutonomous = isAutonomousExecutionTask(cleanMsg);
+            const isPevrEligible = !isInstant && isAdmin && !hasFileAttachment && !message.startsWith('/') && !message.match(/^prepare\s+plan/i) && !isFactualQuery && (!isVagueQuestion || hasDirectAction || isAutonomous) && (hasExecutionVerb || isAutonomous);
 
-            if (isPevrEligible && isAutonomousExecutionTask(cleanMsg)) {
+            if (isPevrEligible && isAutonomous) {
                 const isRender = process.env.RENDER === 'true' || Boolean(process.env.RENDER_EXTERNAL_URL) || Boolean(process.env.RENDER_SERVICE_ID);
                 if (isRender) {
                     return res.json({
