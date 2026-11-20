@@ -2087,9 +2087,14 @@ function isAutonomousExecutionTask(message) {
     if (!message || typeof message !== 'string') return false;
     const msg = message.trim();
 
+    // Informational, conceptual, or how-to queries are NOT autonomous execution commands
+    if (/^(?:how\s+(?:do|can|to|should|would)|can\s+you\s+(?:explain|show|tell)|what\s+is|why\s+does)\b/i.test(msg) || /^(?:explain|describe)\b/i.test(msg)) {
+        return false;
+    }
+
     // 1. Saving or writing to a named file or disk target
-    // Intent-based: (save|store|export|write) ... (to|into|as|in) ... a filename with an extension, or "to a file"
-    const filePersistPattern = /\b(?:save|store|export|write)\b[^.?!;\n]*?\b(?:to|into|as|in)\b\s+(?:(?:(?:a\s+|the\s+)?(?:new\s+)?file\b)|(?:['"`]?[a-zA-Z0-9_\-\.\/]+\.[a-zA-Z0-9]{1,10}['"`]?\b))/i;
+    // Intent-based: (save|store|export) ... (to|into|as|in) OR (write) ... (to|into|as) ... a filename with an extension, or "to a file"
+    const filePersistPattern = /\b(?:(?:save|store|export)\b[^.?!;\n]*?\b(?:to|into|as|in)\b|write\b[^.?!;\n]*?\b(?:to|into|as)\b)\s+(?:(?:(?:a\s+|the\s+)?(?:new\s+)?file\b)|(?:['"`]?[a-zA-Z0-9_\-\.\/]+\.[a-zA-Z0-9]{1,10}['"`]?\b))/i;
     const createFilePattern = /\bcreate\s+(?:a\s+)?file(?:\s+called|\s+named|\s+with|\s+for)?\b/i;
     if (filePersistPattern.test(msg) || createFilePattern.test(msg)) return true;
 
@@ -2116,9 +2121,8 @@ function isAutonomousExecutionTask(message) {
             const isInstant = req.body.mode === 'instant';
             const isLiveWeb = req.body.mode === 'live';
             const isAutonomous = isAutonomousExecutionTask(cleanMsg);
-            const isPevrEligible = !isInstant && isAdmin && !hasFileAttachment && !message.startsWith('/') && !message.match(/^prepare\s+plan/i) && !isFactualQuery && (!isVagueQuestion || hasDirectAction || isAutonomous) && (hasExecutionVerb || isAutonomous);
 
-            if (isPevrEligible && isAutonomous) {
+            if (isAutonomous) {
                 const isRender = process.env.RENDER === 'true' || Boolean(process.env.RENDER_EXTERNAL_URL) || Boolean(process.env.RENDER_SERVICE_ID);
                 if (isRender) {
                     return res.json({
@@ -2132,6 +2136,11 @@ function isAutonomousExecutionTask(message) {
                         }
                     });
                 }
+            }
+
+            const isPevrEligible = !isInstant && isAdmin && !hasFileAttachment && !message.startsWith('/') && !message.match(/^prepare\s+plan/i) && !isFactualQuery && (!isVagueQuestion || hasDirectAction || isAutonomous) && (hasExecutionVerb || isAutonomous);
+
+            if (isPevrEligible && isAutonomous) {
                 if (activeCodingTasks >= 1) {
                     console.log("[Intent] Active coding task already running; falling through to direct LLM response to avoid container resource overload.");
                 } else {

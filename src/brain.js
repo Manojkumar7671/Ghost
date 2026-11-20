@@ -597,11 +597,20 @@ function isCodeGenerationRequest(userMessage) {
 
   if (/^coding\s+task:?/i.test(msg)) return false;
 
-  const hasVerb = /\b(write|build|script|function|fix|refactor|create|generate|implement|code)\b/i.test(msg);
-  const hasLangOrCode = /\b(python|py|javascript|js|node(?:js)?|typescript|ts|bash|sh|shell|sql|html|css|pydantic|code)\b/i.test(msg);
   const hasLineConstraintScript = /\b\d+-line\s+(?:[a-zA-Z0-9_\-]+\s+)*(?:script|code|program|function|scraper)\b/i.test(msg);
-
   if (hasLineConstraintScript) return true;
+
+  // Direct code generation intent: e.g. "write a function...", "create a script...", "implement a function..."
+  const hasDirectCodeGen = /\b(?:write|create|generate|implement|build|code|draft)\s+(?:a\s+|the\s+)?(?:[a-zA-Z0-9_\-]+\s+)*(?:function|script|code|program|parser|scraper|algorithm|class|method|component)\b/i.test(msg);
+  if (hasDirectCodeGen) {
+    if (/^(?:what\s+is|explain|why\s+does|how\s+does|tell\s+me\s+about)\b/i.test(msg) && !/\b(?:write|build|create|give\s+me)\b/i.test(msg)) {
+      return false;
+    }
+    return true;
+  }
+
+  const hasVerb = /\b(write|build|script|function|fix|refactor|create|generate|implement|code)\b/i.test(msg);
+  const hasLangOrCode = /\b(python|py|javascript|js|jsx|tsx|react|node(?:js)?|typescript|ts|bash|sh|shell|sql|html|css|pydantic|code)\b/i.test(msg);
 
   if (hasVerb && hasLangOrCode) {
     if (/^(?:what\s+is|explain|why\s+does|how\s+does|tell\s+me\s+about)\b/i.test(msg) && !/\b(write|build|create|give\s+me)\b/i.test(msg)) {
@@ -630,7 +639,7 @@ async function codeAnswer(userMessage, userContext = { safeUser: 'guest', isAdmi
 
   const systemPrompt = `You are Ghost, an expert coding assistant specializing in production-ready, verified code.
 Strictly adhere to the following rules:
-1. REQUIREMENTS & EXECUTABLE CODE: You MUST output a fenced code block with real, valid, executable code implementing the requested features in the requested programming language (e.g. bash, shell, python, javascript). If no language is specified, default to Python. NEVER output an empty code block, NEVER refuse the request, and NEVER output only assumptions text. Keep code clean, modular, and concise so it comfortably fits within any specified line limits.
+1. REQUIREMENTS & EXECUTABLE CODE: You MUST output a fenced code block with real, valid, executable code implementing the requested features in the requested programming language (e.g. bash, shell, python, javascript, jsx). If no language or framework is specified, default to Python. For frontend/UI frameworks (like React, Vue, Svelte), write JavaScript/JSX or TypeScript. NEVER output an empty code block, NEVER refuse the request, and NEVER output only assumptions text. Keep code clean, modular, and concise so it comfortably fits within any specified line limits.
 2. IMPOSSIBLE LINE LIMITS: If a requested line limit (such as 10 lines) is impossible to achieve while fulfilling all requirements, DO NOT REFUSE AND DO NOT GIVE UP — write the full, properly-formatted PEP 8 implementation anyway (e.g. 35-45 lines). Never compress multiple statements onto a single line. The automated verifier will measure the exact line count and report the limit violation honestly.
 3. NO PLACEHOLDERS: Do NOT use placeholder URLs (like example.com) or dummy selectors unless explicitly asked. Use real public practice targets when a demo or web scraping target is needed (e.g. https://quotes.toscrape.com with selector "div.quote span.text" or https://books.toscrape.com with selector "article.product_pod"). When scraping HTML pages, parse with BeautifulSoup (bs4) or html.parser.
 4. LLM API CALLS & PYDANTIC VALIDATION:

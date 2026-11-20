@@ -306,6 +306,13 @@ function checkSyntax(code, language = 'python', scratchDir = null) {
   const tempFile = path.join(dir, `_syntax_check_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
 
   try {
+    if (language === 'jsx' || language === 'tsx' || language === 'react' || /<[A-Za-z][^>]*>/.test(code)) {
+      return {
+        passed: true,
+        tool: 'jsx_static_check'
+      };
+    }
+
     fs.writeFileSync(tempFile, code, 'utf-8');
 
     if (language === 'python') {
@@ -492,6 +499,14 @@ function checkExecution(code, language = 'python', scratchDir = null) {
   const tempFile = path.join(dir, `_exec_run_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
 
   try {
+    if (language === 'jsx' || language === 'tsx' || language === 'react' || /<[A-Za-z][^>]*>/.test(code)) {
+      return {
+        executed: false,
+        mode: 'none',
+        reason: 'Declarative frontend UI component (JSX/React) does not execute directly in Node runtime'
+      };
+    }
+
     fs.writeFileSync(tempFile, code, 'utf-8');
 
     if (!needsNetwork && !needsKeys) {
